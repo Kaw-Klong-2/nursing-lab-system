@@ -47,12 +47,14 @@ export async function GET(req: Request) {
     const monthParam = searchParams.get('month'); // 1 - 12
     const yearParam = searchParams.get('year'); // 2026
     const roomCodeParam = searchParams.get('room_code'); // LAB-SIM-01 etc.
-    const statusParam = searchParams.get('status')?.toUpperCase() || 'APPROVED'; // ค่าเริ่มต้น: APPROVED
+    const statusParam = searchParams.get('status')?.toUpperCase();
 
     const where: any = {};
 
-    // กรองสถานะ (Default: เฉพาะ APPROVED ที่พร้อมใช้งานในตาราง)
-    if (statusParam !== 'ALL') {
+    // กรองสถานะ (Default: ทั้ง APPROVED และ PENDING เพื่อให้ฝั่งโน้นเห็นทั้งที่อนุมัติแล้วและกำลังรอพิจารณา)
+    if (!statusParam || statusParam === 'ALL') {
+      where.status = { in: ['APPROVED', 'PENDING'] };
+    } else {
       where.status = statusParam;
     }
 

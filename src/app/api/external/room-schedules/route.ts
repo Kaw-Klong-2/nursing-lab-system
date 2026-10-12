@@ -59,12 +59,19 @@ export async function GET(req: Request) {
     }
 
     // กรองเฉพาะห้องที่เปิดใช้งาน (isActive: true)
-    where.room = {
-      isActive: true,
-      ...(roomCodeParam
-        ? { code: { equals: roomCodeParam, mode: 'insensitive' } }
-        : {}),
-    };
+    if (roomCodeParam) {
+      where.room = {
+        isActive: true,
+        OR: [
+          { code: { equals: roomCodeParam, mode: 'insensitive' } },
+          { code: { startsWith: roomCodeParam, mode: 'insensitive' } },
+        ],
+      };
+    } else {
+      where.room = {
+        isActive: true,
+      };
+    }
 
     // กรองตามวันที่
     if (dateParam) {
@@ -204,7 +211,10 @@ export async function GET(req: Request) {
 
         // ข้อมูลห้อง (สำหรับจับคู่กับ room_details)
         room_id: b.roomId,
-        room_code: b.room.code, // เช่น LAB-SIM-01
+        room_code: b.room.code, // เช่น LAB-01-1
+        base_room_code: b.room.code.replace(/-\d+$/, ''), // เช่น LAB-01
+        parent_room_code: b.room.code.replace(/-\d+$/, ''), // เช่น LAB-01
+        room_code_aliases: [b.room.code, b.room.code.replace(/-\d+$/, '')],
         room_name: b.room.name, // เช่น ห้องปฏิบัติการพยาบาล 1
         building_location: b.room.location || 'อาคาร 2 คณะพยาบาลศาสตร์',
 
@@ -225,13 +235,21 @@ export async function GET(req: Request) {
       };
     });
 
+    // หากระบบปลายทางต้องการ raw array โดยตรง (เช่น ?format=array)
+    if (searchParams.get('format') === 'array') {
+      return NextResponse.json(formattedData, {
+        status: 200,
+        headers: CORS_HEADERS,
+      });
+    }
+
     return NextResponse.json(
       {
         success: true,
         source: 'Nursing Lab System',
         count: formattedData.length,
         filter: {
-          status: statusParam,
+          status: statusParam || 'ALL',
           room_code: roomCodeParam || 'ALL',
           date: dateParam || 'UPCOMING_60_DAYS',
         },

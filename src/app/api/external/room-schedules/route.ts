@@ -56,12 +56,13 @@ export async function GET(req: Request) {
       where.status = statusParam;
     }
 
-    // กรองตามรหัสห้อง
-    if (roomCodeParam) {
-      where.room = {
-        code: { equals: roomCodeParam, mode: 'insensitive' },
-      };
-    }
+    // กรองเฉพาะห้องที่เปิดใช้งาน (isActive: true)
+    where.room = {
+      isActive: true,
+      ...(roomCodeParam
+        ? { code: { equals: roomCodeParam, mode: 'insensitive' } }
+        : {}),
+    };
 
     // กรองตามวันที่
     if (dateParam) {

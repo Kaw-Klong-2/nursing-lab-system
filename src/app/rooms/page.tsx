@@ -281,6 +281,19 @@ export default function RoomsPage() {
     }
   }, [currentUser]);
 
+  // Deep Link support from external systems (e.g. ?bookingNumber=ROOM-xxxx or ?id=xxxx)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const bCode = params.get('bookingNumber') || params.get('booking_code') || params.get('id');
+      if (bCode) {
+        setSearchQuery(bCode);
+        setActiveTab('REQUESTS');
+      }
+    }
+  }, []);
+
+
   // Real-time conflict detection for the selected room and date
   const selectedRoomBookings = useMemo(() => {
     if (!bookingForm.roomId || !bookingForm.bookingDate) return [];

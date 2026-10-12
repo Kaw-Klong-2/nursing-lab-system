@@ -1,0 +1,151 @@
+# เอกสารการเชื่อมต่อ API ตารางการใช้ห้องปฏิบัติการพยาบาล
+## (Nursing Lab Room Schedule Integration API Specification)
+
+เอกสารนี้จัดทำขึ้นสำหรับทีมนักพัฒนาระบบภายนอก / ระบบจองห้องกลางของคณะ เพื่อใช้ในการดึงข้อมูลตารางการใช้งานห้องปฏิบัติการพยาบาลศาสตร์ (Nursing Lab) ไปแสดงผลบนตารางปฏิทินรวม หรือซิงค์ข้อมูลลงฐานข้อมูล Supabase ปลายทาง
+
+---
+
+## 1. ข้อมูลพื้นฐานการเชื่อมต่อ (Endpoint Overview)
+
+* **Protocol**: HTTPS RESTful API (JSON Response)
+* **Production Base URL**: `https://nursing-lab-system.vercel.app`
+* **Endpoint URL**: `GET /api/external/room-schedules`
+* **Authentication Method**: API Key ผ่าน HTTP Header หรือ Query Parameter
+* **HTTP Header ที่จำเป็น**:
+  ```http
+  x-api-key: lab_nursing_sync_key_2026_sec
+  ```
+  *(หรือใช้ Authorization: Bearer `lab_nursing_sync_key_2026_sec`)*
+
+---
+
+## 2. พารามิเตอร์การค้นหา (Query Parameters)
+
+| พารามิเตอร์ (Param) | ชนิดข้อมูล | บังคับ | ตัวอย่างค่า | คำอธิบาย |
+| :--- | :---: | :---: | :--- | :--- |
+| `date` | String | ไม่บังคับ | `2026-10-15` | กรองเฉพาะข้อมูลของวันที่ระบุ (YYYY-MM-DD) |
+| `start_date` | String | ไม่บังคับ | `2026-10-01` | วันเริ่มต้นของช่วงวันที่ต้องการดึง |
+| `end_date` | String | ไม่บังคับ | `2026-10-31` | วันสิ้นสุดของช่วงวันที่ต้องการดึง |
+| `month` | Integer | ไม่บังคับ | `10` | เดือนที่ต้องการดึง (1 - 12) *ต้องใช้คู่กับ year* |
+| `year` | Integer | ไม่บังคับ | `2026` | ปี ค.ศ. ที่ต้องการดึง (เช่น 2026) |
+| `room_code` | String | ไม่บังคับ | `LAB-SIM-01` | กรองเฉพาะรหัสห้องที่ต้องการ |
+| `status` | String | ไม่บังคับ | `APPROVED` | ค่าเริ่มต้นคือ `APPROVED` (เฉพาะรายการที่อนุมัติแล้ว) หรือใส่ `ALL` เพื่อดึงทุกสถานะ |
+
+> **หมายเหตุ:** หากไม่ระบุพารามิเตอร์วันที่ใดๆ ระบบจะส่งข้อมูลรายการที่อนุมัติแล้ว **ตั้งแต่วันนี้ล่วงหน้า 60 วัน** ให้อัตโนมัติ
+
+---
+
+## 3. ตัวอย่างการเรียกใช้งาน (Request Example)
+
+### cURL
+```bash
+curl -X GET "https://nursing-lab-system.vercel.app/api/external/room-schedules?date=2026-10-15" \
+  -H "x-api-key: lab_nursing_sync_key_2026_sec"
+```
+
+### JavaScript / TypeScript (Fetch API)
+```typescript
+const response = await fetch('https://nursing-lab-system.vercel.app/api/external/room-schedules?date=2026-10-15', {
+  method: 'GET',
+  headers: {
+    'x-api-key': 'lab_nursing_sync_key_2026_sec',
+  },
+});
+
+const result = await response.json();
+console.log('พบรายการจองห้องแล็บ:', result.count);
+```
+
+---
+
+## 4. โครงสร้างข้อมูลที่ส่งกลับ (JSON Response Schema)
+
+```json
+{
+  "success": true,
+  "source": "Nursing Lab System",
+  "count": 1,
+  "filter": {
+    "status": "APPROVED",
+    "room_code": "ALL",
+    "date": "2026-10-15"
+  },
+  "data": [
+    {
+      "id": "cmts1234567890abcdef",
+      "booking_code": "ROOM-25691015-001",
+      "requester_type": "personnel",
+      "booking_type": "academic",
+      "course_code": "01418112",
+      "course_name": "การพยาบาลผู้ใหญ่และผู้สูงอายุ 1",
+      "instructor_name": "ผศ.ดร.สมชาย ใจดี",
+      "overall_objective": "การเรียนการสอนภาคปฏิบัติการสวนปัสสาวะ",
+      "status": "approved",
+      "requester_name": "ผศ.ดร.สมชาย ใจดี",
+      "requester_email": "somchai.j@ku.th",
+      "requester_phone": "081-234-5678",
+      "requester_student_id": null,
+      "room_id": "cuid_lab_01",
+      "room_code": "LAB-SIM-01",
+      "room_name": "ห้องปฏิบัติการพยาบาลพื้นฐาน 1 (Skill Lab 1)",
+      "building_location": "อาคาร 2 ชั้น 3 ห้อง 2301",
+      "booking_date": "2026-10-15",
+      "start_time": "08:30:00",
+      "end_time": "12:00:00",
+      "slot_objective": "การเรียนการสอนภาคปฏิบัติการสวนปัสสาวะ",
+      "participants": 32,
+      "equipment_req": [
+        "หุ่นจำลองสวนปัสสาวะ",
+        "เตียงผู้ป่วยสาธิต 8 เตียง",
+        "ชุดให้สารน้ำ"
+      ],
+      "deep_link_url": "https://nursing-lab-system.vercel.app/rooms?bookingNumber=ROOM-25691015-001",
+      "created_at": "2026-10-09T08:30:00.000Z",
+      "updated_at": "2026-10-09T09:15:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## 5. ตารางการจับคู่ข้อมูลลงฐานข้อมูล Supabase ปลายทาง (Target Field Mapping)
+
+เมื่อระบบปลายทางดึงข้อมูลไป สามารถนำค่าไป `insert` หรือ `upsert` ลงตารางทั้ง 2 ของท่านได้ทันที:
+
+### ตาราง `room_bookings` (หัวใบจอง)
+| ข้อมูลจาก API แล็บ | คอลัมน์เป้าหมายใน `room_bookings` | ตัวอย่างค่า |
+| :--- | :--- | :--- |
+| `booking_code` | `booking_code` | `ROOM-25691015-001` |
+| `requester_type` | `requester_type` | `personnel` หรือ `guest` |
+| `booking_type` | `booking_type` | `academic`, `meeting`, หรือ `event` |
+| `course_code` | `course_code` | `01418112` |
+| `course_name` | `course_name` | `การพยาบาลผู้ใหญ่และผู้สูงอายุ 1` |
+| `instructor_name` | `instructor_name` | `ผศ.ดร.สมชาย ใจดี` |
+| `overall_objective` | `overall_objective` | `การเรียนการสอนภาคปฏิบัติ...` |
+| `requester_name` | `guest_name` | `ผศ.ดร.สมชาย ใจดี` |
+| `requester_email` | `guest_email` | `somchai.j@ku.th` |
+| `requester_phone` | `guest_phone` | `081-234-5678` |
+| `equipment_req` | `equipment_req` | Array ของอุปกรณ์ |
+| `status` | `status` | `approved` |
+| `deep_link_url` | `admin_notes` | บันทึก URL ลิงก์ตรงกลับมาระบบแล็บ |
+
+### ตาราง `room_booking_slots` (สล็อตเวลาบนปฏิทิน)
+| ข้อมูลจาก API แล็บ | คอลัมน์เป้าหมายใน `room_booking_slots` | ตัวอย่างค่า |
+| :--- | :--- | :--- |
+| (UUID จากหัวใบจอง) | `booking_id` | Foreign Key จากตาราง `room_bookings` |
+| (UUID ของห้องที่แมปได้) | `room_id` | Match จาก `room_details.id` โดยใช้ `room_code` |
+| `booking_date` | `booking_date` | `2026-10-15` (YYYY-MM-DD) |
+| `start_time` | `start_time` | `08:30:00` (HH:mm:ss) |
+| `end_time` | `end_time` | `12:00:00` (HH:mm:ss) |
+| `slot_objective` | `slot_objective` | ชื่องานหรือวัตถุประสงค์ช่วงเวลานี้ |
+| `participants` | `participants` | จำนวนคน (ตัวเลข) |
+
+---
+
+## 6. การคลิกข้ามระบบ (Single Sign-On & Deep Linking)
+
+* ทุกรายการใน JSON จะมีฟิลด์ **`deep_link_url`**
+* เมื่อผู้ใช้คลิกจากปฏิทินของท่าน ลิงก์จะเปิดมายังหน้าห้องแล็บของระบบพยาบาลศาสตร์ทันที:
+  `https://nursing-lab-system.vercel.app/rooms?bookingNumber=ROOM-25691015-001`
+* **การยืนยันตัวตน:** หากผู้ใช้เคยล็อกอินด้วย Google (`@ku.th`) ในเบราว์เซอร์นั้นอยู่แล้ว ระบบจะเปิดหน้ารายละเอียดการจองของห้องนั้นให้ทันทีโดยไม่ต้องกรอกรหัสผ่านซ้ำ

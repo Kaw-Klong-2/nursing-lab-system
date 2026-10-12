@@ -184,7 +184,10 @@ export function formatTeacherName(
     role === 'OFFICER' ||
     rawName.includes('แอดมิน') ||
     rawName.includes('เจ้าหน้าที่') ||
-    rawName.includes('ผู้ดูแลระบบ');
+    rawName.includes('ผู้ดูแลระบบ') ||
+    rawName.includes('นักวิทยาศาสตร์') ||
+    rawName.includes('ณัฐกุล') ||
+    rawName.includes('ปรเมศวร์');
 
   // 2. Check academic ranks in prefix
   const isAcademicPrefix = ACADEMIC_PREFIXES.some(

@@ -290,6 +290,17 @@ export default function RoomsPage() {
         setSearchQuery(bCode);
         setActiveTab('REQUESTS');
       }
+
+      const targetDate = params.get('date');
+      if (targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+        setSelectedDate(targetDate);
+      }
+
+      const targetRoomCode = params.get('room_code');
+      if (targetRoomCode) {
+        setSelectedCategory('ALL');
+        setSearchQuery(targetRoomCode);
+      }
     }
   }, []);
 

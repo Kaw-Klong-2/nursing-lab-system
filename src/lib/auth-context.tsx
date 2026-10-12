@@ -117,6 +117,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // 0. Handle seamless SSO Hand-off from external portal (portal_token)
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const portalToken = urlParams.get('portal_token');
+      const portalEmail = urlParams.get('email');
+
+      if (portalToken && portalEmail) {
+        (async () => {
+          try {
+            const res = await fetch('/api/auth/portal-handoff', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token: portalToken, email: portalEmail }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success && data.user) {
+              const u: User = data.user;
+              setCurrentUser(u);
+              localStorage.setItem('active_user_id', u.id);
+              localStorage.setItem('cached_current_user', JSON.stringify(u));
+              localStorage.setItem('session_last_active', Date.now().toString());
+              localStorage.setItem('session_expires_at', (Date.now() + SESSION_LIFETIME_NORMAL_MS).toString());
+              localStorage.setItem('session_remember_me', 'true');
+              console.log('[AUTH SSO] Successfully authenticated via portal_token for', u.email);
+
+              // Clean token from URL without full reload
+              urlParams.delete('portal_token');
+              const newSearch = urlParams.toString();
+              const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
+              window.history.replaceState({}, '', newUrl);
+            } else {
+              console.warn('[AUTH SSO] Portal handoff failed:', data.error, data.message);
+            }
+          } catch (e) {
+            console.error('[AUTH SSO] Network error during portal handoff', e);
+          }
+        })();
+      }
+    }
+
     // 1. Instant local cache hydration for authenticated session with expiration check
     if (typeof window !== 'undefined') {
       try {

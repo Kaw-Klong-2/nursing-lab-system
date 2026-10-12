@@ -60,6 +60,10 @@ export default function LoginPage() {
       if (redirect && redirect.includes('/rooms')) {
         setRedirectNotice('กรุณาเข้าสู่ระบบด้วยบัญชีมหาวิทยาลัย (@ku.th) หรือรหัสประจำตัวเพื่อเข้าสู่ระบบจองห้องปฏิบัติการ');
       }
+      const hintEmail = params.get('login_hint') || params.get('email');
+      if (hintEmail) {
+        setEmail(hintEmail);
+      }
     }
   }, []);
 
@@ -129,12 +133,20 @@ export default function LoginPage() {
       '852809851978-sdl1j15pb8db2uh6lm9kcmopghn4hhv2.apps.googleusercontent.com';
     if (typeof window !== 'undefined' && (window as any).google && googleBtnContainerRef.current) {
       try {
-        (window as any).google.accounts.id.initialize({
+        const searchParams = new URLSearchParams(window.location.search);
+        const loginHint = searchParams.get('login_hint') || searchParams.get('email');
+
+        const initOptions: any = {
           client_id: clientId,
           callback: handleGoogleCredentialResponse,
           auto_select: false,
           cancel_on_tap_outside: true,
-        });
+        };
+        if (loginHint) {
+          initOptions.login_hint = loginHint;
+        }
+
+        (window as any).google.accounts.id.initialize(initOptions);
 
         const containerWidth = googleBtnContainerRef.current.clientWidth || 320;
         const btnWidth = Math.min(Math.max(containerWidth, 240), 380);

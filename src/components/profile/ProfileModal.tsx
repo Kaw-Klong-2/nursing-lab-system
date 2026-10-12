@@ -25,6 +25,7 @@ import {
   Smartphone,
   Check,
   RefreshCw,
+  LogOut,
 } from 'lucide-react';
 import {
   VAPID_PUBLIC_KEY,
@@ -39,7 +40,7 @@ interface ProfileModalProps {
 }
 
 export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
-  const { currentUser, updateUser, setCurrentUser } = useAuth();
+  const { currentUser, updateUser, setCurrentUser, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<'PROFILE' | 'PASSWORD' | 'NOTIFICATIONS'>('PROFILE');
 
   // Profile form state
@@ -455,12 +456,26 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
               <p className="text-xs text-teal-200">แก้ไขข้อมูลส่วนตัวและเปลี่ยนรหัสผ่าน</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                logout();
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-200 hover:text-white text-xs font-bold transition cursor-pointer"
+              title="ออกจากระบบ"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>ออกจากระบบ</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Tab Selector */}

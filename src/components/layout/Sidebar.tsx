@@ -29,6 +29,7 @@ import {
   Store,
   Sliders,
   Wind,
+  LogOut,
 } from 'lucide-react';
 import ProfileModal from '@/components/profile/ProfileModal';
 import ThemeToggle from '@/components/common/ThemeToggle';
@@ -41,7 +42,7 @@ interface SidebarProps {
 
 export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps = {}) {
   const pathname = usePathname();
-  const { currentUser, isOfficer, isApprover, isAdmin } = useAuth();
+  const { currentUser, isOfficer, isApprover, isAdmin, logout } = useAuth();
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
@@ -420,23 +421,36 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           </div>
         </div>
 
-        {/* Quick Edit Profile Button */}
+        {/* Quick Edit Profile & Logout Buttons */}
         {currentUser && (
-          <button
-            onClick={() => {
-              if (isMobile && onMobileClose) onMobileClose();
-              const navbarEditBtn = document.querySelector<HTMLButtonElement>('[title="แก้ไขข้อมูลส่วนตัว"]');
-              if (navbarEditBtn) {
-                navbarEditBtn.click();
-              } else {
-                setIsProfileOpen(true);
-              }
-            }}
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition cursor-pointer"
-          >
-            <UserCog className="w-4 h-4 text-teal-400" />
-            <span>แก้ไขบัญชีส่วนตัว</span>
-          </button>
+          <div className="space-y-2">
+            <button
+              onClick={() => {
+                if (isMobile && onMobileClose) onMobileClose();
+                const navbarEditBtn = document.querySelector<HTMLButtonElement>('[title="แก้ไขข้อมูลส่วนตัว"]');
+                if (navbarEditBtn) {
+                  navbarEditBtn.click();
+                } else {
+                  setIsProfileOpen(true);
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition cursor-pointer"
+            >
+              <UserCog className="w-4 h-4 text-teal-400" />
+              <span>แก้ไขบัญชีส่วนตัว</span>
+            </button>
+
+            <button
+              onClick={() => {
+                if (isMobile && onMobileClose) onMobileClose();
+                logout();
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 hover:text-rose-200 text-xs font-bold transition cursor-pointer shadow-sm active:scale-[0.98]"
+            >
+              <LogOut className="w-4 h-4 text-rose-400" />
+              <span>ออกจากระบบ</span>
+            </button>
+          </div>
         )}
 
         {/* Theme Toggle Button */}

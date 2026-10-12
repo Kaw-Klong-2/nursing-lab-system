@@ -57,7 +57,23 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4. Find matching user in database (case-insensitive)
+    // 4. Optional Cryptographic HMAC verification if signature is provided
+    if (payload.sig) {
+      const crypto = await import('crypto');
+      const secret = process.env.EXTERNAL_SYNC_API_KEY || 'lab_nursing_sync_key_2026_sec';
+      const expectedSig = crypto
+        .createHmac('sha256', secret)
+        .update(`${tokenEmail}:${tokenTs}:${payload.source}`)
+        .digest('hex');
+      if (payload.sig !== expectedSig) {
+        return NextResponse.json(
+          { error: 'ลายเซ็นดิจิทัล (HMAC signature) ของ portal_token ไม่ถูกต้อง' },
+          { status: 403 }
+        );
+      }
+    }
+
+    // 5. Find matching user in database (case-insensitive)
     const user = await prisma.user.findFirst({
       where: {
         email: { equals: requestedEmail, mode: 'insensitive' },
@@ -84,7 +100,24 @@ export async function POST(req: Request) {
       );
     }
 
-    // 5. Return sanitized user for instant auto-login
+    // 6. SECURITY GUARD: Administrative accounts (ADMIN, OFFICER) CANNOT be logged in via lightweight Portal Hand-off
+    // They must authenticate directly via dedicated credentials or institutional Google sign-in.
+    if (
+      user.role === 'ADMIN' ||
+      user.role === 'OFFICER' ||
+      user.email === 'admin@lab.nurse.ac.th'
+    ) {
+      console.warn(`[SECURITY AUDIT] Blocked portal-handoff attempt for privileged role (${user.role}): ${user.email}`);
+      return NextResponse.json(
+        {
+          error: 'PRIVILEGE_RESTRICTED',
+          message: 'บัญชีผู้ดูแลระบบและเจ้าหน้าที่จำเป็นต้องเข้าสู่ระบบโดยตรง ไม่สามารถรับสิทธิ์ผ่าน Portal Hand-off ได้',
+        },
+        { status: 403 }
+      );
+    }
+
+    // 7. Return sanitized user for instant auto-login
     const sanitizedUser = {
       id: user.id,
       prefix: user.prefix,

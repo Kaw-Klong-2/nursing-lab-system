@@ -35,9 +35,14 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     if (!isLoading && !currentUser && !isPublicRoute) {
-      router.replace('/login');
+      let targetPath = pathname;
+      if (typeof window !== 'undefined' && window.location.search) {
+        targetPath += window.location.search;
+      }
+      const redirectQuery = targetPath && targetPath !== '/' ? `?redirect=${encodeURIComponent(targetPath)}` : '';
+      router.replace(`/login${redirectQuery}`);
     }
-  }, [isLoading, currentUser, isPublicRoute, router]);
+  }, [isLoading, currentUser, isPublicRoute, pathname, router]);
 
   if (isPublicRoute) {
     return <main className="min-h-screen">{children}</main>;

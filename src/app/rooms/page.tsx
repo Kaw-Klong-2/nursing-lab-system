@@ -315,6 +315,10 @@ export default function RoomsPage() {
   // Actions: Submit Booking Request
   const handleSubmitBooking = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      alert('กรุณาเข้าสู่ระบบด้วยบัญชีมหาวิทยาลัย (@ku.th) ก่อนยื่นคำขอจองห้อง');
+      return;
+    }
     if (!bookingForm.roomId) {
       alert('กรุณาเลือกห้องปฏิบัติการที่ต้องการขอใช้');
       return;
@@ -646,6 +650,12 @@ export default function RoomsPage() {
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={() => {
+                if (!currentUser) {
+                  if (confirm('คุณจำเป็นต้องเข้าสู่ระบบด้วยบัญชีมหาวิทยาลัย (@ku.th) ก่อนทำรายการจองห้อง ต้องการเข้าสู่ระบบตอนนี้หรือไม่?')) {
+                    window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+                  }
+                  return;
+                }
                 setBookingForm({
                   roomId: '',
                   bookingDate: selectedDate || '',
@@ -1272,6 +1282,12 @@ export default function RoomsPage() {
 
                     <button
                       onClick={() => {
+                        if (!currentUser) {
+                          if (confirm('คุณจำเป็นต้องเข้าสู่ระบบด้วยบัญชีมหาวิทยาลัย (@ku.th) ก่อนทำรายการจองห้อง ต้องการเข้าสู่ระบบตอนนี้หรือไม่?')) {
+                            window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+                          }
+                          return;
+                        }
                         setBookingForm({
                           roomId: '',
                           bookingDate: selectedDate || '',

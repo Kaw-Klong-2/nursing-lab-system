@@ -42,6 +42,17 @@ interface AuthContextType {
   isExecutive: boolean;
 }
 
+export function isDefaultAdminUser(user: Partial<User> | null | undefined): boolean {
+  if (!user) return false;
+  const email = (user.email || '').toLowerCase().trim();
+  const studentId = (user.studentId || '').toLowerCase().trim();
+  const role = user.role;
+  return (
+    email === 'admin@lab.nurse.ac.th' ||
+    (role === 'ADMIN' && (studentId === 'admin' || !studentId))
+  );
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function checkSessionActive(): boolean {
@@ -83,6 +94,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('session_expires_at');
       localStorage.removeItem('session_last_active');
       localStorage.removeItem('session_remember_me');
+      try {
+        sessionStorage.removeItem('active_admin_session');
+      } catch (e) {}
     }
   };
 
@@ -117,21 +131,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           clearSessionStorage();
           setCurrentUser(null);
         } else {
+          // Parse cached user safely
+          let cachedParsedUser: User | null = null;
           if (cachedCurrentUserStr) {
             try {
-              setCurrentUser(JSON.parse(cachedCurrentUserStr));
-              // Touch last active on hydration
-              localStorage.setItem('session_last_active', Date.now().toString());
+              cachedParsedUser = JSON.parse(cachedCurrentUserStr);
             } catch (e) {}
+          }
+
+          // Detect external referral or deep-link parameter
+          const isExternalReferrer =
+            Boolean(document.referrer) &&
+            !document.referrer.includes(window.location.host);
+
+          const urlParams = new URLSearchParams(window.location.search);
+          const hasExternalDeepLink =
+            urlParams.has('bookingNumber') ||
+            urlParams.has('booking_code') ||
+            urlParams.has('from') ||
+            urlParams.has('ref') ||
+            urlParams.get('source') === 'external';
+
+          const isCachedDefaultAdmin = isDefaultAdminUser(cachedParsedUser);
+          const hasActiveAdminSession = sessionStorage.getItem('active_admin_session') === 'true';
+
+          // SECURITY RULE 1: Prevent Default Admin Auto-Inheritance
+          // Root admin (admin@lab.nurse.ac.th) must NEVER be auto-restored across browser restarts
+          // or external links without an explicit in-tab active_admin_session flag.
+          if (isCachedDefaultAdmin && !hasActiveAdminSession) {
+            console.warn('[AUTH SECURITY] Stale default admin session purged from localStorage.');
+            clearSessionStorage();
+            setCurrentUser(null);
+          } else if ((isExternalReferrer || hasExternalDeepLink) && (cachedParsedUser?.role === 'ADMIN' || isCachedDefaultAdmin)) {
+            // SECURITY RULE 2: Deep Link / External System Isolation
+            // If visitor enters from an external link (e.g. shortcut from university room portal),
+            // never inherit an administrative session left behind on that browser.
+            console.warn('[AUTH SECURITY] Purged admin credentials upon external deep-link visit.');
+            clearSessionStorage();
+            setCurrentUser(null);
+          } else if (cachedParsedUser) {
+            setCurrentUser(cachedParsedUser);
+            // Touch last active on hydration
+            localStorage.setItem('session_last_active', Date.now().toString());
           }
 
           if (cachedStr) {
             const cachedUsers: User[] = JSON.parse(cachedStr);
             if (Array.isArray(cachedUsers) && cachedUsers.length > 0) {
               setAvailableUsers(cachedUsers);
-              if (savedUserId && !cachedCurrentUserStr) {
+              if (savedUserId && !cachedParsedUser) {
                 const found = cachedUsers.find((u) => u.id === savedUserId);
-                if (found) setCurrentUser(found);
+                if (found) {
+                  if (isDefaultAdminUser(found) && !hasActiveAdminSession) {
+                    clearSessionStorage();
+                    setCurrentUser(null);
+                  } else {
+                    setCurrentUser(found);
+                  }
+                }
               }
             }
           }
@@ -156,13 +213,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           const savedUserId = typeof window !== 'undefined' ? localStorage.getItem('active_user_id') : null;
           const sessionValid = checkSessionActive();
+          const hasActiveAdminSession = typeof window !== 'undefined' && sessionStorage.getItem('active_admin_session') === 'true';
 
           if (savedUserId && sessionValid) {
             const found = users.find((u) => u.id === savedUserId);
             if (found) {
-              setCurrentUser(found);
-              if (typeof window !== 'undefined') {
-                localStorage.setItem('cached_current_user', JSON.stringify(found));
+              if (isDefaultAdminUser(found) && !hasActiveAdminSession) {
+                console.warn('[AUTH SECURITY] Blocked SWR restoration of default admin without active session.');
+                setCurrentUser(null);
+                clearSessionStorage();
+              } else {
+                setCurrentUser(found);
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('cached_current_user', JSON.stringify(found));
+                }
               }
             } else {
               // Saved user was deleted or invalid
@@ -209,14 +273,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (typeof window !== 'undefined') {
         const now = Date.now();
-        const lifetime = rememberMe ? SESSION_LIFETIME_REMEMBER_MS : SESSION_LIFETIME_NORMAL_MS;
+        const isRootAdmin = isDefaultAdminUser(user);
+
+        // SECURITY: Root admin sessions are session-only and never given 30-day persistence
+        if (isRootAdmin) {
+          try {
+            sessionStorage.setItem('active_admin_session', 'true');
+          } catch (e) {}
+        }
+
+        const effectiveRememberMe = isRootAdmin ? false : rememberMe;
+        const lifetime = effectiveRememberMe ? SESSION_LIFETIME_REMEMBER_MS : SESSION_LIFETIME_NORMAL_MS;
         const expiresAt = now + lifetime;
 
         localStorage.setItem('active_user_id', user.id);
         localStorage.setItem('cached_current_user', JSON.stringify(user));
         localStorage.setItem('session_expires_at', expiresAt.toString());
         localStorage.setItem('session_last_active', now.toString());
-        localStorage.setItem('session_remember_me', rememberMe ? 'true' : 'false');
+        localStorage.setItem('session_remember_me', effectiveRememberMe ? 'true' : 'false');
       }
 
       return { success: true };
@@ -245,14 +319,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (typeof window !== 'undefined') {
         const now = Date.now();
-        const lifetime = rememberMe ? SESSION_LIFETIME_REMEMBER_MS : SESSION_LIFETIME_NORMAL_MS;
+        const isRootAdmin = isDefaultAdminUser(user);
+
+        if (isRootAdmin) {
+          try {
+            sessionStorage.setItem('active_admin_session', 'true');
+          } catch (e) {}
+        }
+
+        const effectiveRememberMe = isRootAdmin ? false : rememberMe;
+        const lifetime = effectiveRememberMe ? SESSION_LIFETIME_REMEMBER_MS : SESSION_LIFETIME_NORMAL_MS;
         const expiresAt = now + lifetime;
 
         localStorage.setItem('active_user_id', user.id);
         localStorage.setItem('cached_current_user', JSON.stringify(user));
         localStorage.setItem('session_expires_at', expiresAt.toString());
         localStorage.setItem('session_last_active', now.toString());
-        localStorage.setItem('session_remember_me', rememberMe ? 'true' : 'false');
+        localStorage.setItem('session_remember_me', effectiveRememberMe ? 'true' : 'false');
       }
 
       return { success: true };

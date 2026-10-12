@@ -36,12 +36,29 @@ export default function LoginPage() {
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const googleBtnContainerRef = useRef<HTMLDivElement>(null);
 
-  // Check if redirected due to session timeout
+  const [redirectNotice, setRedirectNotice] = useState<string | null>(null);
+
+  const getDestinationUrl = () => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get('redirect');
+      if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
+        return redirect;
+      }
+    }
+    return '/';
+  };
+
+  // Check if redirected due to session timeout or deep-link
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (params.get('reason') === 'timeout') {
         setTimeoutNotice(true);
+      }
+      const redirect = params.get('redirect');
+      if (redirect && redirect.includes('/rooms')) {
+        setRedirectNotice('กรุณาเข้าสู่ระบบด้วยบัญชีมหาวิทยาลัย (@ku.th) หรือรหัสประจำตัวเพื่อเข้าสู่ระบบจองห้องปฏิบัติการ');
       }
     }
   }, []);
@@ -58,10 +75,10 @@ export default function LoginPage() {
   const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
   const [devOtpHint, setDevOtpHint] = useState<string | null>(null);
 
-  // If already logged in, redirect straight to dashboard
+  // If already logged in, redirect straight to destination
   useEffect(() => {
     if (!isLoading && currentUser) {
-      router.push('/');
+      router.push(getDestinationUrl());
     }
   }, [currentUser, isLoading, router]);
 
@@ -73,7 +90,7 @@ export default function LoginPage() {
 
     const res = await login(email, password, rememberMe);
     if (res.success) {
-      router.push('/');
+      router.push(getDestinationUrl());
     } else {
       setError(res.error || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง');
       setSubmitting(false);
@@ -94,7 +111,7 @@ export default function LoginPage() {
     try {
       const res = await loginWithGoogle(response.credential, rememberMe);
       if (res.success) {
-        router.push('/');
+        router.push(getDestinationUrl());
       } else {
         setError(res.error || 'เข้าสู่ระบบด้วย Google ไม่สำเร็จ');
         setGoogleSubmitting(false);
@@ -266,6 +283,18 @@ export default function LoginPage() {
                 <div className="font-bold">เซสชันหมดอายุ</div>
                 <div className="text-[11px] text-amber-800 font-normal mt-0.5">
                   ไม่มีการใช้งานเป็นเวลานานเกินกำหนด ระบบออกจากระบบอัตโนมัติเพื่อความปลอดภัย กรุณาเข้าสู่ระบบใหม่อีกครั้ง
+                </div>
+              </div>
+            </div>
+          )}
+
+          {redirectNotice && !timeoutNotice && (
+            <div className="p-3.5 rounded-xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 text-teal-900 dark:text-teal-200 text-xs font-semibold flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-teal-600 dark:text-teal-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="font-bold text-teal-950 dark:text-teal-100">เข้าสู่ระบบเพื่อใช้งานการจองห้อง</div>
+                <div className="text-[11px] text-teal-800 dark:text-teal-300 font-normal mt-0.5 leading-relaxed">
+                  {redirectNotice} (อาจารย์, บุคลากร หรือนิสิต)
                 </div>
               </div>
             </div>

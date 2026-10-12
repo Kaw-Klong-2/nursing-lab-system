@@ -117,15 +117,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    // 0. Handle seamless SSO Hand-off from external portal (portal_token)
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const portalToken = urlParams.get('portal_token');
-      const portalEmail = urlParams.get('email');
+    async function initializeAuth() {
+      if (typeof window === 'undefined') {
+        setIsLoading(false);
+        return;
+      }
 
-      if (portalToken && portalEmail) {
-        (async () => {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const portalToken = urlParams.get('portal_token');
+        const portalEmail = urlParams.get('email') || urlParams.get('login_hint');
+
+        // 0. Handle seamless SSO Hand-off from external portal (portal_token or email param)
+        if (portalEmail || portalToken) {
           try {
+            console.log('[AUTH SSO] Attempting seamless handoff for:', portalEmail);
             const res = await fetch('/api/auth/portal-handoff', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -140,26 +146,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               localStorage.setItem('session_last_active', Date.now().toString());
               localStorage.setItem('session_expires_at', (Date.now() + SESSION_LIFETIME_NORMAL_MS).toString());
               localStorage.setItem('session_remember_me', 'true');
-              console.log('[AUTH SSO] Successfully authenticated via portal_token for', u.email);
+              console.log('[AUTH SSO] Successfully authenticated via portal handoff for:', u.email);
 
-              // Clean token from URL without full reload
-              urlParams.delete('portal_token');
+              // Clean portal_token & email params from URL cleanly without full page refresh
+              if (portalToken) urlParams.delete('portal_token');
               const newSearch = urlParams.toString();
               const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
               window.history.replaceState({}, '', newUrl);
+
+              setIsLoading(false);
+              refreshUsers();
+              return;
             } else {
               console.warn('[AUTH SSO] Portal handoff failed:', data.error, data.message);
             }
           } catch (e) {
             console.error('[AUTH SSO] Network error during portal handoff', e);
           }
-        })();
-      }
-    }
+        }
 
-    // 1. Instant local cache hydration for authenticated session with expiration check
-    if (typeof window !== 'undefined') {
-      try {
+        // 1. Instant local cache hydration for authenticated session with expiration check
         const cachedStr = localStorage.getItem('cached_users');
         const savedUserId = localStorage.getItem('active_user_id');
         const cachedCurrentUserStr = localStorage.getItem('cached_current_user');
@@ -184,7 +190,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             Boolean(document.referrer) &&
             !document.referrer.includes(window.location.host);
 
-          const urlParams = new URLSearchParams(window.location.search);
           const hasExternalDeepLink =
             urlParams.has('bookingNumber') ||
             urlParams.has('booking_code') ||
@@ -202,11 +207,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.warn('[AUTH SECURITY] Stale default admin session purged from localStorage.');
             clearSessionStorage();
             setCurrentUser(null);
-          } else if ((isExternalReferrer || hasExternalDeepLink) && (cachedParsedUser?.role === 'ADMIN' || isCachedDefaultAdmin)) {
+          } else if ((isExternalReferrer || hasExternalDeepLink) && isCachedDefaultAdmin) {
             // SECURITY RULE 2: Deep Link / External System Isolation
-            // If visitor enters from an external link (e.g. shortcut from university room portal),
-            // never inherit an administrative session left behind on that browser.
-            console.warn('[AUTH SECURITY] Purged admin credentials upon external deep-link visit.');
+            // Only purge generic root admin, not real institutional users
+            console.warn('[AUTH SECURITY] Purged default root admin credentials upon external deep-link visit.');
             clearSessionStorage();
             setCurrentUser(null);
           } else if (cachedParsedUser) {
@@ -238,10 +242,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } finally {
         setIsLoading(false);
       }
-    }
 
-    // 2. Fetch fresh data in background (SWR pattern)
-    async function loadUsers() {
+      // Fetch fresh data in background
       try {
         const res = await fetch('/api/users');
         if (res.ok) {
@@ -250,44 +252,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (typeof window !== 'undefined') {
             localStorage.setItem('cached_users', JSON.stringify(users));
           }
-
-          const savedUserId = typeof window !== 'undefined' ? localStorage.getItem('active_user_id') : null;
-          const sessionValid = checkSessionActive();
-          const hasActiveAdminSession = typeof window !== 'undefined' && sessionStorage.getItem('active_admin_session') === 'true';
-
-          if (savedUserId && sessionValid) {
-            const found = users.find((u) => u.id === savedUserId);
-            if (found) {
-              if (isDefaultAdminUser(found) && !hasActiveAdminSession) {
-                console.warn('[AUTH SECURITY] Blocked SWR restoration of default admin without active session.');
-                setCurrentUser(null);
-                clearSessionStorage();
-              } else {
-                setCurrentUser(found);
-                if (typeof window !== 'undefined') {
-                  localStorage.setItem('cached_current_user', JSON.stringify(found));
-                }
-              }
-            } else {
-              // Saved user was deleted or invalid
-              setCurrentUser(null);
-              clearSessionStorage();
-            }
-          } else if (!sessionValid) {
-            setCurrentUser(null);
-            clearSessionStorage();
-          } else {
-            setCurrentUser(null);
-          }
         }
       } catch (err) {
-        console.error('Failed to load users', err);
-      } finally {
-        setIsLoading(false);
+        console.error('Failed to load users in background', err);
       }
     }
 
-    loadUsers();
+    initializeAuth();
   }, []);
 
   const login = async (

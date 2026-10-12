@@ -34,7 +34,14 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const isPublicRoute = isLoginPage || isPublicAssetPage || isPublicConsumablePage || isPublicStoragePage || isResetPasswordPage;
 
   React.useEffect(() => {
-    if (!isLoading && !currentUser && !isPublicRoute) {
+    // If arriving with portal_token or email handoff, ensure auth initialization has completely resolved
+    const hasPendingHandoff =
+      typeof window !== 'undefined' &&
+      (window.location.search.includes('portal_token') ||
+        window.location.search.includes('email=') ||
+        window.location.search.includes('login_hint='));
+
+    if (!isLoading && !currentUser && !isPublicRoute && !hasPendingHandoff) {
       let targetPath = pathname;
       if (typeof window !== 'undefined' && window.location.search) {
         targetPath += window.location.search;

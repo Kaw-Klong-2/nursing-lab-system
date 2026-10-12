@@ -20,12 +20,18 @@ export async function GET(req: Request) {
     if (!includeInactive) {
       whereCondition.status = statusParam || 'ACTIVE';
     }
-    if (role === 'APPROVER' || role === 'INSTRUCTOR' || role === 'TEACHER') {
+    if (role === 'APPROVER') {
       whereCondition.OR = [
         { role: 'APPROVER' },
         { role: 'TEACHER' },
         { role: 'ADMIN' },
         { role: 'OFFICER' },
+        { department: { contains: 'หัวหน้า' } },
+        { prefix: { in: ['อ.', 'ผศ.', 'ผศ.ดร.', 'รศ.', 'รศ.ดร.', 'ศ.', 'ศ.ดร.', 'ดร.', 'อาจารย์'] } },
+      ];
+    } else if (role === 'INSTRUCTOR' || role === 'TEACHER') {
+      whereCondition.OR = [
+        { role: 'TEACHER' },
         { email: { contains: 'teacher' } },
         { name: { startsWith: 'อ.' } },
         { name: { startsWith: 'ผศ.' } },
@@ -33,7 +39,12 @@ export async function GET(req: Request) {
         { name: { startsWith: 'ดร.' } },
         { name: { startsWith: 'ศ.' } },
         { department: { contains: 'อาจารย์' } },
+        { department: { contains: 'ภาควิชา' } },
         { prefix: { in: ['อ.', 'ผศ.', 'ผศ.ดร.', 'รศ.', 'รศ.ดร.', 'ศ.', 'ศ.ดร.', 'ดร.', 'อาจารย์'] } },
+      ];
+      whereCondition.NOT = [
+        { department: { contains: 'นักวิทยาศาสตร์' } },
+        { name: { contains: 'ณัฐกุล' } },
       ];
     } else if (role) {
       whereCondition.role = role;

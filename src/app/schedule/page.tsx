@@ -55,7 +55,7 @@ export default function SchedulePage() {
   const [pmAssetsList, setPmAssetsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [timeFilter, setTimeFilter] = useState<'ALL' | 'TODAY' | 'UPCOMING' | 'OVERDUE' | 'AUDIT' | 'PM'>('ALL');
+  const [timeFilter, setTimeFilter] = useState<'ALL' | 'TODAY' | 'PENDING' | 'UPCOMING' | 'OVERDUE' | 'AUDIT' | 'PM'>('ALL');
   const [listLayout, setListLayout] = useState<'COMPACT' | 'CARDS'>('COMPACT');
   const [futureCollapsed, setFutureCollapsed] = useState(false);
   const [expandedSlotIds, setExpandedSlotIds] = useState<Record<string, boolean>>({});
@@ -492,6 +492,28 @@ export default function SchedulePage() {
     ...pmDueGroupTasks,
   ];
 
+  // Operational Triage & Chronological Sorting for High-Volume Duty Management
+  const todayDateStr = new Date().toISOString().slice(0, 10);
+  const tomorrowDate = new Date();
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrowDateStr = tomorrowDate.toISOString().slice(0, 10);
+
+  const isTaskPastPending = (t: any) => {
+    if (t.isOverdue || t.isPickupToday || t.isReturnToday) return false;
+    const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
+    const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
+    if (pDate === tomorrowDateStr || rDate === tomorrowDateStr) return false;
+    if ((pDate && pDate > tomorrowDateStr) || (rDate && rDate > tomorrowDateStr)) return false;
+    return (pDate && pDate < todayDateStr) || (rDate && rDate < todayDateStr) || (!pDate && !rDate);
+  };
+
+  const isTaskUpcoming = (t: any) => {
+    if (t.isOverdue || t.isPickupToday || t.isReturnToday) return false;
+    const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
+    const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
+    return (pDate && pDate > todayDateStr) || (rDate && rDate > todayDateStr);
+  };
+
   // Apply filters for List View
   const filteredTasks = allDisplayTasks.filter((task: any) => {
     if (searchQuery.trim()) {
@@ -539,6 +561,9 @@ export default function SchedulePage() {
     if (timeFilter === 'TODAY') {
       return task.isPickupToday || task.isReturnToday;
     }
+    if (timeFilter === 'PENDING') {
+      return isTaskPastPending(task);
+    }
     if (timeFilter === 'OVERDUE') {
       return task.isOverdue;
     }
@@ -549,19 +574,10 @@ export default function SchedulePage() {
       return task.type === 'MAINTENANCE_PM';
     }
     if (timeFilter === 'UPCOMING') {
-      if (task.type === 'PRACTICE_EVENT' || task.type === 'INSPECTION_PLAN' || task.type === 'MAINTENANCE_PM') {
-        return !isPast(task.pickupDate) || task.isPickupToday;
-      }
-      return !task.isOverdue && (task.status === 'APPROVED' || !isPast(task.returnDate));
+      return isTaskUpcoming(task);
     }
     return true;
   });
-
-  // Operational Triage & Chronological Sorting for High-Volume Duty Management
-  const todayDateStr = new Date().toISOString().slice(0, 10);
-  const tomorrowDate = new Date();
-  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-  const tomorrowDateStr = tomorrowDate.toISOString().slice(0, 10);
 
   const getTaskTriageScore = (t: any) => {
     // 0: Overdue (Highest urgency)
@@ -569,10 +585,10 @@ export default function SchedulePage() {
     // 1: Today shift
     if (t.isPickupToday || t.isReturnToday) return 1;
     // 2: Past pending / backlog (scheduled date in the past but awaiting completion)
+    if (isTaskPastPending(t)) return 2;
+    // 3: Tomorrow prep
     const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
     const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
-    if ((pDate && pDate < todayDateStr) || (rDate && rDate < todayDateStr)) return 2;
-    // 3: Tomorrow prep
     if (pDate === tomorrowDateStr || rDate === tomorrowDateStr) return 3;
     // 4: Future upcoming
     return 4;
@@ -637,14 +653,7 @@ export default function SchedulePage() {
     return (pDate && pDate > tomorrowDateStr) || (rDate && rDate > tomorrowDateStr);
   });
   // Past Pending Section: Tasks whose scheduled date has passed but still awaiting completion/pickup (e.g. approved requisitions, past room bookings)
-  const pastPendingSectionTasks = sortedTasks.filter((t: any) => {
-    if (t.isOverdue || t.isPickupToday || t.isReturnToday) return false;
-    const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
-    const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
-    if (pDate === tomorrowDateStr || rDate === tomorrowDateStr) return false;
-    if ((pDate && pDate > tomorrowDateStr) || (rDate && rDate > tomorrowDateStr)) return false;
-    return true;
-  });
+  const pastPendingSectionTasks = sortedTasks.filter(isTaskPastPending);
 
   // Calendar calculations
   const thaiMonthDisplay = currentMonth.toLocaleDateString('th-TH', {
@@ -1830,7 +1839,11 @@ export default function SchedulePage() {
 
       {/* Summary Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div 
+          onClick={() => { setViewMode('LIST'); setTimeFilter('ALL'); }}
+          title="คลิกเพื่อดูคิวงานทั้งหมดในมุมมองรายการ"
+          className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-md transition"
+        >
           <div>
             <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase">คิวงานทั้งหมด</span>
             <div className="text-xl font-black text-slate-800 dark:text-slate-100 mt-1">
@@ -1842,11 +1855,15 @@ export default function SchedulePage() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div 
+          onClick={() => { setViewMode('LIST'); setTimeFilter('PENDING'); }}
+          title="คลิกเพื่อดูรายการที่อนุมัติแล้วและรอจ่ายของ/ตัดสต็อก"
+          className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md transition"
+        >
           <div>
             <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase">รอจ่ายของ</span>
             <div className="text-xl font-black text-blue-700 dark:text-blue-400 mt-1">
-              {combinedTasks.filter((t) => t.status === 'APPROVED').length}{' '}
+              {allDisplayTasks.filter(isTaskPastPending).length || combinedTasks.filter((t) => t.status === 'APPROVED').length}{' '}
               <span className="text-xs font-normal text-slate-500 dark:text-slate-400">รายการ</span>
             </div>
           </div>
@@ -1868,7 +1885,11 @@ export default function SchedulePage() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div 
+          onClick={() => { setViewMode('LIST'); setTimeFilter('OVERDUE'); }}
+          title="คลิกเพื่อดูรายการเกินกำหนดคืน"
+          className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-rose-300 dark:hover:border-rose-700 hover:shadow-md transition"
+        >
           <div>
             <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 uppercase">เกินกำหนดคืน</span>
             <div className="text-xl font-black text-rose-700 dark:text-rose-400 mt-1">
@@ -1894,7 +1915,11 @@ export default function SchedulePage() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div 
+          onClick={() => { setViewMode('LIST'); setTimeFilter('PM'); }}
+          title="คลิกเพื่อดูรายการตรวจสภาพ & PM"
+          className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-md transition"
+        >
           <div>
             <span className="text-[11px] font-bold text-teal-600 dark:text-teal-400 uppercase">ตรวจสภาพ & PM</span>
             <div className="text-xl font-black text-teal-700 dark:text-teal-400 mt-1">
@@ -2229,8 +2254,9 @@ export default function SchedulePage() {
             <div className="flex flex-wrap items-center gap-1.5">
               {[
                 { key: 'ALL', label: `ทั้งหมด (${allDisplayTasks.length})` },
-                { key: 'TODAY', label: `📅 ต้องทำวันนี้ (${allDisplayTasks.filter((t: any) => t.isPickupToday || t.isReturnToday).length})` },
-                { key: 'UPCOMING', label: '⏳ ตามกำหนดการ' },
+                { key: 'TODAY', label: `⚡ ต้องทำวันนี้ (${allDisplayTasks.filter((t: any) => t.isPickupToday || t.isReturnToday).length})` },
+                { key: 'PENDING', label: `⏳ ค้างจ่าย / รอจัดจ่าย (${allDisplayTasks.filter(isTaskPastPending).length})` },
+                { key: 'UPCOMING', label: `🗓️ ตามกำหนดการ (${allDisplayTasks.filter(isTaskUpcoming).length})` },
                 { key: 'OVERDUE', label: `🚨 เกินกำหนด (${allDisplayTasks.filter((t: any) => t.isOverdue).length})` },
                 { key: 'AUDIT', label: `🔍 ตรวจสภาพ (${allDisplayTasks.filter((t: any) => t.type === 'INSPECTION_PLAN').length})` },
                 { key: 'PM', label: `🔧 ตรวจ PM (${allDisplayTasks.filter((t: any) => t.type === 'MAINTENANCE_PM').length})` },
@@ -2238,10 +2264,10 @@ export default function SchedulePage() {
                 <button
                   key={tab.key}
                   onClick={() => setTimeFilter(tab.key as any)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
                     timeFilter === tab.key
                       ? 'bg-teal-600 text-white shadow-sm'
-                      : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
+                      : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-750'
                   }`}
                 >
                   {tab.label}

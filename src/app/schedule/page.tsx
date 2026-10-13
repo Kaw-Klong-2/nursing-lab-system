@@ -611,7 +611,7 @@ export default function SchedulePage() {
   });
 
   // Timeline Sections for High-Volume Segmentation
-  const overdueSectionTasks = sortedTasks.filter((t: any) => t.isOverdue);
+  const overdueSectionTasks = sortedTasks.filter((t: any) => Boolean(t.isOverdue));
   const todaySectionTasks = sortedTasks.filter((t: any) => (t.isPickupToday || t.isReturnToday) && !t.isOverdue);
   const tomorrowSectionTasks = sortedTasks.filter((t: any) => {
     if (t.isOverdue || t.isPickupToday || t.isReturnToday) return false;
@@ -623,7 +623,9 @@ export default function SchedulePage() {
     if (t.isOverdue || t.isPickupToday || t.isReturnToday) return false;
     const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
     const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
-    return pDate !== tomorrowDateStr && rDate !== tomorrowDateStr;
+    if (pDate === tomorrowDateStr || rDate === tomorrowDateStr) return false;
+    // Strictly must be a future date, not a past date
+    return (pDate && pDate > tomorrowDateStr) || (rDate && rDate > tomorrowDateStr);
   });
 
   // Calendar calculations
@@ -2331,7 +2333,7 @@ export default function SchedulePage() {
                     <div className="flex items-center justify-between bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 px-4 py-2.5 rounded-xl">
                       <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-black text-xs">
                         <Clock className="w-4 h-4 text-amber-600" />
-                        <span>⚡ กะงานประจำวันนี้ ({todaySectionTasks.length} รายการ)</span>
+                        <span>⚡ งานประจำวันนี้ ({todaySectionTasks.length} รายการ)</span>
                       </div>
                       <span className="text-[11px] text-amber-700 dark:text-amber-400 font-semibold">
                         เรียงตามลำดับช่วงเวลา (เช้า ➔ บ่าย ➔ คืนของ)

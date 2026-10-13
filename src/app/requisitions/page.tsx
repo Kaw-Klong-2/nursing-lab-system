@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import {
   useAuth } from '@/lib/auth-context';
 import {
@@ -33,6 +34,7 @@ import UnifiedRequestModal from '@/components/requests/UnifiedRequestModal';
 import EditRequestModal from '@/components/requests/EditRequestModal';
 import { formatUserName, formatTeacherName, formatApproverDisplay, formatAcknowledgeDisplay } from '@/lib/user-utils';
 import { formatLocationDisplay } from '@/lib/location-utils';
+import { formatTermName, getAcademicTermByDate, AcademicTermInfo } from '@/lib/academicTerm';
 
 export default function RequisitionsPage() {
   const { currentUser, isOfficer, isApprover, isAdmin, isTeacher } = useAuth();
@@ -43,6 +45,8 @@ export default function RequisitionsPage() {
   const [isEditingAdvisor, setIsEditingAdvisor] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
+  const [academicTerms, setAcademicTerms] = useState<AcademicTermInfo[]>([]);
+  const [selectedTermFilter, setSelectedTermFilter] = useState<string>('ALL');
 
   // New Requisition Modal State
   const [showNewModal, setShowNewModal] = useState(false);
@@ -98,11 +102,12 @@ export default function RequisitionsPage() {
 
   const fetchRequisitions = async () => {
     try {
-      const [reqRes, itemsRes, coursesRes, usersRes] = await Promise.all([
+      const [reqRes, itemsRes, coursesRes, usersRes, termsRes] = await Promise.all([
         fetch('/api/requisitions'),
         fetch('/api/items?type=CONSUMABLE&compact=true'),
         fetch('/api/courses?compact=true'),
         fetch('/api/users?role=INSTRUCTOR'),
+        fetch('/api/academic-terms'),
       ]);
 
       if (reqRes.ok) {
@@ -120,6 +125,10 @@ export default function RequisitionsPage() {
       if (usersRes.ok) {
         const uData = await usersRes.json();
         setInstructors(Array.isArray(uData) ? uData : []);
+      }
+      if (termsRes.ok) {
+        const tData = await termsRes.json();
+        if (tData?.terms) setAcademicTerms(tData.terms);
       }
     } catch (err) {
       console.error(err);
@@ -347,9 +356,139 @@ export default function RequisitionsPage() {
   };
 
   const filteredRequisitions = requisitions.filter((r) => {
-    if (filterStatus === 'ALL') return true;
-    return r.status === filterStatus;
+    const matchStatus = filterStatus === 'ALL' || r.status === filterStatus;
+    if (!matchStatus) return false;
+
+    if (selectedTermFilter !== 'ALL') {
+      const activeTerm = academicTerms.find((t) => t.id === selectedTermFilter);
+      if (activeTerm) {
+        // If requisition is flagged pre-semester, check target term
+        if (r.purpose?.includes('[เตรียมเปิดเทอม]') && r.purpose?.includes(activeTerm.name)) {
+          return true;
+        }
+        // Match by date
+        const dStr = r.createdAt || r.dateNeeded;
+        if (!dStr) return false;
+        const d = new Date(dStr);
+        const start = new Date(activeTerm.startDate!);
+        const end = new Date(activeTerm.endDate!);
+        end.setHours(23, 59, 59, 999);
+        return d >= start && d <= end;
+      }
+    }
+    return true;
   });
+
+  // Export Requisitions to Excel (with Academic Terms)
+  const handleExportExcel = () => {
+    try {
+      if (!filteredRequisitions.length) {
+        alert('ไม่มีรายการคำขอเบิกสำหรับส่งออก');
+        return;
+      }
+
+      // 1. Sheet 1: สรุปใบขอเบิกพัสดุ (1 row per requisition)
+      const summaryRows = filteredRequisitions.map((req, idx) => {
+        const isPreSemester = req.purpose?.includes('[เตรียมเปิดเทอม]');
+        const reqDate = req.createdAt ? new Date(req.createdAt).toLocaleDateString('th-TH') : '-';
+        const dateNeeded = req.dateNeeded ? new Date(req.dateNeeded).toLocaleDateString('th-TH') : '-';
+        const termInfo = getAcademicTermByDate(req.createdAt, academicTerms);
+        const roleLabel =
+          req.user?.role === 'TEACHER'
+            ? 'อาจารย์'
+            : req.user?.role === 'OFFICER' || req.user?.role === 'ADMIN'
+            ? 'เจ้าหน้าที่'
+            : 'นิสิต';
+
+        let statusTh = 'รออนุมัติ';
+        if (req.status === 'APPROVED') statusTh = 'อนุมัติแล้ว (รอจ่าย)';
+        else if (req.status === 'DISPENSED') statusTh = 'จ่ายพัสดุแล้ว';
+        else if (req.status === 'REJECTED') statusTh = 'ไม่อนุมัติ';
+
+        const totalCost = (req.items || []).reduce((sum: number, it: any) => {
+          const qty = Number(it.quantity) || 0;
+          const cost = Number(it.item?.unitCost) || 0;
+          return sum + qty * cost;
+        }, 0);
+
+        return {
+          ลำดับ: idx + 1,
+          เลขที่คำขอ: req.requestNumber,
+          วันที่ขอเบิก: reqDate,
+          วันที่ต้องการใช้: dateNeeded,
+          ผู้ขอเบิก: formatUserName(req.user),
+          รหัสนิสิต_บุคลากร: req.user?.studentId || '-',
+          ประเภทผู้ขอ: roleLabel,
+          รหัสวิชา: req.course?.code || '-',
+          ชื่อรายวิชา: req.course?.name || '-',
+          ภาคการศึกษา: req.course?.semester ? formatTermName(req.course.semester) : termInfo.termName,
+          ปีการศึกษา: req.course?.academicYear || termInfo.academicYear,
+          ประเภทการเบิก: isPreSemester ? 'เตรียมเปิดเทอม' : 'ปกติ',
+          วัตถุประสงค์: req.purpose?.replace(/^\[เตรียมเปิดเทอม\]\s*/, '') || '-',
+          จำนวนรายการ: req.items?.length || 0,
+          มูลค่ารวมประมาณการ_บาท: totalCost,
+          สถานะ: statusTh,
+          ผู้อนุมัติ: req.approver ? formatApproverDisplay(req.approver) : '-',
+          วันที่อนุมัติ: req.approvedAt ? new Date(req.approvedAt).toLocaleDateString('th-TH') : '-',
+        };
+      });
+
+      // 2. Sheet 2: รายละเอียดพัสดุที่ขอเบิกรายชิ้น (Itemized)
+      const itemRows: any[] = [];
+      let itemIdx = 1;
+      filteredRequisitions.forEach((req) => {
+        const isPreSemester = req.purpose?.includes('[เตรียมเปิดเทอม]');
+        const termInfo = getAcademicTermByDate(req.createdAt, academicTerms);
+        (req.items || []).forEach((it: any) => {
+          const qty = Number(it.quantity) || 0;
+          const unitCost = Number(it.item?.unitCost) || 0;
+          const totalItemCost = qty * unitCost;
+
+          itemRows.push({
+            ลำดับ: itemIdx++,
+            เลขที่คำขอ: req.requestNumber,
+            วันที่ขอเบิก: req.createdAt ? new Date(req.createdAt).toLocaleDateString('th-TH') : '-',
+            ผู้ขอเบิก: formatUserName(req.user),
+            รหัสวิชา: req.course?.code || '-',
+            ชื่อรายวิชา: req.course?.name || '-',
+            ภาคการศึกษา: req.course?.semester ? formatTermName(req.course.semester) : termInfo.termName,
+            ปีการศึกษา: req.course?.academicYear || termInfo.academicYear,
+            ประเภทการเบิก: isPreSemester ? 'เตรียมเปิดเทอม' : 'ปกติ',
+            รหัสวัสดุ: it.item?.code || '-',
+            ชื่อวัสดุสิ้นเปลือง: it.item?.name || 'ไม่ระบุชื่อ',
+            หมวดหมู่: it.item?.category || '-',
+            จำนวนที่ขอเบิก: qty,
+            หน่วยนับ: it.requestedUnit || it.item?.unit || 'หน่วย',
+            ราคาต่อหน่วย_บาท: unitCost,
+            มูลค่ารวม_บาท: totalItemCost,
+            สถานะคำขอ:
+              req.status === 'APPROVED'
+                ? 'อนุมัติแล้ว'
+                : req.status === 'DISPENSED'
+                ? 'จ่ายแล้ว'
+                : req.status === 'REJECTED'
+                ? 'ไม่อนุมัติ'
+                : 'รออนุมัติ',
+          });
+        });
+      });
+
+      const wb = XLSX.utils.book_new();
+      const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+      const wsItems = XLSX.utils.json_to_sheet(itemRows);
+
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'สรุปใบขอเบิกพัสดุ');
+      XLSX.utils.book_append_sheet(wb, wsItems, 'รายการพัสดุที่ขอเบิก');
+
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const activeTerm = academicTerms.find((t) => t.id === selectedTermFilter);
+      const termSuffix = activeTerm ? `_${(activeTerm.name || activeTerm.term || 'term').replace(/\s+/g, '_')}` : '';
+      XLSX.writeFile(wb, `รายงานการเบิกจ่ายวัสดุสิ้นเปลือง${termSuffix}_${dateStr}.xlsx`);
+    } catch (err) {
+      console.error('Export Requisitions Excel failed:', err);
+      alert('เกิดข้อผิดพลาดในการส่งออกไฟล์ Excel');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -383,26 +522,56 @@ export default function RequisitionsPage() {
         </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-wrap items-center gap-2">
-        {[
-          { key: 'ALL', label: 'ทั้งหมด' },
-          { key: 'PENDING', label: 'รออนุมัติ' },
-          { key: 'APPROVED', label: 'อนุมัติแล้ว (รอจ่าย)' },
-          { key: 'DISPENSED', label: 'จ่ายของแล้ว' },
-        ].map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setFilterStatus(tab.key)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              filterStatus === tab.key
-                ? 'bg-teal-600 text-white shadow-sm'
-                : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-            }`}
+      {/* Filter Tabs & Export Action Bar */}
+      <div className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {[
+            { key: 'ALL', label: 'ทั้งหมด' },
+            { key: 'PENDING', label: 'รออนุมัติ' },
+            { key: 'APPROVED', label: 'อนุมัติแล้ว (รอจ่าย)' },
+            { key: 'DISPENSED', label: 'จ่ายของแล้ว' },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setFilterStatus(tab.key)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                filterStatus === tab.key
+                  ? 'bg-teal-600 text-white shadow-sm'
+                  : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Term Selector Filter */}
+          <select
+            value={selectedTermFilter}
+            onChange={(e) => setSelectedTermFilter(e.target.value)}
+            className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+            title="เลือกกรองรายการเบิกตามภาคการศึกษา"
           >
-            {tab.label}
+            <option value="ALL">ภาคการศึกษา: ทั้งหมด</option>
+            {academicTerms.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} {t.isCurrent ? '(ปัจจุบัน)' : ''}
+              </option>
+            ))}
+          </select>
+
+          {/* Export Excel Button */}
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition cursor-pointer"
+            title="ส่งออกรายการคำขอเบิกเป็นไฟล์ Excel"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>ส่งออก Excel</span>
           </button>
-        ))}
+        </div>
       </div>
 
       {/* Requisitions List */}

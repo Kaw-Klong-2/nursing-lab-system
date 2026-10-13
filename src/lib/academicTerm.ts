@@ -69,3 +69,77 @@ export function toLegacySemesterCode(term?: string | null): string {
   if (code === 'SUMMER') return '3';
   return '1';
 }
+
+export interface AcademicTermInfo {
+  id?: string;
+  academicYear?: string;
+  term?: string;
+  name?: string;
+  startDate?: string | Date;
+  endDate?: string | Date;
+  isCurrent?: boolean;
+}
+
+/**
+ * คำนวณหาภาคการศึกษาจากวันที่ที่ระบุ โดยค้นหาจากรายการ terms หรือประมาณการตามรอบปฏิทินการศึกษา
+ */
+export function getAcademicTermByDate(
+  dateStr?: string | Date | null,
+  terms?: AcademicTermInfo[]
+): { termName: string; academicYear: string; fullTermName: string } {
+  if (!dateStr) {
+    return { termName: '-', academicYear: '-', fullTermName: '-' };
+  }
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) {
+    return { termName: '-', academicYear: '-', fullTermName: '-' };
+  }
+
+  // 1. ตรวจสอบจากช่วง startDate - endDate ของ AcademicTerm
+  if (terms && terms.length > 0) {
+    const matched = terms.find(t => {
+      if (!t.startDate || !t.endDate) return false;
+      const start = new Date(t.startDate);
+      const end = new Date(t.endDate);
+      end.setHours(23, 59, 59, 999);
+      return d >= start && d <= end;
+    });
+
+    if (matched) {
+      const termName = formatTermName(matched.term || matched.name);
+      const year = matched.academicYear || String(d.getFullYear() + 543);
+      return {
+        termName,
+        academicYear: year,
+        fullTermName: `${termName} ${year}`,
+      };
+    }
+  }
+
+  // 2. ประมาณการตามรอบปฏิทินมหาวิทยาลัย
+  // มิถุนายน - ตุลาคม: ภาคต้น
+  // พฤศจิกายน - มีนาคม: ภาคปลาย
+  // เมษายน - พฤษภาคม: ภาคฤดูร้อน
+  const month = d.getMonth() + 1; // 1-12
+  const gregorianYear = d.getFullYear();
+  let termName = 'ภาคต้น';
+  let academicYear = String(gregorianYear + 543);
+
+  if (month >= 6 && month <= 10) {
+    termName = 'ภาคต้น';
+    academicYear = String(gregorianYear + 543);
+  } else if (month >= 11 || month <= 3) {
+    termName = 'ภาคปลาย';
+    academicYear = month <= 3 ? String(gregorianYear + 543 - 1) : String(gregorianYear + 543);
+  } else {
+    termName = 'ภาคฤดูร้อน';
+    academicYear = String(gregorianYear + 543 - 1);
+  }
+
+  return {
+    termName,
+    academicYear,
+    fullTermName: `${termName} ${academicYear}`,
+  };
+}
+

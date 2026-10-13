@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import {
   Clock,
@@ -29,6 +29,7 @@ import {
   QrCode
 } from 'lucide-react';
 import { formatUserName } from '@/lib/user-utils';
+import { formatTermName, getAcademicTermByDate, AcademicTermInfo } from '@/lib/academicTerm';
 
 interface PracticeHoursSummaryProps {
   bookings: any[];
@@ -55,6 +56,41 @@ export default function PracticeHoursSummary({
 }: PracticeHoursSummaryProps) {
   const isStudent = currentUser?.role === 'USER' && !isTeacher && !isOfficer && !isAdmin;
 
+  // Academic Terms State
+  const [academicTerms, setAcademicTerms] = useState<AcademicTermInfo[]>([]);
+  const [selectedTermId, setSelectedTermId] = useState<string>('ALL');
+
+  useEffect(() => {
+    fetch('/api/academic-terms')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.terms) {
+          setAcademicTerms(data.terms);
+        }
+      })
+      .catch((err) => console.error('Failed to load academic terms in PracticeHoursSummary:', err));
+  }, []);
+
+  // Active Term Object
+  const activeTerm = useMemo(() => {
+    if (selectedTermId === 'ALL') return null;
+    return academicTerms.find((t) => t.id === selectedTermId) || null;
+  }, [academicTerms, selectedTermId]);
+
+  // Bookings filtered by Academic Term
+  const termFilteredBookings = useMemo(() => {
+    if (!activeTerm) return bookings;
+    const start = new Date(activeTerm.startDate!);
+    const end = new Date(activeTerm.endDate!);
+    end.setHours(23, 59, 59, 999);
+    return bookings.filter((b) => {
+      const dStr = b.slot?.date || b.createdAt;
+      if (!dStr) return false;
+      const d = new Date(dStr);
+      return d >= start && d <= end;
+    });
+  }, [bookings, activeTerm]);
+
   // Search & Filter States
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDept, setSelectedDept] = useState('ALL');
@@ -65,10 +101,10 @@ export default function PracticeHoursSummary({
   // Student Personal Bookings
   const studentBookings = useMemo(() => {
     if (isStudent) {
-      return bookings.filter(b => b.userId === currentUser?.id || !b.userId);
+      return termFilteredBookings.filter(b => b.userId === currentUser?.id || !b.userId);
     }
     return [];
-  }, [bookings, currentUser, isStudent]);
+  }, [termFilteredBookings, currentUser, isStudent]);
 
   // Student KPI Calculations
   const studentStats = useMemo(() => {
@@ -106,7 +142,7 @@ export default function PracticeHoursSummary({
       records: any[];
     }> = {};
 
-    bookings.forEach(b => {
+    termFilteredBookings.forEach(b => {
       const u = b.user || {};
       const uid = b.userId || u.id || u.studentId || 'UNKNOWN';
       const studentId = u.studentId || '-';
@@ -160,7 +196,7 @@ export default function PracticeHoursSummary({
     });
 
     return list;
-  }, [bookings]);
+  }, [termFilteredBookings]);
 
   // Filtered & Sorted Cohort List
   const filteredCohort = useMemo(() => {
@@ -208,29 +244,44 @@ export default function PracticeHoursSummary({
     };
   }, [cohortData]);
 
-  // Export to Excel handler
+  // Export to Excel handler (Teacher / Staff Cohort)
   const handleExportExcel = () => {
     try {
+      const termLabel = activeTerm
+        ? `${formatTermName(activeTerm.term)} ${activeTerm.academicYear || ''}`.trim()
+        : 'ทุกภาคการศึกษา';
+
       // 1. Summary Sheet
-      const summaryRows = filteredCohort.map((s, index) => ({
-        ลำดับ: index + 1,
-        รหัสนิสิต: s.studentId,
-        'ชื่อ-นามสกุล': s.name,
-        สาขาวิชา: s.department,
-        'จำนวนครั้งที่ฝึก (ครั้ง)': s.completedCount,
-        'ชั่วโมงสะสม (ชม.)': s.totalHoursFormatted,
-        'นาทีสะสม (นาที)': s.totalMinutes,
-        หัตถการหลักที่ฝึก: s.topSkills.join(', ') || '-',
-        วันที่เข้าฝึกล่าสุด: s.lastDate ? new Date(s.lastDate).toLocaleDateString('th-TH') : '-',
-      }));
+      const summaryRows = filteredCohort.map((s, index) => {
+        const lastTerm = s.lastDate ? getAcademicTermByDate(s.lastDate, academicTerms) : null;
+        return {
+          ลำดับ: index + 1,
+          รหัสนิสิต: s.studentId,
+          'ชื่อ-นามสกุล': s.name,
+          สาขาวิชา: s.department,
+          ภาคการศึกษา: activeTerm ? formatTermName(activeTerm.term) : (lastTerm?.termName || 'ทุกภาคการศึกษา'),
+          ปีการศึกษา: activeTerm ? (activeTerm.academicYear || '-') : (lastTerm?.academicYear || '-'),
+          'จำนวนครั้งที่ฝึก (ครั้ง)': s.completedCount,
+          'ชั่วโมงสะสม (ชม.)': s.totalHoursFormatted,
+          'นาทีสะสม (นาที)': s.totalMinutes,
+          หัตถการหลักที่ฝึก: s.topSkills.join(', ') || '-',
+          วันที่เข้าฝึกล่าสุด: s.lastDate ? new Date(s.lastDate).toLocaleDateString('th-TH') : '-',
+        };
+      });
 
       // 2. Itemized Raw Sessions Sheet
       const rawRows: any[] = [];
+      let rawIdx = 1;
       filteredCohort.forEach(s => {
         s.records.forEach(r => {
+          const sessionDate = r.slot?.date || r.createdAt;
+          const termInfo = getAcademicTermByDate(sessionDate, academicTerms);
           rawRows.push({
+            ลำดับ: rawIdx++,
             รหัสนิสิต: s.studentId,
             'ชื่อ-นามสกุล': s.name,
+            ภาคการศึกษา: termInfo.termName,
+            ปีการศึกษา: termInfo.academicYear,
             วันที่ฝึก: r.slot?.date ? new Date(r.slot.date).toLocaleDateString('th-TH') : '-',
             ช่วงเวลา: r.slot ? `${r.slot.startTime} - ${r.slot.endTime}` : '-',
             ห้องปฏิบัติการ: r.slot?.room?.name || r.slot?.room?.code || '-',
@@ -239,7 +290,8 @@ export default function PracticeHoursSummary({
             เวลาเช็คอิน: r.checkInTime ? new Date(r.checkInTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-',
             เวลาเช็คเอาท์: r.checkOutTime ? new Date(r.checkOutTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-',
             'เวลาฝึกจริง (นาที)': r.actualMinutes || 0,
-            สถานะ: r.status,
+            'ชั่วโมงฝึกจริง (ชม.)': r.actualMinutes ? (r.actualMinutes / 60).toFixed(1) : '0.0',
+            สถานะ: r.status === 'COMPLETED' ? 'เสร็จสิ้น' : r.status === 'CHECKED_IN' ? 'กำลังฝึก' : r.status,
           });
         });
       });
@@ -252,9 +304,48 @@ export default function PracticeHoursSummary({
       XLSX.utils.book_append_sheet(wb, wsRaw, 'บันทึกเวลาฝึกรายครั้ง');
 
       const dateStr = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(wb, `รายงานสรุปชั่วโมงฝึกปฏิบัติการพยาบาล_${dateStr}.xlsx`);
+      const fileTermSuffix = activeTerm ? `_${(activeTerm.name || activeTerm.term || 'term').replace(/\s+/g, '_')}` : '';
+      XLSX.writeFile(wb, `รายงานสรุปชั่วโมงฝึกปฏิบัติการพยาบาล${fileTermSuffix}_${dateStr}.xlsx`);
     } catch (err) {
       console.error('Export Excel failed:', err);
+      alert('เกิดข้อผิดพลาดในการส่งออกไฟล์ Excel');
+    }
+  };
+
+  // Export Student Personal Logbook (For Students)
+  const handleExportStudentLogbook = () => {
+    try {
+      const studentName = currentUser?.name || 'นิสิต';
+      const studentId = currentUser?.studentId || '-';
+      const rows = studentBookings.map((b, idx) => {
+        const sessionDate = b.slot?.date || b.createdAt;
+        const termInfo = getAcademicTermByDate(sessionDate, academicTerms);
+        return {
+          ลำดับ: idx + 1,
+          รหัสนิสิต: studentId,
+          'ชื่อ-นามสกุล': studentName,
+          ภาคการศึกษา: termInfo.termName,
+          ปีการศึกษา: termInfo.academicYear,
+          วันที่ฝึก: b.slot?.date ? new Date(b.slot.date).toLocaleDateString('th-TH') : '-',
+          ช่วงเวลา: b.slot ? `${b.slot.startTime} - ${b.slot.endTime}` : '-',
+          ห้องปฏิบัติการ: b.slot?.room?.name || b.slot?.room?.code || '-',
+          หัตถการ: b.skillTopic || '-',
+          อาจารย์ที่ปรึกษา: b.advisorName || '-',
+          เวลาเช็คอิน: b.checkInTime ? new Date(b.checkInTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-',
+          เวลาเช็คเอาท์: b.checkOutTime ? new Date(b.checkOutTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-',
+          'เวลาฝึกจริง (นาที)': b.actualMinutes || 0,
+          'ชั่วโมงฝึกจริง (ชม.)': b.actualMinutes ? (b.actualMinutes / 60).toFixed(1) : '0.0',
+          สถานะ: b.status === 'COMPLETED' ? 'เสร็จสิ้น' : b.status === 'CHECKED_IN' ? 'กำลังฝึก' : b.status,
+        };
+      });
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, 'ประวัติการฝึกปฏิบัติการ');
+      const dateStr = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `สมุดบันทึกชั่วโมงฝึก_${studentId}_${dateStr}.xlsx`);
+    } catch (err) {
+      console.error('Export student logbook failed:', err);
       alert('เกิดข้อผิดพลาดในการส่งออกไฟล์ Excel');
     }
   };
@@ -370,14 +461,25 @@ export default function PracticeHoursSummary({
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition cursor-pointer self-start sm:self-auto"
-              >
-                <Printer className="w-4 h-4" />
-                <span>พิมพ์ใบบันทึกสะสมชั่วโมง</span>
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleExportStudentLogbook}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition cursor-pointer self-start sm:self-auto shadow-sm"
+                  title="ส่งออกประวัติการฝึกปฏิบัติการเป็นไฟล์ Excel"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>ส่งออก Excel</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition cursor-pointer self-start sm:self-auto"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>พิมพ์ใบบันทึกสะสมชั่วโมง</span>
+                </button>
+              </div>
             </div>
 
             {studentBookings.length === 0 ? (
@@ -392,6 +494,7 @@ export default function PracticeHoursSummary({
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-black">
                       <th className="py-3.5 px-4">วันที่ฝึก</th>
+                      <th className="py-3.5 px-4">ภาคการศึกษา</th>
                       <th className="py-3.5 px-4">ห้องปฏิบัติการ</th>
                       <th className="py-3.5 px-4">หัตถการ / วัตถุประสงค์</th>
                       <th className="py-3.5 px-4 text-center">เวลาเช็คอิน</th>
@@ -403,16 +506,23 @@ export default function PracticeHoursSummary({
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300 font-medium">
                     {studentBookings.map((b) => {
+                      const sessionDate = b.slot?.date || b.createdAt;
                       const dateStr = b.slot?.date ? new Date(b.slot.date).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
                       const inTimeStr = b.checkInTime ? new Date(b.checkInTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
                       const outTimeStr = b.checkOutTime ? new Date(b.checkOutTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
                       const durationHours = b.actualMinutes ? (b.actualMinutes / 60).toFixed(1) : '-';
+                      const termInfo = getAcademicTermByDate(sessionDate, academicTerms);
 
                       return (
                         <tr key={b.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <div className="font-bold text-slate-900 dark:text-slate-100">{dateStr}</div>
                             <div className="text-[11px] text-slate-400">{b.slot?.startTime} - {b.slot?.endTime}</div>
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                              {termInfo.termName} {termInfo.academicYear}
+                            </span>
                           </td>
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <span className="font-bold text-teal-700 dark:text-teal-400">
@@ -589,6 +699,21 @@ export default function PracticeHoursSummary({
 
               {/* Filters & Export Button */}
               <div className="flex flex-wrap items-center gap-2.5">
+                {/* Academic Term Filter */}
+                <select
+                  value={selectedTermId}
+                  onChange={(e) => setSelectedTermId(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+                  title="เลือกกรองข้อมูลตามภาคการศึกษา"
+                >
+                  <option value="ALL">ภาคการศึกษา: ทั้งหมด</option>
+                  {academicTerms.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} {t.isCurrent ? '(ปัจจุบัน)' : ''}
+                    </option>
+                  ))}
+                </select>
+
                 {/* Hours Range Filter */}
                 <select
                   value={hourFilter}
@@ -808,14 +933,17 @@ export default function PracticeHoursSummary({
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300 font-medium">
                   {selectedStudentModal.records.map((r: any) => {
+                    const sessionDate = r.slot?.date || r.createdAt;
                     const dateStr = r.slot?.date ? new Date(r.slot.date).toLocaleDateString('th-TH', { month: 'short', day: 'numeric' }) : '-';
                     const inTime = r.checkInTime ? new Date(r.checkInTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
                     const outTime = r.checkOutTime ? new Date(r.checkOutTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
+                    const termInfo = getAcademicTermByDate(sessionDate, academicTerms);
 
                     return (
                       <tr key={r.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
                         <td className="py-2.5 px-3 whitespace-nowrap font-bold text-slate-900 dark:text-slate-100">
-                          {dateStr}
+                          <div>{dateStr}</div>
+                          <div className="text-[10px] text-teal-600 dark:text-teal-400 font-semibold">{termInfo.termName} {termInfo.academicYear}</div>
                         </td>
                         <td className="py-2.5 px-3 whitespace-nowrap text-teal-700 dark:text-teal-400">
                           {r.slot?.room?.name || r.slot?.room?.code || '-'}

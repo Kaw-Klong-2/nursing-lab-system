@@ -31,7 +31,12 @@ import {
   ChevronLeft,
   ChevronRight,
   LayoutGrid,
-  Building2
+  Building2,
+  Wrench,
+  ClipboardCheck,
+  CheckSquare,
+  Layers,
+  CalendarCheck
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { formatUserName, formatTeacherName } from '@/lib/user-utils';
@@ -43,9 +48,11 @@ export default function SchedulePage() {
   const [requisitionList, setRequisitionList] = useState<any[]>([]);
   const [practiceList, setPracticeList] = useState<any[]>([]);
   const [roomBookingList, setRoomBookingList] = useState<any[]>([]);
+  const [inspectionPlansList, setInspectionPlansList] = useState<any[]>([]);
+  const [pmAssetsList, setPmAssetsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [timeFilter, setTimeFilter] = useState<'ALL' | 'TODAY' | 'UPCOMING' | 'OVERDUE'>('ALL');
+  const [timeFilter, setTimeFilter] = useState<'ALL' | 'TODAY' | 'UPCOMING' | 'OVERDUE' | 'AUDIT' | 'PM'>('ALL');
   const [expandedSlotIds, setExpandedSlotIds] = useState<Record<string, boolean>>({});
 
   // Calendar View States
@@ -58,7 +65,7 @@ export default function SchedulePage() {
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     return new Date().toISOString().slice(0, 10);
   });
-  const [dayTypeFilter, setDayTypeFilter] = useState<'ALL' | 'PICKUP' | 'RETURN' | 'PRACTICE'>('ALL');
+  const [dayTypeFilter, setDayTypeFilter] = useState<'ALL' | 'PICKUP' | 'RETURN' | 'PRACTICE' | 'AUDIT' | 'PM'>('ALL');
 
   // Calendar Hover Tooltip State
   const [hoverPopover, setHoverPopover] = useState<{
@@ -94,6 +101,10 @@ export default function SchedulePage() {
         title = `จองห้อง: ${t.purpose || t.roomName || 'ห้องปฏิบัติการ'}`;
       } else if (t.type === 'PRACTICE_EVENT') {
         title = `ฝึกปฏิบัติ: ${t.roomName || 'ห้องปฏิบัติการพยาบาล'}`;
+      } else if (t.type === 'INSPECTION_PLAN') {
+        title = `ตรวจสภาพ: ${t.title || t.purpose || 'แผนตรวจสภาพครุภัณฑ์'}`;
+      } else if (t.type === 'MAINTENANCE_PM') {
+        title = `ตรวจ PM: ครุภัณฑ์ ${t.assets?.length || 0} รายการ`;
       }
 
       let startTime: string | undefined = undefined;
@@ -115,7 +126,7 @@ export default function SchedulePage() {
         startTime,
         endTime,
         status: t.status,
-        userName: formatUserName(t.user),
+        userName: t.user ? formatUserName(t.user) : t.createdBy?.name,
         courseCode: t.course?.code,
         courseName: t.course?.name,
         participants: t.attendeesCount || t.maxCapacity,
@@ -168,11 +179,13 @@ export default function SchedulePage() {
 
   const fetchScheduleData = async () => {
     try {
-      const [bRes, rRes, pRes, rmRes] = await Promise.all([
+      const [bRes, rRes, pRes, rmRes, ipRes, pmRes] = await Promise.all([
         fetch('/api/borrow'),
         fetch('/api/requisitions'),
         fetch('/api/practice/bookings'),
         fetch('/api/room-bookings?status=APPROVED'),
+        fetch('/api/maintenance/plans'),
+        fetch('/api/maintenance/assets'),
       ]);
 
       if (bRes.ok) {
@@ -197,6 +210,20 @@ export default function SchedulePage() {
       if (rmRes.ok) {
         const rmData = await rmRes.json();
         setRoomBookingList(Array.isArray(rmData) ? rmData : []);
+      }
+      if (ipRes.ok) {
+        const ipData = await ipRes.json();
+        const validPlans = Array.isArray(ipData)
+          ? ipData.filter((p: any) => p.status !== 'CANCELLED')
+          : [];
+        setInspectionPlansList(validPlans);
+      }
+      if (pmRes.ok) {
+        const pmData = await pmRes.json();
+        const validPm = Array.isArray(pmData)
+          ? pmData.filter((a: any) => Boolean(a.nextInspectionDue))
+          : [];
+        setPmAssetsList(validPm);
       }
     } catch (err) {
       console.error('Failed to load schedule data', err);
@@ -360,6 +387,72 @@ export default function SchedulePage() {
 
   const practiceEventTasks = Object.values(practiceSlotGroups);
 
+  // 1. Transform inspection campaigns/audits
+  const inspectionPlanTasks = inspectionPlansList.map((plan) => {
+    const planDate = plan.targetDate || plan.startDate || plan.createdAt;
+    const isTodayPlan = isToday(planDate);
+    const isOverdue = plan.status !== 'COMPLETED' && isPast(planDate);
+    return {
+      id: plan.id,
+      type: 'INSPECTION_PLAN' as const,
+      requestNumber: `INSP-${plan.id.slice(0, 8)}`,
+      title: plan.title,
+      status: plan.status,
+      planType: plan.planType,
+      scopeType: plan.scopeType,
+      purpose: plan.title,
+      description: plan.description,
+      pickupDate: planDate,
+      returnDate: undefined,
+      targetDate: plan.targetDate,
+      startDate: plan.startDate,
+      targetLocation: plan.targetLocation,
+      targetCategory: plan.targetCategory,
+      targetCourse: plan.targetCourse,
+      metrics: plan.metrics,
+      createdBy: plan.createdBy,
+      isOverdue,
+      isPickupToday: isTodayPlan,
+      isReturnToday: false,
+    };
+  });
+
+  // 2. Group routine PM assets by nextInspectionDue date
+  const pmDateGroups: Record<string, any[]> = {};
+  pmAssetsList.forEach((asset) => {
+    if (!asset.nextInspectionDue) return;
+    try {
+      const d = new Date(asset.nextInspectionDue);
+      if (isNaN(d.getTime())) return;
+      const dateKey = d.toISOString().slice(0, 10);
+      if (!pmDateGroups[dateKey]) {
+        pmDateGroups[dateKey] = [];
+      }
+      pmDateGroups[dateKey].push(asset);
+    } catch {
+      // ignore
+    }
+  });
+
+  const pmDueGroupTasks = Object.entries(pmDateGroups).map(([dateKey, assets]) => {
+    const hasOverdue = isPast(dateKey);
+    const isDueToday = isToday(dateKey);
+    return {
+      id: `pm-group-${dateKey}`,
+      type: 'MAINTENANCE_PM' as const,
+      requestNumber: `PM-${dateKey.replace(/-/g, '')}`,
+      title: `ตรวจ PM ครุภัณฑ์ (${assets.length} รายการ)`,
+      purpose: `กำหนดตรวจบำรุงรักษาเชิงป้องกัน (PM) (${assets.length} เครื่อง/ชิ้น)`,
+      pickupDate: dateKey,
+      returnDate: undefined,
+      assets,
+      status: hasOverdue ? 'OVERDUE' : isDueToday ? 'DUE_SOON' : 'SCHEDULED',
+      isOverdue: hasOverdue,
+      isPickupToday: isDueToday,
+      isReturnToday: false,
+    };
+  });
+
   const allDisplayTasks = [
     ...roomBookingList.map((rb) => {
       const isUsageToday = isToday(rb.bookingDate);
@@ -390,6 +483,8 @@ export default function SchedulePage() {
 
     ...combinedTasks,
     ...practiceEventTasks,
+    ...inspectionPlanTasks,
+    ...pmDueGroupTasks,
   ];
 
   // Apply filters for List View
@@ -407,6 +502,23 @@ export default function SchedulePage() {
             s.bookingNumber?.toLowerCase().includes(q)
         );
         if (!matchRoom && !matchStudent) return false;
+      } else if (task.type === 'INSPECTION_PLAN') {
+        const matchTitle = task.title?.toLowerCase().includes(q);
+        const matchDesc = task.description?.toLowerCase().includes(q);
+        const matchLoc = task.targetLocation?.name?.toLowerCase().includes(q) || task.targetLocation?.roomName?.toLowerCase().includes(q);
+        const matchCat = task.targetCategory?.name?.toLowerCase().includes(q);
+        const matchCreator = task.createdBy?.name?.toLowerCase().includes(q);
+        if (!matchTitle && !matchDesc && !matchLoc && !matchCat && !matchCreator) return false;
+      } else if (task.type === 'MAINTENANCE_PM') {
+        const matchCode = task.requestNumber?.toLowerCase().includes(q);
+        const matchAssets = task.assets?.some(
+          (a: any) =>
+            a.assetCode?.toLowerCase().includes(q) ||
+            a.govAssetCode?.toLowerCase().includes(q) ||
+            a.item?.name?.toLowerCase().includes(q) ||
+            a.location?.toLowerCase().includes(q)
+        );
+        if (!matchCode && !matchAssets) return false;
       } else {
         const matchNumber = task.requestNumber?.toLowerCase().includes(q);
         const matchUser = task.user?.name?.toLowerCase().includes(q);
@@ -425,8 +537,14 @@ export default function SchedulePage() {
     if (timeFilter === 'OVERDUE') {
       return task.isOverdue;
     }
+    if (timeFilter === 'AUDIT') {
+      return task.type === 'INSPECTION_PLAN';
+    }
+    if (timeFilter === 'PM') {
+      return task.type === 'MAINTENANCE_PM';
+    }
     if (timeFilter === 'UPCOMING') {
-      if (task.type === 'PRACTICE_EVENT') {
+      if (task.type === 'PRACTICE_EVENT' || task.type === 'INSPECTION_PLAN' || task.type === 'MAINTENANCE_PM') {
         return !isPast(task.pickupDate) || task.isPickupToday;
       }
       return !task.isOverdue && (task.status === 'APPROVED' || !isPast(task.returnDate));
@@ -508,9 +626,11 @@ export default function SchedulePage() {
     const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
     const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
 
-    if (dayTypeFilter === 'PICKUP') return pDate === selectedDate && t.type !== 'PRACTICE_EVENT';
+    if (dayTypeFilter === 'PICKUP') return pDate === selectedDate && t.type !== 'PRACTICE_EVENT' && t.type !== 'INSPECTION_PLAN' && t.type !== 'MAINTENANCE_PM';
     if (dayTypeFilter === 'RETURN') return rDate === selectedDate;
     if (dayTypeFilter === 'PRACTICE') return pDate === selectedDate && t.type === 'PRACTICE_EVENT';
+    if (dayTypeFilter === 'AUDIT') return pDate === selectedDate && t.type === 'INSPECTION_PLAN';
+    if (dayTypeFilter === 'PM') return pDate === selectedDate && t.type === 'MAINTENANCE_PM';
     return true;
   });
 
@@ -574,6 +694,256 @@ export default function SchedulePage() {
 
   // Render individual task card
   const renderTaskCard = (task: any) => {
+    if (task.type === 'INSPECTION_PLAN') {
+      const planTypeLabels: Record<string, string> = {
+        ROUTINE_PM: 'ตรวจบำรุงรักษาตามรอบ (PM)',
+        ANNUAL_INVENTORY: 'ตรวจนับครุภัณฑ์ประจำปี',
+        SEMESTER_AUDIT: 'ตรวจเช็กความพร้อมประจำภาคการศึกษา',
+        COURSE_PREPARATION: 'เตรียมความพร้อมก่อนเปิดรายวิชา',
+        POST_ACTIVITY_CHECK: 'ตรวจเช็กหลังเสร็จสิ้นกิจกรรม',
+        CUSTOM: 'ตรวจสภาพเฉพาะกิจ',
+      };
+      const scopeText =
+        task.scopeType === 'ALL'
+          ? 'ทุกรายการในระบบ'
+          : task.scopeType === 'LOCATION'
+          ? `พื้นที่: ${task.targetLocation?.name || task.targetLocation?.roomName || 'ระบุห้อง'}`
+          : task.scopeType === 'CATEGORY'
+          ? `หมวดหมู่: ${task.targetCategory?.name || 'ระบุหมวด'}`
+          : task.scopeType === 'COURSE'
+          ? `รายวิชา: [${task.targetCourse?.code}] ${task.targetCourse?.name}`
+          : 'กำหนดรายการเอง';
+
+      const metrics = task.metrics || { total: 0, checked: 0, progressPercent: 0, pass: 0, passWithNote: 0, fail: 0 };
+      const statusUpper = (task.status || '').toUpperCase();
+      const isCompleted = statusUpper === 'COMPLETED';
+      const isInProgress = statusUpper === 'IN_PROGRESS';
+
+      return (
+        <div
+          key={`insp-${task.id}`}
+          className={`bg-white dark:bg-slate-900 rounded-3xl border-2 p-5 shadow-sm space-y-3 transition hover:shadow-md ${
+            task.isOverdue
+              ? 'border-rose-300 dark:border-rose-900/60 bg-rose-50/20 dark:bg-rose-950/20'
+              : isInProgress
+              ? 'border-amber-300 dark:border-amber-900/60 bg-amber-50/10'
+              : 'border-teal-200 dark:border-teal-900/60'
+          }`}
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 flex items-center gap-1">
+                <ClipboardCheck className="w-3 h-3 text-teal-600" />
+                <span>🔍 แผนตรวจสภาพครุภัณฑ์ (Inspection Campaign)</span>
+              </span>
+              <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                {planTypeLabels[task.planType] || task.planType}
+              </span>
+              {task.isPickupToday && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white shadow-sm animate-pulse">
+                  ⚡ ถึงกำหนดตรวจวันนี้!
+                </span>
+              )}
+              {task.isOverdue && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-sm animate-pulse">
+                  🚨 เกินกำหนดตรวจ!
+                </span>
+              )}
+              {isCompleted && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  ✓ ตรวจเสร็จสิ้น
+                </span>
+              )}
+              {isInProgress && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                  ⏳ กำลังดำเนินการตรวจ
+                </span>
+              )}
+            </div>
+
+            {task.createdBy && (
+              <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-slate-400" />
+                <span className="font-bold text-slate-800 dark:text-slate-200">ผู้สร้างแผน: {task.createdBy.name}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div className="md:col-span-2 space-y-1.5">
+              <div>
+                <span className="text-slate-400 font-bold">ชื่อแผนงาน: </span>
+                <span className="text-slate-900 dark:text-slate-100 font-black text-sm">{task.title}</span>
+              </div>
+              {task.description && (
+                <div className="text-slate-600 dark:text-slate-400">
+                  <span className="text-slate-400 font-bold">รายละเอียด: </span>
+                  <span>{task.description}</span>
+                </div>
+              )}
+              <div className="text-teal-700 dark:text-teal-400 font-semibold">
+                ขอบเขต: {scopeText}
+              </div>
+
+              {/* Progress Bar */}
+              <div className="pt-2">
+                <div className="flex items-center justify-between text-[11px] font-bold mb-1">
+                  <span className="text-slate-600 dark:text-slate-400">ความคืบหน้าการตรวจนับ</span>
+                  <span className="text-teal-700 dark:text-teal-300">
+                    {metrics.checked} / {metrics.total} ชิ้น ({metrics.progressPercent}%)
+                  </span>
+                </div>
+                <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                  <div
+                    className="bg-teal-500 h-full rounded-full transition-all duration-300"
+                    style={{ width: `${metrics.progressPercent}%` }}
+                  />
+                </div>
+                <div className="flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400 mt-1.5 font-medium">
+                  <span className="text-emerald-600 font-bold">ผ่าน: {metrics.pass}</span>
+                  <span className="text-amber-600 font-bold">มีหมายเหตุ: {metrics.passWithNote}</span>
+                  <span className="text-rose-600 font-bold">ชำรุด/ไม่ผ่าน: {metrics.fail}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+              <div className="flex items-center gap-1.5 font-bold">
+                <Calendar className="w-4 h-4 text-teal-600" />
+                <span>กำหนดเป้าหมาย: {formatDate(task.pickupDate)}</span>
+              </div>
+              {task.startDate && (
+                <div className="flex items-center gap-1.5 text-slate-500">
+                  <Clock className="w-3.5 h-3.5 text-slate-400" />
+                  <span>เริ่มตรวจ: {formatDate(task.startDate)}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-1.5 text-slate-500 pt-1">
+                <Layers className="w-3.5 h-3.5 text-slate-400" />
+                <span>จำนวนครุภัณฑ์ในแผน: {metrics.total} รายการ</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+            <span className="text-[11px] text-slate-400">
+              * เจ้าหน้าที่สามารถสแกนบาร์โค้ดเพื่อตรวจสภาพและบันทึกผลได้ทันที
+            </span>
+            <Link
+              href="/maintenance"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition shadow-sm"
+            >
+              <CheckSquare className="w-3.5 h-3.5" />
+              <span>ไปหน้าตรวจนับ / บันทึกผล</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+      );
+    }
+
+    if (task.type === 'MAINTENANCE_PM') {
+      const assets = task.assets || [];
+      return (
+        <div
+          key={`pm-${task.id}`}
+          className={`bg-white dark:bg-slate-900 rounded-3xl border-2 p-5 shadow-sm space-y-3 transition hover:shadow-md ${
+            task.isOverdue
+              ? 'border-rose-300 dark:border-rose-900/60 bg-rose-50/20 dark:bg-rose-950/20'
+              : 'border-amber-200 dark:border-amber-900/60'
+          }`}
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 flex items-center gap-1">
+                <Wrench className="w-3 h-3 text-amber-600" />
+                <span>🔧 ตรวจบำรุงรักษาเชิงป้องกัน (Routine PM Due)</span>
+              </span>
+              <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                {task.requestNumber}
+              </span>
+              {task.isPickupToday && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white shadow-sm animate-pulse">
+                  ⚡ ครบรอบตรวจ PM วันนี้!
+                </span>
+              )}
+              {task.isOverdue && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-sm animate-pulse">
+                  🚨 เกินรอบตรวจ PM แล้ว!
+                </span>
+              )}
+            </div>
+
+            <div className="text-xs text-slate-500 font-bold">
+              ครุภัณฑ์ที่ต้องตรวจ: <span className="text-amber-700 dark:text-amber-300">{assets.length} เครื่อง/ชิ้น</span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-xs text-slate-600 dark:text-slate-400">
+              <span className="text-slate-400 font-bold">รายละเอียดงาน: </span>
+              <span className="font-semibold text-slate-800 dark:text-slate-200">
+                ครุภัณฑ์ถึงกำหนดรอบตรวจสอบสภาพและบำรุงรักษาเชิงป้องกัน (Preventive Maintenance) ประจำวันที่ {formatDate(task.pickupDate)}
+              </span>
+            </div>
+
+            {/* List of Assets Due */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+              {assets.slice(0, 6).map((a: any) => (
+                <div
+                  key={a.id}
+                  className="bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60 text-xs space-y-1"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono font-bold text-teal-700 dark:text-teal-300 text-[11px]">
+                      {a.assetCode}
+                    </span>
+                    <span
+                      className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
+                        a.pmStatus === 'OVERDUE'
+                          ? 'bg-rose-100 text-rose-800'
+                          : a.pmStatus === 'DUE_SOON'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-emerald-100 text-emerald-800'
+                      }`}
+                    >
+                      {a.pmStatus === 'OVERDUE' ? 'เกินกำหนด' : a.pmStatus === 'DUE_SOON' ? 'ใกล้ถึงกำหนด' : 'ปกติ'}
+                    </span>
+                  </div>
+                  <div className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                    {a.item?.name || 'ครุภัณฑ์'}
+                  </div>
+                  <div className="text-[10px] text-slate-500 flex items-center gap-1 truncate">
+                    <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                    <span>{a.location || 'ห้องปฏิบัติการ'}</span>
+                  </div>
+                </div>
+              ))}
+              {assets.length > 6 && (
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-xs flex items-center justify-center text-slate-500 font-bold">
+                  +{assets.length - 6} รายการเพิ่มเติม
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+            <span className="text-[11px] text-slate-400">
+              * สามารถบันทึกประวัติการบำรุงรักษา หรือสร้างแผนตรวจสภาพครุภัณฑ์เพื่อตรวจเช็คทั้งห้องได้
+            </span>
+            <Link
+              href="/maintenance"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition shadow-sm"
+            >
+              <Wrench className="w-3.5 h-3.5" />
+              <span>ไปหน้าระบบบำรุงรักษา (PM)</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+      );
+    }
+
     if (task.type === 'ROOM_BOOKING') {
       return (
         <div
@@ -1141,46 +1511,46 @@ export default function SchedulePage() {
       </div>
 
       {/* Summary Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase">คิวงานทั้งหมด</span>
             <div className="text-xl font-black text-slate-800 dark:text-slate-100 mt-1">
               {allDisplayTasks.length} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">งาน</span>
             </div>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center">
             <Boxes className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
-            <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase">รอจัดเตรียม & จ่ายของ</span>
+            <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase">รอจ่ายของ</span>
             <div className="text-xl font-black text-blue-700 dark:text-blue-400 mt-1">
               {combinedTasks.filter((t) => t.status === 'APPROVED').length}{' '}
               <span className="text-xs font-normal text-slate-500 dark:text-slate-400">รายการ</span>
             </div>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
             <Clock className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
-            <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400 uppercase">กำลังยืม (รอส่งคืน)</span>
+            <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400 uppercase">กำลังยืม (รอคืน)</span>
             <div className="text-xl font-black text-purple-700 dark:text-purple-400 mt-1">
               {combinedTasks.filter((t) => t.status === 'BORROWED').length}{' '}
               <span className="text-xs font-normal text-slate-500 dark:text-slate-400">รายการ</span>
             </div>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
             <RefreshCw className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 uppercase">เกินกำหนดคืน</span>
             <div className="text-xl font-black text-rose-700 dark:text-rose-400 mt-1">
@@ -1188,21 +1558,34 @@ export default function SchedulePage() {
               <span className="text-xs font-normal text-slate-500 dark:text-slate-400">รายการ</span>
             </div>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center">
             <AlertTriangle className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
-            <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">คิวเข้าฝึกปฏิบัติ (Lab)</span>
+            <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">คิวฝึกแล็บ</span>
             <div className="text-xl font-black text-indigo-700 dark:text-indigo-400 mt-1">
               {practiceList.length}{' '}
-              <span className="text-xs font-normal text-slate-500 dark:text-slate-400">คน ({practiceEventTasks.length} รอบ)</span>
+              <span className="text-xs font-normal text-slate-500 dark:text-slate-400">คน</span>
             </div>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
             <Sparkles className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-bold text-teal-600 dark:text-teal-400 uppercase">ตรวจสภาพ & PM</span>
+            <div className="text-xl font-black text-teal-700 dark:text-teal-400 mt-1">
+              {inspectionPlansList.filter((p: any) => p.status !== 'COMPLETED').length}{' '}
+              <span className="text-xs font-normal text-slate-500 dark:text-slate-400">แผน ({pmAssetsList.filter((a: any) => a.pmStatus === 'OVERDUE' || a.pmStatus === 'DUE_SOON').length} ชิ้น)</span>
+            </div>
+          </div>
+          <div className="w-9 h-9 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+            <CalendarCheck className="w-5 h-5" />
           </div>
         </div>
       </div>
@@ -1292,8 +1675,14 @@ export default function SchedulePage() {
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-[10px] font-bold">
                   🏥 คิวแล็บ
                 </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-100 text-teal-800 text-[10px] font-bold">
+                  🔍 ตรวจสภาพ
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-bold">
+                  🔧 ตรวจ PM
+                </span>
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 text-[10px] font-bold animate-pulse">
-                  🚨 เกินกำหนดคืน
+                  🚨 เกินกำหนด
                 </span>
               </div>
               <span className="text-[11px] text-slate-400">
@@ -1318,7 +1707,7 @@ export default function SchedulePage() {
                 const dayTasks = getTasksForDate(cell.dateStr);
                 const pickups = dayTasks.filter((t: any) => {
                   const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
-                  return pDate === cell.dateStr && t.type !== 'PRACTICE_EVENT';
+                  return pDate === cell.dateStr && t.type !== 'PRACTICE_EVENT' && t.type !== 'INSPECTION_PLAN' && t.type !== 'MAINTENANCE_PM';
                 });
                 const returns = dayTasks.filter((t: any) => {
                   const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
@@ -1332,9 +1721,17 @@ export default function SchedulePage() {
                   const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
                   return pDate === cell.dateStr && t.type === 'ROOM_BOOKING';
                 });
+                const auditTasks = dayTasks.filter((t: any) => {
+                  const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
+                  return pDate === cell.dateStr && t.type === 'INSPECTION_PLAN';
+                });
+                const pmTasks = dayTasks.filter((t: any) => {
+                  const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
+                  return pDate === cell.dateStr && t.type === 'MAINTENANCE_PM';
+                });
                 const overdues = dayTasks.filter((t: any) => {
                   const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
-                  return rDate === cell.dateStr && t.isOverdue;
+                  return (rDate === cell.dateStr && t.isOverdue) || (t.pickupDate?.slice(0, 10) === cell.dateStr && t.isOverdue);
                 });
 
                 const isSelected = selectedDate === cell.dateStr;
@@ -1405,6 +1802,18 @@ export default function SchedulePage() {
                           <span className="ml-auto font-black">{roomTasks.length}</span>
                         </div>
                       )}
+                      {auditTasks.length > 0 && (
+                        <div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 truncate flex items-center gap-1">
+                          <span>🔍 ตรวจสภาพ</span>
+                          <span className="ml-auto font-black">{auditTasks.length}</span>
+                        </div>
+                      )}
+                      {pmTasks.length > 0 && (
+                        <div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 truncate flex items-center gap-1">
+                          <span>🔧 ตรวจ PM</span>
+                          <span className="ml-auto font-black">{pmTasks.length}</span>
+                        </div>
+                      )}
                       {overdues.length > 0 && (
                         <div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 truncate flex items-center gap-1 animate-pulse">
                           <span>🚨 เกิน</span>
@@ -1454,9 +1863,11 @@ export default function SchedulePage() {
               <div className="flex flex-wrap items-center gap-1.5">
                 {[
                   { key: 'ALL', label: `ทั้งหมด (${selectedDateAllTasks.length})` },
-                  { key: 'PICKUP', label: `📦 จ่ายของ (${selectedDateAllTasks.filter((t: any) => t.pickupDate?.slice(0, 10) === selectedDate && t.type !== 'PRACTICE_EVENT').length})` },
+                  { key: 'PICKUP', label: `📦 จ่ายของ (${selectedDateAllTasks.filter((t: any) => t.pickupDate?.slice(0, 10) === selectedDate && t.type !== 'PRACTICE_EVENT' && t.type !== 'INSPECTION_PLAN' && t.type !== 'MAINTENANCE_PM').length})` },
                   { key: 'RETURN', label: `🔄 กำหนดคืน (${selectedDateAllTasks.filter((t: any) => t.returnDate?.slice(0, 10) === selectedDate).length})` },
                   { key: 'PRACTICE', label: `🏥 คิวแล็บ (${selectedDateAllTasks.filter((t: any) => t.pickupDate?.slice(0, 10) === selectedDate && t.type === 'PRACTICE_EVENT').length})` },
+                  { key: 'AUDIT', label: `🔍 ตรวจสภาพ (${selectedDateAllTasks.filter((t: any) => t.pickupDate?.slice(0, 10) === selectedDate && t.type === 'INSPECTION_PLAN').length})` },
+                  { key: 'PM', label: `🔧 ตรวจ PM (${selectedDateAllTasks.filter((t: any) => t.pickupDate?.slice(0, 10) === selectedDate && t.type === 'MAINTENANCE_PM').length})` },
                 ].map((chip) => (
                   <button
                     key={chip.key}
@@ -1478,7 +1889,7 @@ export default function SchedulePage() {
               <div className="p-10 text-center text-slate-400 dark:text-slate-500 text-xs space-y-2">
                 <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto opacity-80" />
                 <p className="font-bold text-slate-700 dark:text-slate-300">
-                  ไม่มีคิวงานที่ต้องจ่ายของ ส่งคืน หรือฝึกแล็บในวันที่เลือก ({formatDate(selectedDate)})
+                  ไม่มีคิวงานที่ต้องจ่ายของ ส่งคืน ฝึกแล็บ หรือตรวจสภาพ/PM ในวันที่เลือก ({formatDate(selectedDate)})
                 </p>
                 <p>สามารถคลิกเลือกวันอื่นบนปฏิทิน หรือเปลี่ยนตัวกรองเพื่อดูรายการทั้งหมดได้</p>
               </div>
@@ -1502,7 +1913,9 @@ export default function SchedulePage() {
                 { key: 'ALL', label: `ทั้งหมด (${allDisplayTasks.length})` },
                 { key: 'TODAY', label: `📅 ต้องทำวันนี้ (${allDisplayTasks.filter((t: any) => t.isPickupToday || t.isReturnToday).length})` },
                 { key: 'UPCOMING', label: '⏳ ตามกำหนดการ' },
-                { key: 'OVERDUE', label: `🚨 เกินกำหนดคืน (${allDisplayTasks.filter((t: any) => t.isOverdue).length})` },
+                { key: 'OVERDUE', label: `🚨 เกินกำหนด (${allDisplayTasks.filter((t: any) => t.isOverdue).length})` },
+                { key: 'AUDIT', label: `🔍 ตรวจสภาพ (${allDisplayTasks.filter((t: any) => t.type === 'INSPECTION_PLAN').length})` },
+                { key: 'PM', label: `🔧 ตรวจ PM (${allDisplayTasks.filter((t: any) => t.type === 'MAINTENANCE_PM').length})` },
               ].map((tab) => (
                 <button
                   key={tab.key}

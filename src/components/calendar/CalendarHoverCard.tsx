@@ -20,7 +20,7 @@ export interface CalendarHoverItem {
   advisorName?: string;
   participants?: number;
   equipmentNeeded?: string;
-  type?: 'ROOM_BOOKING' | 'PRACTICE_SLOT' | 'BORROW' | 'REQUISITION' | 'OTHER';
+  type?: 'ROOM_BOOKING' | 'PRACTICE_SLOT' | 'BORROW' | 'REQUISITION' | 'INSPECTION_PLAN' | 'MAINTENANCE_PM' | 'OTHER';
 }
 
 export interface CalendarHoverCardProps {
@@ -125,6 +125,10 @@ export default function CalendarHoverCard({
             const isApproved = statusUpper === 'APPROVED';
             const isPending = statusUpper === 'PENDING';
             const isRejected = statusUpper === 'REJECTED';
+            const isInProgress = statusUpper === 'IN_PROGRESS';
+            const isScheduled = statusUpper === 'SCHEDULED';
+            const isCompleted = statusUpper === 'COMPLETED';
+            const isOverdue = statusUpper === 'OVERDUE';
 
             return (
               <div
@@ -162,6 +166,30 @@ export default function CalendarHoverCard({
                     <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-700 dark:text-rose-400 shrink-0">
                       <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
                       ไม่อนุมัติ
+                    </span>
+                  )}
+                  {isInProgress && (
+                    <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 dark:text-amber-400 shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                      กำลังตรวจ
+                    </span>
+                  )}
+                  {isScheduled && (
+                    <span className="inline-flex items-center gap-1 text-[9px] font-bold text-blue-700 dark:text-blue-400 shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                      นัดหมาย
+                    </span>
+                  )}
+                  {isCompleted && (
+                    <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-400 shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      เสร็จสิ้น
+                    </span>
+                  )}
+                  {isOverdue && (
+                    <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-700 dark:text-rose-400 shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                      เกินกำหนด
                     </span>
                   )}
                 </div>

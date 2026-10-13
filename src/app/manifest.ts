@@ -12,6 +12,12 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: 'portrait-primary',
     scope: '/',
     lang: 'th',
+    ...( {
+      launch_handler: {
+        client_mode: 'auto',
+      },
+      handle_links: 'preferred',
+    } as any ),
     icons: [
       {
         src: '/icons/icon-192x192.png',

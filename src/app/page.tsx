@@ -323,6 +323,9 @@ export default function DashboardPage() {
       {/* Visual Analytics & Mini Charts Grid */}
       <DashboardCharts
         courseCosts={data?.courseCosts}
+        onCourseCostsChange={(newCourses) =>
+          setData((prev: any) => (prev ? { ...prev, courseCosts: newCourses } : prev))
+        }
         monthlyTrends={data?.monthlyTrends}
         assetBreakdown={data?.assetBreakdown}
         categoryDistribution={data?.categoryDistribution}

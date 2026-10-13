@@ -54,6 +54,7 @@ export default function RequisitionsPage() {
     advisorName: string;
     purpose: string;
     dateNeeded: string;
+    isPreSemester?: boolean;
     items: {
       itemId: string;
       quantity: number | string;
@@ -66,6 +67,7 @@ export default function RequisitionsPage() {
     advisorName: '',
     purpose: '',
     dateNeeded: '',
+    isPreSemester: false,
     items: [{ itemId: '', quantity: '' }],
   });
 
@@ -238,6 +240,7 @@ export default function RequisitionsPage() {
           advisorName: '',
           purpose: '',
           dateNeeded: '',
+          isPreSemester: false,
           items: [{ itemId: '', quantity: '' }],
         });
         fetchRequisitions();
@@ -484,7 +487,16 @@ export default function RequisitionsPage() {
                   <span className="text-slate-400 dark:text-slate-500 font-bold block mb-1">
                     วัตถุประสงค์ / หัวข้อการสอน:
                   </span>
-                  <p className="text-slate-800 dark:text-slate-200 font-medium leading-relaxed">{req.purpose}</p>
+                  <div className="flex items-start gap-2 flex-wrap">
+                    {req.purpose?.includes('[เตรียมเปิดเทอม]') && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 shrink-0">
+                        🏫 เตรียมเปิดเทอม
+                      </span>
+                    )}
+                    <p className="text-slate-800 dark:text-slate-200 font-medium leading-relaxed">
+                      {req.purpose?.replace(/^\[เตรียมเปิดเทอม\]\s*/, '')}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="text-right flex flex-col justify-center bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
@@ -802,6 +814,36 @@ export default function RequisitionsPage() {
                       );
                     })}
                   </select>
+                </div>
+              )}
+
+              {/* Pre-Semester Setup Toggle (Visible only for Teachers, Officers, and Admins) */}
+              {(isAdmin || isOfficer || isTeacher) && (
+                <div className="p-3 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 transition">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(newReq.isPreSemester)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        const cleanPurpose = newReq.purpose.replace(/^\[เตรียมเปิดเทอม\]\s*/, '');
+                        setNewReq({
+                          ...newReq,
+                          isPreSemester: checked,
+                          purpose: checked ? `[เตรียมเปิดเทอม] ${cleanPurpose}` : cleanPurpose,
+                        });
+                      }}
+                      className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 border-slate-300"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200">
+                        เบิกล่วงหน้าเพื่อเตรียมการเปิดภาคการศึกษาใหม่ (Pre-Semester Setup)
+                      </span>
+                      <p className="text-[11px] text-indigo-700 dark:text-indigo-300">
+                        สำหรับอาจารย์และเจ้าหน้าที่ที่เบิกเตรียมวัสดุช่วงปิดภาคเรียน ต้นทุนจะถูกบันทึกผูกกับรายวิชาของเทอมใหม่อัตโนมัติ
+                      </p>
+                    </div>
+                  </label>
                 </div>
               )}
 

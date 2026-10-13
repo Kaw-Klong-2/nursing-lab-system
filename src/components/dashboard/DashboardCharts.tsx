@@ -23,6 +23,9 @@ import {
   Sparkles,
   Coins,
   Boxes,
+  RefreshCw,
+  Calendar,
+  CalendarDays,
 } from 'lucide-react';
 
 interface DashboardChartsProps {
@@ -34,6 +37,7 @@ interface DashboardChartsProps {
     totalExpense: number;
     percentBudget: number;
   }>;
+  onCourseCostsChange?: (courses: any[]) => void;
   monthlyTrends?: Array<{
     monthKey: string;
     month: string;
@@ -69,16 +73,81 @@ const CATEGORY_COLORS = [
 
 export default function DashboardCharts({
   courseCosts = [],
+  onCourseCostsChange,
   monthlyTrends = [],
   assetBreakdown = [],
   categoryDistribution = [],
   totalAssets = 0,
 }: DashboardChartsProps) {
   const [isMounted, setIsMounted] = useState(false);
+  const [academicTerms, setAcademicTerms] = useState<any[]>([]);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('CURRENT_TERM');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [currentCourses, setCurrentCourses] = useState<any[]>(courseCosts || []);
+  const [isUpdating, setIsUpdating] = useState<boolean>(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (courseCosts && courseCosts.length > 0 && selectedPeriod === 'CURRENT_TERM') {
+      setCurrentCourses(courseCosts);
+    }
+  }, [courseCosts, selectedPeriod]);
+
+  useEffect(() => {
+    fetch('/api/academic-terms')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (Array.isArray(data)) setAcademicTerms(data);
+      })
+      .catch((err) => console.error('Failed to load academic terms for chart filter:', err));
+  }, []);
+
+  const handlePeriodChange = async (period: string, customStart?: string, customEnd?: string) => {
+    setSelectedPeriod(period);
+    setIsUpdating(true);
+
+    try {
+      let query = '';
+      if (period === 'CURRENT_TERM') {
+        query = '?filterMode=CURRENT_TERM';
+      } else if (period === 'ALL_TIME') {
+        query = '?filterMode=ALL';
+      } else if (period === 'THIS_MONTH') {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+        query = `?filterMode=DATE&startDate=${start}&endDate=${end}`;
+      } else if (period === 'CUSTOM') {
+        const start = customStart !== undefined ? customStart : customStartDate;
+        const end = customEnd !== undefined ? customEnd : customEndDate;
+        if (!start && !end) {
+          setIsUpdating(false);
+          return;
+        }
+        query = `?filterMode=DATE${start ? `&startDate=${start}` : ''}${end ? `&endDate=${end}` : ''}`;
+      } else {
+        // Specific term ID
+        query = `?termId=${period}`;
+      }
+
+      const res = await fetch(`/api/dashboard${query}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.courseCosts) {
+          setCurrentCourses(data.courseCosts);
+          onCourseCostsChange?.(data.courseCosts);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to filter dashboard courses:', err);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   if (!isMounted) {
     return (
@@ -93,8 +162,8 @@ export default function DashboardCharts({
     );
   }
 
-  // Prepared Course Chart Data
-  const courseChartData = courseCosts.slice(0, 6).map((c) => ({
+  // Prepared Course Chart Data from currentCourses
+  const courseChartData = (currentCourses || []).slice(0, 6).map((c) => ({
     name: c.code,
     fullName: c.name,
     งบจัดสรร: c.allocatedBudget,
@@ -133,14 +202,77 @@ export default function DashboardCharts({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Chart 1: Course Budget vs Expense (Mini Bar Chart) */}
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3">
+          {/* Header & Period Selector */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-teal-600 dark:text-teal-400" />
               <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                งบจัดสรร vs ใช้จริงรายวิชา (Course Budgets)
+                งบจัดสรร vs ใช้จริงรายวิชา
               </h4>
             </div>
-            <span className="text-[10px] text-slate-400 font-medium">เปรียบเทียบงบ (บาท)</span>
+
+            {/* Period Selector Dropdown */}
+            <div className="flex items-center gap-1.5">
+              <select
+                value={selectedPeriod}
+                onChange={(e) => handlePeriodChange(e.target.value)}
+                disabled={isUpdating}
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-lg px-2 py-1 text-[11px] font-bold focus:ring-1 focus:ring-teal-500 cursor-pointer max-w-[210px] truncate"
+              >
+                <option value="CURRENT_TERM">🟢 ภาคการศึกษาปัจจุบัน</option>
+                {academicTerms.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    🏫 {t.name}
+                  </option>
+                ))}
+                <option value="THIS_MONTH">📅 เดือนนี้</option>
+                <option value="ALL_TIME">🌐 สะสมทั้งหมด</option>
+                <option value="CUSTOM">📆 กำหนดช่วงวันที่เอง...</option>
+              </select>
+              {isUpdating && <RefreshCw className="w-3 h-3 text-teal-600 animate-spin" />}
+            </div>
+          </div>
+
+          {/* Custom Date Range Pickers if CUSTOM selected */}
+          {selectedPeriod === 'CUSTOM' && (
+            <div className="flex items-center gap-2 mb-2.5 p-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-[11px]">
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-1.5 py-0.5 text-[11px]"
+              />
+              <span className="text-slate-400">ถึง</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-1.5 py-0.5 text-[11px]"
+              />
+              <button
+                type="button"
+                onClick={() => handlePeriodChange('CUSTOM')}
+                className="px-2 py-0.5 bg-teal-600 hover:bg-teal-700 text-white rounded font-bold text-[10px]"
+              >
+                ค้นหา
+              </button>
+            </div>
+          )}
+
+          {/* Mini Summary Stats for Courses */}
+          <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pb-2 mb-2 border-b border-slate-100 dark:border-slate-800">
+            <span>
+              งบรวม:{' '}
+              <strong className="text-slate-800 dark:text-slate-200">
+                ฿{currentCourses.reduce((sum, c) => sum + (c.allocatedBudget || 0), 0).toLocaleString('th-TH')}
+              </strong>
+            </span>
+            <span>
+              ใช้จริง:{' '}
+              <strong className="text-emerald-600 dark:text-emerald-400">
+                ฿{currentCourses.reduce((sum, c) => sum + (c.totalExpense || 0), 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+              </strong>
+            </span>
           </div>
 
           <div className="h-56 w-full">

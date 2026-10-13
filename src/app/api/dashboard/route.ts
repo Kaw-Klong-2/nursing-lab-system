@@ -1,13 +1,44 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCached, setCached } from '@/lib/cache';
+import { toLegacySemesterCode } from '@/lib/academicTerm';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const cacheKey = 'dashboard:stats';
+    const { searchParams } = new URL(req.url);
+    const termId = searchParams.get('termId');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+    const filterMode = searchParams.get('filterMode') || (termId ? 'TERM' : (startDate || endDate) ? 'DATE' : 'ALL');
+
+    const cacheKey = searchParams.toString() ? `dashboard:stats:${searchParams.toString()}` : 'dashboard:stats';
     const cached = getCached(cacheKey);
     if (cached) {
       return NextResponse.json(cached);
+    }
+
+    let targetTerm: any = null;
+    if (termId && termId !== 'ALL') {
+      targetTerm = await prisma.academicTerm.findUnique({ where: { id: termId } });
+    } else if (filterMode === 'CURRENT_TERM') {
+      targetTerm = await prisma.academicTerm.findFirst({ where: { isCurrent: true } });
+    }
+
+    const courseWhere: any = {};
+    if (targetTerm) {
+      courseWhere.academicYear = targetTerm.academicYear;
+      const legacyCode = toLegacySemesterCode(targetTerm.term);
+      courseWhere.semester = { in: [legacyCode, targetTerm.term, targetTerm.name] };
+    }
+
+    const txDateFilter: any = {};
+    if (filterMode === 'DATE') {
+      if (startDate) txDateFilter.gte = new Date(startDate);
+      if (endDate) {
+        const e = new Date(endDate);
+        e.setHours(23, 59, 59, 999);
+        txDateFilter.lte = e;
+      }
     }
 
     const now = new Date();
@@ -62,9 +93,13 @@ export async function GET() {
         orderBy: { expiryDate: 'asc' },
       }),
       prisma.course.findMany({
+        where: Object.keys(courseWhere).length > 0 ? courseWhere : undefined,
         include: {
           stockTransactions: {
-            where: { type: 'OUT_REQUISITION' },
+            where: {
+              type: 'OUT_REQUISITION',
+              ...(Object.keys(txDateFilter).length > 0 ? { createdAt: txDateFilter } : {}),
+            },
           },
           requisitionRequests: true,
         },
@@ -222,6 +257,13 @@ export async function GET() {
       totalPracticeHours,
       categoryDistribution,
       monthlyTrends,
+      periodInfo: {
+        filterMode,
+        termId: targetTerm?.id || null,
+        termName: targetTerm?.name || null,
+        startDate: startDate || (targetTerm?.startDate ? targetTerm.startDate.toISOString() : null),
+        endDate: endDate || (targetTerm?.endDate ? targetTerm.endDate.toISOString() : null),
+      },
     };
 
     setCached(cacheKey, payload, 30 * 1000); // 30s TTL

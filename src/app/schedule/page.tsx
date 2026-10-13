@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { formatUserName, formatTeacherName } from '@/lib/user-utils';
+import CalendarHoverCard, { CalendarHoverItem } from '@/components/calendar/CalendarHoverCard';
 
 export default function SchedulePage() {
   const { currentUser, isOfficer, isAdmin, isApprover } = useAuth();
@@ -58,6 +59,82 @@ export default function SchedulePage() {
     return new Date().toISOString().slice(0, 10);
   });
   const [dayTypeFilter, setDayTypeFilter] = useState<'ALL' | 'PICKUP' | 'RETURN' | 'PRACTICE'>('ALL');
+
+  // Calendar Hover Tooltip State
+  const [hoverPopover, setHoverPopover] = useState<{
+    isOpen: boolean;
+    anchorRect: DOMRect | null;
+    dateStr: string;
+    items: CalendarHoverItem[];
+  } | null>(null);
+
+  useEffect(() => {
+    const handleScroll = () => setHoverPopover(null);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const handleCellMouseEnter = (e: React.MouseEvent<HTMLElement>, dateStr: string, dayTasks: any[]) => {
+    if (dayTasks.length === 0) {
+      setHoverPopover(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const items: CalendarHoverItem[] = dayTasks.map((t: any) => {
+      let title = t.purpose || 'งานนัดหมาย';
+      if (t.type === 'BORROW') {
+        const itemCount = t.items?.length || 0;
+        const firstItem = t.items?.[0]?.item?.name || '';
+        title = `ยืม: ${firstItem ? firstItem + (itemCount > 1 ? ` (+${itemCount - 1})` : '') : 'อุปกรณ์การพยาบาล'}`;
+      } else if (t.type === 'REQUISITION') {
+        const itemCount = t.items?.length || 0;
+        const firstItem = t.items?.[0]?.item?.name || '';
+        title = `เบิก: ${firstItem ? firstItem + (itemCount > 1 ? ` (+${itemCount - 1})` : '') : 'เวชภัณฑ์การแพทย์'}`;
+      } else if (t.type === 'ROOM_BOOKING') {
+        title = `จองห้อง: ${t.purpose || t.roomName || 'ห้องปฏิบัติการ'}`;
+      } else if (t.type === 'PRACTICE_EVENT') {
+        title = `ฝึกปฏิบัติ: ${t.roomName || 'ห้องปฏิบัติการพยาบาล'}`;
+      }
+
+      let startTime: string | undefined = undefined;
+      let endTime: string | undefined = undefined;
+      if (t.timeSlot) {
+        const parts = t.timeSlot.replace(' น.', '').split('-');
+        if (parts.length === 2) {
+          startTime = parts[0].trim();
+          endTime = parts[1].trim();
+        }
+      }
+
+      return {
+        id: t.id,
+        code: t.requestNumber,
+        roomCode: t.roomCode,
+        roomName: t.roomName,
+        title,
+        startTime,
+        endTime,
+        status: t.status,
+        userName: formatUserName(t.user),
+        courseCode: t.course?.code,
+        courseName: t.course?.name,
+        participants: t.attendeesCount || t.maxCapacity,
+        equipmentNeeded: t.equipmentNeeded,
+        type: t.type === 'PRACTICE_EVENT' ? 'PRACTICE_SLOT' : t.type,
+      };
+    });
+
+    setHoverPopover({
+      isOpen: true,
+      anchorRect: rect,
+      dateStr,
+      items,
+    });
+  };
+
+  const handleCellMouseLeave = () => {
+    setHoverPopover(null);
+  };
 
   const handlePrevMonth = () => {
     setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
@@ -1265,7 +1342,12 @@ export default function SchedulePage() {
                 return (
                   <div
                     key={cell.dateStr}
-                    onClick={() => setSelectedDate(cell.dateStr)}
+                    onClick={() => {
+                      setSelectedDate(cell.dateStr);
+                      setHoverPopover(null);
+                    }}
+                    onMouseEnter={(e) => handleCellMouseEnter(e, cell.dateStr, dayTasks)}
+                    onMouseLeave={handleCellMouseLeave}
                     className={`min-h-[105px] p-2 transition cursor-pointer flex flex-col justify-between ${
                       !cell.isCurrentMonth
                         ? 'bg-slate-50/40 dark:bg-slate-900/30 opacity-40'
@@ -1341,6 +1423,16 @@ export default function SchedulePage() {
                 );
               })}
             </div>
+
+            {/* Floating Calendar Hover Popover */}
+            {hoverPopover && (
+              <CalendarHoverCard
+                isOpen={hoverPopover.isOpen}
+                anchorRect={hoverPopover.anchorRect}
+                dateStr={hoverPopover.dateStr}
+                items={hoverPopover.items}
+              />
+            )}
           </div>
 
           {/* Selected Date Duty Detail Panel */}

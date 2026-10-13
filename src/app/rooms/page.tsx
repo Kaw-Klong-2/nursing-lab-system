@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { formatUserName, formatTeacherName } from '@/lib/user-utils';
+import CalendarHoverCard, { CalendarHoverItem } from '@/components/calendar/CalendarHoverCard';
 
 type RoomCategory = 'ALL' | 'SKILL' | 'SIMULATION' | 'SPECIALTY' | 'SUPPORT';
 
@@ -163,6 +164,55 @@ export default function RoomsPage() {
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     return new Date().toISOString().slice(0, 10);
   });
+
+  // Calendar Hover Tooltip State
+  const [hoverPopover, setHoverPopover] = useState<{
+    isOpen: boolean;
+    anchorRect: DOMRect | null;
+    dateStr: string;
+    items: CalendarHoverItem[];
+  } | null>(null);
+
+  useEffect(() => {
+    const handleScroll = () => setHoverPopover(null);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const handleCellMouseEnter = (e: React.MouseEvent<HTMLElement>, dateStr: string, bookings: any[]) => {
+    if (bookings.length === 0) {
+      setHoverPopover(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const items: CalendarHoverItem[] = bookings.map((b) => ({
+      id: b.id,
+      code: b.bookingNumber,
+      roomCode: b.room?.code,
+      roomName: b.room?.name,
+      title: b.title,
+      startTime: b.startTime,
+      endTime: b.endTime,
+      status: b.status,
+      userName: formatUserName(b.user),
+      courseCode: b.course?.code,
+      courseName: b.course?.name,
+      participants: b.attendeesCount,
+      equipmentNeeded: b.equipmentNeeded,
+      type: 'ROOM_BOOKING',
+    }));
+
+    setHoverPopover({
+      isOpen: true,
+      anchorRect: rect,
+      dateStr,
+      items,
+    });
+  };
+
+  const handleCellMouseLeave = () => {
+    setHoverPopover(null);
+  };
 
   // Modal: Booking Form
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -1224,7 +1274,12 @@ export default function RoomsPage() {
                       return (
                         <div
                           key={cell.dateStr}
-                          onClick={() => setSelectedDate(cell.dateStr)}
+                          onClick={() => {
+                            setSelectedDate(cell.dateStr);
+                            setHoverPopover(null);
+                          }}
+                          onMouseEnter={(e) => handleCellMouseEnter(e, cell.dateStr, dayBookings)}
+                          onMouseLeave={handleCellMouseLeave}
                           className={`min-h-[95px] p-2 transition cursor-pointer flex flex-col justify-between ${
                             !cell.isCurrentMonth
                               ? 'bg-slate-50/40 dark:bg-slate-900/30 opacity-40'
@@ -1276,6 +1331,16 @@ export default function RoomsPage() {
                       );
                     })}
                   </div>
+
+                  {/* Floating Calendar Hover Popover */}
+                  {hoverPopover && (
+                    <CalendarHoverCard
+                      isOpen={hoverPopover.isOpen}
+                      anchorRect={hoverPopover.anchorRect}
+                      dateStr={hoverPopover.dateStr}
+                      items={hoverPopover.items}
+                    />
+                  )}
                 </div>
 
                 {/* Day Detail Panel */}

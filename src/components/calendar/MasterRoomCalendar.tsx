@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { formatUserName, formatTeacherName } from '@/lib/user-utils';
+import CalendarHoverCard, { CalendarHoverItem } from '@/components/calendar/CalendarHoverCard';
 
 export type RoomCategory = 'ALL' | 'SKILL' | 'SIMULATION' | 'SPECIALTY' | 'SUPPORT';
 
@@ -136,6 +137,52 @@ export default function MasterRoomCalendar({
 
   // Selected Activity Detail Modal
   const [activeActivityModal, setActiveActivityModal] = useState<CalendarActivity | null>(null);
+
+  // Calendar Hover Tooltip State
+  const [hoverPopover, setHoverPopover] = useState<{
+    isOpen: boolean;
+    anchorRect: DOMRect | null;
+    dateStr: string;
+    items: CalendarHoverItem[];
+  } | null>(null);
+
+  useEffect(() => {
+    const handleScroll = () => setHoverPopover(null);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const handleDayMouseEnter = (e: React.MouseEvent<HTMLElement>, dateStr: string, acts: CalendarActivity[]) => {
+    if (acts.length === 0) {
+      setHoverPopover(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const items: CalendarHoverItem[] = acts.map((act) => ({
+      id: act.id,
+      roomCode: act.roomCode,
+      roomName: act.roomName,
+      title: act.title,
+      startTime: act.startTime,
+      endTime: act.endTime,
+      status: act.status,
+      userName: act.userOrAdvisorName,
+      participants: act.attendeesCount,
+      equipmentNeeded: act.equipmentNeeded,
+      type: act.sourceType,
+    }));
+
+    setHoverPopover({
+      isOpen: true,
+      anchorRect: rect,
+      dateStr,
+      items,
+    });
+  };
+
+  const handleDayMouseLeave = () => {
+    setHoverPopover(null);
+  };
 
   // Fetch Master Data
   const fetchData = async (manual = false) => {
@@ -878,7 +925,12 @@ export default function MasterRoomCalendar({
                 return (
                   <div
                     key={cell.dateStr}
-                    onClick={() => setSelectedDate(cell.dateStr)}
+                    onClick={() => {
+                      setSelectedDate(cell.dateStr);
+                      setHoverPopover(null);
+                    }}
+                    onMouseEnter={(e) => handleDayMouseEnter(e, cell.dateStr, dayActivities)}
+                    onMouseLeave={handleDayMouseLeave}
                     className={`min-h-[105px] p-2 transition cursor-pointer flex flex-col justify-between ${
                       !cell.isCurrentMonth
                         ? 'bg-slate-50/40 dark:bg-slate-900/30 opacity-40'
@@ -935,6 +987,16 @@ export default function MasterRoomCalendar({
                 );
               })}
             </div>
+
+            {/* Floating Calendar Hover Popover */}
+            {hoverPopover && (
+              <CalendarHoverCard
+                isOpen={hoverPopover.isOpen}
+                anchorRect={hoverPopover.anchorRect}
+                dateStr={hoverPopover.dateStr}
+                items={hoverPopover.items}
+              />
+            )}
           </div>
 
           {/* Bottom Day Detail Panel */}

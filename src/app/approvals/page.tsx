@@ -23,7 +23,14 @@ import {
   Sparkles,
   MapPin,
   Package,
-  Building2
+  Building2,
+  Search,
+  ChevronDown,
+  ChevronUp,
+  ArrowUpDown,
+  SlidersHorizontal,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { formatUserName, formatTeacherName, stripAllPrefixes, formatApproverDisplay, formatAcknowledgeDisplay } from '@/lib/user-utils';
@@ -48,6 +55,17 @@ export default function ApprovalsPage() {
   const [activeTab, setActiveTab] = useState<'ALL' | 'BORROW' | 'REQUISITION' | 'PRACTICE' | 'ROOM'>('ALL');
   const [viewScope, setViewScope] = useState<'RELEVANT' | 'ALL'>('RELEVANT');
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOption, setSortOption] = useState<'CREATED_ASC' | 'CREATED_DESC' | 'DATE_NEEDED_ASC'>('CREATED_ASC');
+  const [urgencyChip, setUrgencyChip] = useState<'ALL' | 'SHORT_NOTICE' | 'PAST_DATE' | 'REGULAR'>('ALL');
+  const [listLayout, setListLayout] = useState<'COMPACT' | 'CARDS'>('COMPACT');
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [expandedItemIds, setExpandedItemIds] = useState<Record<string, boolean>>({});
+  const [batchProcessing, setBatchProcessing] = useState(false);
+
+  useEffect(() => {
+    setSelectedItemIds(new Set());
+  }, [statusFilter, activeTab, viewScope]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -536,6 +554,730 @@ export default function ApprovalsPage() {
     }
   };
 
+  // Calculate urgency & timing badge according to rules
+  const getItemTimeBadge = (createdAtStr: string, dateNeededStr: string) => {
+    const now = new Date();
+    const created = new Date(createdAtStr);
+    const needed = new Date(dateNeededStr);
+
+    // 1. Is dateNeeded in the past? (Over 1 hour ago)
+    if (needed.getTime() < now.getTime() && now.getTime() - needed.getTime() > 60 * 60 * 1000) {
+      const formattedDate = needed.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+      return {
+        type: 'PAST_DATE' as const,
+        text: `⚠️ วันที่ขอใช้ผ่านไปแล้ว (${formattedDate})`,
+        className: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-900',
+      };
+    }
+
+    // 2. Short notice: submitted < 24 hours before date needed
+    const diffHoursNotice = (needed.getTime() - created.getTime()) / (1000 * 60 * 60);
+    if (diffHoursNotice > 0 && diffHoursNotice < 24) {
+      const roundedHours = Math.max(1, Math.round(diffHoursNotice));
+      return {
+        type: 'SHORT_NOTICE' as const,
+        text: `⚡ ยื่นขอก่อนเวลาใช้งาน <24 ชม. (ล่วงหน้า ${roundedHours} ชม.)`,
+        className: 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800 font-semibold',
+      };
+    }
+
+    // 3. Normal queue
+    const diffDaysAgo = Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+    const formattedCreated = created.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+    const daysText = diffDaysAgo <= 0 ? 'วันนี้' : `${diffDaysAgo} วันที่แล้ว`;
+    return {
+      type: 'REGULAR' as const,
+      text: `📋 ยื่น ${formattedCreated} (${daysText})`,
+      className: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+    };
+  };
+
+  interface UnifiedApprovalItem {
+    id: string;
+    type: 'BORROW' | 'REQUISITION' | 'PRACTICE' | 'ROOM';
+    requestNumber: string;
+    createdAt: string;
+    dateNeeded: string;
+    dateNeededDisplay: string;
+    user: any;
+    course?: any;
+    purpose: string;
+    itemsSummary: string;
+    status: string;
+    canApprove: boolean;
+    instructorAcknowledged?: boolean;
+    advisorName?: string;
+    badge: {
+      type: 'SHORT_NOTICE' | 'PAST_DATE' | 'REGULAR';
+      text: string;
+      className: string;
+    };
+    raw: any;
+  }
+
+  const mapBorrowToUnified = (b: any): UnifiedApprovalItem => {
+    const borrowDate = b.borrowDate || b.createdAt;
+    const reqNum = b.requestNumber + (b.requisitionRequest ? ` + ${b.requisitionRequest.requestNumber}` : '');
+    const itemsList = (b.items || []).map((it: any) => `${it.item?.name || 'พัสดุ'} (${it.quantity || 1} ${it.item?.unit || 'ชิ้น'})`);
+    const summary = itemsList.length > 0 ? itemsList.join(', ') : 'ครุภัณฑ์ตามรายการ';
+    const fullSummary = b.requisitionRequest
+      ? `${summary} + วัสดุ ${(b.requisitionRequest.items || []).length} รายการ`
+      : summary;
+
+    return {
+      id: b.id,
+      type: 'BORROW',
+      requestNumber: reqNum,
+      createdAt: b.createdAt,
+      dateNeeded: borrowDate,
+      dateNeededDisplay: `${new Date(borrowDate).toLocaleDateString('th-TH')}${b.expectedReturnDate ? ` (คืน ${new Date(b.expectedReturnDate).toLocaleDateString('th-TH')})` : ''}`,
+      user: b.user,
+      course: b.course,
+      purpose: b.purpose || 'ยืมเพื่อการเรียนการสอน',
+      itemsSummary: fullSummary,
+      status: b.status,
+      canApprove: Boolean(canApproveBorrow),
+      instructorAcknowledged: b.instructorAcknowledged,
+      advisorName: b.advisorName || b.course?.instructorName,
+      badge: getItemTimeBadge(b.createdAt, borrowDate),
+      raw: b,
+    };
+  };
+
+  const mapRequisitionToUnified = (r: any): UnifiedApprovalItem => {
+    const dateNeeded = r.dateNeeded || r.createdAt;
+    const itemsList = (r.items || []).map((it: any) => `${it.item?.name || 'วัสดุ'} (${it.quantityRequested || 1} ${it.item?.unit || 'ชิ้น'})`);
+    const summary = itemsList.length > 0 ? itemsList.join(', ') : 'วัสดุตามรายการ';
+
+    return {
+      id: r.id,
+      type: 'REQUISITION',
+      requestNumber: r.requestNumber,
+      createdAt: r.createdAt,
+      dateNeeded: dateNeeded,
+      dateNeededDisplay: new Date(dateNeeded).toLocaleDateString('th-TH'),
+      user: r.user,
+      course: r.course,
+      purpose: r.purpose || 'เบิกวัสดุสิ้นเปลือง',
+      itemsSummary: summary,
+      status: r.status,
+      canApprove: Boolean(canApproveReq),
+      instructorAcknowledged: r.instructorAcknowledged,
+      advisorName: r.advisorName || r.course?.instructorName,
+      badge: getItemTimeBadge(r.createdAt, dateNeeded),
+      raw: r,
+    };
+  };
+
+  const mapPracticeToUnified = (p: any): UnifiedApprovalItem => {
+    const dateNeeded = p.slot?.date ? `${p.slot.date}T${p.slot.startTime || '08:00'}:00` : p.createdAt;
+    const dateNeededDisplay = p.slot?.date
+      ? `${new Date(p.slot.date).toLocaleDateString('th-TH')} (${p.slot.startTime || ''} - ${p.slot.endTime || ''} น.)`
+      : '-';
+    const summaryParts = [p.slot?.room?.name, p.practiceKit?.name, p.additionalEquipment].filter(Boolean);
+    const summary = summaryParts.length > 0 ? summaryParts.join(' | ') : 'ขอเข้าฝึกปฏิบัติ';
+
+    return {
+      id: p.id,
+      type: 'PRACTICE',
+      requestNumber: p.bookingNumber,
+      createdAt: p.createdAt,
+      dateNeeded: dateNeeded,
+      dateNeededDisplay: dateNeededDisplay,
+      user: p.user,
+      course: p.course,
+      purpose: p.skillTopic || 'ฝึกปฏิบัติด้วยตนเอง',
+      itemsSummary: summary,
+      status: p.status,
+      canApprove: Boolean(canApprovePractice),
+      instructorAcknowledged: true,
+      advisorName: p.advisorName || p.instructor,
+      badge: getItemTimeBadge(p.createdAt, dateNeeded),
+      raw: p,
+    };
+  };
+
+  const mapRoomToUnified = (rm: any): UnifiedApprovalItem => {
+    const dateNeeded = rm.bookingDate ? `${rm.bookingDate}T${rm.startTime || '08:00'}:00` : rm.createdAt;
+    const dateNeededDisplay = rm.bookingDate
+      ? `${new Date(rm.bookingDate).toLocaleDateString('th-TH')} (${rm.startTime || ''} - ${rm.endTime || ''} น.)`
+      : '-';
+    const summaryParts = [
+      rm.room?.name,
+      rm.attendeesCount ? `${rm.attendeesCount} คน` : null,
+      rm.equipmentNeeded,
+    ].filter(Boolean);
+    const summary = summaryParts.length > 0 ? summaryParts.join(' | ') : 'จองห้องใช้งาน';
+
+    return {
+      id: rm.id,
+      type: 'ROOM',
+      requestNumber: rm.bookingNumber,
+      createdAt: rm.createdAt,
+      dateNeeded: dateNeeded,
+      dateNeededDisplay: dateNeededDisplay,
+      user: rm.user,
+      course: rm.course,
+      purpose: rm.title ? `${rm.title}${rm.purpose ? ` (${rm.purpose})` : ''}` : (rm.purpose || 'จองห้องปฏิบัติการ'),
+      itemsSummary: summary,
+      status: rm.status,
+      canApprove: Boolean(canApproveRoom),
+      instructorAcknowledged: true,
+      advisorName: rm.advisorName,
+      badge: getItemTimeBadge(rm.createdAt, dateNeeded),
+      raw: rm,
+    };
+  };
+
+  const matchesSearch = (item: UnifiedApprovalItem, query: string) => {
+    if (!query.trim()) return true;
+    const q = query.trim().toLowerCase();
+    const userName = formatUserName(item.user).toLowerCase();
+    const studentId = (item.user?.studentId || '').toLowerCase();
+    const reqNum = (item.requestNumber || '').toLowerCase();
+    const purpose = (item.purpose || '').toLowerCase();
+    const items = (item.itemsSummary || '').toLowerCase();
+    const courseCode = ((item.course?.code || item.course?.courseCode) || '').toLowerCase();
+    const courseName = ((item.course?.name || item.course?.courseName) || '').toLowerCase();
+    const advisor = (item.advisorName || '').toLowerCase();
+
+    return (
+      reqNum.includes(q) ||
+      userName.includes(q) ||
+      studentId.includes(q) ||
+      purpose.includes(q) ||
+      items.includes(q) ||
+      courseCode.includes(q) ||
+      courseName.includes(q) ||
+      advisor.includes(q)
+    );
+  };
+
+  const sortUnifiedItems = (items: UnifiedApprovalItem[], sort: typeof sortOption) => {
+    return [...items].sort((a, b) => {
+      if (sort === 'CREATED_ASC') {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      if (sort === 'CREATED_DESC') {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      if (sort === 'DATE_NEEDED_ASC') {
+        return new Date(a.dateNeeded).getTime() - new Date(b.dateNeeded).getTime();
+      }
+      return 0;
+    });
+  };
+
+  const baseUnifiedItems: UnifiedApprovalItem[] = [];
+  if (activeTab === 'ALL' || activeTab === 'BORROW') {
+    baseUnifiedItems.push(...filteredBorrows.map(mapBorrowToUnified));
+  }
+  if (activeTab === 'ALL' || activeTab === 'REQUISITION') {
+    baseUnifiedItems.push(...filteredRequisitions.map(mapRequisitionToUnified));
+  }
+  if (activeTab === 'ALL' || activeTab === 'PRACTICE') {
+    baseUnifiedItems.push(...filteredPracticeBookings.map(mapPracticeToUnified));
+  }
+  if (activeTab === 'ALL' || activeTab === 'ROOM') {
+    baseUnifiedItems.push(...filteredRoomBookings.map(mapRoomToUnified));
+  }
+
+  // Filter with Search query
+  const searchedItems = baseUnifiedItems.filter((item) => matchesSearch(item, searchQuery));
+
+  // Count items for urgency chips from searched set
+  const countAll = searchedItems.length;
+  const countShortNotice = searchedItems.filter((it) => it.badge.type === 'SHORT_NOTICE').length;
+  const countPastDate = searchedItems.filter((it) => it.badge.type === 'PAST_DATE').length;
+  const countRegular = searchedItems.filter((it) => it.badge.type === 'REGULAR').length;
+
+  // Filter with Urgency Chip
+  const chipFilteredItems =
+    urgencyChip === 'ALL'
+      ? searchedItems
+      : searchedItems.filter((it) => it.badge.type === urgencyChip);
+
+  // Apply sorting
+  const displayUnifiedItems = sortUnifiedItems(chipFilteredItems, sortOption);
+
+  const handleBatchApprove = async () => {
+    if (selectedItemIds.size === 0) return;
+    const itemsToApprove = displayUnifiedItems.filter(
+      (item) => selectedItemIds.has(item.id) && item.canApprove && item.status === 'PENDING'
+    );
+
+    if (itemsToApprove.length === 0) {
+      alert('ไม่มีรายการที่ท่านมีสิทธิ์อนุมัติในกลุ่มที่เลือก');
+      return;
+    }
+
+    if (!window.confirm(`ยืนยันการอนุมัติคำขอที่เลือกทั้งหมด ${itemsToApprove.length} รายการใช่หรือไม่?`)) {
+      return;
+    }
+
+    setBatchProcessing(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const item of itemsToApprove) {
+      try {
+        const endpoint =
+          item.type === 'BORROW'
+            ? `/api/borrow/${item.id}`
+            : item.type === 'REQUISITION'
+            ? `/api/requisitions/${item.id}`
+            : item.type === 'ROOM'
+            ? `/api/room-bookings/${item.id}`
+            : `/api/practice/bookings/${item.id}`;
+
+        const itemKnownUpdatedAt = item.raw?.updatedAt;
+        const res = await fetch(endpoint, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'APPROVE',
+            userId: currentUser?.id,
+            lastKnownUpdatedAt: itemKnownUpdatedAt,
+          }),
+        });
+
+        if (res.ok) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch {
+        failCount++;
+      }
+    }
+
+    setBatchProcessing(false);
+    setSelectedItemIds(new Set());
+    await fetchData();
+    alert(`ดำเนินการอนุมัติสำเร็จ ${successCount} รายการ${failCount > 0 ? ` (ไม่สำเร็จ ${failCount} รายการ)` : ''}`);
+  };
+
+  const toggleSelectItem = (id: string) => {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const eligibleIds = displayUnifiedItems
+      .filter((item) => item.canApprove && item.status === 'PENDING')
+      .map((item) => item.id);
+
+    const allSelected = eligibleIds.length > 0 && eligibleIds.every((id) => selectedItemIds.has(id));
+    if (allSelected) {
+      setSelectedItemIds(new Set());
+    } else {
+      setSelectedItemIds(new Set(eligibleIds));
+    }
+  };
+
+  const toggleExpandItem = (id: string) => {
+    setExpandedItemIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
+  const renderExpandedDetails = (item: UnifiedApprovalItem) => {
+    const raw = item.raw;
+    if (item.type === 'BORROW') {
+      return (
+        <div className="space-y-3 text-xs bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-700 dark:text-slate-300">วัตถุประสงค์:</span>
+              <span className="text-slate-900 dark:text-slate-100">{raw.purpose || '-'}</span>
+              {raw.useTarget === 'HUMAN' ? (
+                <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                  🚨 ใช้กับคนจริง
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-full">
+                  🧪 ฝึกกับหุ่นจำลอง
+                </span>
+              )}
+            </div>
+            {raw.advisorName && (
+              <div className="text-[11px] text-slate-500">
+                อาจารย์ผู้ดูแล: <strong className="text-slate-700 dark:text-slate-300">{formatTeacherName(raw.advisorName)}</strong>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="text-[11px] font-bold text-slate-500 mb-1 flex items-center gap-1">
+              <Package className="w-3.5 h-3.5 text-teal-600" />
+              <span>รายการครุภัณฑ์ที่ขอยืม ({(raw.items || []).length} รายการ):</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {(raw.items || []).map((it: any) => (
+                <div key={it.id} className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-between text-xs font-semibold">
+                  <span>• {it.item?.name} ({it.quantity} {it.item?.unit || 'ชิ้น'})</span>
+                  {it.asset && (
+                    <span className="font-mono text-[10px] text-teal-700 dark:text-teal-300 bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-teal-200 dark:border-teal-800">
+                      {it.asset.assetCode}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {raw.requisitionRequest && (
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="text-[11px] font-bold text-indigo-700 dark:text-indigo-400 mb-1 flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                <span>รายการวัสดุสิ้นเปลืองที่ขอเบิกควบคู่ ({(raw.requisitionRequest.items || []).length} รายการ - ประมาณการ ฿{raw.requisitionRequest.totalCost?.toFixed(2)} บาท):</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {(raw.requisitionRequest.items || []).map((it: any) => (
+                  <div key={it.id} className="p-2 rounded-lg bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 flex items-center justify-between text-xs font-semibold">
+                    <span>• {it.item?.name}</span>
+                    <span className="text-indigo-900 dark:text-indigo-300">{it.quantityRequested} {it.item?.unit || 'ชิ้น'} (~฿{it.totalCost?.toFixed(2)})</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (item.type === 'REQUISITION') {
+      return (
+        <div className="space-y-3 text-xs bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-700 dark:text-slate-300">วัตถุประสงค์:</span>
+              <span className="text-slate-900 dark:text-slate-100">{raw.purpose || '-'}</span>
+            </div>
+            <div className="font-black text-emerald-700 dark:text-emerald-400">
+              ประมาณการต้นทุนรวม: ฿{(raw.totalCost || 0).toFixed(2)} บาท
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[11px] font-bold text-slate-500 mb-1 flex items-center gap-1">
+              <Package className="w-3.5 h-3.5 text-teal-600" />
+              <span>รายการวัสดุที่ขอเบิก ({(raw.items || []).length} รายการ):</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {(raw.items || []).map((it: any) => (
+                <div key={it.id} className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-between text-xs font-semibold">
+                  <span>• {it.item?.name}</span>
+                  <span className="text-slate-900 dark:text-slate-100">{it.quantityRequested} {it.item?.unit} (~฿{it.totalCost?.toFixed(2)})</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (item.type === 'PRACTICE') {
+      return (
+        <div className="space-y-3 text-xs bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <span className="font-bold text-slate-500">หัวข้อหัตถการ: </span>
+              <span className="text-slate-900 dark:text-slate-100 font-bold">{raw.skillTopic}</span>
+            </div>
+            <div>
+              <span className="font-bold text-slate-500">ห้องแล็บ: </span>
+              <span className="text-teal-700 dark:text-teal-400 font-semibold">{raw.slot?.room?.name || 'ห้องปฏิบัติการ'}</span>
+            </div>
+            {raw.objectives && (
+              <div className="sm:col-span-2">
+                <span className="font-bold text-slate-500">วัตถุประสงค์: </span>
+                <span className="text-slate-700 dark:text-slate-300">{raw.objectives}</span>
+              </div>
+            )}
+            {raw.practiceKit && (
+              <div>
+                <span className="font-bold text-slate-500">ชุดฝึก: </span>
+                <span className="text-amber-700 dark:text-amber-400 font-semibold">{raw.practiceKit.name}</span>
+              </div>
+            )}
+            {raw.additionalEquipment && (
+              <div>
+                <span className="font-bold text-slate-500">อุปกรณ์ขอเพิ่ม: </span>
+                <span className="text-amber-700 dark:text-amber-400 font-semibold">{raw.additionalEquipment}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    if (item.type === 'ROOM') {
+      return (
+        <div className="space-y-3 text-xs bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <span className="font-bold text-slate-500">ห้อง: </span>
+              <span className="text-indigo-700 dark:text-indigo-400 font-bold">{raw.room?.name || '-'}</span>
+            </div>
+            <div>
+              <span className="font-bold text-slate-500">ผู้เข้าร่วม: </span>
+              <span className="text-slate-900 dark:text-slate-100 font-bold">{raw.attendeesCount} คน</span>
+            </div>
+            {raw.equipmentNeeded && (
+              <div className="sm:col-span-2">
+                <span className="font-bold text-amber-700 dark:text-amber-400">อุปกรณ์ที่ต้องการ: </span>
+                <span className="text-slate-800 dark:text-slate-200">{raw.equipmentNeeded}</span>
+              </div>
+            )}
+            {raw.contactPhone && (
+              <div>
+                <span className="font-bold text-slate-500">เบอร์ติดต่อ: </span>
+                <span className="text-slate-800 dark:text-slate-200">{raw.contactPhone}</span>
+              </div>
+            )}
+            {raw.note && (
+              <div>
+                <span className="font-bold text-slate-500">หมายเหตุ: </span>
+                <span className="text-slate-800 dark:text-slate-200">{raw.note}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  const renderCompactTable = () => {
+    const eligibleBatchIds = displayUnifiedItems
+      .filter((item) => item.canApprove && item.status === 'PENDING')
+      .map((item) => item.id);
+    const allBatchSelected = eligibleBatchIds.length > 0 && eligibleBatchIds.every((id) => selectedItemIds.has(id));
+
+    return (
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-800/70 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[11px]">
+                {statusFilter === 'PENDING' && canApprove && (
+                  <th className="py-3 px-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={allBatchSelected}
+                      onChange={toggleSelectAll}
+                      disabled={eligibleBatchIds.length === 0}
+                      title="เลือกทั้งหมดที่มีสิทธิ์อนุมัติ"
+                      className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 border-slate-300 dark:border-slate-700 cursor-pointer disabled:opacity-40"
+                    />
+                  </th>
+                )}
+                <th className="py-3 px-3 whitespace-nowrap">ลำดับคิว / วันที่ยื่น</th>
+                <th className="py-3 px-3 whitespace-nowrap">เลขคำขอ & ประเภท</th>
+                <th className="py-3 px-3 whitespace-nowrap">นิสิตผู้ยื่น</th>
+                <th className="py-3 px-3 whitespace-nowrap">วันที่ต้องการใช้</th>
+                <th className="py-3 px-3 whitespace-nowrap">รายวิชา & วัตถุประสงค์</th>
+                <th className="py-3 px-3">รายการสิ่งของ / ห้อง</th>
+                <th className="py-3 px-3 text-right whitespace-nowrap">การดำเนินการ</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {displayUnifiedItems.map((item) => {
+                const isSelected = selectedItemIds.has(item.id);
+                const isExpanded = Boolean(expandedItemIds[item.id]);
+                const raw = item.raw;
+
+                return (
+                  <React.Fragment key={`${item.type}-${item.id}`}>
+                    <tr
+                      id={`approval-row-${item.id}`}
+                      className={`transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/50 ${
+                        item.id === highlightId ? 'bg-teal-50/40 dark:bg-teal-950/30' : ''
+                      } ${isSelected ? 'bg-teal-50/60 dark:bg-teal-950/40' : ''}`}
+                    >
+                      {statusFilter === 'PENDING' && canApprove && (
+                        <td className="py-3 px-3 text-center align-middle">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectItem(item.id)}
+                            disabled={!item.canApprove}
+                            className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 border-slate-300 dark:border-slate-700 cursor-pointer disabled:opacity-30"
+                          />
+                        </td>
+                      )}
+                      <td className="py-3 px-3 align-middle whitespace-nowrap">
+                        <div className="space-y-1">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${item.badge.className}`}>
+                            {item.badge.text}
+                          </span>
+                          <div className="text-[10px] text-slate-400">
+                            {new Date(item.createdAt).toLocaleDateString('th-TH')} {new Date(item.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 align-middle whitespace-nowrap">
+                        <div className="space-y-1">
+                          <div className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                            {item.requestNumber}
+                          </div>
+                          <div>
+                            {item.type === 'BORROW' ? (
+                              raw.requisitionRequest ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-gradient-to-r from-teal-500 to-indigo-600 text-white shadow-xs inline-flex items-center gap-1">
+                                  <Sparkles className="w-2.5 h-2.5 text-amber-300" /> คำขอรวม (One-Stop)
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 dark:bg-purple-950/70 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                  ยืมครุภัณฑ์
+                                </span>
+                              )
+                            ) : item.type === 'REQUISITION' ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 dark:bg-teal-950/70 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+                                เบิกเฉพาะวัสดุ
+                              </span>
+                            ) : item.type === 'PRACTICE' ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 inline-flex items-center gap-1">
+                                <Sparkles className="w-2.5 h-2.5 text-indigo-600" /> ขอฝึกปฏิบัติ
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950/70 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 inline-flex items-center gap-1">
+                                <Building2 className="w-2.5 h-2.5 text-blue-600" /> จองห้องใช้งาน
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 align-middle whitespace-nowrap">
+                        <div className="space-y-0.5">
+                          <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                            <User className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{formatUserName(item.user)}</span>
+                          </div>
+                          {item.user?.studentId && (
+                            <span className="text-[10px] text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/50 px-1.5 py-0.2 rounded font-mono border border-teal-200 dark:border-teal-800 inline-block">
+                              {item.user.studentId}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 align-middle whitespace-nowrap">
+                        <div className="space-y-0.5">
+                          <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                            <span>{item.dateNeededDisplay}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 align-middle max-w-xs">
+                        <div className="space-y-1">
+                          {(item.course?.code || item.course?.courseCode) && (
+                            <span className="font-mono text-[10px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1.5 py-0.5 rounded border border-teal-200 dark:border-teal-800 inline-block">
+                              {item.course?.code || item.course?.courseCode}
+                            </span>
+                          )}
+                          <p className="text-xs text-slate-700 dark:text-slate-300 font-medium truncate max-w-xs" title={item.purpose}>
+                            {item.purpose || '-'}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 align-middle max-w-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs text-slate-600 dark:text-slate-400 font-medium truncate max-w-[200px]" title={item.itemsSummary}>
+                            {item.itemsSummary}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => toggleExpandItem(item.id)}
+                            className="px-2 py-1 rounded-lg text-[10px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 hover:bg-teal-100 dark:hover:bg-teal-900/60 transition inline-flex items-center gap-1 shrink-0 cursor-pointer"
+                          >
+                            <span>{isExpanded ? 'ย่อ' : 'ดูของ'}</span>
+                            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 align-middle text-right whitespace-nowrap">
+                        {statusFilter === 'PENDING' ? (
+                          <div className="inline-flex items-center gap-1.5 justify-end">
+                            {(item.type === 'BORROW' || item.type === 'REQUISITION') && !item.instructorAcknowledged && (isTeacher || canApprove) && (
+                              <button
+                                type="button"
+                                disabled={acknowledgingId === item.id || submitting}
+                                onClick={() => handleAcknowledge(item.id, item.type as any)}
+                                className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 transition cursor-pointer flex items-center gap-1"
+                                title="อาจารย์ผู้สอนกดรับทราบคำขอ"
+                              >
+                                {acknowledgingId === item.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <GraduationCap className="w-3 h-3 text-indigo-600" />}
+                                <span>รับทราบ</span>
+                              </button>
+                            )}
+
+                            {item.canApprove ? (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={submitting}
+                                  onClick={() => setRejectItem({ id: item.id, type: item.type })}
+                                  className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/60 border border-rose-200 dark:border-rose-800 transition cursor-pointer"
+                                >
+                                  ไม่อนุมัติ
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={submitting}
+                                  onClick={() => handleApprove(item.id, item.type)}
+                                  className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-white bg-teal-600 hover:bg-teal-500 shadow-xs transition cursor-pointer flex items-center gap-1"
+                                >
+                                  {approvingId === item.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                                  <span>อนุมัติ</span>
+                                </button>
+                              </>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                ไม่มีสิทธิ์อนุมัติ
+                              </span>
+                            )}
+                          </div>
+                        ) : statusFilter === 'APPROVED' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> อนุมัติแล้ว
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                            <XCircle className="w-3 h-3 text-rose-600" /> ไม่อนุมัติ
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+
+                    {/* Expanded Accordion Details */}
+                    {isExpanded && (
+                      <tr className="bg-slate-50/70 dark:bg-slate-950/40">
+                        <td colSpan={statusFilter === 'PENDING' && canApprove ? 8 : 7} className="p-4 border-b border-slate-200 dark:border-slate-800">
+                          {renderExpandedDetails(item)}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -758,6 +1500,178 @@ export default function ApprovalsPage() {
         </button>
       </div>
 
+      {/* Control Bar: Search, Sort, Layout Switch, Urgency Chips */}
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3 transition-colors">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Search Box */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="ค้นหาด่วนตามชื่อนิสิต, รหัสนิสิต, เลขที่คำขอ, ชื่อพัสดุ/ห้อง, หรือรหัสวิชา..."
+              className="w-full pl-9 pr-8 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs p-1 cursor-pointer"
+                title="ล้างข้อความค้นหา"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Sort Selector */}
+            <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+              <ArrowUpDown className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+              <span className="text-slate-500 font-medium hidden sm:inline">จัดเรียง:</span>
+              <select
+                value={sortOption}
+                onChange={(e) => setSortOption(e.target.value as any)}
+                className="bg-transparent text-slate-700 dark:text-slate-200 text-xs font-bold focus:outline-none cursor-pointer"
+              >
+                <option value="CREATED_ASC" className="dark:bg-slate-900">เรียงตามคำขอ (มาก่อนได้ก่อน - FIFO)</option>
+                <option value="DATE_NEEDED_ASC" className="dark:bg-slate-900">เรียงตามวันที่ต้องการใช้ (ใกล้สุดก่อน)</option>
+                <option value="CREATED_DESC" className="dark:bg-slate-900">เรียงตามคำขอล่าสุด (ใหม่สุดก่อน)</option>
+              </select>
+            </div>
+
+            {/* Layout Toggle: [ ตารางกระชับ | การ์ดเต็ม ] */}
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-transparent dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => setListLayout('COMPACT')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  listLayout === 'COMPACT'
+                    ? 'bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300 shadow-xs'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+                }`}
+                title="สลับเป็นมุมมองตารางกระชับ"
+              >
+                <List className="w-3.5 h-3.5" />
+                <span>ตารางกระชับ</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setListLayout('CARDS')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  listLayout === 'CARDS'
+                    ? 'bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300 shadow-xs'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+                }`}
+                title="สลับเป็นมุมมองการ์ดเต็ม"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>การ์ดเต็ม</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Urgency Filter Chips */}
+        <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-100 dark:border-slate-800/80">
+          <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mr-1">
+            จำแนกความเร่งด่วน:
+          </span>
+          <button
+            type="button"
+            onClick={() => setUrgencyChip('ALL')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+              urgencyChip === 'ALL'
+                ? 'bg-teal-700 text-white shadow-xs'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750'
+            }`}
+          >
+            <span>ทั้งหมด</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 font-bold">{countAll}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setUrgencyChip('SHORT_NOTICE')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+              urgencyChip === 'SHORT_NOTICE'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-850 hover:bg-amber-100'
+            }`}
+          >
+            <span>⚡ ยื่นขอก่อนเวลาใช้งาน &lt;24 ชม.</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/10 dark:bg-white/20 font-bold">{countShortNotice}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setUrgencyChip('PAST_DATE')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+              urgencyChip === 'PAST_DATE'
+                ? 'bg-rose-600 text-white shadow-xs'
+                : 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-850 hover:bg-rose-100'
+            }`}
+          >
+            <span>⚠️ วันที่ขอใช้ผ่านไปแล้ว</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/10 dark:bg-white/20 font-bold">{countPastDate}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setUrgencyChip('REGULAR')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+              urgencyChip === 'REGULAR'
+                ? 'bg-slate-700 text-white shadow-xs'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+            }`}
+          >
+            <span>📋 ยื่นตามเกณฑ์ปกติ</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/10 dark:bg-white/20 font-bold">{countRegular}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Floating Sticky Batch Action Bar */}
+      {statusFilter === 'PENDING' && canApprove && selectedItemIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-md text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-4 transition-all animate-in fade-in slide-in-from-bottom-4">
+          <div className="flex items-center gap-2">
+            <CheckSquare className="w-5 h-5 text-teal-400" />
+            <span className="text-xs font-bold">
+              เลือกแล้ว <span className="text-teal-300 font-extrabold">{selectedItemIds.size}</span> รายการ
+            </span>
+          </div>
+          <div className="h-4 w-px bg-slate-700" />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedItemIds(new Set())}
+              className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+            >
+              ยกเลิกการเลือก
+            </button>
+            <button
+              type="button"
+              onClick={handleBatchApprove}
+              disabled={batchProcessing}
+              className="px-4 py-1.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-extrabold shadow-md shadow-teal-500/30 flex items-center gap-1.5 transition cursor-pointer disabled:opacity-60"
+            >
+              {batchProcessing ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>กำลังอนุมัติ {selectedItemIds.size} รายการ...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4 font-black" />
+                  <span>อนุมัติทั้งหมดที่เลือก ({selectedItemIds.size})</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Items List */}
       <div className="space-y-4">
         {loading ? (
@@ -815,36 +1729,64 @@ export default function ApprovalsPage() {
               </>
             )}
           </div>
+        ) : displayUnifiedItems.length === 0 ? (
+          <div className="bg-white dark:bg-slate-900 p-10 text-center rounded-2xl border border-slate-200/80 dark:border-slate-800 text-slate-400 dark:text-slate-500 text-xs space-y-3">
+            <Search className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-1" />
+            <p className="font-bold text-slate-700 dark:text-slate-200 text-sm">ไม่พบคำขอที่ตรงกับเงื่อนไขการค้นหาหรือตัวกรองที่เลือก</p>
+            <p className="text-slate-400 text-xs">
+              {searchQuery && `คำค้นหา: "${searchQuery}" `}
+              {urgencyChip !== 'ALL' && `| ตัวกรองความเร่งด่วน: ${urgencyChip}`}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setUrgencyChip('ALL');
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/70 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 font-bold transition inline-flex items-center gap-1.5 cursor-pointer text-xs"
+            >
+              <span>ล้างคำค้นหาและตัวกรอง</span>
+            </button>
+          </div>
+        ) : listLayout === 'COMPACT' ? (
+          renderCompactTable()
         ) : (
-          <>
-            {/* Section: Borrows */}
-            {(activeTab === 'ALL' || activeTab === 'BORROW') &&
-              filteredBorrows.map((req) => (
-                <div
-                  key={req.id}
-                  id={`approval-card-${req.id}`}
-                  className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-sm space-y-4 border-l-4 transition-all ${
-                    req.id === highlightId ? 'ring-2 ring-teal-500 shadow-xl shadow-teal-500/20' : ''
-                  } ${
-                    statusFilter === 'PENDING'
-                      ? 'border-l-amber-500'
-                      : statusFilter === 'APPROVED'
-                      ? 'border-l-emerald-500'
-                      : 'border-l-rose-500'
-                  }`}
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-2">
-                      {req.requisitionRequest ? (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-gradient-to-r from-teal-500 to-indigo-600 text-white shadow-sm flex items-center gap-1">
-                          <Sparkles className="w-3 h-3 text-amber-300" />
-                          คำขอรวม (เบิกวัสดุ + ยืมครุภัณฑ์)
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 dark:bg-purple-950/70 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800 uppercase">
-                          ยืมครุภัณฑ์
-                        </span>
-                      )}
+          <div className="space-y-4">
+            {displayUnifiedItems.map((item) => {
+              if (item.type === 'BORROW') {
+                const req = item.raw;
+                const badge = item.badge;
+                return (
+                  <div
+                    key={req.id}
+                    id={`approval-card-${req.id}`}
+                    className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-sm space-y-4 border-l-4 transition-all ${
+                      req.id === highlightId ? 'ring-2 ring-teal-500 shadow-xl shadow-teal-500/20' : ''
+                    } ${
+                      statusFilter === 'PENDING'
+                        ? 'border-l-amber-500'
+                        : statusFilter === 'APPROVED'
+                        ? 'border-l-emerald-500'
+                        : 'border-l-rose-500'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {badge && (
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${badge.className}`}>
+                            {badge.text}
+                          </span>
+                        )}
+                        {req.requisitionRequest ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-gradient-to-r from-teal-500 to-indigo-600 text-white shadow-sm flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-amber-300" />
+                            คำขอรวม (เบิกวัสดุ + ยืมครุภัณฑ์)
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 dark:bg-purple-950/70 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800 uppercase">
+                            ยืมครุภัณฑ์
+                          </span>
+                        )}
                       <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
                         {req.requestNumber}
                         {req.requisitionRequest && ` + ${req.requisitionRequest.requestNumber}`}
@@ -1101,11 +2043,13 @@ export default function ApprovalsPage() {
                     </div>
                   )}
                 </div>
-              ))}
+              );
+            }
 
-            {/* Section: Requisitions */}
-            {(activeTab === 'ALL' || activeTab === 'REQUISITION') &&
-              filteredRequisitions.map((req) => (
+            if (item.type === 'REQUISITION') {
+              const req = item.raw;
+              const badge = item.badge;
+              return (
                 <div
                   key={req.id}
                   id={`approval-card-${req.id}`}
@@ -1120,7 +2064,12 @@ export default function ApprovalsPage() {
                   }`}
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {badge && (
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${badge.className}`}>
+                          {badge.text}
+                        </span>
+                      )}
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 uppercase">
                         เบิกวัสดุสิ้นเปลือง
                       </span>
@@ -1338,11 +2287,13 @@ export default function ApprovalsPage() {
                     </div>
                   )}
                 </div>
-              ))}
+              );
+            }
 
-            {/* Section: Practice Bookings */}
-            {(activeTab === 'ALL' || activeTab === 'PRACTICE') &&
-              filteredPracticeBookings.map((b) => (
+            if (item.type === 'PRACTICE') {
+              const b = item.raw;
+              const badge = item.badge;
+              return (
                 <div
                   key={b.id}
                   id={`approval-card-${b.id}`}
@@ -1358,6 +2309,11 @@ export default function ApprovalsPage() {
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-2 flex-wrap">
+                      {badge && (
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${badge.className}`}>
+                          {badge.text}
+                        </span>
+                      )}
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 uppercase flex items-center gap-1">
                         <Sparkles className="w-3 h-3 text-indigo-600" />
                         <span>ขอเข้าฝึกปฏิบัติด้วยตนเอง</span>
@@ -1529,11 +2485,13 @@ export default function ApprovalsPage() {
                     </div>
                   )}
                 </div>
-              ))}
+              );
+            }
 
-            {/* Room Booking Cards */}
-            {(activeTab === 'ALL' || activeTab === 'ROOM') &&
-              filteredRoomBookings.map((rm) => (
+            if (item.type === 'ROOM') {
+              const rm = item.raw;
+              const badge = item.badge;
+              return (
                 <div
                   key={rm.id}
                   id={`approval-card-${rm.id}`}
@@ -1542,7 +2500,12 @@ export default function ApprovalsPage() {
                   }`}
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {badge && (
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${badge.className}`}>
+                          {badge.text}
+                        </span>
+                      )}
                       <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/80 flex items-center gap-1.5">
                         <Building2 className="w-3.5 h-3.5 text-indigo-600" />
                         จองห้องใช้งาน
@@ -1698,10 +2661,14 @@ export default function ApprovalsPage() {
                     </div>
                   )}
                 </div>
-              ))}
-          </>
-        )}
-      </div>
+              );
+            }
+
+            return null;
+          })}
+        </div>
+      )}
+    </div>
 
       {/* Reject Modal */}
       {rejectItem && (

@@ -36,7 +36,10 @@ import {
   ClipboardCheck,
   CheckSquare,
   Layers,
-  CalendarCheck
+  CalendarCheck,
+  FileText,
+  Table,
+  ListFilter
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { formatUserName, formatTeacherName } from '@/lib/user-utils';
@@ -53,6 +56,8 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [timeFilter, setTimeFilter] = useState<'ALL' | 'TODAY' | 'UPCOMING' | 'OVERDUE' | 'AUDIT' | 'PM'>('ALL');
+  const [listLayout, setListLayout] = useState<'COMPACT' | 'CARDS'>('COMPACT');
+  const [futureCollapsed, setFutureCollapsed] = useState(false);
   const [expandedSlotIds, setExpandedSlotIds] = useState<Record<string, boolean>>({});
 
   // Calendar View States
@@ -550,6 +555,75 @@ export default function SchedulePage() {
       return !task.isOverdue && (task.status === 'APPROVED' || !isPast(task.returnDate));
     }
     return true;
+  });
+
+  // Operational Triage & Chronological Sorting for High-Volume Duty Management
+  const tomorrowDate = new Date();
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrowDateStr = tomorrowDate.toISOString().slice(0, 10);
+
+  const getTaskTriageScore = (t: any) => {
+    // 0: Overdue (Highest urgency)
+    if (t.isOverdue) return 0;
+    // 1: Today shift
+    if (t.isPickupToday || t.isReturnToday) return 1;
+    // 2: Tomorrow prep
+    const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
+    const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
+    if (pDate === tomorrowDateStr || rDate === tomorrowDateStr) return 2;
+    // 3: Future upcoming
+    return 3;
+  };
+
+  const getTaskTimeMinutes = (t: any) => {
+    if (t.timeSlot) {
+      const match = t.timeSlot.match(/(\d{1,2}):(\d{2})/);
+      if (match) return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+    }
+    if (t.isReturnToday) return 16 * 60 + 30; // 16:30 standard return
+    if (t.isPickupToday) return 9 * 60; // 09:00 standard pickup
+    return 12 * 60;
+  };
+
+  const sortedTasks = [...filteredTasks].sort((a: any, b: any) => {
+    const scoreA = getTaskTriageScore(a);
+    const scoreB = getTaskTriageScore(b);
+    if (scoreA !== scoreB) return scoreA - scoreB;
+
+    // Overdue: oldest date first (longest waiting overdue)
+    if (scoreA === 0) {
+      const dateA = a.returnDate || a.pickupDate || '';
+      const dateB = b.returnDate || b.pickupDate || '';
+      return dateA.localeCompare(dateB);
+    }
+
+    // Today: chronological order by time of day
+    if (scoreA === 1) {
+      const timeA = getTaskTimeMinutes(a);
+      const timeB = getTaskTimeMinutes(b);
+      if (timeA !== timeB) return timeA - timeB;
+    }
+
+    // Tomorrow or Future: date ascending
+    const dateA = a.pickupDate || a.returnDate || '';
+    const dateB = b.pickupDate || b.returnDate || '';
+    return dateA.localeCompare(dateB);
+  });
+
+  // Timeline Sections for High-Volume Segmentation
+  const overdueSectionTasks = sortedTasks.filter((t: any) => t.isOverdue);
+  const todaySectionTasks = sortedTasks.filter((t: any) => (t.isPickupToday || t.isReturnToday) && !t.isOverdue);
+  const tomorrowSectionTasks = sortedTasks.filter((t: any) => {
+    if (t.isOverdue || t.isPickupToday || t.isReturnToday) return false;
+    const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
+    const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
+    return pDate === tomorrowDateStr || rDate === tomorrowDateStr;
+  });
+  const futureSectionTasks = sortedTasks.filter((t: any) => {
+    if (t.isOverdue || t.isPickupToday || t.isReturnToday) return false;
+    const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
+    const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
+    return pDate !== tomorrowDateStr && rDate !== tomorrowDateStr;
   });
 
   // Calendar calculations
@@ -1488,6 +1562,232 @@ export default function SchedulePage() {
     );
   };
 
+  // Compact Duty Row for High-Density Operations (15-20 rows visible per screen)
+  const renderCompactTableRow = (task: any) => {
+    // 1. Time / Urgency Badge
+    let timeBadge = null;
+    if (task.isOverdue) {
+      timeBadge = (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300 animate-pulse shrink-0">
+          <AlertTriangle className="w-3 h-3 text-rose-600" />
+          <span>🚨 เกินกำหนด</span>
+        </span>
+      );
+    } else if (task.isPickupToday || task.isReturnToday) {
+      const timeStr = task.timeSlot
+        ? task.timeSlot.split('-')[0].trim() + ' น.'
+        : task.isReturnToday
+        ? 'คืน 16:30'
+        : 'จ่าย 09:00';
+      timeBadge = (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300 shrink-0">
+          <Clock className="w-3 h-3 text-amber-700" />
+          <span>⚡ วันนี้ {timeStr}</span>
+        </span>
+      );
+    } else {
+      timeBadge = (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 shrink-0">
+          <Calendar className="w-3 h-3 text-slate-400" />
+          <span>{formatDate(task.pickupDate || task.returnDate)}</span>
+        </span>
+      );
+    }
+
+    // 2. Type Badge
+    let typeBadge = null;
+    if (task.type === 'BORROW') {
+      typeBadge = (
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shrink-0">
+          📦 ยืมของ
+        </span>
+      );
+    } else if (task.type === 'REQUISITION') {
+      typeBadge = (
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 shrink-0">
+          📝 เบิกวัสดุ
+        </span>
+      );
+    } else if (task.type === 'ROOM_BOOKING') {
+      typeBadge = (
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shrink-0">
+          🏢 จองห้อง
+        </span>
+      );
+    } else if (task.type === 'PRACTICE_EVENT') {
+      typeBadge = (
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 shrink-0">
+          🏥 แล็บ
+        </span>
+      );
+    } else if (task.type === 'INSPECTION_PLAN') {
+      typeBadge = (
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 shrink-0">
+          🔍 ตรวจสภาพ
+        </span>
+      );
+    } else if (task.type === 'MAINTENANCE_PM') {
+      typeBadge = (
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shrink-0">
+          🔧 ตรวจ PM
+        </span>
+      );
+    }
+
+    // 3. Details summary
+    let detailTitle = task.purpose || '-';
+    let detailSub = '';
+    let actionBtn = null;
+
+    if (task.type === 'BORROW' || task.type === 'REQUISITION') {
+      const itemsCount = task.items?.length || 0;
+      const firstItem = task.items?.[0]?.item?.name || '';
+      detailTitle = firstItem ? `${firstItem}${itemsCount > 1 ? ` (+${itemsCount - 1} รายการ)` : ''}` : task.purpose;
+      detailSub = task.course ? `[${task.course.code}] ${task.course.name}` : `รหัส: ${task.requestNumber}`;
+      actionBtn = (
+        <Link
+          href={
+            task.type === 'BORROW'
+              ? task.status === 'APPROVED'
+                ? '/borrow?status=APPROVED'
+                : '/borrow?status=BORROWED'
+              : '/requisitions'
+          }
+          className="px-2.5 py-1 rounded-lg text-xs font-bold bg-teal-600 hover:bg-teal-500 text-white transition inline-flex items-center gap-1 shadow-sm shrink-0"
+        >
+          <span>{task.status === 'APPROVED' ? 'จ่ายของ' : 'รับคืน'}</span>
+          <ArrowRight className="w-3 h-3" />
+        </Link>
+      );
+    } else if (task.type === 'ROOM_BOOKING') {
+      detailTitle = task.purpose || task.usagePurpose || 'เข้าใช้ห้องปฏิบัติการ';
+      detailSub = `ผู้เข้าใช้ ~${task.attendeesCount || 1} คน • เวลา: ${task.timeSlot}`;
+      actionBtn = (
+        <Link
+          href="/rooms"
+          className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition inline-flex items-center gap-1 shadow-sm shrink-0"
+        >
+          <span>ดูห้อง</span>
+          <ArrowRight className="w-3 h-3" />
+        </Link>
+      );
+    } else if (task.type === 'PRACTICE_EVENT') {
+      detailTitle = `รอบฝึกปฏิบัติการ (${task.students?.length || 0}/${task.maxCapacity || 6} คน)`;
+      detailSub = `รอบเวลา: ${task.timeSlot}`;
+      actionBtn = (
+        <Link
+          href="/practice"
+          className="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition inline-flex items-center gap-1 shadow-sm shrink-0"
+        >
+          <QrCode className="w-3 h-3" />
+          <span>สแกนรับ</span>
+        </Link>
+      );
+    } else if (task.type === 'INSPECTION_PLAN') {
+      const metrics = task.metrics || { total: 0, checked: 0, progressPercent: 0 };
+      detailTitle = task.title;
+      detailSub = `ความคืบหน้า ${metrics.checked}/${metrics.total} ชิ้น (${metrics.progressPercent}%)`;
+      actionBtn = (
+        <Link
+          href="/maintenance"
+          className="px-2.5 py-1 rounded-lg text-xs font-bold bg-teal-600 hover:bg-teal-500 text-white transition inline-flex items-center gap-1 shadow-sm shrink-0"
+        >
+          <CheckSquare className="w-3 h-3" />
+          <span>ตรวจนับ</span>
+        </Link>
+      );
+    } else if (task.type === 'MAINTENANCE_PM') {
+      detailTitle = `ตรวจ PM ครุภัณฑ์ (${task.assets?.length || 0} เครื่อง)`;
+      detailSub = `รอบวันที่: ${formatDate(task.pickupDate)}`;
+      actionBtn = (
+        <Link
+          href="/maintenance"
+          className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white transition inline-flex items-center gap-1 shadow-sm shrink-0"
+        >
+          <Wrench className="w-3 h-3" />
+          <span>ตรวจ PM</span>
+        </Link>
+      );
+    }
+
+    const requesterName = task.user ? formatUserName(task.user) : task.createdBy?.name || '-';
+    const requesterId = task.user?.studentId;
+    const roomDisp = task.roomCode || task.roomName || task.targetLocation?.name || task.location || '-';
+
+    return (
+      <tr
+        key={`row-${task.type}-${task.id}`}
+        className={`border-b border-slate-100 dark:border-slate-800 transition hover:bg-teal-50/40 dark:hover:bg-slate-800/60 ${
+          task.isOverdue
+            ? 'bg-rose-50/30 dark:bg-rose-950/20'
+            : task.isPickupToday || task.isReturnToday
+            ? 'bg-amber-50/20 dark:bg-amber-950/15'
+            : ''
+        }`}
+      >
+        <td className="py-2.5 px-3 whitespace-nowrap">
+          {timeBadge}
+        </td>
+        <td className="py-2.5 px-2 whitespace-nowrap">
+          {typeBadge}
+        </td>
+        <td className="py-2.5 px-3 min-w-[200px]">
+          <div className="font-bold text-xs text-slate-900 dark:text-slate-100 line-clamp-1">
+            {detailTitle}
+          </div>
+          <div className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1">
+            {detailSub}
+          </div>
+        </td>
+        <td className="py-2.5 px-3 whitespace-nowrap text-xs">
+          <div className="font-semibold text-slate-800 dark:text-slate-200">
+            {requesterName}
+          </div>
+          {requesterId && (
+            <div className="text-[10px] font-mono text-teal-700 dark:text-teal-400">
+              {requesterId}
+            </div>
+          )}
+        </td>
+        <td className="py-2.5 px-3 whitespace-nowrap text-xs text-slate-600 dark:text-slate-400">
+          <span className="font-medium inline-flex items-center gap-1">
+            <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+            <span className="truncate max-w-[120px]">{roomDisp}</span>
+          </span>
+        </td>
+        <td className="py-2.5 px-3 whitespace-nowrap text-right">
+          <div className="flex items-center justify-end gap-1.5">
+            {actionBtn}
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  const renderCompactTable = (tasks: any[]) => {
+    return (
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                <th className="py-2.5 px-3">เวลา / กำหนด</th>
+                <th className="py-2.5 px-2">ประเภท</th>
+                <th className="py-2.5 px-3">รหัส / รายการงาน</th>
+                <th className="py-2.5 px-3">ผู้ขอ / นิสิต</th>
+                <th className="py-2.5 px-3">สถานที่ / ห้อง</th>
+                <th className="py-2.5 px-3 text-right">การดำเนินการ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tasks.map((task) => renderCompactTableRow(task))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -1905,8 +2205,8 @@ export default function SchedulePage() {
       {/* VIEW 2: FULL LIST VIEW */}
       {viewMode === 'LIST' && (
         <div className="space-y-4">
-          {/* Filter & Search Bar */}
-          <div className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* Filter, Search & Layout Switch Bar */}
+          <div className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             {/* Quick Filter Tabs */}
             <div className="flex flex-wrap items-center gap-1.5">
               {[
@@ -1931,21 +2231,54 @@ export default function SchedulePage() {
               ))}
             </div>
 
-            {/* Search */}
-            <div className="relative w-full md:w-64">
-              <input
-                type="text"
-                placeholder="ค้นหาชื่อนิสิต / รหัส / รายวิชา..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 pl-8 pr-3 text-xs focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-              />
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+            {/* Right Controls: Search & Layout Switcher */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Search */}
+              <div className="relative w-full sm:w-56">
+                <input
+                  type="text"
+                  placeholder="ค้นหาชื่อนิสิต / รหัส / รายวิชา..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 pl-8 pr-3 text-xs focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                />
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+              </div>
+
+              {/* Layout Switcher (Compact Table vs Cards) */}
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setListLayout('COMPACT')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                    listLayout === 'COMPACT'
+                      ? 'bg-teal-600 text-white shadow-sm font-black'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                  }`}
+                  title="ตารางกระชับ กวาดสายตาเร็ว เหมาะสำหรับ 50-200 รายการ"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>ตารางกระชับ (Compact)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setListLayout('CARDS')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                    listLayout === 'CARDS'
+                      ? 'bg-teal-600 text-white shadow-sm font-black'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                  }`}
+                  title="การ์ดละเอียด แสดงรายละเอียดรายการอุปกรณ์ครบถ้วน"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span>การ์ดละเอียด (Cards)</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Schedule Table / Cards */}
-          <div className="space-y-4">
+          {/* Schedule Content */}
+          <div className="space-y-6">
             {loading ? (
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8">
                 <LoadingSpinner
@@ -1953,13 +2286,117 @@ export default function SchedulePage() {
                   submessage="กำลังดึงข้อมูลคิวงานของเจ้าหน้าที่จาก Supabase"
                 />
               </div>
-            ) : filteredTasks.length === 0 ? (
+            ) : sortedTasks.length === 0 ? (
               <div className="bg-white dark:bg-slate-900 p-12 text-center rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-400 text-xs">
                 <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2 opacity-75" />
                 ไม่มีคิวงานที่ตรงกับเงื่อนไขในขณะนี้
               </div>
+            ) : timeFilter !== 'ALL' ? (
+              /* Specific Filter View: render directly */
+              listLayout === 'COMPACT' ? (
+                renderCompactTable(sortedTasks)
+              ) : (
+                <div className="space-y-4">
+                  {sortedTasks.map((task: any) => renderTaskCard(task))}
+                </div>
+              )
             ) : (
-              filteredTasks.map((task: any) => renderTaskCard(task))
+              /* High-Volume Overview (timeFilter === 'ALL'): Segmented by Timeline Triage */
+              <div className="space-y-6">
+                {/* 1. OVERDUE SECTION */}
+                {overdueSectionTasks.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 px-4 py-2.5 rounded-xl">
+                      <div className="flex items-center gap-2 text-rose-800 dark:text-rose-200 font-black text-xs">
+                        <AlertTriangle className="w-4 h-4 text-rose-600 animate-pulse" />
+                        <span>🚨 งานเกินกำหนดที่ต้องติดตามเร่งด่วน ({overdueSectionTasks.length} รายการ)</span>
+                      </div>
+                      <span className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold">
+                        ต้องโทรติดตามนิสิตหรือนำส่งตรวจซ่อม
+                      </span>
+                    </div>
+                    {listLayout === 'COMPACT' ? (
+                      renderCompactTable(overdueSectionTasks)
+                    ) : (
+                      <div className="space-y-4">
+                        {overdueSectionTasks.map((task: any) => renderTaskCard(task))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 2. TODAY SHIFT SECTION */}
+                {todaySectionTasks.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 px-4 py-2.5 rounded-xl">
+                      <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-black text-xs">
+                        <Clock className="w-4 h-4 text-amber-600" />
+                        <span>⚡ กะงานประจำวันนี้ ({todaySectionTasks.length} รายการ)</span>
+                      </div>
+                      <span className="text-[11px] text-amber-700 dark:text-amber-400 font-semibold">
+                        เรียงตามลำดับช่วงเวลา (เช้า ➔ บ่าย ➔ คืนของ)
+                      </span>
+                    </div>
+                    {listLayout === 'COMPACT' ? (
+                      renderCompactTable(todaySectionTasks)
+                    ) : (
+                      <div className="space-y-4">
+                        {todaySectionTasks.map((task: any) => renderTaskCard(task))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 3. TOMORROW PREPARATION SECTION */}
+                {tomorrowSectionTasks.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 px-4 py-2.5 rounded-xl">
+                      <div className="flex items-center gap-2 text-blue-900 dark:text-blue-200 font-black text-xs">
+                        <Package className="w-4 h-4 text-blue-600" />
+                        <span>📦 ต้องเตรียมล่วงหน้าสำหรับวันพรุ่งนี้ ({tomorrowSectionTasks.length} รายการ)</span>
+                      </div>
+                      <span className="text-[11px] text-blue-700 dark:text-blue-400 font-semibold">
+                        จัดเตรียมกล่อง Kit หรืออุปกรณ์ใส่ตะกร้าล่วงหน้า
+                      </span>
+                    </div>
+                    {listLayout === 'COMPACT' ? (
+                      renderCompactTable(tomorrowSectionTasks)
+                    ) : (
+                      <div className="space-y-4">
+                        {tomorrowSectionTasks.map((task: any) => renderTaskCard(task))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 4. FUTURE UPCOMING SECTION */}
+                {futureSectionTasks.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 px-4 py-2.5 rounded-xl">
+                      <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200 font-black text-xs">
+                        <Calendar className="w-4 h-4 text-teal-600" />
+                        <span>🗓️ กำหนดการถัดไปในสัปดาห์นี้และอนาคต ({futureSectionTasks.length} รายการ)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFutureCollapsed(!futureCollapsed)}
+                        className="text-xs font-bold text-teal-700 dark:text-teal-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>{futureCollapsed ? '▼ ขยายดูรายการ' : '▲ ยุบเก็บไว้'}</span>
+                      </button>
+                    </div>
+                    {!futureCollapsed && (
+                      listLayout === 'COMPACT' ? (
+                        renderCompactTable(futureSectionTasks)
+                      ) : (
+                        <div className="space-y-4">
+                          {futureSectionTasks.map((task: any) => renderTaskCard(task))}
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>

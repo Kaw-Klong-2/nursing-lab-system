@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 // API Key สำหรับระบบภายนอกดึงข้อมูลตารางห้อง
 const SYNC_API_KEY =
   process.env.EXTERNAL_SYNC_API_KEY || 'lab_nursing_sync_key_2026_sec';
@@ -10,6 +12,7 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key',
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
 };
 
 export async function OPTIONS() {
@@ -47,13 +50,24 @@ export async function GET(req: Request) {
     const monthParam = searchParams.get('month'); // 1 - 12
     const yearParam = searchParams.get('year'); // 2026
     const roomCodeParam = searchParams.get('room_code'); // LAB-SIM-01 etc.
-    const statusParam = searchParams.get('status')?.toUpperCase();
+    const rawStatusParam = searchParams.get('status')?.trim();
+    let statusParam = rawStatusParam?.toUpperCase();
+
+    // Map common Thai / alternate status aliases
+    if (statusParam === 'รออนุมัติ' || statusParam === 'WAITING') {
+      statusParam = 'PENDING';
+    } else if (statusParam === 'อนุมัติแล้ว' || statusParam === 'อนุมัติ') {
+      statusParam = 'APPROVED';
+    }
 
     const where: any = {};
 
     // กรองสถานะ (Default: ทั้ง APPROVED และ PENDING เพื่อให้ฝั่งโน้นเห็นทั้งที่อนุมัติแล้วและกำลังรอพิจารณา)
     if (!statusParam || statusParam === 'ALL') {
       where.status = { in: ['APPROVED', 'PENDING'] };
+    } else if (statusParam.includes(',')) {
+      const statuses = statusParam.split(',').map((s) => s.trim().toUpperCase());
+      where.status = { in: statuses };
     } else {
       where.status = statusParam;
     }
@@ -202,6 +216,18 @@ export async function GET(req: Request) {
         instructor_name: b.advisorName || null,
         overall_objective: b.title,
         status: b.status.toLowerCase(), // approved, pending, rejected, cancelled
+        status_raw: b.status.toUpperCase(), // APPROVED, PENDING, REJECTED
+        booking_status: b.status.toUpperCase(), // APPROVED, PENDING
+        status_th:
+          b.status === 'APPROVED'
+            ? 'อนุมัติแล้ว'
+            : b.status === 'PENDING'
+            ? 'รออนุมัติ'
+            : b.status === 'REJECTED'
+            ? 'ไม่อนุมัติ'
+            : b.status,
+        is_approved: b.status === 'APPROVED',
+        is_pending: b.status === 'PENDING',
 
         // ข้อมูลผู้จอง
         requester_name: b.user?.name || 'ผู้ใช้งาน',

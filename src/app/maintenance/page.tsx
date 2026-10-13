@@ -446,7 +446,7 @@ export default function MaintenanceDashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
           <div className="flex items-center justify-between text-slate-400 text-xs font-medium">
-            <span>Uptime หุ่นจำลอง</span>
+            <span>อัตราความพร้อมใช้งาน</span>
             <Activity className="w-4 h-4 text-emerald-500" />
           </div>
           <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
@@ -1107,7 +1107,7 @@ export default function MaintenanceDashboardPage() {
         </div>
       )}
 
-      {/* TAB 4: EXECUTIVE & UPTIME ANALYTICS */}
+      {/* TAB 4: EXECUTIVE & AVAILABILITY ANALYTICS */}
       {activeTab === 'analytics' && (
         <div className="space-y-6">
           {/* Executive Role Notice */}
@@ -1118,7 +1118,7 @@ export default function MaintenanceDashboardPage() {
                 บทบาทผู้บริหาร: ติดตามข้อมูลแบบโปร่งใส (Informed - I)
               </div>
               <p className="leading-relaxed text-teal-800 dark:text-teal-300">
-                ระบบเปิดให้ผู้บริหารและคณะกรรมการแล็บเข้าถึงตัวชี้วัดความพร้อมใช้งาน (Uptime), ยอดค่าใช้จ่ายซ่อมแซม,
+                ระบบเปิดให้ผู้บริหารและคณะกรรมการแล็บเข้าถึงตัวชี้วัดอัตราความพร้อมใช้งาน, ยอดค่าใช้จ่ายซ่อมแซม,
                 และรายการอุปกรณ์ที่มีการชำรุดซ้ำซากได้ทันทีแบบเรียลไทม์ โดยไม่ต้องรอขั้นตอนเซ็นอนุมัติซ่อมรายชิ้น
                 ทำให้นักวิทยาศาสตร์และเจ้าหน้าที่สามารถดำเนินการซ่อมบำรุงหุ่นจำลองให้พร้อมต่อการเรียนการสอนและการสอบ OSCE ของนิสิตได้ทันท่วงที
               </p>

@@ -45,6 +45,8 @@ model User {
   acOperationLogs     AcOperationLog[]
   inspections         InspectionLog[]      @relation("InspectorLogs")
   resolvedIssues      EquipmentIssueReport[] @relation("ResolvedIssues")
+  createdInspectionPlans InspectionPlan[]  @relation("CreatedInspectionPlans")
+  checkedPlanItems    InspectionPlanItem[] @relation("CheckedPlanItems")
 
   @@index([role, status])
   @@index([studentId])
@@ -69,17 +71,19 @@ model Course {
   stockTransactions   StockTransaction[]
   practiceBookings    PracticeBooking[]
   roomBookings        RoomBooking[]
+  inspectionPlans     InspectionPlan[]
 
   @@index([semester, academicYear, status])
 }
 
 model Category {
-  id          String   @id @default(cuid())
-  code        String?  @unique // รหัสหมวดหมู่ภาษาอังกฤษ เช่น IV, PPE, WD, CPR, OBS
-  name        String
-  type        String   // "EQUIPMENT" or "CONSUMABLE"
-  description String?
-  items       Item[]
+  id              String           @id @default(cuid())
+  code            String?          @unique // รหัสหมวดหมู่ภาษาอังกฤษ เช่น IV, PPE, WD, CPR, OBS
+  name            String
+  type            String           // "EQUIPMENT" or "CONSUMABLE"
+  description     String?
+  items           Item[]
+  inspectionPlans InspectionPlan[]
 }
 
 model Item {
@@ -156,6 +160,7 @@ model EquipmentAsset {
   maintenanceLogs MaintenanceLog[]
   inspectionLogs  InspectionLog[]
   issueReports    EquipmentIssueReport[]
+  inspectionPlanItems InspectionPlanItem[]
 
   @@index([itemId, status])
   @@index([status])
@@ -459,8 +464,9 @@ model StorageLocation {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  items       Item[]
-  assets      EquipmentAsset[]
+  items           Item[]
+  assets          EquipmentAsset[]
+  inspectionPlans InspectionPlan[]
 
   @@index([roomId, status])
   @@index([type, status])
@@ -670,6 +676,7 @@ model InspectionLog {
   photoUrl         String?         // รูปถ่ายสภาพอุปกรณ์
   notes            String?         // ข้อเสนอแนะของนักวิทยาศาสตร์/ผู้ตรวจ
   nextDueAt        DateTime?       // วันที่ต้องตรวจรอบถัดไป
+  planItems        InspectionPlanItem[]
   
   createdAt        DateTime        @default(now())
 
@@ -704,5 +711,63 @@ model EquipmentIssueReport {
   @@index([status])
 }
 
+model InspectionPlan {
+  id               String               @id @default(cuid())
+  title            String               // เช่น "ตรวจนับและตรวจสภาพครุภัณฑ์ประจำปี 2569", "ตรวจหุ่นหลังสอบ OSCE"
+  planType         String               @default("ANNUAL_AUDIT") // "ANNUAL_AUDIT", "POST_CLASS", "PRE_SEMESTER", "AD_HOC"
+  scopeType        String               @default("ALL_ASSETS") // "ALL_ASSETS", "BY_LOCATION", "BY_CATEGORY", "BY_COURSE"
+  status           String               @default("DRAFT") // "DRAFT", "SCHEDULED", "IN_PROGRESS", "COMPLETED", "CANCELLED"
+  
+  startDate        DateTime?            // วันที่เริ่มตรวจ (ถ้ายังไม่ได้กำหนด สามารถเว้นว่างไว้ได้)
+  targetDate       DateTime?            // วันกำหนดตรวจเสร็จ (Target Deadline)
+  completedDate    DateTime?            // วันที่เสร็จสิ้นจริง
+  notes            String?              // หมายเหตุ / คำสั่งแต่งตั้งคณะกรรมการตรวจนับ
 
+  targetLocationId String?
+  targetLocation   StorageLocation?     @relation(fields: [targetLocationId], references: [id], onDelete: SetNull)
 
+  targetCategoryId String?
+  targetCategory   Category?            @relation(fields: [targetCategoryId], references: [id], onDelete: SetNull)
+
+  targetCourseId   String?
+  targetCourse     Course?              @relation(fields: [targetCourseId], references: [id], onDelete: SetNull)
+
+  createdById      String
+  createdBy        User                 @relation("CreatedInspectionPlans", fields: [createdById], references: [id])
+
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  items            InspectionPlanItem[]
+
+  @@index([status])
+  @@index([planType])
+  @@index([targetDate])
+}
+
+model InspectionPlanItem {
+  id              String          @id @default(cuid())
+  planId          String
+  plan            InspectionPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  assetId         String
+  asset           EquipmentAsset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  status          String          @default("PENDING") // "PENDING", "CHECKED", "SKIPPED", "NOT_FOUND"
+  result          String?         // "PASS", "PASS_WITH_NOTE", "FAIL"
+  checkedAt       DateTime?
+  checkedById     String?
+  checkedBy       User?           @relation("CheckedPlanItems", fields: [checkedById], references: [id], onDelete: SetNull)
+
+  inspectionLogId String?
+  inspectionLog   InspectionLog?  @relation(fields: [inspectionLogId], references: [id], onDelete: SetNull)
+
+  notes           String?
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([planId, assetId])
+  @@index([planId, status])
+  @@index([assetId])
+}

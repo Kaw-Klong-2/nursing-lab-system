@@ -40,15 +40,27 @@ import {
   CheckCircle,
   HelpCircle,
   Info,
+  CalendarCheck,
+  Download,
+  QrCode,
+  Play,
+  Trash2,
+  FileSpreadsheet,
+  Boxes,
+  BookOpen,
+  MapPin,
+  CheckCheck,
+  XCircle,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import LoadingSpinner, { TableLoadingRow } from '@/components/common/LoadingSpinner';
 
 export default function MaintenanceDashboardPage() {
   const { currentUser, isOfficer, isAdmin, isApprover } = useAuth();
   const isStaff = isOfficer || isAdmin || isApprover;
 
-  // Active Tab: 'issues' | 'repairs' | 'inspections' | 'analytics'
-  const [activeTab, setActiveTab] = useState<'issues' | 'repairs' | 'inspections' | 'analytics'>('issues');
+  // Active Tab: 'issues' | 'repairs' | 'inspections' | 'plans' | 'analytics'
+  const [activeTab, setActiveTab] = useState<'issues' | 'repairs' | 'inspections' | 'plans' | 'analytics'>('issues');
 
   // Loading & Refresh
   const [loading, setLoading] = useState(true);
@@ -60,6 +72,10 @@ export default function MaintenanceDashboardPage() {
   const [repairs, setRepairs] = useState<any[]>([]);
   const [inspections, setInspections] = useState<any[]>([]);
   const [assets, setAssets] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>([]);
+  const [storageLocations, setStorageLocations] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
 
   // Filters for Issues
   const [issueStatusFilter, setIssueStatusFilter] = useState<string>('ALL');
@@ -73,6 +89,11 @@ export default function MaintenanceDashboardPage() {
   // Filters for Inspections
   const [pmStatusFilter, setPmStatusFilter] = useState<string>('ALL');
   const [assetSearch, setAssetSearch] = useState<string>('');
+
+  // Filters for Inspection Plans (Campaigns & Audits)
+  const [planStatusFilter, setPlanStatusFilter] = useState<string>('ALL');
+  const [planTypeFilter, setPlanTypeFilter] = useState<string>('ALL');
+  const [planSearch, setPlanSearch] = useState<string>('');
 
   // Modals
   // 1. Photo Preview Modal
@@ -126,23 +147,58 @@ export default function MaintenanceDashboardPage() {
   const [applyToAllSameItem, setApplyToAllSameItem] = useState(false);
   const [intervalSubmitting, setIntervalSubmitting] = useState(false);
 
+  // 7. Create Inspection Plan Modal (Campaign & Audit)
+  const [showCreatePlanModal, setShowCreatePlanModal] = useState(false);
+  const [createPlanForm, setCreatePlanForm] = useState({
+    title: '',
+    planType: 'ANNUAL_AUDIT',
+    scopeType: 'ALL_ASSETS',
+    status: 'DRAFT',
+    startDate: '',
+    targetDate: '',
+    notes: '',
+    targetLocationId: '',
+    targetCategoryId: '',
+    targetCourseId: '',
+    isDraftNoDate: false,
+  });
+  const [createPlanSubmitting, setCreatePlanSubmitting] = useState(false);
+
+  // 8. Live Audit Room Modal / Drawer
+  const [activePlanForAudit, setActivePlanForAudit] = useState<any | null>(null);
+  const [activePlanLoading, setActivePlanLoading] = useState(false);
+  const [auditTab, setAuditTab] = useState<'ALL' | 'PENDING' | 'CHECKED' | 'NOT_FOUND'>('ALL');
+  const [auditSearch, setAuditSearch] = useState<string>('');
+  const [quickScanCode, setQuickScanCode] = useState<string>('');
+  const [auditSubmittingId, setAuditSubmittingId] = useState<string | null>(null);
+  const [auditFeedbackMsg, setAuditFeedbackMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [planStatusUpdating, setPlanStatusUpdating] = useState(false);
+
   // Fetch all maintenance data
   const loadData = async (isManual = false) => {
     if (isManual) setRefreshing(true);
     else setLoading(true);
 
     try {
-      const [issuesRes, repairsRes, inspectionsRes, assetsRes] = await Promise.all([
+      const [issuesRes, repairsRes, inspectionsRes, assetsRes, plansRes, locsRes, catsRes, coursesRes] = await Promise.all([
         fetch('/api/maintenance/issues'),
         fetch('/api/maintenance'),
         fetch('/api/maintenance/inspections'),
         fetch('/api/maintenance/assets'),
+        fetch('/api/maintenance/plans'),
+        fetch('/api/storage/locations'),
+        fetch('/api/categories'),
+        fetch('/api/courses?compact=true'),
       ]);
 
       if (issuesRes.ok) setIssues(await issuesRes.json());
       if (repairsRes.ok) setRepairs(await repairsRes.json());
       if (inspectionsRes.ok) setInspections(await inspectionsRes.json());
       if (assetsRes.ok) setAssets(await assetsRes.json());
+      if (plansRes.ok) setPlans(await plansRes.json());
+      if (locsRes.ok) setStorageLocations(await locsRes.json());
+      if (catsRes.ok) setCategories(await catsRes.json());
+      if (coursesRes.ok) setCourses(await coursesRes.json());
 
       setLastRefreshed(new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err) {
@@ -209,6 +265,35 @@ export default function MaintenanceDashboardPage() {
     });
   }, [assets, pmStatusFilter, assetSearch]);
 
+  // Filtered Inspection Plans (Campaigns & Audits)
+  const filteredPlans = useMemo(() => {
+    return plans.filter((p) => {
+      if (planStatusFilter !== 'ALL' && p.status !== planStatusFilter) return false;
+      if (planTypeFilter !== 'ALL' && p.planType !== planTypeFilter) return false;
+      if (planSearch) {
+        const q = planSearch.toLowerCase();
+        const title = p.title?.toLowerCase() || '';
+        const notes = p.notes?.toLowerCase() || '';
+        const loc = p.targetLocation?.name?.toLowerCase() || p.targetLocation?.roomName?.toLowerCase() || '';
+        const cat = p.targetCategory?.name?.toLowerCase() || '';
+        const course = p.targetCourse?.name?.toLowerCase() || p.targetCourse?.code?.toLowerCase() || '';
+        if (!title.includes(q) && !notes.includes(q) && !loc.includes(q) && !cat.includes(q) && !course.includes(q)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [plans, planStatusFilter, planTypeFilter, planSearch]);
+
+  const planStats = useMemo(() => {
+    const total = plans.length;
+    const inProgress = plans.filter((p) => p.status === 'IN_PROGRESS').length;
+    const scheduled = plans.filter((p) => p.status === 'SCHEDULED').length;
+    const draft = plans.filter((p) => p.status === 'DRAFT').length;
+    const completed = plans.filter((p) => p.status === 'COMPLETED').length;
+    return { total, inProgress, scheduled, draft, completed };
+  }, [plans]);
+
   // Counts & Stats
   const stats = useMemo(() => {
     const totalEquipment = assets.length;
@@ -223,6 +308,7 @@ export default function MaintenanceDashboardPage() {
     const dueSoonPM = assets.filter((a) => a.pmStatus === 'DUE_SOON').length;
 
     const totalRepairCost = repairs.reduce((sum, r) => sum + (Number(r.repairCost) || 0), 0);
+    const activePlans = plans.filter((p) => p.status === 'IN_PROGRESS' || p.status === 'SCHEDULED').length;
 
     return {
       totalEquipment,
@@ -234,8 +320,9 @@ export default function MaintenanceDashboardPage() {
       overduePM,
       dueSoonPM,
       totalRepairCost,
+      activePlans,
     };
-  }, [assets, issues, repairs]);
+  }, [assets, issues, repairs, plans]);
 
   // Top Defect Items / Assets for Executive view
   const topDefectAssets = useMemo(() => {
@@ -364,33 +451,61 @@ export default function MaintenanceDashboardPage() {
     }
   };
 
-  // Handle Checklist Submission
+  // Handle Checklist Submission (supports both Standalone Routine PM and Campaign Audit Room)
   const handleChecklistSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!checklistTarget || !currentUser?.id) return;
     setChecklistSubmitting(true);
     try {
-      const res = await fetch('/api/maintenance/inspections', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          assetId: checklistTarget.id,
-          inspectorId: currentUser.id,
-          inspectionType: 'ROUTINE',
-          result: checklistResult,
-          checklistData: checklistChecks,
-          notes: checklistNotes,
-          intervalDays: checklistIntervalDays,
-        }),
-      });
+      if (activePlanForAudit) {
+        // Audited from within an Inspection Campaign Plan
+        const res = await fetch(`/api/maintenance/plans/${activePlanForAudit.id}/items`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            assetId: checklistTarget.id,
+            status: 'CHECKED',
+            result: checklistResult,
+            checklistData: checklistChecks,
+            notes: checklistNotes,
+            checkedById: currentUser.id,
+            intervalDays: checklistIntervalDays,
+          }),
+        });
 
-      if (res.ok) {
-        setChecklistTarget(null);
-        setChecklistNotes('');
-        await loadData(true);
+        if (res.ok) {
+          setChecklistTarget(null);
+          setChecklistNotes('');
+          await loadActivePlanDetail(activePlanForAudit.id);
+          await loadData(true);
+        } else {
+          const err = await res.json();
+          alert(err.error || 'บันทึกการตรวจไม่สำเร็จ');
+        }
       } else {
-        const err = await res.json();
-        alert(err.error || 'บันทึกการตรวจไม่สำเร็จ');
+        // Standalone Routine PM inspection
+        const res = await fetch('/api/maintenance/inspections', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            assetId: checklistTarget.id,
+            inspectorId: currentUser.id,
+            inspectionType: 'ROUTINE',
+            result: checklistResult,
+            checklistData: checklistChecks,
+            notes: checklistNotes,
+            intervalDays: checklistIntervalDays,
+          }),
+        });
+
+        if (res.ok) {
+          setChecklistTarget(null);
+          setChecklistNotes('');
+          await loadData(true);
+        } else {
+          const err = await res.json();
+          alert(err.error || 'บันทึกการตรวจไม่สำเร็จ');
+        }
       }
     } catch (err) {
       alert('เกิดข้อผิดพลาดในการบันทึกการตรวจ');
@@ -429,6 +544,265 @@ export default function MaintenanceDashboardPage() {
     }
   };
 
+  // ---------------- Inspection Plan Handlers ----------------
+
+  // Load Single Plan Detail for Live Audit Room
+  const loadActivePlanDetail = async (planId: string) => {
+    setActivePlanLoading(true);
+    try {
+      const res = await fetch(`/api/maintenance/plans/${planId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setActivePlanForAudit(data);
+      } else {
+        alert('ไม่สามารถโหลดข้อมูลแผนงานตรวจเช็กได้');
+      }
+    } catch (err) {
+      console.error('Failed to load plan detail:', err);
+    } finally {
+      setActivePlanLoading(false);
+    }
+  };
+
+  // Create Inspection Plan Submit
+  const handleCreatePlanSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createPlanForm.title.trim() || !currentUser?.id) {
+      alert('กรุณากรอกชื่อแผนงานตรวจเช็ก');
+      return;
+    }
+    setCreatePlanSubmitting(true);
+    try {
+      const res = await fetch('/api/maintenance/plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: createPlanForm.title.trim(),
+          planType: createPlanForm.planType,
+          scopeType: createPlanForm.scopeType,
+          status: createPlanForm.isDraftNoDate ? 'DRAFT' : createPlanForm.status,
+          startDate: createPlanForm.startDate || null,
+          targetDate: createPlanForm.isDraftNoDate ? null : (createPlanForm.targetDate || null),
+          notes: createPlanForm.notes,
+          targetLocationId: createPlanForm.scopeType === 'BY_LOCATION' ? createPlanForm.targetLocationId : null,
+          targetCategoryId: createPlanForm.scopeType === 'BY_CATEGORY' ? createPlanForm.targetCategoryId : null,
+          targetCourseId: createPlanForm.scopeType === 'BY_COURSE' ? createPlanForm.targetCourseId : null,
+          createdById: currentUser.id,
+        }),
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        setShowCreatePlanModal(false);
+        setCreatePlanForm({
+          title: '',
+          planType: 'ANNUAL_AUDIT',
+          scopeType: 'ALL_ASSETS',
+          status: 'DRAFT',
+          startDate: '',
+          targetDate: '',
+          notes: '',
+          targetLocationId: '',
+          targetCategoryId: '',
+          targetCourseId: '',
+          isDraftNoDate: false,
+        });
+        await loadData(true);
+        if (result.plan?.id && (result.plan?.status === 'IN_PROGRESS' || createPlanForm.status === 'IN_PROGRESS')) {
+          loadActivePlanDetail(result.plan.id);
+        }
+      } else {
+        const err = await res.json();
+        alert(err.error || 'สร้างแผนงานไม่สำเร็จ');
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+    } finally {
+      setCreatePlanSubmitting(false);
+    }
+  };
+
+  // Update Plan Status (DRAFT -> SCHEDULED -> IN_PROGRESS -> COMPLETED)
+  const handleUpdatePlanStatus = async (planId: string, newStatus: string) => {
+    setPlanStatusUpdating(true);
+    try {
+      const res = await fetch(`/api/maintenance/plans/${planId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (res.ok) {
+        await loadData(true);
+        if (activePlanForAudit && activePlanForAudit.id === planId) {
+          await loadActivePlanDetail(planId);
+        }
+      } else {
+        const err = await res.json();
+        alert(err.error || 'อัปเดตสถานะไม่สำเร็จ');
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการอัปเดตสถานะ');
+    } finally {
+      setPlanStatusUpdating(false);
+    }
+  };
+
+  // Delete Plan
+  const handleDeletePlan = async (planId: string, planTitle: string) => {
+    if (!confirm(`คุณต้องการลบแผนงาน "${planTitle}" หรือไม่?\nรายการและข้อมูลการตรวจในแผนงานนี้จะถูกลบออกทั้งหมด`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/maintenance/plans/${planId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        if (activePlanForAudit?.id === planId) {
+          setActivePlanForAudit(null);
+        }
+        await loadData(true);
+      } else {
+        const err = await res.json();
+        alert(err.error || 'ลบแผนงานไม่สำเร็จ');
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    }
+  };
+
+  // Direct Item Audit from Room (Quick Pass or Not Found)
+  const handleAuditItemDirect = async (
+    planId: string,
+    assetId: string,
+    status: 'CHECKED' | 'NOT_FOUND' | 'PENDING',
+    result: 'PASS' | 'PASS_WITH_NOTE' | 'FAIL' = 'PASS',
+    notes: string = ''
+  ) => {
+    if (!currentUser?.id) return;
+    setAuditSubmittingId(assetId);
+    try {
+      const res = await fetch(`/api/maintenance/plans/${planId}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetId,
+          status,
+          result,
+          notes,
+          checkedById: currentUser.id,
+        }),
+      });
+
+      if (res.ok) {
+        setAuditFeedbackMsg({
+          text: `บันทึกผลสำเร็จ (${status === 'CHECKED' ? 'ตรวจผ่าน' : status === 'NOT_FOUND' ? 'ทำเครื่องหมายไม่พบ' : 'รีเซ็ตสถานะ'})`,
+          type: 'success',
+        });
+        setTimeout(() => setAuditFeedbackMsg(null), 3000);
+        await loadActivePlanDetail(planId);
+        await loadData(true);
+      } else {
+        const err = await res.json();
+        setAuditFeedbackMsg({ text: err.error || 'บันทึกไม่สำเร็จ', type: 'error' });
+        setTimeout(() => setAuditFeedbackMsg(null), 4000);
+      }
+    } catch (err) {
+      setAuditFeedbackMsg({ text: 'เกิดข้อผิดพลาดในการเชื่อมต่อ', type: 'error' });
+      setTimeout(() => setAuditFeedbackMsg(null), 4000);
+    } finally {
+      setAuditSubmittingId(null);
+    }
+  };
+
+  // Quick Barcode / QR Scan in Live Audit Room
+  const handleQuickScanSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickScanCode.trim() || !activePlanForAudit || !currentUser?.id) return;
+
+    const code = quickScanCode.trim();
+    setAuditFeedbackMsg(null);
+    try {
+      const res = await fetch(`/api/maintenance/plans/${activePlanForAudit.id}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetCode: code,
+          status: 'CHECKED',
+          result: 'PASS',
+          notes: 'ตรวจผ่านรวดเร็วผ่านการสแกนบาร์โค้ดหน้างาน',
+          checkedById: currentUser.id,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setQuickScanCode('');
+        setAuditFeedbackMsg({
+          text: `✅ สแกนสำเร็จ: [${data.item?.asset?.assetCode || code}] ${data.item?.asset?.item?.name || ''} - บันทึกผลผ่านและอัปเดตรอบ PM เรียบร้อย`,
+          type: 'success',
+        });
+        setTimeout(() => setAuditFeedbackMsg(null), 4000);
+        await loadActivePlanDetail(activePlanForAudit.id);
+        await loadData(true);
+      } else {
+        const err = await res.json();
+        setAuditFeedbackMsg({ text: `❌ ${err.error || 'ไม่พบอุปกรณ์นี้ในระบบ'}`, type: 'error' });
+        setTimeout(() => setAuditFeedbackMsg(null), 4000);
+      }
+    } catch (err) {
+      setAuditFeedbackMsg({ text: 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', type: 'error' });
+      setTimeout(() => setAuditFeedbackMsg(null), 4000);
+    }
+  };
+
+  // Export Plan Results to Excel (.xlsx)
+  const exportPlanToExcel = (plan: any) => {
+    if (!plan || !plan.items || plan.items.length === 0) {
+      alert('ไม่มีข้อมูลรายการอุปกรณ์ในแผนงานนี้');
+      return;
+    }
+
+    const rows = plan.items.map((item: any, idx: number) => {
+      return {
+        'ลำดับ': idx + 1,
+        'รหัสครุภัณฑ์': item.asset?.assetCode || '-',
+        'รหัสสินทรัพย์ราชการ': item.asset?.govAssetCode || '-',
+        'ชื่ออุปกรณ์ / หุ่นจำลอง': item.asset?.item?.name || '-',
+        'หมวดหมู่': item.asset?.item?.category?.name || '-',
+        'สถานที่จัดเก็บ': item.asset?.storageLocation?.name
+          ? `${item.asset.storageLocation.name} (${item.asset.storageLocation.roomName || ''})`
+          : item.asset?.location || '-',
+        'สถานะการตรวจ':
+          item.status === 'CHECKED'
+            ? 'ตรวจแล้ว'
+            : item.status === 'NOT_FOUND'
+            ? 'ไม่พบอุปกรณ์'
+            : 'รอดำเนินการ',
+        'ผลการตรวจสภาพ':
+          item.result === 'PASS'
+            ? 'ผ่าน (สมบูรณ์)'
+            : item.result === 'PASS_WITH_NOTE'
+            ? 'ผ่าน (มีข้อสังเกต)'
+            : item.result === 'FAIL'
+            ? 'ไม่ผ่าน (ส่งซ่อม)'
+            : '-',
+        'วันที่ตรวจ': item.checkedAt ? new Date(item.checkedAt).toLocaleDateString('th-TH') : '-',
+        'ผู้ตรวจเช็ก': item.checkedBy?.name || '-',
+        'หมายเหตุ / อาการ': item.notes || item.inspectionLog?.notes || '-',
+        'รอบตรวจ PM ถัดไป': item.asset?.nextInspectionDue
+          ? new Date(item.asset.nextInspectionDue).toLocaleDateString('th-TH')
+          : '-',
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'ผลการตรวจนับ');
+    const safeTitle = (plan.title || 'Inspection_Plan').replace(/[\\/:*?"<>|]/g, '_');
+    XLSX.writeFile(wb, `รายงานตรวจนับ_${safeTitle}_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50/60 dark:bg-slate-950 p-4 sm:p-6 lg:p-8 font-sans space-y-6">
       {/* Top Header */}
@@ -448,7 +822,7 @@ export default function MaintenanceDashboardPage() {
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                ระบบ 4 เสาหลัก: ตรวจสอบตามรอบ (PM), แจ้งชำรุดด่วนผ่าน QR, ทะเบียนส่งซ่อม, แดชบอร์ดผู้บริหาร (Informed)
+                ระบบ 5 เสาหลัก: ตรวจสอบตามรอบ (PM), แผนงานตรวจตามวาระ/ประจำปี (Audits), แจ้งชำรุดด่วนผ่าน QR, ทะเบียนส่งซ่อม, แดชบอร์ดผู้บริหาร (Informed)
               </p>
             </div>
           </div>
@@ -469,13 +843,22 @@ export default function MaintenanceDashboardPage() {
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-teal-600' : ''}`} />
           </button>
           {isStaff && (
-            <button
-              onClick={() => setShowNewRepairModal(true)}
-              className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-md shadow-teal-600/20 transition flex items-center gap-1.5 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>แจ้งส่งซ่อมใหม่</span>
-            </button>
+            <>
+              <button
+                onClick={() => setShowCreatePlanModal(true)}
+                className="px-3.5 py-2 rounded-xl bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <CalendarCheck className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                <span>+ สร้างแผนงานตรวจ</span>
+              </button>
+              <button
+                onClick={() => setShowNewRepairModal(true)}
+                className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-md shadow-teal-600/20 transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>แจ้งส่งซ่อมใหม่</span>
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -555,7 +938,7 @@ export default function MaintenanceDashboardPage() {
       </div>
 
       {/* Tabs Navigation */}
-      <div className="flex items-center gap-1.5 p-1.5 bg-slate-200/70 dark:bg-slate-850 rounded-2xl max-w-fit">
+      <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-slate-200/70 dark:bg-slate-850 rounded-2xl max-w-fit">
         <button
           onClick={() => setActiveTab('issues')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
@@ -603,6 +986,23 @@ export default function MaintenanceDashboardPage() {
           {stats.overduePM > 0 && (
             <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-rose-500 text-white">
               {stats.overduePM}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('plans')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+            activeTab === 'plans'
+              ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-300 shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+          }`}
+        >
+          <CalendarCheck className="w-4 h-4" />
+          <span>แผนงานตรวจตามวาระ & ประจำปี</span>
+          {stats.activePlans > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-teal-600 text-white">
+              {stats.activePlans}
             </span>
           )}
         </button>
@@ -1166,7 +1566,303 @@ export default function MaintenanceDashboardPage() {
         </div>
       )}
 
-      {/* TAB 4: EXECUTIVE & AVAILABILITY ANALYTICS */}
+      {/* TAB 4: INSPECTION CAMPAIGNS & AUDITS */}
+      {activeTab === 'plans' && (
+        <div className="space-y-4">
+          {/* Top Banner & Info */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-teal-50 via-cyan-50 to-emerald-50 dark:from-teal-950/40 dark:via-cyan-950/30 dark:to-emerald-950/40 border border-teal-200/80 dark:border-teal-800/80 text-teal-950 dark:text-teal-200 text-xs flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm mt-0.5">
+                <CalendarCheck className="w-5 h-5" />
+              </div>
+              <div className="space-y-0.5">
+                <div className="font-bold text-sm text-teal-900 dark:text-teal-100 flex items-center gap-2">
+                  <span>แผนงานตรวจตามวาระ & การตรวจนับครุภัณฑ์ประจำปี (Campaigns & Audits)</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-teal-200/70 dark:bg-teal-900 text-teal-800 dark:text-teal-300 font-extrabold">
+                    Sync to Routine PM
+                  </span>
+                </div>
+                <p className="text-teal-800/90 dark:text-teal-300/90 text-[11px] leading-relaxed">
+                  รองรับการกำหนดวันที่ตรวจเช็กของทั้งหมด (Annual Audit), ตรวจรับสภาพหลังจบชั่วโมงเรียนหรือสอบ OSCE ของนิสิต, ตรวจใหญ่ก่อนเปิดเทอม และร่างแผนงานในอนาคต
+                  เมื่อตรวจเช็กชิ้นใด ระบบจะอัปเดตวันตรวจล่าสุดและรอบ PM ของเครื่องนั้นโดยอัตโนมัติ เพื่อป้องกันการตรวจซ้ำซ้อน
+                </p>
+              </div>
+            </div>
+            {isStaff && (
+              <button
+                type="button"
+                onClick={() => setShowCreatePlanModal(true)}
+                className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs shadow-md shadow-teal-600/20 transition flex items-center gap-1.5 self-start md:self-center flex-shrink-0 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>สร้างแผนงานตรวจใหม่</span>
+              </button>
+            )}
+          </div>
+
+          {/* Quick Metrics Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">แผนงานทั้งหมด</span>
+              <span className="text-xl font-black text-slate-900 dark:text-slate-100">{planStats.total}</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <span className="text-[10px] text-amber-500 font-bold uppercase tracking-wider block">กำลังดำเนินการ (Active)</span>
+              <span className="text-xl font-black text-amber-600 dark:text-amber-400">{planStats.inProgress}</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <span className="text-[10px] text-blue-500 font-bold uppercase tracking-wider block">นัดหมายล่วงหน้า</span>
+              <span className="text-xl font-black text-blue-600 dark:text-blue-400">{planStats.scheduled}</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">ร่างแผน (ยังไม่กำหนดวัน)</span>
+              <span className="text-xl font-black text-slate-600 dark:text-slate-300">{planStats.draft}</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider block">ตรวจเสร็จสมบูรณ์</span>
+              <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">{planStats.completed}</span>
+            </div>
+          </div>
+
+          {/* Filters Bar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="ค้นหาแผนงาน, สถานที่จัดเก็บ, หมวดหมู่, วิชา, หมายเหตุ..."
+                value={planSearch}
+                onChange={(e) => setPlanSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-teal-500/20 text-slate-900 dark:text-slate-100"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={planStatusFilter}
+                onChange={(e) => setPlanStatusFilter(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-300 font-medium"
+              >
+                <option value="ALL">สถานะทั้งหมด</option>
+                <option value="IN_PROGRESS">🟡 กำลังดำเนินการ (In Progress)</option>
+                <option value="SCHEDULED">🔵 นัดหมายล่วงหน้า (Scheduled)</option>
+                <option value="DRAFT">⚪ ร่างแผนงาน (Draft)</option>
+                <option value="COMPLETED">🟢 ตรวจเสร็จสิ้น (Completed)</option>
+              </select>
+
+              <select
+                value={planTypeFilter}
+                onChange={(e) => setPlanTypeFilter(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-300 font-medium"
+              >
+                <option value="ALL">ประเภทแผนงานทั้งหมด</option>
+                <option value="ANNUAL_AUDIT">📦 ตรวจนับครุภัณฑ์ประจำปี</option>
+                <option value="POST_CLASS">🎓 ตรวจหลังเรียนเสร็จ / สอบ</option>
+                <option value="PRE_SEMESTER">🏫 ตรวจใหญ่ก่อนเปิดเทอม</option>
+                <option value="PM_ROUTINE">🔧 ตรวจ PM รอบใหญ่</option>
+                <option value="AD_HOC">⚡ ตรวจเฉพาะกิจ / เร่งด่วน</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Plans Grid */}
+          {loading ? (
+            <div className="py-16 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
+              <RefreshCw className="w-6 h-6 animate-spin text-teal-600" />
+              <span>กำลังโหลดข้อมูลแผนงานตรวจเช็ก...</span>
+            </div>
+          ) : filteredPlans.length === 0 ? (
+            <div className="py-16 text-center text-slate-400 text-xs bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-8 space-y-3">
+              <CalendarCheck className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto" />
+              <div className="text-slate-700 dark:text-slate-300 font-bold text-sm">ไม่พบแผนงานตรวจเช็กตามเงื่อนไข</div>
+              <p className="text-slate-400 max-w-sm mx-auto text-[11px]">
+                คุณสามารถสร้างแผนงานตรวจนับครุภัณฑ์ประจำปี, แผนตรวจรับสภาพหลังจบชั่วโมงเรียน หรือร่างแผนงานในอนาคตได้ทันที
+              </p>
+              {isStaff && (
+                <button
+                  type="button"
+                  onClick={() => setShowCreatePlanModal(true)}
+                  className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs inline-flex items-center gap-1.5 shadow transition cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>สร้างแผนงานตรวจเช็ก</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredPlans.map((plan) => {
+                const isCompleted = plan.status === 'COMPLETED';
+                const isInProgress = plan.status === 'IN_PROGRESS';
+                const isScheduled = plan.status === 'SCHEDULED';
+                const isDraft = plan.status === 'DRAFT';
+
+                const planTypeMeta: Record<string, { label: string; color: string }> = {
+                  ANNUAL_AUDIT: { label: 'ตรวจนับประจำปี', color: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border-indigo-200' },
+                  POST_CLASS: { label: 'ตรวจหลังเรียน/สอบ', color: 'bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300 border-sky-200' },
+                  PRE_SEMESTER: { label: 'ตรวจก่อนเปิดเทอม', color: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200' },
+                  PM_ROUTINE: { label: 'ตรวจ PM รอบใหญ่', color: 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-200' },
+                  AD_HOC: { label: 'ตรวจเฉพาะกิจ', color: 'bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border-rose-200' },
+                };
+                const meta = planTypeMeta[plan.planType] || { label: plan.planType, color: 'bg-slate-50 text-slate-700 border-slate-200' };
+
+                return (
+                  <div
+                    key={plan.id}
+                    className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 flex flex-col justify-between hover:shadow-md transition space-y-4"
+                  >
+                    <div className="space-y-3">
+                      {/* Top Badges */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${meta.color}`}>
+                          {meta.label}
+                        </span>
+
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 ${
+                            isCompleted
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                              : isInProgress
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                              : isScheduled
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                          }`}
+                        >
+                          {isInProgress && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping inline-block" />}
+                          {isCompleted ? 'ตรวจเสร็จสมบูรณ์' : isInProgress ? 'กำลังตรวจ' : isScheduled ? 'นัดหมายล่วงหน้า' : 'ร่างแผนงาน'}
+                        </span>
+                      </div>
+
+                      {/* Title */}
+                      <div className="space-y-1">
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100 line-clamp-2 leading-snug">
+                          {plan.title}
+                        </h3>
+                        {plan.notes && (
+                          <p className="text-[11px] text-slate-400 line-clamp-1">{plan.notes}</p>
+                        )}
+                      </div>
+
+                      {/* Scope & Date Info */}
+                      <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl space-y-1.5 text-[11px] text-slate-600 dark:text-slate-400">
+                        <div className="flex items-center gap-2">
+                          <Layers className="w-3.5 h-3.5 text-teal-600 flex-shrink-0" />
+                          <span className="font-medium truncate">
+                            {plan.scopeType === 'ALL_ASSETS' && 'ครอบคลุม: อุปกรณ์ทั้งหมดในแล็บ'}
+                            {plan.scopeType === 'BY_LOCATION' && `ห้อง: ${plan.targetLocation?.name || plan.targetLocation?.roomName || 'ตามสถานที่'}`}
+                            {plan.scopeType === 'BY_CATEGORY' && `หมวดหมู่: ${plan.targetCategory?.name || 'ตามหมวดหมู่'}`}
+                            {plan.scopeType === 'BY_COURSE' && `วิชา: ${plan.targetCourse?.code || ''} ${plan.targetCourse?.name || 'ตามรายวิชา'}`}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-3.5 h-3.5 text-teal-600 flex-shrink-0" />
+                          <span>
+                            {plan.targetDate ? (
+                              <span>กำหนดตรวจ: <b className="text-slate-800 dark:text-slate-200 font-sans">{new Date(plan.targetDate).toLocaleDateString('th-TH')}</b></span>
+                            ) : (
+                              <span className="text-slate-400 italic">ร่างแผนงาน (ยังไม่กำหนดวันแน่นอน)</span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Progress Bar & Sub-stats */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-bold text-slate-700 dark:text-slate-300">
+                            ความคืบหน้าการตรวจนับ
+                          </span>
+                          <span className="font-mono font-bold text-teal-700 dark:text-teal-400">
+                            {plan.checkedCount} / {plan.totalItems} ชิ้น ({plan.progressPercent}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              isCompleted ? 'bg-emerald-500' : 'bg-teal-600'
+                            }`}
+                            style={{ width: `${plan.progressPercent}%` }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">ผ่าน: {plan.passCount + plan.passWithNoteCount}</span>
+                          <span className="text-rose-500 font-bold">ส่งซ่อม: {plan.failCount}</span>
+                          <span>รอตรวจ: {plan.pendingCount}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer Actions */}
+                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-1">
+                        <button
+                          type="button"
+                          onClick={() => loadActivePlanDetail(plan.id)}
+                          className="flex-1 py-2 px-3 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                          <span>เข้าห้องตรวจนับ</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            fetch(`/api/maintenance/plans/${plan.id}`)
+                              .then((r) => r.json())
+                              .then((detail) => exportPlanToExcel(detail))
+                              .catch(() => alert('ส่งออกไฟล์ไม่สำเร็จ'));
+                          }}
+                          title="ส่งออกรายงาน Excel (.xlsx)"
+                          className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-emerald-600 dark:text-emerald-400 transition cursor-pointer"
+                        >
+                          <FileSpreadsheet className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {isStaff && (
+                        <div className="flex items-center gap-1">
+                          {isDraft && (
+                            <button
+                              type="button"
+                              onClick={() => handleUpdatePlanStatus(plan.id, 'IN_PROGRESS')}
+                              title="เริ่มการตรวจทันที"
+                              className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 hover:bg-amber-100 transition cursor-pointer"
+                            >
+                              <Play className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {isInProgress && (
+                            <button
+                              type="button"
+                              onClick={() => handleUpdatePlanStatus(plan.id, 'COMPLETED')}
+                              title="ปิดแผนงาน (เสร็จสิ้น)"
+                              className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 transition cursor-pointer"
+                            >
+                              <CheckCheck className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePlan(plan.id, plan.title)}
+                            title="ลบแผนงาน"
+                            className="p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 5: EXECUTIVE & AVAILABILITY ANALYTICS */}
       {activeTab === 'analytics' && (
         <div className="space-y-6">
           {/* Executive Role Notice */}
@@ -1860,6 +2556,691 @@ export default function MaintenanceDashboardPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL 7: CREATE INSPECTION PLAN (CAMPAIGN & AUDIT) */}
+      {showCreatePlanModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-teal-50 dark:bg-teal-950 text-teal-600 flex items-center justify-center">
+                  <CalendarCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    สร้างแผนงานตรวจเช็ก / ตรวจนับครุภัณฑ์
+                  </h3>
+                  <p className="text-[10px] text-slate-400">
+                    Inspection Campaign & Batch Scheduled Audit
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreatePlanModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreatePlanSubmit} className="space-y-4 text-xs">
+              {/* 1. Title */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  ชื่อแผนงานตรวจเช็ก <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={createPlanForm.title}
+                  onChange={(e) => setCreatePlanForm((prev) => ({ ...prev, title: e.target.value }))}
+                  placeholder="เช่น ตรวจนับครุภัณฑ์ประจำปี 2567, ตรวจรับสภาพหุ่นหลังสอบ OSCE นิสิต, ตรวจใหญ่ก่อนเปิดเทอม..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-slate-100"
+                />
+              </div>
+
+              {/* 2. Plan Type */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  ประเภทแผนงานตรวจ
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {[
+                    { type: 'ANNUAL_AUDIT', label: 'ตรวจนับครุภัณฑ์ประจำปี', desc: 'ตรวจนับสต็อกทั้งแล็บ' },
+                    { type: 'POST_CLASS', label: 'ตรวจหลังเรียน / สอบ', desc: 'หลังการสอนหรือสอบ OSCE ของนิสิต' },
+                    { type: 'PRE_SEMESTER', label: 'ตรวจใหญ่ก่อนเปิดเทอม', desc: 'เตรียมความพร้อม 100%' },
+                    { type: 'PM_ROUTINE', label: 'ตรวจ PM รอบใหญ่', desc: 'บำรุงรักษาเชิงป้องกัน' },
+                    { type: 'AD_HOC', label: 'ตรวจเฉพาะกิจ / ด่วน', desc: 'ตรวจสอบกรณีพิเศษ' },
+                  ].map((p) => (
+                    <button
+                      key={p.type}
+                      type="button"
+                      onClick={() => setCreatePlanForm((prev) => ({ ...prev, planType: p.type }))}
+                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                        createPlanForm.planType === p.type
+                          ? 'bg-teal-50 border-teal-600 text-teal-900 dark:bg-teal-950 dark:text-teal-200 dark:border-teal-400 ring-2 ring-teal-500/20'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-teal-500 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      <div className="font-bold text-xs">{p.label}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">{p.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3. Scope Type */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  ขอบเขตอุปกรณ์ที่จะตรวจ (Scope)
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
+                  {[
+                    { scope: 'ALL_ASSETS', label: 'อุปกรณ์ทั้งหมด', icon: Layers },
+                    { scope: 'BY_LOCATION', label: 'ตามสถานที่จัดเก็บ', icon: MapPin },
+                    { scope: 'BY_CATEGORY', label: 'ตามหมวดหมู่', icon: Boxes },
+                    { scope: 'BY_COURSE', label: 'ตามรายวิชาที่สอน', icon: BookOpen },
+                  ].map((s) => {
+                    const IconComp = s.icon;
+                    return (
+                      <button
+                        key={s.scope}
+                        type="button"
+                        onClick={() => setCreatePlanForm((prev) => ({ ...prev, scopeType: s.scope }))}
+                        className={`p-2 rounded-xl border text-center font-bold text-xs transition flex flex-col items-center gap-1 cursor-pointer ${
+                          createPlanForm.scopeType === s.scope
+                            ? 'bg-teal-50 border-teal-600 text-teal-900 dark:bg-teal-950 dark:text-teal-200 dark:border-teal-400 ring-2 ring-teal-500/20'
+                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <IconComp className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                        <span>{s.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Conditional scope selectors */}
+                {createPlanForm.scopeType === 'BY_LOCATION' && (
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl space-y-1">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                      เลือกห้อง / สถานที่จัดเก็บเป้าหมาย <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      required
+                      value={createPlanForm.targetLocationId}
+                      onChange={(e) => setCreatePlanForm((prev) => ({ ...prev, targetLocationId: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-xs text-slate-900 dark:text-slate-100"
+                    >
+                      <option value="">-- เลือกสถานที่จัดเก็บ --</option>
+                      {storageLocations.map((loc) => (
+                        <option key={loc.id} value={loc.id}>
+                          [{loc.code}] {loc.name} {loc.roomName ? `(${loc.roomName})` : ''} - {loc._count?.assets || 0} ชิ้น
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {createPlanForm.scopeType === 'BY_CATEGORY' && (
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl space-y-1">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                      เลือกหมวดหมู่อุปกรณ์เป้าหมาย <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      required
+                      value={createPlanForm.targetCategoryId}
+                      onChange={(e) => setCreatePlanForm((prev) => ({ ...prev, targetCategoryId: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-xs text-slate-900 dark:text-slate-100"
+                    >
+                      <option value="">-- เลือกหมวดหมู่ --</option>
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          [{cat.code || 'CAT'}] {cat.name} ({cat._count?.items || 0} รายการ)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {createPlanForm.scopeType === 'BY_COURSE' && (
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl space-y-1">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                      เลือกรายวิชาที่เพิ่งใช้สอน <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      required
+                      value={createPlanForm.targetCourseId}
+                      onChange={(e) => setCreatePlanForm((prev) => ({ ...prev, targetCourseId: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-xs text-slate-900 dark:text-slate-100"
+                    >
+                      <option value="">-- เลือกรายวิชา --</option>
+                      {courses.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          [{c.code}] {c.name} {c.instructorName ? `(ผู้สอน: ${c.instructorName})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* 4. Schedule & Dates */}
+              <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-750">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={createPlanForm.isDraftNoDate}
+                    onChange={(e) => setCreatePlanForm((prev) => ({ ...prev, isDraftNoDate: e.target.checked }))}
+                    className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+                  />
+                  <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                    ยังไม่กำหนดวันแน่นอน (ร่างแผนงานในอนาคตไว้ล่วงหน้า)
+                  </span>
+                </label>
+
+                {!createPlanForm.isDraftNoDate && (
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                        วันที่เริ่มตรวจ
+                      </label>
+                      <input
+                        type="date"
+                        value={createPlanForm.startDate}
+                        onChange={(e) => setCreatePlanForm((prev) => ({ ...prev, startDate: e.target.value }))}
+                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-xs font-sans"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                        กำหนดแล้วเสร็จ / วันนัดตรวจ (Target Date)
+                      </label>
+                      <input
+                        type="date"
+                        value={createPlanForm.targetDate}
+                        onChange={(e) => setCreatePlanForm((prev) => ({ ...prev, targetDate: e.target.value }))}
+                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-xs font-sans"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 5. Initial Status */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  สถานะเริ่มต้นของแผนงาน
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { val: 'DRAFT', label: 'ร่างแผนงาน (Draft)', desc: 'ยังไม่เริ่มตรวจ' },
+                    { val: 'SCHEDULED', label: 'นัดหมาย (Scheduled)', desc: 'ลงปฏิทินตรวจ' },
+                    { val: 'IN_PROGRESS', label: 'เริ่มตรวจทันที', desc: 'เข้าสู่ห้องตรวจนับ' },
+                  ].map((s) => {
+                    const disabled = createPlanForm.isDraftNoDate && s.val !== 'DRAFT';
+                    return (
+                      <button
+                        key={s.val}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => setCreatePlanForm((prev) => ({ ...prev, status: s.val }))}
+                        className={`p-2 rounded-xl border text-center transition cursor-pointer disabled:opacity-40 ${
+                          createPlanForm.status === s.val
+                            ? 'bg-teal-50 border-teal-600 text-teal-900 dark:bg-teal-950 dark:text-teal-200 dark:border-teal-400 ring-2 ring-teal-500/20'
+                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        <div className="font-bold text-xs">{s.label}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">{s.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 6. Notes */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  หมายเหตุ / คำสั่งการตรวจ
+                </label>
+                <textarea
+                  rows={2}
+                  value={createPlanForm.notes}
+                  onChange={(e) => setCreatePlanForm((prev) => ({ ...prev, notes: e.target.value }))}
+                  placeholder="เช่น เน้นตรวจแบตเตอรี่, จุดเชื่อมต่อสายน้ำเกลือ, ทำความสะอาดคราบเจล..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-sans"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowCreatePlanModal(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 font-bold"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={createPlanSubmitting}
+                  className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold shadow transition disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                >
+                  {createPlanSubmitting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>กำลังสร้างแผนงาน...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4" />
+                      <span>บันทึกและดึงรายการอุปกรณ์</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 8: LIVE AUDIT ROOM (BATCH SCAN & AUDIT HUB) */}
+      {activePlanForAudit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/70 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-5xl bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col h-[92vh] overflow-hidden">
+            {/* Room Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-850">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold">
+                    <QrCode className="w-4 h-4" />
+                  </div>
+                  <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100">
+                    {activePlanForAudit.title}
+                  </h2>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    activePlanForAudit.status === 'COMPLETED'
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                      : activePlanForAudit.status === 'IN_PROGRESS'
+                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                      : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                  }`}>
+                    {activePlanForAudit.status === 'COMPLETED' ? 'ตรวจเสร็จสมบูรณ์' : activePlanForAudit.status === 'IN_PROGRESS' ? 'กำลังดำเนินการตรวจ' : activePlanForAudit.status}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500 flex items-center gap-3 flex-wrap">
+                  <span>กำหนดตรวจ: <b>{activePlanForAudit.targetDate ? new Date(activePlanForAudit.targetDate).toLocaleDateString('th-TH') : 'ยังไม่ระบุวัน'}</b></span>
+                  <span>•</span>
+                  <span>
+                    ขอบเขต: {activePlanForAudit.scopeType === 'ALL_ASSETS' && 'อุปกรณ์ทั้งหมด'}
+                    {activePlanForAudit.scopeType === 'BY_LOCATION' && (activePlanForAudit.targetLocation?.name || 'ตามสถานที่')}
+                    {activePlanForAudit.scopeType === 'BY_CATEGORY' && (activePlanForAudit.targetCategory?.name || 'ตามหมวดหมู่')}
+                    {activePlanForAudit.scopeType === 'BY_COURSE' && (activePlanForAudit.targetCourse?.name || 'ตามรายวิชา')}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => exportPlanToExcel(activePlanForAudit)}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 text-emerald-600 dark:text-emerald-400 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>ส่งออก Excel</span>
+                </button>
+
+                {isStaff && (
+                  <button
+                    type="button"
+                    disabled={planStatusUpdating}
+                    onClick={() => {
+                      const nextStatus = activePlanForAudit.status === 'COMPLETED' ? 'IN_PROGRESS' : 'COMPLETED';
+                      handleUpdatePlanStatus(activePlanForAudit.id, nextStatus);
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                      activePlanForAudit.status === 'COMPLETED'
+                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 hover:bg-amber-200'
+                        : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm'
+                    }`}
+                  >
+                    <CheckCheck className="w-4 h-4" />
+                    <span>{activePlanForAudit.status === 'COMPLETED' ? 'เปิดตรวจต่อ' : 'ปิดแผนงานตรวจเสร็จ'}</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setActivePlanForAudit(null)}
+                  className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Room Content: Rapid Scanner & Items */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+              {/* Rapid Scanner Input */}
+              <div className="p-4 rounded-2xl bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 space-y-2.5">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="font-bold text-teal-900 dark:text-teal-100 flex items-center gap-2">
+                    <QrCode className="w-4 h-4 text-teal-600" />
+                    <span>จุดสแกนบาร์โค้ด / สแกนด่วนหน้างาน (Rapid Scanner)</span>
+                  </div>
+                  <span className="text-[10px] text-teal-700 dark:text-teal-400">
+                    ยิงบาร์โค้ดแล้วกด Enter เพื่อบันทึกผล "ผ่าน" ทันที
+                  </span>
+                </div>
+
+                <form onSubmit={handleQuickScanSubmit} className="flex gap-2">
+                  <div className="relative flex-1">
+                    <QrCode className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      autoFocus
+                      value={quickScanCode}
+                      onChange={(e) => setQuickScanCode(e.target.value)}
+                      placeholder="ยิงบาร์โค้ด หรือพิมพ์รหัสครุภัณฑ์ เช่น EQ-2024-001..."
+                      className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-900 dark:text-slate-100 shadow-sm"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!quickScanCode.trim()}
+                    className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs shadow-md transition disabled:opacity-40 cursor-pointer flex items-center gap-1.5 flex-shrink-0"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>สแกนตรวจผ่านทันที</span>
+                  </button>
+                </form>
+
+                {/* Audit Feedback Message Toast */}
+                {auditFeedbackMsg && (
+                  <div
+                    className={`p-2.5 rounded-xl text-xs font-bold flex items-center gap-2 animate-fadeIn ${
+                      auditFeedbackMsg.type === 'success'
+                        ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200 border border-emerald-300'
+                        : 'bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-200 border border-rose-300'
+                    }`}
+                  >
+                    {auditFeedbackMsg.type === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                    )}
+                    <span>{auditFeedbackMsg.text}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Progress & Live KPIs */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-750">
+                  <span className="text-[10px] text-slate-400 font-bold block uppercase">ทั้งหมดในแผน</span>
+                  <span className="text-xl font-black text-slate-900 dark:text-slate-100">{activePlanForAudit.totalItems} ชิ้น</span>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-750">
+                  <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold block uppercase">ตรวจแล้ว (ความคืบหน้า)</span>
+                  <span className="text-xl font-black text-teal-600 dark:text-teal-400">
+                    {activePlanForAudit.checkedCount} ชิ้น ({activePlanForAudit.progressPercent}%)
+                  </span>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-750">
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold block uppercase">ตรวจผ่าน (พร้อมใช้)</span>
+                  <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">
+                    {activePlanForAudit.passCount + activePlanForAudit.passWithNoteCount} ชิ้น
+                  </span>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-750">
+                  <span className="text-[10px] text-rose-500 font-bold block uppercase">ไม่ผ่าน (ส่งซ่อม)</span>
+                  <span className="text-xl font-black text-rose-600 dark:text-rose-400">
+                    {activePlanForAudit.failCount} ชิ้น
+                  </span>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-750">
+                  <span className="text-[10px] text-amber-500 font-bold block uppercase">รอดำเนินการ</span>
+                  <span className="text-xl font-black text-amber-600 dark:text-amber-400">
+                    {activePlanForAudit.pendingCount} ชิ้น
+                  </span>
+                </div>
+              </div>
+
+              {/* Items Filter Tabs & Search */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+                <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold max-w-fit">
+                  <button
+                    type="button"
+                    onClick={() => setAuditTab('ALL')}
+                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                      auditTab === 'ALL'
+                        ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-300 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    ทั้งหมด ({activePlanForAudit.totalItems})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuditTab('PENDING')}
+                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                      auditTab === 'PENDING'
+                        ? 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-300 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    รอตรวจ ({activePlanForAudit.pendingCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuditTab('CHECKED')}
+                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                      auditTab === 'CHECKED'
+                        ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-300 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    ตรวจแล้ว ({activePlanForAudit.checkedCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuditTab('NOT_FOUND')}
+                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                      auditTab === 'NOT_FOUND'
+                        ? 'bg-white dark:bg-slate-900 text-rose-700 dark:text-rose-300 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    ไม่พบ ({activePlanForAudit.notFoundCount})
+                  </button>
+                </div>
+
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={auditSearch}
+                    onChange={(e) => setAuditSearch(e.target.value)}
+                    placeholder="กรองรหัส, ชื่อหุ่น, สถานที่..."
+                    className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-teal-500/20 text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+
+              {/* Items List Table */}
+              <div className="bg-white dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-100 dark:border-slate-800 text-slate-400 font-bold uppercase text-[10px]">
+                      <tr>
+                        <th className="py-3 px-3.5">รหัส / อุปกรณ์ & หุ่นจำลอง</th>
+                        <th className="py-3 px-3.5">สถานที่จัดเก็บ</th>
+                        <th className="py-3 px-3.5">สถานะ</th>
+                        <th className="py-3 px-3.5">ผลการตรวจ</th>
+                        <th className="py-3 px-3.5">ผู้ตรวจ & บันทึก</th>
+                        <th className="py-3 px-3.5 text-right">การดำเนินการ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {activePlanForAudit.items
+                        .filter((item: any) => {
+                          if (auditTab !== 'ALL' && item.status !== auditTab) return false;
+                          if (auditSearch) {
+                            const q = auditSearch.toLowerCase();
+                            const code = item.asset?.assetCode?.toLowerCase() || '';
+                            const gov = item.asset?.govAssetCode?.toLowerCase() || '';
+                            const name = item.asset?.item?.name?.toLowerCase() || '';
+                            const loc = (item.asset?.storageLocation?.name || item.asset?.location || '').toLowerCase();
+                            if (!code.includes(q) && !gov.includes(q) && !name.includes(q) && !loc.includes(q)) return false;
+                          }
+                          return true;
+                        })
+                        .map((item: any) => {
+                          const isItemChecked = item.status === 'CHECKED';
+                          const isItemNotFound = item.status === 'NOT_FOUND';
+                          const isSubmitting = auditSubmittingId === item.assetId;
+
+                          return (
+                            <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition">
+                              <td className="py-3 px-3.5">
+                                <div className="font-bold text-slate-900 dark:text-slate-100">
+                                  {item.asset?.item?.name}
+                                </div>
+                                <div className="flex items-center gap-2 font-mono text-[11px]">
+                                  <span className="text-teal-700 dark:text-teal-400 font-semibold">{item.asset?.assetCode}</span>
+                                  {item.asset?.govAssetCode && (
+                                    <span className="text-slate-400">({item.asset?.govAssetCode})</span>
+                                  )}
+                                </div>
+                              </td>
+
+                              <td className="py-3 px-3.5 text-slate-600 dark:text-slate-400">
+                                {item.asset?.storageLocation?.name || item.asset?.location || '-'}
+                              </td>
+
+                              <td className="py-3 px-3.5">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  isItemChecked
+                                    ? 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300'
+                                    : isItemNotFound
+                                    ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                }`}>
+                                  {isItemChecked ? 'ตรวจแล้ว' : isItemNotFound ? 'ไม่พบอุปกรณ์' : 'รอดำเนินการ'}
+                                </span>
+                              </td>
+
+                              <td className="py-3 px-3.5">
+                                {item.result === 'PASS' && (
+                                  <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>ผ่าน (สมบูรณ์)</span>
+                                  </span>
+                                )}
+                                {item.result === 'PASS_WITH_NOTE' && (
+                                  <span className="text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">
+                                    <AlertCircle className="w-3.5 h-3.5" />
+                                    <span>ผ่าน (มีข้อสังเกต)</span>
+                                  </span>
+                                )}
+                                {item.result === 'FAIL' && (
+                                  <span className="text-rose-600 dark:text-rose-400 font-bold flex items-center gap-1">
+                                    <Wrench className="w-3.5 h-3.5" />
+                                    <span>ไม่ผ่าน (ส่งซ่อม)</span>
+                                  </span>
+                                )}
+                                {!item.result && <span className="text-slate-400">-</span>}
+                              </td>
+
+                              <td className="py-3 px-3.5 text-[11px] text-slate-500">
+                                {item.checkedAt ? (
+                                  <div>
+                                    <div>{new Date(item.checkedAt).toLocaleDateString('th-TH')}</div>
+                                    <div className="text-[10px] text-slate-400">
+                                      โดย {item.checkedBy?.name || 'เจ้าหน้าที่'}
+                                    </div>
+                                    {item.notes && <div className="text-[10px] text-teal-700 dark:text-teal-400 mt-0.5 truncate max-w-xs">{item.notes}</div>}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-400">-</span>
+                                )}
+                              </td>
+
+                              <td className="py-3 px-3.5 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {/* Quick Pass button */}
+                                  <button
+                                    type="button"
+                                    disabled={isSubmitting}
+                                    onClick={() => handleAuditItemDirect(activePlanForAudit.id, item.assetId, 'CHECKED', 'PASS')}
+                                    title="ตรวจผ่านทันที (Quick Pass)"
+                                    className={`px-2.5 py-1.5 rounded-xl font-bold text-[11px] transition cursor-pointer flex items-center gap-1 ${
+                                      item.result === 'PASS'
+                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300'
+                                        : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
+                                    }`}
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>{item.result === 'PASS' ? 'ผ่านแล้ว' : 'ผ่านด่วน'}</span>
+                                  </button>
+
+                                  {/* Detailed Checklist button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setChecklistTarget(item.asset);
+                                      setChecklistResult(item.result || 'PASS');
+                                      setChecklistNotes(item.notes || '');
+                                      setChecklistIntervalDays(item.asset?.inspectionIntervalDays || 30);
+                                      setChecklistChecks({
+                                        visualCondition: true,
+                                        powerAndBattery: true,
+                                        functionSelfTest: true,
+                                        cleanliness: true,
+                                        accessoriesComplete: true,
+                                      });
+                                    }}
+                                    title="เปิดแบบฟอร์ม Checklist ละเอียด"
+                                    className="px-2.5 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 hover:bg-teal-100 border border-teal-200 dark:border-teal-800 font-bold text-[11px] transition cursor-pointer flex items-center gap-1"
+                                  >
+                                    <CheckSquare className="w-3.5 h-3.5" />
+                                    <span>Checklist</span>
+                                  </button>
+
+                                  {/* Not Found button */}
+                                  {!isItemNotFound && (
+                                    <button
+                                      type="button"
+                                      disabled={isSubmitting}
+                                      onClick={() => handleAuditItemDirect(activePlanForAudit.id, item.assetId, 'NOT_FOUND')}
+                                      title="ทำเครื่องหมายว่าไม่พบอุปกรณ์"
+                                      className="p-1.5 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                                    >
+                                      <XCircle className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Bottom Guidance Box */}
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800 text-[11px] text-slate-500 flex items-center gap-2">
+                <Info className="w-4 h-4 text-teal-600 flex-shrink-0" />
+                <span>
+                  <b>เคล็ดลับการตรวจหน้างาน:</b> คุณสามารถสแกนบาร์โค้ดเครื่องใดก็ได้ แม้ไม่อยู่ในแผนเดิม ระบบจะดึงเข้าสู่งานตรวจนี้ให้อัตโนมัติ (Ad-hoc) พร้อมปรับปรุงประวัติการตรวจตามรอบ (Routine PM) ของเครื่องให้เป็นปัจจุบันทันที
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       )}

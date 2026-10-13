@@ -28,6 +28,7 @@ import {
 import * as XLSX from 'xlsx';
 import { TableLoadingRow } from '@/components/common/LoadingSpinner';
 import { ORG_CONFIG } from '@/lib/constants/organization';
+import { formatTermName } from '@/lib/academicTerm';
 
 export default function ReportsPage() {
   const { currentUser, isOfficer, isApprover, isAdmin } = useAuth();
@@ -531,7 +532,7 @@ export default function ReportsPage() {
     const courseRows = reportData.costAnalytics.courses.map((c: any) => ({
       'รหัสวิชา': c.code,
       'ชื่อรายวิชา': c.name,
-      'ภาคเรียน': c.semester || '-',
+      'ภาคการศึกษา': formatTermName(c.semester),
       'ปีการศึกษา': c.academicYear || '-',
       'อาจารย์ผู้ประสานงาน': c.instructorName || '-',
       'จำนวนนิสิตในรุ่น (คน)': c.studentCount || 0,

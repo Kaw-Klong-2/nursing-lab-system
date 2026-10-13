@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { formatUserName, formatTeacherName } from '@/lib/user-utils';
+import { formatTermName, toLegacySemesterCode } from '@/lib/academicTerm';
 
 export default function CoursesPage() {
   const router = useRouter();
@@ -39,6 +40,7 @@ export default function CoursesPage() {
   const [loading, setLoading] = useState(true);
   const [instructors, setInstructors] = useState<any[]>([]);
   const [isCustomInstructor, setIsCustomInstructor] = useState(false);
+  const [currentTerm, setCurrentTerm] = useState<any>(null);
 
   // Search & Status Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -115,6 +117,21 @@ export default function CoursesPage() {
       return;
     }
     fetchCourses();
+
+    // Fetch current active academic term
+    fetch('/api/academic-terms?current=true')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.academicYear) {
+          setCurrentTerm(data);
+          setNewCourse((prev) => ({
+            ...prev,
+            academicYear: data.academicYear,
+            semester: toLegacySemesterCode(data.term),
+          }));
+        }
+      })
+      .catch((err) => console.error('Failed to fetch current term:', err));
   }, [currentUser, router, isTeacher]);
 
   if (currentUser?.role === 'USER' && !isTeacher) {
@@ -150,8 +167,8 @@ export default function CoursesPage() {
         setNewCourse({
           code: '',
           name: '',
-          semester: '1',
-          academicYear: '2569',
+          semester: currentTerm ? toLegacySemesterCode(currentTerm.term) : '1',
+          academicYear: currentTerm?.academicYear || '2569',
           instructorName: '',
           description: '',
           allocatedBudget: 50000,
@@ -285,8 +302,8 @@ export default function CoursesPage() {
     csvContent += `รายงานสรุปการใช้วัสดุและต้นทุนประจำรายวิชา\n`;
     csvContent += `รหัสวิชา,${selectedCourse.code}\n`;
     csvContent += `ชื่อวิชา,${selectedCourse.name}\n`;
-    csvContent += `ผู้ประสานงานรายวิชา,${selectedCourse.instructorName}\n`;
-    csvContent += `ภาคเรียน/ปีการศึกษา,${selectedCourse.semester}/${selectedCourse.academicYear}\n`;
+    const termThai = formatTermName(selectedCourse.semester);
+    csvContent += `ภาคเรียน/ปีการศึกษา,${termThai}/${selectedCourse.academicYear}\n`;
     csvContent += `จำนวนนิสิต,${selectedCourse.studentCount || 0} คน\n`;
     csvContent += `งบประมาณที่ได้รับจัดสรร,${selectedCourse.allocatedBudget}\n`;
     csvContent += `ยอดใช้วัสดุจริงรวม,${selectedCourse.totalExpense}\n`;
@@ -552,7 +569,7 @@ export default function CoursesPage() {
                     <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 flex-wrap">
                       <span>ผู้ประสานงาน: <strong className="text-slate-700 dark:text-slate-300">{formatTeacherName(selectedCourse.instructorName)}</strong></span>
                       <span>•</span>
-                      <span>ภาคเรียนที่ {selectedCourse.semester}/{selectedCourse.academicYear}</span>
+                      <span>{formatTermName(selectedCourse.semester)}/{selectedCourse.academicYear}</span>
                       <span>•</span>
                       <span className="inline-flex items-center gap-1 text-teal-700 dark:text-teal-400 font-bold bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded-md border border-teal-200 dark:border-teal-800">
                         <Users className="w-3 h-3" />
@@ -814,15 +831,15 @@ export default function CoursesPage() {
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    ภาคเรียน
+                    ภาคการศึกษา
                   </label>
                   <select
                     value={newCourse.semester}
                     onChange={(e) => setNewCourse({ ...newCourse, semester: e.target.value })}
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-teal-500/20 cursor-pointer"
                   >
-                    <option value="1">ภาคเรียนที่ 1</option>
-                    <option value="2">ภาคเรียนที่ 2</option>
+                    <option value="1">ภาคต้น</option>
+                    <option value="2">ภาคปลาย</option>
                     <option value="3">ภาคฤดูร้อน</option>
                   </select>
                 </div>
@@ -1018,15 +1035,15 @@ export default function CoursesPage() {
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    ภาคเรียน
+                    ภาคการศึกษา
                   </label>
                   <select
                     value={editCourse.semester}
                     onChange={(e) => setEditCourse({ ...editCourse, semester: e.target.value })}
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-teal-500/20 cursor-pointer"
                   >
-                    <option value="1">ภาคเรียนที่ 1</option>
-                    <option value="2">ภาคเรียนที่ 2</option>
+                    <option value="1">ภาคต้น</option>
+                    <option value="2">ภาคปลาย</option>
                     <option value="3">ภาคฤดูร้อน</option>
                   </select>
                 </div>

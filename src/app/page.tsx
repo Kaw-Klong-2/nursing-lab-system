@@ -38,6 +38,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'CALENDAR' | 'ANALYTICS'>('CALENDAR');
+  const [currentTerm, setCurrentTerm] = useState<any>(null);
 
   const fetchDashboard = async () => {
     try {
@@ -58,6 +59,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!currentUser) return;
+
+    fetch('/api/academic-terms?current=true')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((term) => {
+        if (term) setCurrentTerm(term);
+      })
+      .catch(() => {});
+
     if (currentUser.role !== 'USER') {
       try {
         const cached = sessionStorage.getItem('cached_dashboard_stats');
@@ -95,7 +104,7 @@ export default function DashboardPage() {
             สวัสดี, {isTeacher ? formatTeacherName(currentUser) : (formatUserName(currentUser) || 'ผู้ใช้งาน')}
           </h2>
           <p className="text-slate-300 text-xs mt-1">
-            {currentUser?.department || 'คณะพยาบาลศาสตร์'} | ภาคเรียนที่ 1 / ปีการศึกษา 2569
+            {currentUser?.department || 'คณะพยาบาลศาสตร์'} | {currentTerm?.name || 'ภาคต้น ปีการศึกษา 2569'}
           </p>
         </div>
 

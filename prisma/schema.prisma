@@ -771,3 +771,19 @@ model InspectionPlanItem {
   @@index([planId, status])
   @@index([assetId])
 }
+
+model AcademicTerm {
+  id            String    @id @default(cuid())
+  academicYear  String    // เช่น "2569", "2570"
+  term          String    // "FIRST" (ภาคต้น), "SECOND" (ภาคปลาย), "SUMMER" (ภาคฤดูร้อน)
+  name          String    // "ภาคต้น ปีการศึกษา 2569"
+  startDate     DateTime  // วันที่เริ่มต้นภาคการศึกษา
+  endDate       DateTime  // วันที่สิ้นสุดภาคการศึกษา
+  isCurrent     Boolean   @default(false) // เป็นภาคการศึกษาปัจจุบันหรือไม่
+  status        String    @default("ACTIVE") // "ACTIVE", "UPCOMING", "CLOSED"
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([academicYear, term])
+  @@index([isCurrent, status])
+}

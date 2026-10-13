@@ -47,8 +47,17 @@ export default function NewAllocationModal({
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  // Load available assets
+  // Load available assets and current active term
   useEffect(() => {
+    fetch('/api/academic-terms?current=true')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((term) => {
+        if (term?.endDate) {
+          setExpectedReturnDate(term.endDate.slice(0, 10));
+        }
+      })
+      .catch(() => {});
+
     async function fetchAssets() {
       try {
         const res = await fetch('/api/items?type=EQUIPMENT');

@@ -252,6 +252,13 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           roles: ['ADMIN'],
           badge: 'เทมเพลต',
         },
+        {
+          label: 'กำหนดภาคการศึกษา',
+          href: '/settings/terms',
+          icon: CalendarDays,
+          roles: ['ADMIN', 'OFFICER'],
+          badge: 'ปฏิทิน',
+        },
       ],
     },
   ];

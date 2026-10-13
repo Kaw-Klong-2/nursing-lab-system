@@ -34,6 +34,18 @@ export async function GET(
           orderBy: { sentDate: 'desc' },
           take: 3,
         },
+        inspectionLogs: {
+          orderBy: { inspectionDate: 'desc' },
+          take: 3,
+          include: {
+            inspector: { select: { name: true } },
+          },
+        },
+        issueReports: {
+          where: { status: { in: ['PENDING', 'ACKNOWLEDGED', 'SENT_TO_REPAIR'] } },
+          orderBy: { createdAt: 'desc' },
+          take: 3,
+        },
         borrowItems: {
           include: {
             borrowRequest: {
@@ -162,6 +174,11 @@ export async function GET(
       },
       activeBorrow,
       activeMaintenance,
+      lastInspectedAt: asset.lastInspectedAt,
+      nextInspectionDue: asset.nextInspectionDue,
+      inspectionIntervalDays: asset.inspectionIntervalDays,
+      inspectionLogs: asset.inspectionLogs || [],
+      activeIssueReports: asset.issueReports || [],
     });
   } catch (error: any) {
     console.error('Public Asset Lookup Error:', error);

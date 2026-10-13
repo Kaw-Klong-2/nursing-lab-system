@@ -43,6 +43,8 @@ model User {
   notifications       Notification[]       @relation("UserNotifications")
   pushSubscriptions   PushSubscription[]   @relation("UserPushSubscriptions")
   acOperationLogs     AcOperationLog[]
+  inspections         InspectionLog[]      @relation("InspectorLogs")
+  resolvedIssues      EquipmentIssueReport[] @relation("ResolvedIssues")
 
   @@index([role, status])
   @@index([studentId])
@@ -143,11 +145,17 @@ model EquipmentAsset {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
+  lastInspectedAt   DateTime? // วันที่ตรวจสภาพล่าสุด
+  nextInspectionDue DateTime? // วันกำหนดตรวจสภาพรอบถัดไป
+  inspectionIntervalDays Int @default(30) // ความถี่รอบตรวจ (เช่น 30 วัน, 90 วัน)
+
   storageLocationId String?
   storageLocation   StorageLocation? @relation(fields: [storageLocationId], references: [id], onDelete: SetNull)
 
   borrowItems     BorrowItem[]
   maintenanceLogs MaintenanceLog[]
+  inspectionLogs  InspectionLog[]
+  issueReports    EquipmentIssueReport[]
 
   @@index([itemId, status])
   @@index([status])
@@ -645,6 +653,55 @@ model CustomHoliday {
   updatedAt   DateTime @updatedAt
 
   @@index([dateStr])
+}
+
+model InspectionLog {
+  id               String          @id @default(cuid())
+  assetId          String
+  asset            EquipmentAsset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  inspectorId      String
+  inspector        User            @relation("InspectorLogs", fields: [inspectorId], references: [id])
+  
+  inspectionType   String          @default("ROUTINE") // "ROUTINE", "PRE_SEMESTER", "POST_OSCE", "SPECIAL"
+  inspectionDate   DateTime        @default(now())
+  
+  result           String          // "PASS", "PASS_WITH_NOTE", "FAIL"
+  checklistData    String?         // JSON บันทึกรายการตรวจทีละข้อ เช่น {"skinCondition":"PASS","battery":"PASS"}
+  photoUrl         String?         // รูปถ่ายสภาพอุปกรณ์
+  notes            String?         // ข้อเสนอแนะของนักวิทยาศาสตร์/ผู้ตรวจ
+  nextDueAt        DateTime?       // วันที่ต้องตรวจรอบถัดไป
+  
+  createdAt        DateTime        @default(now())
+
+  @@index([assetId, inspectionDate])
+  @@index([result])
+}
+
+model EquipmentIssueReport {
+  id               String          @id @default(cuid())
+  reportNumber     String          @unique // เช่น REP-25691013-001
+  assetId          String
+  asset            EquipmentAsset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  reporterName     String          // ชื่อผู้แจ้ง (นิสิต หรือ อาจารย์)
+  reporterRole     String          @default("STUDENT") // "STUDENT", "TEACHER", "OFFICER"
+  contactPhone     String?         // เบอร์ติดต่อผู้แจ้ง
+  
+  issueDescription String          // อาการชำรุดที่พบ
+  urgency          String          @default("NORMAL") // "NORMAL", "URGENT", "CRITICAL"
+  photoUrl         String?         // ภาพถ่ายจุดชำรุด
+  
+  status           String          @default("PENDING") // "PENDING", "ACKNOWLEDGED", "SENT_TO_REPAIR", "RESOLVED", "REJECTED"
+  actionNote       String?         // บันทึกของเจ้าหน้าที่
+  resolvedById     String?
+  resolvedBy       User?           @relation("ResolvedIssues", fields: [resolvedById], references: [id])
+  resolvedAt       DateTime?
+  
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([assetId, status])
+  @@index([status])
 }
 
 

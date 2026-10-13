@@ -30,6 +30,7 @@ import {
   Sliders,
   Wind,
   LogOut,
+  Wrench,
 } from 'lucide-react';
 import ProfileModal from '@/components/profile/ProfileModal';
 import ThemeToggle from '@/components/common/ThemeToggle';
@@ -182,6 +183,13 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           href: '/inventory',
           icon: Boxes,
           roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'USER'],
+        },
+        {
+          label: 'ตรวจเช็ก & บำรุงรักษา',
+          href: '/maintenance',
+          icon: Wrench,
+          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE'],
+          badge: 'PM / ซ่อม',
         },
         {
           label: 'รับเข้าพัสดุ (Stock In)',

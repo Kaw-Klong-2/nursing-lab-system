@@ -599,6 +599,8 @@ export default function ApprovalsPage() {
     createdAt: string;
     dateNeeded: string;
     dateNeededDisplay: string;
+    dateNeededDate: string;
+    dateNeededTime?: string;
     user: any;
     course?: any;
     purpose: string;
@@ -624,13 +626,20 @@ export default function ApprovalsPage() {
       ? `${summary} + วัสดุ ${(b.requisitionRequest.items || []).length} รายการ`
       : summary;
 
+    const dateNeededDate = `ยืม ${new Date(borrowDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}`;
+    const dateNeededTime = b.expectedReturnDate
+      ? `คืน ${new Date(b.expectedReturnDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}`
+      : undefined;
+
     return {
       id: b.id,
       type: 'BORROW',
       requestNumber: reqNum,
       createdAt: b.createdAt,
       dateNeeded: borrowDate,
-      dateNeededDisplay: `${new Date(borrowDate).toLocaleDateString('th-TH')}${b.expectedReturnDate ? ` (คืน ${new Date(b.expectedReturnDate).toLocaleDateString('th-TH')})` : ''}`,
+      dateNeededDisplay: `${dateNeededDate}${dateNeededTime ? ` (${dateNeededTime})` : ''}`,
+      dateNeededDate,
+      dateNeededTime,
       user: b.user,
       course: b.course,
       purpose: b.purpose || 'ยืมเพื่อการเรียนการสอน',
@@ -648,6 +657,7 @@ export default function ApprovalsPage() {
     const dateNeeded = r.dateNeeded || r.createdAt;
     const itemsList = (r.items || []).map((it: any) => `${it.item?.name || 'วัสดุ'} (${it.quantityRequested || 1} ${it.item?.unit || 'ชิ้น'})`);
     const summary = itemsList.length > 0 ? itemsList.join(', ') : 'วัสดุตามรายการ';
+    const dateNeededDate = new Date(dateNeeded).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
 
     return {
       id: r.id,
@@ -655,7 +665,8 @@ export default function ApprovalsPage() {
       requestNumber: r.requestNumber,
       createdAt: r.createdAt,
       dateNeeded: dateNeeded,
-      dateNeededDisplay: new Date(dateNeeded).toLocaleDateString('th-TH'),
+      dateNeededDisplay: dateNeededDate,
+      dateNeededDate,
       user: r.user,
       course: r.course,
       purpose: r.purpose || 'เบิกวัสดุสิ้นเปลือง',
@@ -671,10 +682,12 @@ export default function ApprovalsPage() {
 
   const mapPracticeToUnified = (p: any): UnifiedApprovalItem => {
     const dateNeeded = p.slot?.date ? `${p.slot.date}T${p.slot.startTime || '08:00'}:00` : p.createdAt;
-    const dateNeededDisplay = p.slot?.date
-      ? `${new Date(p.slot.date).toLocaleDateString('th-TH')} (${p.slot.startTime || ''} - ${p.slot.endTime || ''} น.)`
+    const dateNeededDate = p.slot?.date
+      ? new Date(p.slot.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })
       : '-';
-    const summaryParts = [p.slot?.room?.name, p.practiceKit?.name, p.additionalEquipment].filter(Boolean);
+    const dateNeededTime = p.slot?.startTime ? `${p.slot.startTime} - ${p.slot.endTime} น.` : undefined;
+    const roomCode = p.slot?.room?.code || p.slot?.room?.name;
+    const summaryParts = [roomCode, p.practiceKit?.name, p.additionalEquipment].filter(Boolean);
     const summary = summaryParts.length > 0 ? summaryParts.join(' | ') : 'ขอเข้าฝึกปฏิบัติ';
 
     return {
@@ -683,7 +696,9 @@ export default function ApprovalsPage() {
       requestNumber: p.bookingNumber,
       createdAt: p.createdAt,
       dateNeeded: dateNeeded,
-      dateNeededDisplay: dateNeededDisplay,
+      dateNeededDisplay: `${dateNeededDate}${dateNeededTime ? ` (${dateNeededTime})` : ''}`,
+      dateNeededDate,
+      dateNeededTime,
       user: p.user,
       course: p.course,
       purpose: p.skillTopic || 'ฝึกปฏิบัติด้วยตนเอง',
@@ -699,11 +714,13 @@ export default function ApprovalsPage() {
 
   const mapRoomToUnified = (rm: any): UnifiedApprovalItem => {
     const dateNeeded = rm.bookingDate ? `${rm.bookingDate}T${rm.startTime || '08:00'}:00` : rm.createdAt;
-    const dateNeededDisplay = rm.bookingDate
-      ? `${new Date(rm.bookingDate).toLocaleDateString('th-TH')} (${rm.startTime || ''} - ${rm.endTime || ''} น.)`
+    const dateNeededDate = rm.bookingDate
+      ? new Date(rm.bookingDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })
       : '-';
+    const dateNeededTime = rm.startTime ? `${rm.startTime} - ${rm.endTime} น.` : undefined;
+    const roomCode = rm.room?.code || rm.room?.name;
     const summaryParts = [
-      rm.room?.name,
+      roomCode,
       rm.attendeesCount ? `${rm.attendeesCount} คน` : null,
       rm.equipmentNeeded,
     ].filter(Boolean);
@@ -715,7 +732,9 @@ export default function ApprovalsPage() {
       requestNumber: rm.bookingNumber,
       createdAt: rm.createdAt,
       dateNeeded: dateNeeded,
-      dateNeededDisplay: dateNeededDisplay,
+      dateNeededDisplay: `${dateNeededDate}${dateNeededTime ? ` (${dateNeededTime})` : ''}`,
+      dateNeededDate,
+      dateNeededTime,
       user: rm.user,
       course: rm.course,
       purpose: rm.title ? `${rm.title}${rm.purpose ? ` (${rm.purpose})` : ''}` : (rm.purpose || 'จองห้องปฏิบัติการ'),
@@ -1067,28 +1086,28 @@ export default function ApprovalsPage() {
     return (
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+          <table className="w-full text-left text-[11px] border-collapse">
             <thead>
-              <tr className="bg-slate-50 dark:bg-slate-800/70 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[11px]">
+              <tr className="bg-slate-50 dark:bg-slate-800/70 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                 {statusFilter === 'PENDING' && canApprove && (
-                  <th className="py-3 px-3 w-10 text-center">
+                  <th className="py-2.5 px-2 w-8 text-center">
                     <input
                       type="checkbox"
                       checked={allBatchSelected}
                       onChange={toggleSelectAll}
                       disabled={eligibleBatchIds.length === 0}
                       title="เลือกทั้งหมดที่มีสิทธิ์อนุมัติ"
-                      className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 border-slate-300 dark:border-slate-700 cursor-pointer disabled:opacity-40"
+                      className="w-3.5 h-3.5 rounded text-teal-600 focus:ring-teal-500 border-slate-300 dark:border-slate-700 cursor-pointer disabled:opacity-40"
                     />
                   </th>
                 )}
-                <th className="py-3 px-3 whitespace-nowrap">ลำดับคิว / วันที่ยื่น</th>
-                <th className="py-3 px-3 whitespace-nowrap">เลขคำขอ & ประเภท</th>
-                <th className="py-3 px-3 whitespace-nowrap">นิสิตผู้ยื่น</th>
-                <th className="py-3 px-3 whitespace-nowrap">วันที่ต้องการใช้</th>
-                <th className="py-3 px-3 whitespace-nowrap">รายวิชา & วัตถุประสงค์</th>
-                <th className="py-3 px-3">รายการสิ่งของ / ห้อง</th>
-                <th className="py-3 px-3 text-right whitespace-nowrap">การดำเนินการ</th>
+                <th className="py-2.5 px-2.5 whitespace-nowrap">ลำดับคิว / วันที่ยื่น</th>
+                <th className="py-2.5 px-2.5 whitespace-nowrap">เลขคำขอ & ประเภท</th>
+                <th className="py-2.5 px-2.5 whitespace-nowrap">ผู้ยื่น</th>
+                <th className="py-2.5 px-2.5 whitespace-nowrap">วันที่ใช้</th>
+                <th className="py-2.5 px-2.5 whitespace-nowrap">รายวิชา & วัตถุประสงค์</th>
+                <th className="py-2.5 px-2.5">รายการสิ่งของ / ห้อง</th>
+                <th className="py-2.5 px-2.5 text-right whitespace-nowrap">การดำเนินการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1106,62 +1125,62 @@ export default function ApprovalsPage() {
                       } ${isSelected ? 'bg-teal-50/60 dark:bg-teal-950/40' : ''}`}
                     >
                       {statusFilter === 'PENDING' && canApprove && (
-                        <td className="py-3 px-3 text-center align-middle">
+                        <td className="py-2 px-2 text-center align-middle">
                           <input
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => toggleSelectItem(item.id)}
                             disabled={!item.canApprove}
-                            className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 border-slate-300 dark:border-slate-700 cursor-pointer disabled:opacity-30"
+                            className="w-3.5 h-3.5 rounded text-teal-600 focus:ring-teal-500 border-slate-300 dark:border-slate-700 cursor-pointer disabled:opacity-30"
                           />
                         </td>
                       )}
-                      <td className="py-3 px-3 align-middle whitespace-nowrap">
-                        <div className="space-y-1">
+                      <td className="py-2 px-2.5 align-middle whitespace-nowrap">
+                        <div className="space-y-0.5">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${item.badge.className}`}>
                             {item.badge.text}
                           </span>
                           <div className="text-[10px] text-slate-400">
-                            {new Date(item.createdAt).toLocaleDateString('th-TH')} {new Date(item.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                            {new Date(item.createdAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} {new Date(item.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
                           </div>
                         </div>
                       </td>
-                      <td className="py-3 px-3 align-middle whitespace-nowrap">
-                        <div className="space-y-1">
+                      <td className="py-2 px-2.5 align-middle whitespace-nowrap">
+                        <div className="space-y-0.5">
                           <div className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
                             {item.requestNumber}
                           </div>
                           <div>
                             {item.type === 'BORROW' ? (
                               raw.requisitionRequest ? (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-gradient-to-r from-teal-500 to-indigo-600 text-white shadow-xs inline-flex items-center gap-1">
-                                  <Sparkles className="w-2.5 h-2.5 text-amber-300" /> คำขอรวม (One-Stop)
+                                <span className="px-1.5 py-0.2 rounded-full text-[9px] font-extrabold bg-gradient-to-r from-teal-500 to-indigo-600 text-white shadow-xs inline-flex items-center gap-0.5">
+                                  <Sparkles className="w-2.5 h-2.5 text-amber-300" /> รวม
                                 </span>
                               ) : (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 dark:bg-purple-950/70 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-purple-100 dark:bg-purple-950/70 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                                   ยืมครุภัณฑ์
                                 </span>
                               )
                             ) : item.type === 'REQUISITION' ? (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 dark:bg-teal-950/70 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
-                                เบิกเฉพาะวัสดุ
+                              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-teal-100 dark:bg-teal-950/70 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+                                เบิกวัสดุ
                               </span>
                             ) : item.type === 'PRACTICE' ? (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 inline-flex items-center gap-1">
-                                <Sparkles className="w-2.5 h-2.5 text-indigo-600" /> ขอฝึกปฏิบัติ
+                              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-indigo-100 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 inline-flex items-center gap-0.5">
+                                <Sparkles className="w-2.5 h-2.5 text-indigo-600" /> ฝึกปฏิบัติ
                               </span>
                             ) : (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950/70 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 inline-flex items-center gap-1">
-                                <Building2 className="w-2.5 h-2.5 text-blue-600" /> จองห้องใช้งาน
+                              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-blue-100 dark:bg-blue-950/70 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 inline-flex items-center gap-0.5">
+                                <Building2 className="w-2.5 h-2.5 text-blue-600" /> จองห้อง
                               </span>
                             )}
                           </div>
                         </div>
                       </td>
-                      <td className="py-3 px-3 align-middle whitespace-nowrap">
+                      <td className="py-2 px-2.5 align-middle whitespace-nowrap">
                         <div className="space-y-0.5">
-                          <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                            <User className="w-3.5 h-3.5 text-slate-400" />
+                          <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1 text-[11px]">
+                            <User className="w-3 h-3 text-slate-400" />
                             <span>{formatUserName(item.user)}</span>
                           </div>
                           {item.user?.studentId && (
@@ -1171,53 +1190,60 @@ export default function ApprovalsPage() {
                           )}
                         </div>
                       </td>
-                      <td className="py-3 px-3 align-middle whitespace-nowrap">
+                      <td className="py-2 px-2.5 align-middle whitespace-nowrap">
                         <div className="space-y-0.5">
-                          <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                            <span>{item.dateNeededDisplay}</span>
+                          <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1 text-[11px]">
+                            <Calendar className="w-3 h-3 text-teal-600 shrink-0" />
+                            <span>{item.dateNeededDate}</span>
                           </div>
+                          {item.dateNeededTime && (
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1 pl-4 font-normal">
+                              <Clock className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                              <span>{item.dateNeededTime}</span>
+                            </div>
+                          )}
                         </div>
                       </td>
-                      <td className="py-3 px-3 align-middle max-w-xs">
-                        <div className="space-y-1">
+                      <td className="py-2 px-2.5 align-middle max-w-[160px]">
+                        <div className="space-y-0.5">
                           {(item.course?.code || item.course?.courseCode) && (
-                            <span className="font-mono text-[10px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1.5 py-0.5 rounded border border-teal-200 dark:border-teal-800 inline-block">
+                            <span className="font-mono text-[9px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1 py-0.2 rounded border border-teal-200 dark:border-teal-800 inline-block">
                               {item.course?.code || item.course?.courseCode}
                             </span>
                           )}
-                          <p className="text-xs text-slate-700 dark:text-slate-300 font-medium truncate max-w-xs" title={item.purpose}>
+                          <p className="text-[11px] text-slate-700 dark:text-slate-300 font-medium truncate max-w-[160px]" title={item.purpose}>
                             {item.purpose || '-'}
                           </p>
                         </div>
                       </td>
-                      <td className="py-3 px-3 align-middle max-w-xs">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs text-slate-600 dark:text-slate-400 font-medium truncate max-w-[200px]" title={item.itemsSummary}>
+                      <td className="py-2 px-2.5 align-middle max-w-[180px]">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium truncate max-w-[120px]" title={item.itemsSummary}>
                             {item.itemsSummary}
                           </p>
                           <button
                             type="button"
                             onClick={() => toggleExpandItem(item.id)}
-                            className="px-2 py-1 rounded-lg text-[10px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 hover:bg-teal-100 dark:hover:bg-teal-900/60 transition inline-flex items-center gap-1 shrink-0 cursor-pointer"
+                            className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 hover:bg-teal-100 dark:hover:bg-teal-900/60 transition inline-flex items-center gap-0.5 shrink-0 cursor-pointer"
+                            title="ดูรายละเอียดคำขอ"
                           >
-                            <span>{isExpanded ? 'ย่อ' : 'ดูของ'}</span>
+                            <span>{isExpanded ? 'ย่อ' : 'รายละเอียด'}</span>
                             {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                           </button>
                         </div>
                       </td>
-                      <td className="py-3 px-3 align-middle text-right whitespace-nowrap">
+                      <td className="py-2 px-2.5 align-middle text-right whitespace-nowrap">
                         {statusFilter === 'PENDING' ? (
-                          <div className="inline-flex items-center gap-1.5 justify-end">
+                          <div className="inline-flex items-center gap-1 justify-end">
                             {(item.type === 'BORROW' || item.type === 'REQUISITION') && !item.instructorAcknowledged && (isTeacher || canApprove) && (
                               <button
                                 type="button"
                                 disabled={acknowledgingId === item.id || submitting}
                                 onClick={() => handleAcknowledge(item.id, item.type as any)}
-                                className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 transition cursor-pointer flex items-center gap-1"
+                                className="px-2 py-1 rounded-lg text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 transition cursor-pointer flex items-center gap-1"
                                 title="อาจารย์ผู้สอนกดรับทราบคำขอ"
                               >
-                                {acknowledgingId === item.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <GraduationCap className="w-3 h-3 text-indigo-600" />}
+                                {acknowledgingId === item.id ? <RefreshCw className="w-2.5 h-2.5 animate-spin" /> : <GraduationCap className="w-2.5 h-2.5 text-indigo-600" />}
                                 <span>รับทราบ</span>
                               </button>
                             )}
@@ -1228,7 +1254,7 @@ export default function ApprovalsPage() {
                                   type="button"
                                   disabled={submitting}
                                   onClick={() => setRejectItem({ id: item.id, type: item.type })}
-                                  className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/60 border border-rose-200 dark:border-rose-800 transition cursor-pointer"
+                                  className="px-2 py-1 rounded-lg text-[10px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/60 border border-rose-200 dark:border-rose-800 transition cursor-pointer"
                                 >
                                   ไม่อนุมัติ
                                 </button>
@@ -1236,25 +1262,25 @@ export default function ApprovalsPage() {
                                   type="button"
                                   disabled={submitting}
                                   onClick={() => handleApprove(item.id, item.type)}
-                                  className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-white bg-teal-600 hover:bg-teal-500 shadow-xs transition cursor-pointer flex items-center gap-1"
+                                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold text-white bg-teal-600 hover:bg-teal-500 shadow-xs transition cursor-pointer flex items-center gap-1"
                                 >
-                                  {approvingId === item.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                                  {approvingId === item.id ? <RefreshCw className="w-2.5 h-2.5 animate-spin" /> : <Check className="w-2.5 h-2.5" />}
                                   <span>อนุมัติ</span>
                                 </button>
                               </>
                             ) : (
-                              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                                 ไม่มีสิทธิ์อนุมัติ
                               </span>
                             )}
                           </div>
                         ) : statusFilter === 'APPROVED' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> อนุมัติแล้ว
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> อนุมัติแล้ว
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
-                            <XCircle className="w-3 h-3 text-rose-600" /> ไม่อนุมัติ
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                            <XCircle className="w-2.5 h-2.5 text-rose-600" /> ไม่อนุมัติ
                           </span>
                         )}
                       </td>

@@ -69,6 +69,7 @@ export default function PublicAssetPage() {
   const [inspectSuccess, setInspectSuccess] = useState(false);
   const [inspectionResult, setInspectionResult] = useState<'PASS' | 'PASS_WITH_NOTE' | 'FAIL'>('PASS');
   const [inspectionNotes, setInspectionNotes] = useState('');
+  const [inspectIntervalDays, setInspectIntervalDays] = useState(30);
   const [inspectionChecks, setInspectionChecks] = useState<Record<string, boolean>>({
     visualCondition: true,
     powerAndBattery: true,
@@ -199,6 +200,7 @@ export default function PublicAssetPage() {
           result: inspectionResult,
           checklistData: inspectionChecks,
           notes: inspectionNotes,
+          intervalDays: inspectIntervalDays,
         }),
       });
 
@@ -1016,6 +1018,35 @@ export default function PublicAssetPage() {
                     placeholder="บันทึกเพิ่มเติม (ถ้ามี)"
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/30 text-xs font-sans"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    กำหนดรอบตรวจครั้งถัดไป (PM Interval)
+                  </label>
+                  <div className="grid grid-cols-3 gap-1.5 mb-1.5">
+                    {[
+                      { days: 15, label: 'ทุก 15 วัน' },
+                      { days: 30, label: 'ทุก 30 วัน (1 ด.)' },
+                      { days: 60, label: 'ทุก 60 วัน (2 ด.)' },
+                      { days: 90, label: 'ทุก 90 วัน (3 ด.)' },
+                      { days: 180, label: 'ทุก 180 วัน (6 ด.)' },
+                      { days: 365, label: 'ทุก 1 ปี' },
+                    ].map((p) => (
+                      <button
+                        key={p.days}
+                        type="button"
+                        onClick={() => setInspectIntervalDays(p.days)}
+                        className={`p-1.5 rounded-lg border text-center font-bold text-[10px] transition cursor-pointer ${
+                          inspectIntervalDays === p.days
+                            ? 'bg-teal-50 border-teal-600 text-teal-800 dark:bg-teal-950 dark:text-teal-200'
+                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="pt-2 flex items-center justify-end gap-2">

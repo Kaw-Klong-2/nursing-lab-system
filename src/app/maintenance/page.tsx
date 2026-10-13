@@ -110,6 +110,7 @@ export default function MaintenanceDashboardPage() {
   const [checklistTarget, setChecklistTarget] = useState<any | null>(null);
   const [checklistResult, setChecklistResult] = useState<'PASS' | 'PASS_WITH_NOTE' | 'FAIL'>('PASS');
   const [checklistNotes, setChecklistNotes] = useState('');
+  const [checklistIntervalDays, setChecklistIntervalDays] = useState<number>(30);
   const [checklistChecks, setChecklistChecks] = useState<Record<string, boolean>>({
     visualCondition: true,
     powerAndBattery: true,
@@ -118,6 +119,12 @@ export default function MaintenanceDashboardPage() {
     accessoriesComplete: true,
   });
   const [checklistSubmitting, setChecklistSubmitting] = useState(false);
+
+  // 6. Quick Interval Configuration Modal
+  const [intervalModalTarget, setIntervalModalTarget] = useState<any | null>(null);
+  const [intervalDaysInput, setIntervalDaysInput] = useState<number>(30);
+  const [applyToAllSameItem, setApplyToAllSameItem] = useState(false);
+  const [intervalSubmitting, setIntervalSubmitting] = useState(false);
 
   // Fetch all maintenance data
   const loadData = async (isManual = false) => {
@@ -373,6 +380,7 @@ export default function MaintenanceDashboardPage() {
           result: checklistResult,
           checklistData: checklistChecks,
           notes: checklistNotes,
+          intervalDays: checklistIntervalDays,
         }),
       });
 
@@ -388,6 +396,36 @@ export default function MaintenanceDashboardPage() {
       alert('เกิดข้อผิดพลาดในการบันทึกการตรวจ');
     } finally {
       setChecklistSubmitting(false);
+    }
+  };
+
+  // Handle Save Inspection Interval
+  const handleSaveInterval = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!intervalModalTarget) return;
+    setIntervalSubmitting(true);
+    try {
+      const res = await fetch('/api/maintenance/assets', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetId: applyToAllSameItem ? undefined : intervalModalTarget.id,
+          itemId: applyToAllSameItem ? intervalModalTarget.item?.id : undefined,
+          intervalDays: intervalDaysInput,
+        }),
+      });
+
+      if (res.ok) {
+        setIntervalModalTarget(null);
+        await loadData(true);
+      } else {
+        const err = await res.json();
+        alert(err.error || 'บันทึกรอบตรวจไม่สำเร็จ');
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    } finally {
+      setIntervalSubmitting(false);
     }
   };
 
@@ -981,16 +1019,17 @@ export default function MaintenanceDashboardPage() {
                     <th className="py-3.5 px-4">สถานที่จัดเก็บ</th>
                     <th className="py-3.5 px-4">ตรวจสภาพล่าสุด</th>
                     <th className="py-3.5 px-4">รอบตรวจถัดไป</th>
+                    <th className="py-3.5 px-4">ความถี่รอบตรวจ</th>
                     <th className="py-3.5 px-4">สถานะ PM</th>
                     <th className="py-3.5 px-4 text-right">การจัดการ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {loading ? (
-                    <TableLoadingRow colSpan={6} message="กำลังโหลดข้อมูลรายการตรวจเช็ก..." />
+                    <TableLoadingRow colSpan={7} message="กำลังโหลดข้อมูลรายการตรวจเช็ก..." />
                   ) : filteredAssets.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400 text-xs">
+                      <td colSpan={7} className="py-12 text-center text-slate-400 text-xs">
                         ไม่พบข้อมูลอุปกรณ์ตามเงื่อนไขที่เลือก
                       </td>
                     </tr>
@@ -1044,6 +1083,25 @@ export default function MaintenanceDashboardPage() {
                               <span className="text-slate-400">- ไม่ระบุ -</span>
                             )}
                           </td>
+                          <td className="py-3 px-4 text-[11px]">
+                            <div className="font-bold text-slate-800 dark:text-slate-200">
+                              ทุก {asset.inspectionIntervalDays || 30} วัน
+                            </div>
+                            {isStaff && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIntervalModalTarget(asset);
+                                  setIntervalDaysInput(asset.inspectionIntervalDays || 30);
+                                  setApplyToAllSameItem(false);
+                                }}
+                                className="text-[10px] text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-1 font-bold mt-0.5 cursor-pointer"
+                              >
+                                <SlidersHorizontal className="w-2.5 h-2.5" />
+                                <span>ตั้งค่ารอบ</span>
+                              </button>
+                            )}
+                          </td>
                           <td className="py-3 px-4">
                             <span
                               className={`px-2.5 py-1 rounded-xl text-[10px] font-bold ${
@@ -1073,6 +1131,7 @@ export default function MaintenanceDashboardPage() {
                                   setChecklistTarget(asset);
                                   setChecklistResult('PASS');
                                   setChecklistNotes('');
+                                  setChecklistIntervalDays(asset.inspectionIntervalDays || 30);
                                   setChecklistChecks({
                                     visualCondition: true,
                                     powerAndBattery: true,
@@ -1632,6 +1691,46 @@ export default function MaintenanceDashboardPage() {
                 />
               </div>
 
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  กำหนดรอบตรวจครั้งถัดไป (PM Interval)
+                </label>
+                <div className="grid grid-cols-3 gap-1.5 mb-1.5">
+                  {[
+                    { days: 15, label: 'ทุก 15 วัน' },
+                    { days: 30, label: 'ทุก 30 วัน (1 ด.)' },
+                    { days: 60, label: 'ทุก 60 วัน (2 ด.)' },
+                    { days: 90, label: 'ทุก 90 วัน (3 ด.)' },
+                    { days: 180, label: 'ทุก 180 วัน (6 ด.)' },
+                    { days: 365, label: 'ทุก 1 ปี' },
+                  ].map((p) => (
+                    <button
+                      key={p.days}
+                      type="button"
+                      onClick={() => setChecklistIntervalDays(p.days)}
+                      className={`p-1.5 rounded-lg border text-center font-bold text-[10px] transition cursor-pointer ${
+                        checklistIntervalDays === p.days
+                          ? 'bg-teal-50 border-teal-600 text-teal-800 dark:bg-teal-950 dark:text-teal-200'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-500">หรือระบุ:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={checklistIntervalDays}
+                    onChange={(e) => setChecklistIntervalDays(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-20 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-center font-bold text-xs"
+                  />
+                  <span className="text-[10px] text-slate-500">วัน</span>
+                </div>
+              </div>
+
               <div className="pt-2 flex items-center justify-end gap-2">
                 <button
                   type="button"
@@ -1646,6 +1745,118 @@ export default function MaintenanceDashboardPage() {
                   className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold shadow transition disabled:opacity-50 cursor-pointer"
                 >
                   {checklistSubmitting ? 'กำลังบันทึก...' : 'บันทึกผลการตรวจ'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 6: QUICK INTERVAL CONFIGURATION */}
+      {intervalModalTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-teal-50 dark:bg-teal-950 text-teal-600 flex items-center justify-center">
+                  <SlidersHorizontal className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">ตั้งค่ารอบความถี่การตรวจ (PM)</h3>
+                  <p className="text-[10px] text-slate-400 font-mono">
+                    {intervalModalTarget.assetCode} - {intervalModalTarget.item?.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIntervalModalTarget(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveInterval} className="space-y-4 text-xs">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-2xl space-y-1 text-slate-700 dark:text-slate-300">
+                <div className="font-bold text-slate-900 dark:text-slate-100">
+                  {intervalModalTarget.item?.name}
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  รอบตรวจปัจจุบัน: <b className="text-teal-600">ทุก {intervalModalTarget.inspectionIntervalDays || 30} วัน</b>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-2">
+                  เลือกรอบการตรวจเช็กตามมาตรฐาน
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { days: 15, label: 'ทุก 15 วัน', desc: 'หุ่นวิกฤต/CPR ใช้สอนหนัก' },
+                    { days: 30, label: 'ทุก 30 วัน (1 เดือน)', desc: 'มาตรฐานแนะนำสำหรับหุ่นทั่วไป' },
+                    { days: 60, label: 'ทุก 60 วัน (2 เดือน)', desc: 'อุปกรณ์ฝึกทักษะเฉพาะทาง' },
+                    { days: 90, label: 'ทุก 90 วัน (3 เดือน)', desc: 'เตียงคนไข้, เสาน้ำเกลือ, มอนิเตอร์' },
+                    { days: 180, label: 'ทุก 180 วัน (6 เดือน)', desc: 'ตรวจรายภาคการศึกษา' },
+                    { days: 365, label: 'ทุก 365 วัน (1 ปี)', desc: 'ตรวจเช็กใหญ่ประจำปี' },
+                  ].map((p) => (
+                    <button
+                      key={p.days}
+                      type="button"
+                      onClick={() => setIntervalDaysInput(p.days)}
+                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                        intervalDaysInput === p.days
+                          ? 'bg-teal-50 border-teal-600 text-teal-900 dark:bg-teal-950 dark:text-teal-200 dark:border-teal-400 ring-2 ring-teal-500/20'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-teal-500 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      <div className="font-bold text-xs">{p.label}</div>
+                      <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{p.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400">หรือระบุจำนวนวันเอง:</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={intervalDaysInput}
+                  onChange={(e) => setIntervalDaysInput(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-24 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-center font-bold text-xs"
+                />
+                <span className="text-xs text-slate-500 font-bold">วัน</span>
+              </div>
+
+              <label className="flex items-start gap-2.5 p-3 rounded-2xl bg-teal-50/60 dark:bg-teal-950/40 border border-teal-100 dark:border-teal-900/60 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={applyToAllSameItem}
+                  onChange={(e) => setApplyToAllSameItem(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 text-teal-600 rounded focus:ring-teal-500"
+                />
+                <div className="text-[11px] text-teal-950 dark:text-teal-200 leading-snug">
+                  <b>ตั้งค่านี้กับหุ่น/อุปกรณ์ชนิดนี้ทุกชิ้นในแล็บ</b>
+                  <div className="text-teal-800/80 dark:text-teal-400 text-[10px]">
+                    (อัปเดต {intervalModalTarget.item?.name} ทุกหมายเลขเครื่องให้ใช้รอบตรวจเดียวกัน)
+                  </div>
+                </div>
+              </label>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIntervalModalTarget(null)}
+                  className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 font-bold"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={intervalSubmitting}
+                  className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold shadow transition disabled:opacity-50 cursor-pointer"
+                >
+                  {intervalSubmitting ? 'กำลังบันทึก...' : 'บันทึกรอบตรวจ'}
                 </button>
               </div>
             </form>

@@ -51,6 +51,7 @@ export async function POST(req: Request) {
       checklistData,
       photoUrl,
       notes,
+      intervalDays: customInterval,
     } = body;
 
     if (!assetId || !inspectorId || !result) {
@@ -69,8 +70,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'ไม่พบอุปกรณ์ที่ต้องการตรวจ' }, { status: 404 });
     }
 
-    // คำนวณวันกำหนดตรวจรอบถัดไป
-    const intervalDays = asset.inspectionIntervalDays || 30;
+    // คำนวณวันกำหนดตรวจรอบถัดไป (ใช้ค่าที่เลือกใหม่ หรือค่าเดิมของอุปกรณ์)
+    const intervalDays = Number(customInterval) > 0 ? Number(customInterval) : (asset.inspectionIntervalDays || 30);
     const now = new Date();
     const nextDue = new Date(now);
     nextDue.setDate(now.getDate() + intervalDays);
@@ -98,6 +99,7 @@ export async function POST(req: Request) {
     const assetUpdateData: any = {
       lastInspectedAt: now,
       nextInspectionDue: nextDue,
+      inspectionIntervalDays: intervalDays,
     };
 
     if (result === 'FAIL') {

@@ -119,3 +119,58 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: error.message || 'Failed to fetch assets' }, { status: 500 });
   }
 }
+
+// PUT: ตั้งค่ารอบความถี่การตรวจเช็ก (inspectionIntervalDays)
+export async function PUT(req: Request) {
+  try {
+    const body = await req.json();
+    const { assetId, itemId, intervalDays } = body;
+
+    const days = parseInt(intervalDays, 10);
+    if (isNaN(days) || days <= 0) {
+      return NextResponse.json(
+        { error: 'กรุณาระบุจำนวนวันรอบตรวจที่ถูกต้อง (เช่น 15, 30, 60, 90 วัน)' },
+        { status: 400 }
+      );
+    }
+
+    if (assetId) {
+      const asset = await prisma.equipmentAsset.findUnique({ where: { id: assetId } });
+      if (!asset) return NextResponse.json({ error: 'ไม่พบอุปกรณ์' }, { status: 404 });
+
+      // คำนวณ nextDue ใหม่หากมีวันตรวจล่าสุด
+      let nextDue = asset.nextInspectionDue;
+      if (asset.lastInspectedAt) {
+        nextDue = new Date(asset.lastInspectedAt);
+        nextDue.setDate(nextDue.getDate() + days);
+      }
+
+      const updated = await prisma.equipmentAsset.update({
+        where: { id: assetId },
+        data: {
+          inspectionIntervalDays: days,
+          nextInspectionDue: nextDue,
+        },
+      });
+
+      return NextResponse.json({ success: true, updatedCount: 1, asset: updated });
+    }
+
+    if (itemId) {
+      const result = await prisma.equipmentAsset.updateMany({
+        where: { itemId },
+        data: {
+          inspectionIntervalDays: days,
+        },
+      });
+
+      return NextResponse.json({ success: true, updatedCount: result.count });
+    }
+
+    return NextResponse.json({ error: 'กรุณาระบุ assetId หรือ itemId' }, { status: 400 });
+  } catch (error: any) {
+    console.error('Update inspection interval error:', error);
+    return NextResponse.json({ error: error.message || 'Failed to update interval' }, { status: 500 });
+  }
+}
+

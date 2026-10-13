@@ -64,6 +64,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         note: note !== undefined ? note || null : undefined,
         status: status !== undefined ? status : undefined,
         condition: condition !== undefined ? condition : undefined,
+        inspectionIntervalDays: body.inspectionIntervalDays !== undefined ? Number(body.inspectionIntervalDays) : undefined,
       },
       include: {
         item: true,

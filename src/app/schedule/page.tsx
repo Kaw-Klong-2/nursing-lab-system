@@ -558,6 +558,7 @@ export default function SchedulePage() {
   });
 
   // Operational Triage & Chronological Sorting for High-Volume Duty Management
+  const todayDateStr = new Date().toISOString().slice(0, 10);
   const tomorrowDate = new Date();
   tomorrowDate.setDate(tomorrowDate.getDate() + 1);
   const tomorrowDateStr = tomorrowDate.toISOString().slice(0, 10);
@@ -567,12 +568,14 @@ export default function SchedulePage() {
     if (t.isOverdue) return 0;
     // 1: Today shift
     if (t.isPickupToday || t.isReturnToday) return 1;
-    // 2: Tomorrow prep
+    // 2: Past pending / backlog (scheduled date in the past but awaiting completion)
     const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
     const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
-    if (pDate === tomorrowDateStr || rDate === tomorrowDateStr) return 2;
-    // 3: Future upcoming
-    return 3;
+    if ((pDate && pDate < todayDateStr) || (rDate && rDate < todayDateStr)) return 2;
+    // 3: Tomorrow prep
+    if (pDate === tomorrowDateStr || rDate === tomorrowDateStr) return 3;
+    // 4: Future upcoming
+    return 4;
   };
 
   const getTaskTimeMinutes = (t: any) => {
@@ -604,6 +607,13 @@ export default function SchedulePage() {
       if (timeA !== timeB) return timeA - timeB;
     }
 
+    // Past Pending: oldest date first (longest pending backlog)
+    if (scoreA === 2) {
+      const dateA = a.pickupDate || a.returnDate || '';
+      const dateB = b.pickupDate || b.returnDate || '';
+      return dateA.localeCompare(dateB);
+    }
+
     // Tomorrow or Future: date ascending
     const dateA = a.pickupDate || a.returnDate || '';
     const dateB = b.pickupDate || b.returnDate || '';
@@ -624,8 +634,16 @@ export default function SchedulePage() {
     const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
     const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
     if (pDate === tomorrowDateStr || rDate === tomorrowDateStr) return false;
-    // Strictly must be a future date, not a past date
     return (pDate && pDate > tomorrowDateStr) || (rDate && rDate > tomorrowDateStr);
+  });
+  // Past Pending Section: Tasks whose scheduled date has passed but still awaiting completion/pickup (e.g. approved requisitions, past room bookings)
+  const pastPendingSectionTasks = sortedTasks.filter((t: any) => {
+    if (t.isOverdue || t.isPickupToday || t.isReturnToday) return false;
+    const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
+    const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
+    if (pDate === tomorrowDateStr || rDate === tomorrowDateStr) return false;
+    if ((pDate && pDate > tomorrowDateStr) || (rDate && rDate > tomorrowDateStr)) return false;
+    return true;
   });
 
   // Calendar calculations
@@ -647,8 +665,6 @@ export default function SchedulePage() {
     isCurrentMonth: boolean;
     isToday: boolean;
   }[] = [];
-
-  const todayDateStr = new Date().toISOString().slice(0, 10);
 
   // 1. Prev month padding
   for (let i = startingDayOfWeek - 1; i >= 0; i--) {
@@ -2349,7 +2365,29 @@ export default function SchedulePage() {
                   </div>
                 )}
 
-                {/* 3. TOMORROW PREPARATION SECTION */}
+                {/* 3. PAST PENDING / AWAITING DISPENSE SECTION */}
+                {pastPendingSectionTasks.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 px-4 py-2.5 rounded-xl">
+                      <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-black text-xs">
+                        <Clock className="w-4 h-4 text-amber-600" />
+                        <span>⏳ รายการค้างจ่าย / อนุมัติแล้วรอจัดจ่าย ({pastPendingSectionTasks.length} รายการ)</span>
+                      </div>
+                      <span className="text-[11px] text-amber-700 dark:text-amber-400 font-semibold">
+                        รายการที่ผ่านการอนุมัติแล้วและยังรอการจ่ายของหรือตัดสต็อก
+                      </span>
+                    </div>
+                    {listLayout === 'COMPACT' ? (
+                      renderCompactTable(pastPendingSectionTasks)
+                    ) : (
+                      <div className="space-y-4">
+                        {pastPendingSectionTasks.map((task: any) => renderTaskCard(task))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 4. TOMORROW PREPARATION SECTION */}
                 {tomorrowSectionTasks.length > 0 && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 px-4 py-2.5 rounded-xl">
@@ -2371,7 +2409,7 @@ export default function SchedulePage() {
                   </div>
                 )}
 
-                {/* 4. FUTURE UPCOMING SECTION */}
+                {/* 5. FUTURE UPCOMING SECTION */}
                 {futureSectionTasks.length > 0 && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 px-4 py-2.5 rounded-xl">

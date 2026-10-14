@@ -1550,7 +1550,7 @@ export default function PracticePage() {
                                 }}
                                 className={`w-full px-1.5 py-1 rounded-lg text-[10px] font-bold truncate flex items-center justify-between border transition cursor-pointer text-left shadow-xs hover:scale-[1.02] ${
                                   !isOpen
-                                    ? 'bg-rose-50 text-rose-700 border-rose-200 line-through opacity-75 hover:bg-rose-100'
+                                    ? 'bg-rose-50 text-rose-700 border-rose-200 opacity-80 hover:bg-rose-100'
                                     : isFull
                                     ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
                                     : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 hover:shadow-sm'

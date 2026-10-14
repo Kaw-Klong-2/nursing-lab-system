@@ -317,9 +317,7 @@ export default function MasterRoomCalendar({
         ? s.bookings.filter((bk: any) => ['APPROVED', 'CHECKED_IN', 'PENDING'].includes(bk.status)).length
         : 0;
       const isClosed = !s.isOpen;
-      const prefix = isClosed ? '[ปิดรอบ] ' : '';
-      const baseTitle = s.availableSkills ? `รอบฝึกทักษะ: ${s.availableSkills}` : 'รอบฝึกปฏิบัติการอิสระของนิสิต';
-      const title = `${prefix}${baseTitle}`;
+      const title = s.availableSkills ? `รอบฝึกทักษะ: ${s.availableSkills}` : 'รอบฝึกปฏิบัติการอิสระของนิสิต';
 
       list.push({
         id: `ps-${s.id}`,
@@ -334,10 +332,10 @@ export default function MasterRoomCalendar({
         dateStr: sDateStr,
         startTime: s.startTime || '13:00',
         endTime: s.endTime || '16:00',
-        purpose: isClosed ? `ปิดรอบ: ${s.closeReason || 'ปิดโดยเจ้าหน้าที่'}` : 'การฝึกทักษะหัตถการของนิสิต',
+        purpose: isClosed ? `ปิดรอบชั่วคราว: ${s.closeReason || 'เจ้าหน้าที่ปิดรอบ'}` : 'การฝึกทักษะหัตถการของนิสิต',
         activityType: 'PRACTICE',
         userOrAdvisorName: isClosed
-          ? `ปิดรอบ (${s.closeReason || 'เจ้าหน้าที่ปิดรอบ'})`
+          ? `ปิดรับจองชั่วคราว (${s.closeReason || 'เจ้าหน้าที่ปิดรอบ'})`
           : `นิสิตจองแล้ว ${bookedCount}/${s.maxCapacity} คน`,
         attendeesCount: bookedCount,
         status: isClosed ? 'CLOSED' : 'APPROVED',
@@ -501,14 +499,6 @@ export default function MasterRoomCalendar({
   };
 
   const getActivityStyle = (type: CalendarActivity['activityType'], status: CalendarActivity['status']) => {
-    if (status === 'CLOSED') {
-      return {
-        bg: 'bg-slate-800/85 text-slate-300 border-rose-500/60 shadow-rose-950/20 hover:bg-slate-750 line-through opacity-85',
-        badge: 'bg-rose-950/80 text-rose-300 border border-rose-500/40',
-        dot: 'bg-rose-500',
-        icon: '🔒',
-      };
-    }
     if (status === 'PENDING') {
       return {
         bg: 'bg-amber-500/20 border-amber-500/60 text-amber-900 dark:text-amber-200 hover:bg-amber-500/30',
@@ -535,9 +525,9 @@ export default function MasterRoomCalendar({
       case 'PRACTICE':
         return {
           bg: 'bg-gradient-to-r from-emerald-600/90 to-teal-500/90 text-white border-emerald-400/50 shadow-emerald-500/20 hover:from-emerald-500 hover:to-teal-400',
-          badge: 'bg-emerald-200 text-emerald-900',
-          dot: 'bg-emerald-400',
-          icon: '🟢',
+          badge: status === 'CLOSED' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-200 text-emerald-900',
+          dot: status === 'CLOSED' ? 'bg-amber-400' : 'bg-emerald-400',
+          icon: status === 'CLOSED' ? '🔒' : '🟢',
         };
       case 'TRAINING':
         return {

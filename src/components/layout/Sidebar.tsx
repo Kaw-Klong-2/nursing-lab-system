@@ -102,16 +102,16 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'USER'],
         },
         {
-          label: 'แดชบอร์ดผู้บริหาร (Cockpit 360°)',
-          href: '/executive',
-          icon: BarChart3,
-          roles: ['ADMIN', 'EXECUTIVE'],
-        },
-        {
           label: 'ตารางงาน & กำหนดรับ-คืน',
           href: '/schedule',
           icon: CalendarDays,
           roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER'],
+        },
+        {
+          label: 'แดชบอร์ดผู้บริหาร (Cockpit 360°)',
+          href: '/executive',
+          icon: BarChart3,
+          roles: ['ADMIN', 'EXECUTIVE'],
         },
       ],
     },
@@ -120,6 +120,13 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
       groupKey: 'services',
       groupIcon: RefreshCw,
       items: [
+        {
+          label: 'ศูนย์อนุมัติคำขอ',
+          href: '/approvals',
+          icon: CheckSquare,
+          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'USER'],
+          badgeCount: pendingCount,
+        },
         {
           label: 'ยืม-คืนครุภัณฑ์ & เบิกพัสดุ',
           href: '/borrow',
@@ -156,13 +163,6 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           icon: FileSpreadsheet,
           roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'USER'],
         },
-        {
-          label: 'ศูนย์อนุมัติคำขอ',
-          href: '/approvals',
-          icon: CheckSquare,
-          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'USER'],
-          badgeCount: pendingCount,
-        },
       ],
     },
     {
@@ -177,12 +177,6 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'USER'],
         },
         {
-          label: 'ตรวจเช็ก & บำรุงรักษา',
-          href: '/maintenance',
-          icon: Wrench,
-          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE'],
-        },
-        {
           label: 'รับเข้าพัสดุ (Stock In)',
           href: '/stock-in',
           icon: ArrowDownToLine,
@@ -194,6 +188,12 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           icon: PackageCheck,
           roles: ['ADMIN', 'OFFICER'],
         },
+        {
+          label: 'ตรวจเช็ก & บำรุงรักษา',
+          href: '/maintenance',
+          icon: Wrench,
+          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE'],
+        },
       ],
     },
     {
@@ -202,9 +202,9 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
       groupIcon: BarChart3,
       items: [
         {
-          label: 'บันทึกเปิด-ปิดแอร์ (AC Logs)',
-          href: '/air-conditioning',
-          icon: Wind,
+          label: 'รายงาน & วิเคราะห์ข้อมูล',
+          href: '/reports',
+          icon: BarChart3,
           roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE'],
         },
         {
@@ -214,9 +214,9 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE'],
         },
         {
-          label: 'รายงาน & วิเคราะห์ข้อมูล',
-          href: '/reports',
-          icon: BarChart3,
+          label: 'บันทึกเปิด-ปิดแอร์ (AC Logs)',
+          href: '/air-conditioning',
+          icon: Wind,
           roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE'],
         },
       ],
@@ -233,16 +233,16 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           roles: ['ADMIN'],
         },
         {
-          label: 'ตั้งค่าข้อความแจ้งเตือน',
-          href: '/settings/notifications',
-          icon: Sliders,
-          roles: ['ADMIN'],
-        },
-        {
           label: 'กำหนดภาคการศึกษา',
           href: '/settings/terms',
           icon: CalendarDays,
           roles: ['ADMIN', 'OFFICER'],
+        },
+        {
+          label: 'ตั้งค่าข้อความแจ้งเตือน',
+          href: '/settings/notifications',
+          icon: Sliders,
+          roles: ['ADMIN'],
         },
       ],
     },

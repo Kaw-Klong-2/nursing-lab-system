@@ -40,7 +40,7 @@ export interface CalendarActivity {
   activityType: 'COURSE' | 'OSCE' | 'PRACTICE' | 'TRAINING' | 'OTHER';
   userOrAdvisorName?: string;
   attendeesCount?: number;
-  status: 'PENDING' | 'APPROVED' | 'CHECKED_IN' | 'COMPLETED' | 'REJECTED' | 'CANCELLED';
+  status: 'PENDING' | 'APPROVED' | 'CHECKED_IN' | 'COMPLETED' | 'REJECTED' | 'CANCELLED' | 'CLOSED';
   equipmentNeeded?: string;
   notes?: string;
   rawItem?: any;
@@ -149,7 +149,8 @@ export default function MasterRoomCalendar({
 
   // Dates
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    return new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   });
   const [currentMonth, setCurrentMonth] = useState<Date>(() => {
     const d = new Date();
@@ -270,7 +271,11 @@ export default function MasterRoomCalendar({
     // 1. Process RoomBookings
     roomBookings.forEach((b: any) => {
       if (b.status === 'REJECTED' || b.status === 'CANCELLED') return;
-      const bDateStr = b.bookingDate ? new Date(b.bookingDate).toISOString().slice(0, 10) : '';
+      const bDateStr = typeof b.bookingDate === 'string'
+        ? b.bookingDate.slice(0, 10)
+        : b.bookingDate
+        ? new Date(b.bookingDate).toISOString().slice(0, 10)
+        : '';
       const r = b.room || rooms.find((rm) => rm.id === b.roomId);
       const cat = r ? getRoomCategory(r.code, r.name) : 'SPECIALTY';
       const type = classifyActivityType(b.title, b.purpose);
@@ -299,14 +304,22 @@ export default function MasterRoomCalendar({
       });
     });
 
-    // 2. Process PracticeSlots (Student Self-practice slots)
+    // 2. Process PracticeSlots (Student Self-practice slots - both open & closed)
     practiceSlots.forEach((s: any) => {
-      if (!s.isOpen) return;
-      const sDateStr = s.date ? new Date(s.date).toISOString().slice(0, 10) : '';
+      const sDateStr = typeof s.date === 'string'
+        ? s.date.slice(0, 10)
+        : s.date
+        ? new Date(s.date).toISOString().slice(0, 10)
+        : '';
       const r = s.room || rooms.find((rm) => rm.id === s.roomId);
       const cat = r ? getRoomCategory(r.code, r.name) : 'SPECIALTY';
-      const bookedCount = Array.isArray(s.bookings) ? s.bookings.filter((bk: any) => ['APPROVED', 'CHECKED_IN', 'PENDING'].includes(bk.status)).length : 0;
-      const title = s.availableSkills ? `รอบฝึกทักษะ: ${s.availableSkills}` : 'รอบฝึกปฏิบัติการอิสระของนิสิต';
+      const bookedCount = Array.isArray(s.bookings)
+        ? s.bookings.filter((bk: any) => ['APPROVED', 'CHECKED_IN', 'PENDING'].includes(bk.status)).length
+        : 0;
+      const isClosed = !s.isOpen;
+      const prefix = isClosed ? '[ปิดรอบ] ' : '';
+      const baseTitle = s.availableSkills ? `รอบฝึกทักษะ: ${s.availableSkills}` : 'รอบฝึกปฏิบัติการอิสระของนิสิต';
+      const title = `${prefix}${baseTitle}`;
 
       list.push({
         id: `ps-${s.id}`,
@@ -321,11 +334,13 @@ export default function MasterRoomCalendar({
         dateStr: sDateStr,
         startTime: s.startTime || '13:00',
         endTime: s.endTime || '16:00',
-        purpose: 'การฝึกทักษะหัตถการของนิสิต',
+        purpose: isClosed ? `ปิดรอบ: ${s.closeReason || 'ปิดโดยเจ้าหน้าที่'}` : 'การฝึกทักษะหัตถการของนิสิต',
         activityType: 'PRACTICE',
-        userOrAdvisorName: `นิสิตจองแล้ว ${bookedCount}/${s.maxCapacity} คน`,
+        userOrAdvisorName: isClosed
+          ? `ปิดรอบ (${s.closeReason || 'เจ้าหน้าที่ปิดรอบ'})`
+          : `นิสิตจองแล้ว ${bookedCount}/${s.maxCapacity} คน`,
         attendeesCount: bookedCount,
-        status: 'APPROVED',
+        status: isClosed ? 'CLOSED' : 'APPROVED',
         notes: s.closeReason || '',
         rawItem: s,
       });
@@ -405,8 +420,20 @@ export default function MasterRoomCalendar({
 
   const formatThaiDisplayDate = (dStr: string) => {
     try {
-      const d = new Date(dStr);
-      return d.toLocaleDateString('th-TH', {
+      if (!dStr) return '';
+      const clean = dStr.slice(0, 10);
+      const [y, m, d] = clean.split('-').map(Number);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        const utcDate = new Date(Date.UTC(y, m - 1, d, 12, 0, 0, 0));
+        return utcDate.toLocaleDateString('th-TH', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        });
+      }
+      const dObj = new Date(dStr);
+      return dObj.toLocaleDateString('th-TH', {
         weekday: 'long',
         day: 'numeric',
         month: 'long',
@@ -426,25 +453,27 @@ export default function MasterRoomCalendar({
     const prevMonthTotalDays = new Date(year, month, 0).getDate();
 
     const cells: { dateStr: string; dayNumber: number; isCurrentMonth: boolean; isToday: boolean }[] = [];
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     for (let i = firstDay - 1; i >= 0; i--) {
       const day = prevMonthTotalDays - i;
-      const d = new Date(year, month - 1, day);
-      const str = d.toISOString().slice(0, 10);
+      const prevM = month === 0 ? 12 : month;
+      const prevY = month === 0 ? year - 1 : year;
+      const str = `${prevY}-${String(prevM).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       cells.push({ dateStr: str, dayNumber: day, isCurrentMonth: false, isToday: str === todayStr });
     }
 
     for (let day = 1; day <= totalDays; day++) {
-      const d = new Date(year, month, day);
-      const str = d.toISOString().slice(0, 10);
+      const str = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       cells.push({ dateStr: str, dayNumber: day, isCurrentMonth: true, isToday: str === todayStr });
     }
 
     const remaining = 42 - cells.length;
     for (let day = 1; day <= remaining; day++) {
-      const d = new Date(year, month + 1, day);
-      const str = d.toISOString().slice(0, 10);
+      const nextM = month === 11 ? 1 : month + 2;
+      const nextY = month === 11 ? year + 1 : year;
+      const str = `${nextY}-${String(nextM).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       cells.push({ dateStr: str, dayNumber: day, isCurrentMonth: false, isToday: str === todayStr });
     }
 
@@ -472,6 +501,14 @@ export default function MasterRoomCalendar({
   };
 
   const getActivityStyle = (type: CalendarActivity['activityType'], status: CalendarActivity['status']) => {
+    if (status === 'CLOSED') {
+      return {
+        bg: 'bg-slate-800/85 text-slate-300 border-rose-500/60 shadow-rose-950/20 hover:bg-slate-750 line-through opacity-85',
+        badge: 'bg-rose-950/80 text-rose-300 border border-rose-500/40',
+        dot: 'bg-rose-500',
+        icon: '🔒',
+      };
+    }
     if (status === 'PENDING') {
       return {
         bg: 'bg-amber-500/20 border-amber-500/60 text-amber-900 dark:text-amber-200 hover:bg-amber-500/30',

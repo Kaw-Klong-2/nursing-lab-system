@@ -1015,14 +1015,15 @@ export default function PracticePage() {
   // Group slots by dateStr for fast lookup in calendar
   const slotsByDate: Record<string, any[]> = {};
   filteredSlots.forEach((slot) => {
-    const dStr = new Date(slot.date).toISOString().slice(0, 10);
+    const dStr = typeof slot.date === 'string' ? slot.date.slice(0, 10) : new Date(slot.date).toISOString().slice(0, 10);
     if (!slotsByDate[dStr]) slotsByDate[dStr] = [];
     slotsByDate[dStr].push(slot);
   });
 
   // Slots for the currently selected date (detail sidebar / list)
   const selectedDateSlots = filteredSlots.filter((slot) => {
-    return new Date(slot.date).toISOString().slice(0, 10) === selectedDate;
+    const dStr = typeof slot.date === 'string' ? slot.date.slice(0, 10) : new Date(slot.date).toISOString().slice(0, 10);
+    return dStr === selectedDate;
   });
 
   // Thai Month Display string, e.g. "กันยายน 2569"
@@ -2039,18 +2040,24 @@ export default function PracticePage() {
                               key={slot.id}
                               className="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition cursor-pointer group"
                               onClick={() => {
-                                setSelectedDate(slot.date);
+                                const cleanDate = typeof slot.date === 'string' ? slot.date.slice(0, 10) : new Date(slot.date).toISOString().slice(0, 10);
+                                setSelectedDate(cleanDate);
                                 setSlotDetailModal(slot);
                               }}
                             >
                               <td className="py-3 px-4 whitespace-nowrap font-bold text-slate-900 dark:text-slate-100">
                                 <div>
-                                  {new Date(slot.date).toLocaleDateString('th-TH', {
-                                    weekday: 'short',
-                                    day: 'numeric',
-                                    month: 'short',
-                                    year: '2-digit',
-                                  })}
+                                  {(() => {
+                                    const cleanDate = typeof slot.date === 'string' ? slot.date.slice(0, 10) : new Date(slot.date).toISOString().slice(0, 10);
+                                    const [sy, sm, sd] = cleanDate.split('-').map(Number);
+                                    const dispDate = new Date(Date.UTC(sy, sm - 1, sd, 12, 0, 0, 0));
+                                    return dispDate.toLocaleDateString('th-TH', {
+                                      weekday: 'short',
+                                      day: 'numeric',
+                                      month: 'short',
+                                      year: '2-digit',
+                                    });
+                                  })()}
                                 </div>
                               </td>
                               <td className="py-3 px-4 whitespace-nowrap">
@@ -2116,7 +2123,8 @@ export default function PracticePage() {
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      setSelectedDate(slot.date);
+                                      const cleanDate = typeof slot.date === 'string' ? slot.date.slice(0, 10) : new Date(slot.date).toISOString().slice(0, 10);
+                                      setSelectedDate(cleanDate);
                                       setSlotDetailModal(slot);
                                     }}
                                     className="p-1.5 text-slate-500 hover:text-teal-600 hover:bg-teal-50 dark:hover:bg-slate-800 rounded-lg transition"

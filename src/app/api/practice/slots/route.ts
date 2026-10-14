@@ -1,6 +1,18 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+function parseDateAsUtcMidnight(dateInput: string | Date): Date {
+  if (typeof dateInput === 'string') {
+    const cleanStr = dateInput.slice(0, 10);
+    const [y, m, d] = cleanStr.split('-').map(Number);
+    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+      return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+    }
+  }
+  const dObj = new Date(dateInput);
+  return new Date(Date.UTC(dObj.getUTCFullYear(), dObj.getUTCMonth(), dObj.getUTCDate(), 0, 0, 0, 0));
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -16,21 +28,21 @@ export async function GET(req: Request) {
     const yearParam = searchParams.get('year'); // e.g. 2026
 
     if (dateParam) {
-      const targetDate = new Date(dateParam);
-      const startOfDay = new Date(targetDate);
-      startOfDay.setUTCHours(0, 0, 0, 0);
-      const endOfDay = new Date(targetDate);
-      endOfDay.setUTCHours(23, 59, 59, 999);
+      const cleanStr = dateParam.slice(0, 10);
+      const [y, m, d] = cleanStr.split('-').map(Number);
+      const startOfDay = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+      const endOfDay = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+      // Include legacy slots saved at 17:00 UTC previous day (UTC+7 midnight)
+      const legacyStart = new Date(Date.UTC(y, m - 1, d - 1, 16, 0, 0, 0));
 
       where.date = {
-        gte: startOfDay,
+        gte: legacyStart,
         lte: endOfDay,
       };
     } else if (startDateParam && endDateParam) {
-      const start = new Date(startDateParam);
-      start.setUTCHours(0, 0, 0, 0);
-      const end = new Date(endDateParam);
-      end.setUTCHours(23, 59, 59, 999);
+      const start = parseDateAsUtcMidnight(startDateParam);
+      const [ey, em, ed] = endDateParam.slice(0, 10).split('-').map(Number);
+      const end = new Date(Date.UTC(ey, em - 1, ed, 23, 59, 59, 999));
 
       where.date = {
         gte: start,
@@ -118,8 +130,7 @@ export async function POST(req: Request) {
     // Batch creation support
     if (Array.isArray(body.slots) && body.slots.length > 0) {
       const dataToInsert = body.slots.map((s: any) => {
-        const slotDate = new Date(s.date);
-        slotDate.setHours(0, 0, 0, 0);
+        const slotDate = parseDateAsUtcMidnight(s.date);
         return {
           roomId: s.roomId,
           date: slotDate,
@@ -145,8 +156,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'กรุณากรอกข้อมูลห้อง, วันที่, และเวลาให้ครบถ้วน' }, { status: 400 });
     }
 
-    const slotDate = new Date(date);
-    slotDate.setHours(0, 0, 0, 0);
+    const slotDate = parseDateAsUtcMidnight(date);
 
     const slot = await prisma.practiceSlot.create({
       data: {

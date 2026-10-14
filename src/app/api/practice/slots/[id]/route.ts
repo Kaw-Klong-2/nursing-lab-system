@@ -33,9 +33,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       dataToUpdate.roomId = roomId;
     }
     if (date !== undefined) {
-      const d = new Date(date);
-      d.setHours(0, 0, 0, 0);
-      dataToUpdate.date = d;
+      if (typeof date === 'string') {
+        const [y, m, d] = date.slice(0, 10).split('-').map(Number);
+        dataToUpdate.date = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+      } else {
+        const dObj = new Date(date);
+        dataToUpdate.date = new Date(Date.UTC(dObj.getUTCFullYear(), dObj.getUTCMonth(), dObj.getUTCDate(), 0, 0, 0, 0));
+      }
     }
 
     const updated = await prisma.practiceSlot.update({

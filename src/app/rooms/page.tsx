@@ -103,6 +103,18 @@ const DAYS_OF_WEEK = [
   { day: 0, label: 'อาทิตย์', short: 'อา.' },
 ];
 
+// Helper to extract YYYY-MM-DD cleanly without timezone offset bugs
+function getCleanLocalDateStr(d?: Date | string | null): string {
+  if (!d) return '';
+  if (typeof d === 'string') {
+    return d.slice(0, 10);
+  }
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function RoomsPage() {
   const { currentUser, isOfficer, isAdmin, isTeacher, isApprover } = useAuth();
   const canManageRooms = isOfficer || isAdmin;
@@ -175,7 +187,7 @@ export default function RoomsPage() {
     return d;
   });
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    return new Date().toISOString().slice(0, 10);
+    return getCleanLocalDateStr(new Date());
   });
 
   // Calendar Hover Tooltip State
@@ -324,7 +336,7 @@ export default function RoomsPage() {
   const handleTodayMonth = () => {
     const today = new Date();
     setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1));
-    setSelectedDate(today.toISOString().slice(0, 10));
+    setSelectedDate(getCleanLocalDateStr(today));
   };
 
   // Fetch Data
@@ -368,8 +380,8 @@ export default function RoomsPage() {
           const current = termsArr.find((t: any) => t.isCurrent) || termsArr[0];
           if (current) {
             setSelectedTermId(current.id);
-            setTimetableStartDate(new Date(current.startDate).toISOString().slice(0, 10));
-            setTimetableEndDate(new Date(current.endDate).toISOString().slice(0, 10));
+            setTimetableStartDate(getCleanLocalDateStr(current.startDate));
+            setTimetableEndDate(getCleanLocalDateStr(current.endDate));
           }
         }
       }
@@ -390,8 +402,8 @@ export default function RoomsPage() {
     setSelectedTermId(termId);
     const term = academicTerms.find((t) => t.id === termId);
     if (term) {
-      setTimetableStartDate(new Date(term.startDate).toISOString().slice(0, 10));
-      setTimetableEndDate(new Date(term.endDate).toISOString().slice(0, 10));
+      setTimetableStartDate(getCleanLocalDateStr(term.startDate));
+      setTimetableEndDate(getCleanLocalDateStr(term.endDate));
     }
   };
 
@@ -431,7 +443,7 @@ export default function RoomsPage() {
     setBookingMode(mode);
     setBookingForm({
       roomId: '',
-      bookingDate: selectedDate || new Date().toISOString().slice(0, 10),
+      bookingDate: selectedDate || getCleanLocalDateStr(new Date()),
       startTime: '',
       endTime: '',
       title: '',
@@ -453,10 +465,14 @@ export default function RoomsPage() {
   const computedTimetableDates = useMemo(() => {
     if (bookingMode !== 'TIMETABLE') return [];
     if (!timetableStartDate || !timetableEndDate || selectedDaysOfWeek.length === 0) return [];
-    const start = new Date(timetableStartDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(timetableEndDate);
-    end.setHours(0, 0, 0, 0);
+
+    // Parse YYYY-MM-DD components directly to local noon (12:00:00) to be 100% immune to timezone shifts
+    const [sY, sM, sD] = timetableStartDate.split('-').map(Number);
+    const [eY, eM, eD] = timetableEndDate.split('-').map(Number);
+    if (!sY || !sM || !sD || !eY || !eM || !eD) return [];
+
+    const start = new Date(sY, sM - 1, sD, 12, 0, 0);
+    const end = new Date(eY, eM - 1, eD, 12, 0, 0);
     if (start > end) return [];
 
     const dates: string[] = [];
@@ -467,13 +483,18 @@ export default function RoomsPage() {
     while (cur <= end) {
       const dOfWeek = cur.getDay();
       if (selectedDaysOfWeek.includes(dOfWeek)) {
+        const y = cur.getFullYear();
+        const m = String(cur.getMonth() + 1).padStart(2, '0');
+        const d = String(cur.getDate()).padStart(2, '0');
+        const dateStr = `${y}-${m}-${d}`;
+
         if (timetableFrequency === 'BIWEEKLY') {
           const diffWeeks = Math.floor((cur.getTime() - startMs) / msInWeek);
           if (diffWeeks % 2 === 0) {
-            dates.push(cur.toISOString().slice(0, 10));
+            dates.push(dateStr);
           }
         } else {
-          dates.push(cur.toISOString().slice(0, 10));
+          dates.push(dateStr);
         }
       }
       cur.setDate(cur.getDate() + 1);
@@ -516,14 +537,13 @@ export default function RoomsPage() {
     }
   }, []);
 
-
   // Real-time conflict detection for the selected room and date
   const selectedRoomBookings = useMemo(() => {
     if (!bookingForm.roomId || !bookingForm.bookingDate) return [];
     return bookings.filter((b) => {
       if (b.roomId !== bookingForm.roomId) return false;
       if (!b.bookingDate) return false;
-      const bDateStr = new Date(b.bookingDate).toISOString().slice(0, 10);
+      const bDateStr = getCleanLocalDateStr(b.bookingDate);
       return bDateStr === bookingForm.bookingDate && (b.status === 'APPROVED' || b.status === 'PENDING');
     });
   }, [bookings, bookingForm.roomId, bookingForm.bookingDate]);
@@ -1049,14 +1069,14 @@ export default function RoomsPage() {
     year: 'numeric',
   });
 
-  const formatDate = (dateStr?: string) => {
+  const formatDate = (dateStr?: string | Date) => {
     if (!dateStr) return '-';
     try {
-      const d = new Date(dateStr);
-      const day = String(d.getDate()).padStart(2, '0');
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const year = d.getFullYear() + 543;
-      return `${day}/${month}/${year}`;
+      const clean = getCleanLocalDateStr(dateStr);
+      const [y, m, d] = clean.split('-');
+      if (!y || !m || !d) return '-';
+      const year = parseInt(y, 10) + 543;
+      return `${d}/${m}/${year}`;
     } catch {
       return '-';
     }
@@ -1077,7 +1097,7 @@ export default function RoomsPage() {
     isToday: boolean;
   }[] = [];
 
-  const todayDateStr = new Date().toISOString().slice(0, 10);
+  const todayDateStr = getCleanLocalDateStr(new Date());
 
   for (let i = startingDayOfWeek - 1; i >= 0; i--) {
     const dayNum = daysInPrevMonth - i;
@@ -1116,7 +1136,7 @@ export default function RoomsPage() {
 
   // Selected date bookings
   const selectedDateBookings = filteredBookings.filter((b) => {
-    return new Date(b.bookingDate).toISOString().slice(0, 10) === selectedDate;
+    return getCleanLocalDateStr(b.bookingDate) === selectedDate;
   });
 
   // KPI calculations
@@ -1702,7 +1722,7 @@ export default function RoomsPage() {
                   <div className="grid grid-cols-7 divide-x divide-y divide-slate-100 dark:divide-slate-800">
                     {calendarCells.map((cell) => {
                       const dayBookings = filteredBookings.filter((b) => {
-                        return new Date(b.bookingDate).toISOString().slice(0, 10) === cell.dateStr;
+                        return getCleanLocalDateStr(b.bookingDate) === cell.dateStr;
                       });
                       const approved = dayBookings.filter((b) => b.status === 'APPROVED');
                       const pending = dayBookings.filter((b) => b.status === 'PENDING');

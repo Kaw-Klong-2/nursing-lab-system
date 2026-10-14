@@ -28,10 +28,9 @@ export async function GET(req: Request) {
     }
 
     if (date) {
-      const targetDate = new Date(date);
-      targetDate.setHours(0, 0, 0, 0);
-      const nextDate = new Date(targetDate);
-      nextDate.setDate(targetDate.getDate() + 1);
+      const [y, m, d] = date.slice(0, 10).split('-').map(Number);
+      const targetDate = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+      const nextDate = new Date(Date.UTC(y, m - 1, d + 1, 0, 0, 0, 0));
 
       where.bookingDate = {
         gte: targetDate,
@@ -141,12 +140,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const bDate = new Date(bookingDate);
-    bDate.setHours(0, 0, 0, 0);
+    const [y, m, d] = bookingDate.slice(0, 10).split('-').map(Number);
+    const bDate = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
 
     // 3. Conflict Detection
-    const nextDay = new Date(bDate);
-    nextDay.setDate(bDate.getDate() + 1);
+    const nextDay = new Date(Date.UTC(y, m - 1, d + 1, 0, 0, 0, 0));
 
     // 3.1 Check overlapping APPROVED or PENDING room bookings for the same room on the same date
     const existingRoomBookings = await prisma.roomBooking.findMany({

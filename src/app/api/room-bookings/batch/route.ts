@@ -105,15 +105,15 @@ export async function POST(req: Request) {
       if (!r) continue;
 
       for (const dStr of dates) {
-        const d = new Date(dStr);
-        d.setHours(0, 0, 0, 0);
+        const [y, m, d] = dStr.split('-').map(Number);
+        const dateUtc = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
 
         candidateSlots.push({
           roomId: r.id,
           roomName: r.name,
           roomCode: r.code,
           dateStr: dStr,
-          date: d,
+          date: dateUtc,
           startTime,
           endTime,
         });
@@ -123,14 +123,13 @@ export async function POST(req: Request) {
     // 5. Conflict checking for all candidate slots
     // Fetch all existing room bookings for these rooms and dates
     const dateObjects = dates.map((dStr) => {
-      const d = new Date(dStr);
-      d.setHours(0, 0, 0, 0);
-      return d;
+      const [y, m, d] = dStr.split('-').map(Number);
+      return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
     });
 
     const minDate = new Date(Math.min(...dateObjects.map((d) => d.getTime())));
     const maxDate = new Date(Math.max(...dateObjects.map((d) => d.getTime())));
-    maxDate.setDate(maxDate.getDate() + 1);
+    maxDate.setUTCDate(maxDate.getUTCDate() + 1);
 
     const [existingRoomBookings, existingPracticeSlots] = await Promise.all([
       prisma.roomBooking.findMany({
@@ -169,15 +168,12 @@ export async function POST(req: Request) {
     const conflictedSlots: ConflictedSlotItem[] = [];
 
     for (const slot of candidateSlots) {
-      const slotTimeMs = slot.date.getTime();
-
       // Check conflict with existing room bookings
       const rbConflict = existingRoomBookings.find((rb) => {
-        const rbDate = new Date(rb.bookingDate);
-        rbDate.setHours(0, 0, 0, 0);
+        const rbDateStr = new Date(rb.bookingDate).toISOString().slice(0, 10);
         return (
           rb.roomId === slot.roomId &&
-          rbDate.getTime() === slotTimeMs &&
+          rbDateStr === slot.dateStr &&
           slot.startTime < rb.endTime &&
           slot.endTime > rb.startTime
         );
@@ -195,11 +191,10 @@ export async function POST(req: Request) {
 
       // Check conflict with open PracticeSlots
       const psConflict = existingPracticeSlots.find((ps) => {
-        const psDate = new Date(ps.date);
-        psDate.setHours(0, 0, 0, 0);
+        const psDateStr = new Date(ps.date).toISOString().slice(0, 10);
         return (
           ps.roomId === slot.roomId &&
-          psDate.getTime() === slotTimeMs &&
+          psDateStr === slot.dateStr &&
           slot.startTime < ps.endTime &&
           slot.endTime > ps.startTime
         );

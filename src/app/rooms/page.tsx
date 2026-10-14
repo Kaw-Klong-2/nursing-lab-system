@@ -41,6 +41,8 @@ import {
   DoorOpen,
   DoorClosed,
   ArrowRightLeft,
+  CheckSquare,
+  Square,
   Info
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -90,6 +92,16 @@ function getRoomCategory(code: string, name: string): RoomCategory {
   }
   return 'SPECIALTY';
 }
+
+const DAYS_OF_WEEK = [
+  { day: 1, label: 'จันทร์', short: 'จ.' },
+  { day: 2, label: 'อังคาร', short: 'อ.' },
+  { day: 3, label: 'พุธ', short: 'พ.' },
+  { day: 4, label: 'พฤหัสบดี', short: 'พฤ.' },
+  { day: 5, label: 'ศุกร์', short: 'ศ.' },
+  { day: 6, label: 'เสาร์', short: 'ส.' },
+  { day: 0, label: 'อาทิตย์', short: 'อา.' },
+];
 
 export default function RoomsPage() {
   const { currentUser, isOfficer, isAdmin, isTeacher, isApprover } = useAuth();
@@ -246,6 +258,30 @@ export default function RoomsPage() {
     note: '',
   });
 
+  // Booking Modes: SINGLE (normal single room), MULTI_ROOM (multiple rooms on 1 date), TIMETABLE (recurring course schedule)
+  const [bookingMode, setBookingMode] = useState<'SINGLE' | 'MULTI_ROOM' | 'TIMETABLE'>('SINGLE');
+  const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([]);
+
+  // Timetable & Academic Terms State
+  const [academicTerms, setAcademicTerms] = useState<any[]>([]);
+  const [selectedTermId, setSelectedTermId] = useState<string>('');
+  const [timetableStartDate, setTimetableStartDate] = useState<string>('');
+  const [timetableEndDate, setTimetableEndDate] = useState<string>('');
+  const [selectedDaysOfWeek, setSelectedDaysOfWeek] = useState<number[]>([1]); // default: Monday
+  const [timetableFrequency, setTimetableFrequency] = useState<'WEEKLY' | 'BIWEEKLY'>('WEEKLY');
+  const [autoApproveBatch, setAutoApproveBatch] = useState<boolean>(true);
+  const [skipConflicts, setSkipConflicts] = useState<boolean>(true);
+
+  // Live Conflict Preview Analysis
+  const [checkingConflicts, setCheckingConflicts] = useState<boolean>(false);
+  const [previewAnalysis, setPreviewAnalysis] = useState<{
+    totalSlots: number;
+    availableCount: number;
+    conflictedCount: number;
+    availableSlots: any[];
+    conflictedSlots: any[];
+  } | null>(null);
+
   // Modal: Add / Edit Room
   const [showRoomModal, setShowRoomModal] = useState(false);
   const [roomToEdit, setRoomToEdit] = useState<any>(null);
@@ -298,11 +334,12 @@ export default function RoomsPage() {
       const year = currentMonth.getFullYear();
       const month = currentMonth.getMonth() + 1;
 
-      const [roomsRes, bookingsRes, coursesRes, usersRes] = await Promise.all([
+      const [roomsRes, bookingsRes, coursesRes, usersRes, termsRes] = await Promise.all([
         fetch('/api/rooms?includeInactive=true&includeArchived=true'),
         fetch(`/api/room-bookings?year=${year}&month=${month}`),
         fetch('/api/courses?compact=true'),
         fetch('/api/users?role=INSTRUCTOR'),
+        fetch('/api/academic-terms'),
       ]);
 
       if (roomsRes.ok) {
@@ -322,6 +359,20 @@ export default function RoomsPage() {
         const uList = await usersRes.json();
         setTeachers(Array.isArray(uList) ? uList : []);
       }
+
+      if (termsRes.ok) {
+        const tList = await termsRes.json();
+        const termsArr = Array.isArray(tList) ? tList : [];
+        setAcademicTerms(termsArr);
+        if (termsArr.length > 0 && !selectedTermId) {
+          const current = termsArr.find((t: any) => t.isCurrent) || termsArr[0];
+          if (current) {
+            setSelectedTermId(current.id);
+            setTimetableStartDate(new Date(current.startDate).toISOString().slice(0, 10));
+            setTimetableEndDate(new Date(current.endDate).toISOString().slice(0, 10));
+          }
+        }
+      }
     } catch (err) {
       console.error('Error fetching room data:', err);
     } finally {
@@ -333,6 +384,107 @@ export default function RoomsPage() {
   useEffect(() => {
     fetchData();
   }, [currentMonth]);
+
+  // Timetable & Multi-room helper functions
+  const handleSelectTerm = (termId: string) => {
+    setSelectedTermId(termId);
+    const term = academicTerms.find((t) => t.id === termId);
+    if (term) {
+      setTimetableStartDate(new Date(term.startDate).toISOString().slice(0, 10));
+      setTimetableEndDate(new Date(term.endDate).toISOString().slice(0, 10));
+    }
+  };
+
+  const toggleSelectRoom = (roomId: string) => {
+    setSelectedRoomIds((prev) =>
+      prev.includes(roomId) ? prev.filter((id) => id !== roomId) : [...prev, roomId]
+    );
+  };
+
+  const handleSelectAllRooms = () => {
+    const activeIds = visibleRooms.filter((r) => r.isActive).map((r) => r.id);
+    setSelectedRoomIds(activeIds);
+  };
+
+  const handleSelectRoomsByCategory = (category: RoomCategory) => {
+    const matchedIds = visibleRooms
+      .filter((r) => r.isActive && getRoomCategory(r.code, r.name) === category)
+      .map((r) => r.id);
+    setSelectedRoomIds((prev) => Array.from(new Set([...prev, ...matchedIds])));
+  };
+
+  const handleClearSelectedRooms = () => {
+    setSelectedRoomIds([]);
+  };
+
+  const toggleDayOfWeek = (dayNumber: number) => {
+    setSelectedDaysOfWeek((prev) => {
+      if (prev.includes(dayNumber)) {
+        if (prev.length === 1) return prev;
+        return prev.filter((d) => d !== dayNumber);
+      }
+      return [...prev, dayNumber].sort((a, b) => a - b);
+    });
+  };
+
+  const resetBookingModal = (mode: 'SINGLE' | 'MULTI_ROOM' | 'TIMETABLE' = 'SINGLE') => {
+    setBookingMode(mode);
+    setBookingForm({
+      roomId: '',
+      bookingDate: selectedDate || new Date().toISOString().slice(0, 10),
+      startTime: '',
+      endTime: '',
+      title: '',
+      purpose: mode === 'TIMETABLE' ? 'การเรียนการสอน' : '',
+      attendeesCount: '',
+      courseId: '',
+      advisorName: '',
+      contactPhone: currentUser?.phone || '',
+      equipmentNeeded: '',
+      note: '',
+    });
+    setSelectedRoomIds([]);
+    setIsEditingAdvisor(false);
+    setPreviewAnalysis(null);
+    setCheckingConflicts(false);
+  };
+
+  // Compute recurring dates for timetable
+  const computedTimetableDates = useMemo(() => {
+    if (bookingMode !== 'TIMETABLE') return [];
+    if (!timetableStartDate || !timetableEndDate || selectedDaysOfWeek.length === 0) return [];
+    const start = new Date(timetableStartDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(timetableEndDate);
+    end.setHours(0, 0, 0, 0);
+    if (start > end) return [];
+
+    const dates: string[] = [];
+    const cur = new Date(start);
+    const msInWeek = 7 * 24 * 60 * 60 * 1000;
+    const startMs = start.getTime();
+
+    while (cur <= end) {
+      const dOfWeek = cur.getDay();
+      if (selectedDaysOfWeek.includes(dOfWeek)) {
+        if (timetableFrequency === 'BIWEEKLY') {
+          const diffWeeks = Math.floor((cur.getTime() - startMs) / msInWeek);
+          if (diffWeeks % 2 === 0) {
+            dates.push(cur.toISOString().slice(0, 10));
+          }
+        } else {
+          dates.push(cur.toISOString().slice(0, 10));
+        }
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
+  }, [bookingMode, timetableStartDate, timetableEndDate, selectedDaysOfWeek, timetableFrequency]);
+
+  // Reset preview when key booking attributes change
+  useEffect(() => {
+    setPreviewAnalysis(null);
+  }, [selectedRoomIds, bookingForm.bookingDate, computedTimetableDates, bookingForm.startTime, bookingForm.endTime, bookingMode]);
 
   // Set user info to form when available
   useEffect(() => {
@@ -383,9 +535,167 @@ export default function RoomsPage() {
     );
   }, [selectedRoomBookings, bookingForm.startTime, bookingForm.endTime]);
 
+  // Actions: Live Conflict Preview for Multi-room & Timetable
+  const handlePreviewConflicts = async () => {
+    if (!currentUser) {
+      alert('กรุณาเข้าสู่ระบบก่อนทำการตรวจสอบ');
+      return;
+    }
+    if (selectedRoomIds.length === 0) {
+      alert('กรุณาเลือกห้องปฏิบัติการอย่างน้อย 1 ห้อง');
+      return;
+    }
+
+    const targetDates =
+      bookingMode === 'MULTI_ROOM'
+        ? (bookingForm.bookingDate ? [bookingForm.bookingDate] : [])
+        : computedTimetableDates;
+
+    if (targetDates.length === 0) {
+      alert(
+        bookingMode === 'MULTI_ROOM'
+          ? 'กรุณาระบุวันที่ต้องการใช้งานห้อง'
+          : 'ไม่พบวันที่ตรงกับเงื่อนไขตารางเรียน กรุณาตรวจสอบวันเริ่มต้น-สิ้นสุด และวันในสัปดาห์ที่เลือก'
+      );
+      return;
+    }
+
+    if (!bookingForm.startTime || !bookingForm.endTime) {
+      alert('กรุณาระบุช่วงเวลาเริ่มต้นและสิ้นสุด');
+      return;
+    }
+    if (bookingForm.startTime >= bookingForm.endTime) {
+      alert('เวลาเริ่มต้นต้องมาก่อนเวลาสิ้นสุด');
+      return;
+    }
+
+    setCheckingConflicts(true);
+    try {
+      const res = await fetch('/api/room-bookings/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomIds: selectedRoomIds,
+          dates: targetDates,
+          startTime: bookingForm.startTime,
+          endTime: bookingForm.endTime,
+          title: bookingForm.title || 'ตรวจสอบความพร้อม',
+          purpose: bookingForm.purpose || 'การเรียนการสอน',
+          attendeesCount: Number(bookingForm.attendeesCount) || 1,
+          previewOnly: true,
+          userId: currentUser?.id,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setPreviewAnalysis(data);
+      } else {
+        alert(data.error || 'เกิดข้อผิดพลาดในการตรวจสอบความขัดแย้ง');
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    } finally {
+      setCheckingConflicts(false);
+    }
+  };
+
+  // Actions: Submit Batch / Timetable Booking
+  const handleBatchBookingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) {
+      alert('กรุณาเข้าสู่ระบบด้วยบัญชีมหาวิทยาลัย (@ku.th) ก่อนทำรายการ');
+      return;
+    }
+    if (selectedRoomIds.length === 0) {
+      alert('กรุณาเลือกห้องปฏิบัติการอย่างน้อย 1 ห้อง');
+      return;
+    }
+
+    const targetDates =
+      bookingMode === 'MULTI_ROOM'
+        ? (bookingForm.bookingDate ? [bookingForm.bookingDate] : [])
+        : computedTimetableDates;
+
+    if (targetDates.length === 0) {
+      alert(
+        bookingMode === 'MULTI_ROOM'
+          ? 'กรุณาระบุวันที่ต้องการใช้งานห้อง'
+          : 'ไม่พบวันที่ตรงกับเงื่อนไขตารางเรียน กรุณาตรวจสอบช่วงวันที่และวันในสัปดาห์'
+      );
+      return;
+    }
+
+    if (!bookingForm.startTime || !bookingForm.endTime) {
+      alert('กรุณาระบุช่วงเวลาเริ่มต้นและสิ้นสุด');
+      return;
+    }
+    if (bookingForm.startTime >= bookingForm.endTime) {
+      alert('เวลาเริ่มต้นต้องมาก่อนเวลาสิ้นสุด');
+      return;
+    }
+    if (!bookingForm.title?.trim()) {
+      alert('กรุณากรอกหัวข้อ / ชื่องานที่ขอใช้งานห้อง');
+      return;
+    }
+    if (!bookingForm.purpose) {
+      alert('กรุณาเลือกวัตถุประสงค์การใช้งานห้อง');
+      return;
+    }
+    if (!bookingForm.attendeesCount || Number(bookingForm.attendeesCount) <= 0) {
+      alert('กรุณากรอกจำนวนผู้เข้าใช้งาน (คน) ให้ถูกต้อง');
+      return;
+    }
+
+    const currentTermObj = academicTerms.find((t) => t.id === selectedTermId);
+
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/room-bookings/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomIds: selectedRoomIds,
+          dates: targetDates,
+          startTime: bookingForm.startTime,
+          endTime: bookingForm.endTime,
+          title: bookingForm.title.trim(),
+          purpose: bookingForm.purpose,
+          attendeesCount: Number(bookingForm.attendeesCount) || 1,
+          courseId: bookingForm.courseId || null,
+          advisorName: bookingForm.advisorName ? formatTeacherName(bookingForm.advisorName) : null,
+          contactPhone: bookingForm.contactPhone || null,
+          equipmentNeeded: bookingForm.equipmentNeeded || null,
+          note: bookingForm.note || null,
+          autoApprove: autoApproveBatch,
+          skipConflicts: skipConflicts,
+          previewOnly: false,
+          termName: currentTermObj?.name || '',
+          userId: currentUser?.id,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || `บันทึกรายการสำเร็จ ${data.createdCount} รายการ`);
+        setShowBookingModal(false);
+        fetchData();
+      } else {
+        alert(data.error || 'เกิดข้อผิดพลาดในการบันทึกรายการ');
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // Actions: Submit Booking Request
   const handleSubmitBooking = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (bookingMode !== 'SINGLE') {
+      return handleBatchBookingSubmit(e);
+    }
     if (!currentUser) {
       alert('กรุณาเข้าสู่ระบบด้วยบัญชีมหาวิทยาลัย (@ku.th) ก่อนยื่นคำขอจองห้อง');
       return;
@@ -844,21 +1154,7 @@ export default function RoomsPage() {
                   }
                   return;
                 }
-                setBookingForm({
-                  roomId: '',
-                  bookingDate: selectedDate || '',
-                  startTime: '',
-                  endTime: '',
-                  title: '',
-                  purpose: '',
-                  attendeesCount: '',
-                  courseId: '',
-                  advisorName: '',
-                  contactPhone: currentUser?.phone || '',
-                  equipmentNeeded: '',
-                  note: '',
-                });
-                setIsEditingAdvisor(false);
+                resetBookingModal('SINGLE');
                 setShowBookingModal(true);
               }}
               className="px-5 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-white font-bold text-sm shadow-lg shadow-teal-500/30 transition cursor-pointer flex items-center gap-2"
@@ -866,6 +1162,20 @@ export default function RoomsPage() {
               <Plus className="w-5 h-5" />
               <span>+ ยื่นคำขอจองห้องใช้งาน</span>
             </button>
+
+            {canManageRooms && (
+              <button
+                onClick={() => {
+                  resetBookingModal('TIMETABLE');
+                  setShowBookingModal(true);
+                }}
+                className="px-4 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition cursor-pointer flex items-center gap-1.5"
+                title="จัดตารางเรียนรายวิชาประจำภาคการศึกษา หรือจองหลายห้องพร้อมกัน"
+              >
+                <CalendarDays className="w-4 h-4 text-indigo-200" />
+                <span>+ จัดตารางเรียน / จองหลายห้อง</span>
+              </button>
+            )}
 
             {canManageRooms && (
               <button
@@ -1491,21 +1801,11 @@ export default function RoomsPage() {
                           }
                           return;
                         }
-                        setBookingForm({
-                          roomId: '',
+                        resetBookingModal('SINGLE');
+                        setBookingForm((prev) => ({
+                          ...prev,
                           bookingDate: selectedDate || '',
-                          startTime: '',
-                          endTime: '',
-                          title: '',
-                          purpose: '',
-                          attendeesCount: '',
-                          courseId: '',
-                          advisorName: '',
-                          contactPhone: currentUser?.phone || '',
-                          equipmentNeeded: '',
-                          note: '',
-                        });
-                        setIsEditingAdvisor(false);
+                        }));
                         setShowBookingModal(true);
                       }}
                       className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
@@ -1826,6 +2126,16 @@ export default function RoomsPage() {
                             ยกเลิกแล้ว
                           </span>
                         )}
+                        {b.note?.includes('[ตารางเรียน') && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-full">
+                            <BookOpen className="w-3 h-3 text-indigo-600 dark:text-indigo-400" /> ตารางเรียน
+                          </span>
+                        )}
+                        {b.note?.includes('[จองหลายห้อง]') && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-2 py-0.5 rounded-full">
+                            <Building2 className="w-3 h-3 text-purple-600 dark:text-purple-400" /> จองหลายห้อง
+                          </span>
+                        )}
                       </div>
 
                       <div className="text-xs text-slate-500 flex items-center gap-1.5">
@@ -1997,166 +2307,611 @@ export default function RoomsPage() {
       </>
       )}
 
-      {/* MODAL: SUBMIT ROOM BOOKING */}
+      {/* MODAL: SUBMIT ROOM BOOKING (SINGLE / MULTI-ROOM / TIMETABLE) */}
       {showBookingModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl space-y-5 border border-slate-100 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div
+            className={`bg-white dark:bg-slate-900 rounded-3xl ${
+              bookingMode === 'SINGLE' ? 'max-w-xl' : 'max-w-3xl'
+            } w-full p-5 sm:p-7 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 max-h-[92vh] overflow-y-auto transition-all`}
+          >
+            {/* Modal Header */}
             <div className="flex items-start justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div>
-                <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded uppercase">
-                  แบบฟอร์มขอใช้ห้อง
+                <span className="text-[10px] font-bold text-teal-800 bg-teal-50 dark:bg-teal-950/60 dark:text-teal-300 px-2 py-0.5 rounded uppercase">
+                  {bookingMode === 'SINGLE'
+                    ? 'แบบฟอร์มขอใช้ห้อง'
+                    : bookingMode === 'MULTI_ROOM'
+                    ? 'การจองหลายห้องพร้อมกัน'
+                    : 'จัดตารางเรียนรายวิชา / ตลอดภาคการศึกษา'}
                 </span>
                 <h3 className="text-lg font-black text-slate-900 dark:text-slate-100 mt-1 flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-teal-600" />
-                  ยื่นคำขอจองห้องปฏิบัติการสำหรับใช้งาน
+                  {bookingMode === 'SINGLE' ? (
+                    <Building2 className="w-5 h-5 text-teal-600" />
+                  ) : bookingMode === 'MULTI_ROOM' ? (
+                    <Layers className="w-5 h-5 text-purple-600" />
+                  ) : (
+                    <CalendarDays className="w-5 h-5 text-indigo-600" />
+                  )}
+                  <span>
+                    {bookingMode === 'SINGLE'
+                      ? 'ยื่นคำขอจองห้องปฏิบัติการสำหรับใช้งาน'
+                      : bookingMode === 'MULTI_ROOM'
+                      ? 'จองหลายห้องปฏิบัติการพร้อมกัน (Multi-Room)'
+                      : 'จัดตารางเรียนรายวิชา / ประจำภาคการศึกษา'}
+                  </span>
                 </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {bookingMode === 'SINGLE'
+                    ? 'ระบุห้อง วันที่ และช่วงเวลาที่ต้องการใช้งานห้องปฏิบัติการ'
+                    : bookingMode === 'MULTI_ROOM'
+                    ? 'เลือกหลายห้องในวันเดียวกัน เช่น สอบ OSCE หรือกิจกรรมหลายฐาน'
+                    : 'กำหนดวันในสัปดาห์และช่วงวันที่ของภาคการศึกษา เพื่อสร้างตารางเรียนตลอดภาค'}
+                </p>
               </div>
               <button
+                type="button"
                 onClick={() => setShowBookingModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-lg font-bold p-1 cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold p-1 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSubmitBooking} className="space-y-4">
-              {/* Select Room */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  ห้องปฏิบัติการที่ต้องการขอใช้ <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  required
-                  value={bookingForm.roomId}
-                  onChange={(e) => setBookingForm({ ...bookingForm, roomId: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500/20"
+            {/* Mode Switcher (Visible to Admin & Officers) */}
+            {canManageRooms && (
+              <div className="bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl flex items-center gap-1 text-xs font-bold border border-slate-200/60 dark:border-slate-700/60">
+                <button
+                  type="button"
+                  onClick={() => setBookingMode('SINGLE')}
+                  className={`flex-1 py-2 px-3 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    bookingMode === 'SINGLE'
+                      ? 'bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
                 >
-                  <option value="">-- กรุณาเลือกห้องปฏิบัติการ --</option>
-                  {ROOM_CATEGORIES.filter((c) => c.id !== 'ALL').map((category) => {
-                    const catRooms = rooms.filter(
-                      (r) => !isRoomArchived(r) && getRoomCategory(r.code, r.name) === category.id
-                    );
-                    if (catRooms.length === 0) return null;
-                    return (
-                      <optgroup key={category.id} label={`${category.icon} ${category.label}`}>
-                        {catRooms.map((r) => (
-                          <option key={r.id} value={r.id} disabled={!r.isActive}>
-                            {r.code} - {r.name} {r.location ? `(${r.location})` : ''} {!r.isActive ? '(ปิดให้บริการ)' : ''}
-                          </option>
-                        ))}
-                      </optgroup>
-                    );
-                  })}
-                </select>
+                  <Building className="w-3.5 h-3.5" />
+                  <span>จองเดี่ยว (ครั้งเดียว)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBookingMode('MULTI_ROOM');
+                    if (bookingForm.roomId && !selectedRoomIds.includes(bookingForm.roomId)) {
+                      setSelectedRoomIds([bookingForm.roomId]);
+                    }
+                  }}
+                  className={`flex-1 py-2 px-3 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    bookingMode === 'MULTI_ROOM'
+                      ? 'bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-300 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>จองหลายห้องพร้อมกัน</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBookingMode('TIMETABLE');
+                    if (bookingForm.roomId && !selectedRoomIds.includes(bookingForm.roomId)) {
+                      setSelectedRoomIds([bookingForm.roomId]);
+                    }
+                    if (!bookingForm.purpose) {
+                      setBookingForm((prev) => ({ ...prev, purpose: 'การเรียนการสอน' }));
+                    }
+                  }}
+                  className={`flex-1 py-2 px-3 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    bookingMode === 'TIMETABLE'
+                      ? 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-300 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <CalendarDays className="w-3.5 h-3.5" />
+                  <span>จัดตารางเรียนตลอดเทอม</span>
+                </button>
               </div>
+            )}
 
-              {/* Date & Quick Slots */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <form onSubmit={handleSubmitBooking} className="space-y-4">
+              {/* ROOM SELECTION: SINGLE MODE */}
+              {bookingMode === 'SINGLE' ? (
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    วันที่ต้องการใช้งาน <span className="text-rose-500">*</span>
+                    ห้องปฏิบัติการที่ต้องการขอใช้ <span className="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="date"
+                  <select
                     required
-                    value={bookingForm.bookingDate}
-                    onChange={(e) => setBookingForm({ ...bookingForm, bookingDate: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500/20"
-                  />
+                    value={bookingForm.roomId}
+                    onChange={(e) => setBookingForm({ ...bookingForm, roomId: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500/20"
+                  >
+                    <option value="">-- กรุณาเลือกห้องปฏิบัติการ --</option>
+                    {ROOM_CATEGORIES.filter((c) => c.id !== 'ALL').map((category) => {
+                      const catRooms = rooms.filter(
+                        (r) => !isRoomArchived(r) && getRoomCategory(r.code, r.name) === category.id
+                      );
+                      if (catRooms.length === 0) return null;
+                      return (
+                        <optgroup key={category.id} label={`${category.icon} ${category.label}`}>
+                          {catRooms.map((r) => (
+                            <option key={r.id} value={r.id} disabled={!r.isActive}>
+                              {r.code} - {r.name} {r.location ? `(${r.location})` : ''} {!r.isActive ? '(ปิดให้บริการ)' : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
+                  </select>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    ช่วงเวลา <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="flex items-center gap-1 text-[10px] font-bold">
-                    <button
-                      type="button"
-                      onClick={() => setBookingForm({ ...bookingForm, startTime: '08:30', endTime: '12:00' })}
-                      className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg transition"
-                    >
-                      เช้า (08:30-12)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBookingForm({ ...bookingForm, startTime: '13:00', endTime: '16:30' })}
-                      className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg transition"
-                    >
-                      บ่าย (13-16:30)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBookingForm({ ...bookingForm, startTime: '08:30', endTime: '16:30' })}
-                      className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg transition"
-                    >
-                      เต็มวัน
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 mt-1.5">
-                    <input
-                      type="time"
-                      required
-                      value={bookingForm.startTime}
-                      onChange={(e) => setBookingForm({ ...bookingForm, startTime: e.target.value })}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-1.5 text-xs text-slate-900 dark:text-slate-100"
-                    />
-                    <input
-                      type="time"
-                      required
-                      value={bookingForm.endTime}
-                      onChange={(e) => setBookingForm({ ...bookingForm, endTime: e.target.value })}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-1.5 text-xs text-slate-900 dark:text-slate-100"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Conflict Status & Existing Bookings Banner */}
-              {bookingForm.roomId && bookingForm.bookingDate && (
-                <div className="space-y-2">
-                  {conflictItem ? (
-                    <div className="flex items-start gap-2.5 p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 rounded-2xl text-rose-800 dark:text-rose-300 text-xs">
-                      <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
-                      <div className="space-y-0.5">
-                        <p className="font-bold">
-                          ช่วงเวลาที่เลือกทับซ้อนกับคำขออื่น ({conflictItem.startTime} - {conflictItem.endTime} น.)
-                        </p>
-                        <p className="text-[11px] text-rose-700 dark:text-rose-400">
-                          ชื่องาน: &ldquo;{conflictItem.title}&rdquo; (สถานะ: {conflictItem.status === 'APPROVED' ? 'อนุมัติแล้ว' : 'รอพิจารณา'}) — กรุณาเลือกช่วงเวลาอื่น
-                        </p>
-                      </div>
+              ) : (
+                /* ROOM SELECTION: MULTI-ROOM / TIMETABLE MODE */
+                <div className="space-y-2 bg-slate-50 dark:bg-slate-800/40 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      ห้องปฏิบัติการที่ต้องการขอใช้ <span className="text-rose-500">*</span>
+                      <span className="ml-2 text-[11px] font-semibold text-teal-600 dark:text-teal-400">
+                        (เลือกแล้ว {selectedRoomIds.length} ห้อง)
+                      </span>
+                    </label>
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                      <button
+                        type="button"
+                        onClick={handleSelectAllRooms}
+                        className="px-2 py-0.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300 transition cursor-pointer"
+                      >
+                        เลือกทุกห้อง
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClearSelectedRooms}
+                        className="px-2 py-0.5 rounded-lg bg-slate-200/70 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-300 transition cursor-pointer"
+                      >
+                        ล้างที่เลือก
+                      </button>
                     </div>
-                  ) : selectedRoomBookings.length > 0 ? (
-                    <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-1.5">
-                      <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
-                        <span className="flex items-center gap-1.5">
-                          <CalendarDays className="w-3.5 h-3.5 text-teal-600" />
-                          <span>ตารางการใช้ห้องในวันที่เลือก:</span>
-                        </span>
-                        <span className="text-[10px] text-slate-500 font-normal">มี {selectedRoomBookings.length} รายการ</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {selectedRoomBookings.map((b) => (
-                          <span
-                            key={b.id}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border ${
-                              b.status === 'APPROVED'
-                                ? 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800'
-                                : 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800'
+                  </div>
+
+                  {/* Category quick selectors */}
+                  <div className="flex flex-wrap items-center gap-1 pt-1">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 mr-1">เลือกตามกลุ่ม:</span>
+                    {ROOM_CATEGORIES.filter((c) => c.id !== 'ALL').map((category) => (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => handleSelectRoomsByCategory(category.id)}
+                        className="text-[10px] font-medium px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/50 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                      >
+                        {category.icon} {category.shortLabel}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Room checkbox grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-1.5 border border-slate-200/60 dark:border-slate-700/60 rounded-xl bg-white dark:bg-slate-900">
+                    {rooms
+                      .filter((r) => !isRoomArchived(r))
+                      .map((r) => {
+                        const isSelected = selectedRoomIds.includes(r.id);
+                        const isDisabled = !r.isActive;
+                        return (
+                          <div
+                            key={r.id}
+                            onClick={() => !isDisabled && toggleSelectRoom(r.id)}
+                            className={`flex items-start gap-2 p-2 rounded-xl border text-xs transition cursor-pointer select-none ${
+                              isDisabled
+                                ? 'opacity-40 cursor-not-allowed bg-slate-50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-800'
+                                : isSelected
+                                ? 'bg-teal-50 dark:bg-teal-950/50 border-teal-300 dark:border-teal-700 text-teal-900 dark:text-teal-200 font-bold'
+                                : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-teal-300 text-slate-700 dark:text-slate-300'
                             }`}
                           >
-                            <Clock className="w-3 h-3" />
-                            <span>
-                              {b.startTime} - {b.endTime} น. ({b.status === 'APPROVED' ? 'อนุมัติแล้ว' : 'รออนุมัติ'})
-                            </span>
-                          </span>
+                            <div className="shrink-0 mt-0.5">
+                              {isSelected ? (
+                                <CheckSquare className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                              ) : (
+                                <Square className="w-4 h-4 text-slate-400" />
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="font-bold flex items-center justify-between gap-1">
+                                <span className="truncate">{r.code}</span>
+                                <span className="text-[10px] text-slate-400 font-normal shrink-0">
+                                  {r.capacity} คน
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                {r.name}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                  {selectedRoomIds.length === 0 && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1 font-medium">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      กรุณาคลิกเลือกห้องปฏิบัติการอย่างน้อย 1 ห้อง
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* TIMETABLE SCHEDULE CONTROLS */}
+              {bookingMode === 'TIMETABLE' && (
+                <div className="space-y-3 bg-indigo-50/60 dark:bg-indigo-950/30 p-3.5 rounded-2xl border border-indigo-200/80 dark:border-indigo-800/80">
+                  <div className="flex items-center gap-2 text-xs font-bold text-indigo-900 dark:text-indigo-200">
+                    <CalendarDays className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    <span>กำหนดการตารางเรียนประจำภาคการศึกษา</span>
+                  </div>
+
+                  {/* Select Term */}
+                  {academicTerms.length > 0 && (
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        เลือกภาคการศึกษา (กำหนดช่วงวันที่อัตโนมัติ)
+                      </label>
+                      <select
+                        value={selectedTermId}
+                        onChange={(e) => handleSelectTerm(e.target.value)}
+                        className="w-full bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-slate-100"
+                      >
+                        <option value="">-- กำหนดช่วงวันที่เอง (Custom Range) --</option>
+                        {academicTerms.map((term) => (
+                          <option key={term.id} value={term.id}>
+                            {term.name} ({new Date(term.startDate).toLocaleDateString('th-TH')} - {new Date(term.endDate).toLocaleDateString('th-TH')}) {term.isCurrent ? '⭐ (ภาคเรียนปัจจุบัน)' : ''}
+                          </option>
                         ))}
-                      </div>
+                      </select>
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 p-2.5 rounded-2xl border border-emerald-200 dark:border-emerald-800">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>ห้องว่างตลอดทั้งวัน สามารถเลือกช่วงเวลาที่ต้องการได้</span>
+                  )}
+
+                  {/* Date Range */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        วันเริ่มต้นตารางเรียน <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={timetableStartDate}
+                        onChange={(e) => setTimetableStartDate(e.target.value)}
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        วันสิ้นสุดตารางเรียน <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={timetableEndDate}
+                        onChange={(e) => setTimetableEndDate(e.target.value)}
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Days of Week Selector */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                      วันในสัปดาห์ที่มีการเรียนการสอน <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-7 gap-1.5">
+                      {DAYS_OF_WEEK.map((d) => {
+                        const isSelected = selectedDaysOfWeek.includes(d.day);
+                        return (
+                          <button
+                            key={d.day}
+                            type="button"
+                            onClick={() => toggleDayOfWeek(d.day)}
+                            className={`py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex flex-col items-center justify-center ${
+                              isSelected
+                                ? 'bg-indigo-600 text-white shadow-sm'
+                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/50'
+                            }`}
+                          >
+                            <span>{d.short}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Frequency & Computed Dates summary */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-indigo-200/50 dark:border-indigo-800/50">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">ความถี่:</span>
+                      <label className="inline-flex items-center gap-1 text-xs cursor-pointer text-slate-700 dark:text-slate-300">
+                        <input
+                          type="radio"
+                          name="frequency"
+                          value="WEEKLY"
+                          checked={timetableFrequency === 'WEEKLY'}
+                          onChange={() => setTimetableFrequency('WEEKLY')}
+                          className="text-indigo-600"
+                        />
+                        <span>ทุกสัปดาห์</span>
+                      </label>
+                      <label className="inline-flex items-center gap-1 text-xs cursor-pointer text-slate-700 dark:text-slate-300 ml-2">
+                        <input
+                          type="radio"
+                          name="frequency"
+                          value="BIWEEKLY"
+                          checked={timetableFrequency === 'BIWEEKLY'}
+                          onChange={() => setTimetableFrequency('BIWEEKLY')}
+                          className="text-indigo-600"
+                        />
+                        <span>สัปดาห์เว้นสัปดาห์</span>
+                      </label>
+                    </div>
+
+                    <div className="text-[11px] font-bold text-indigo-700 dark:text-indigo-300 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                      📅 รวม {computedTimetableDates.length} วันเรียน ({selectedRoomIds.length} ห้อง × {computedTimetableDates.length} วัน = {selectedRoomIds.length * computedTimetableDates.length} สล็อต)
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* DATE & TIME (SINGLE & MULTI_ROOM MODES) */}
+              {bookingMode !== 'TIMETABLE' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      วันที่ต้องการใช้งาน <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={bookingForm.bookingDate}
+                      onChange={(e) => setBookingForm({ ...bookingForm, bookingDate: e.target.value })}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      ช่วงเวลา <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-1 text-[10px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setBookingForm({ ...bookingForm, startTime: '08:30', endTime: '12:00' })}
+                        className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg transition cursor-pointer"
+                      >
+                        เช้า (08:30-12)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBookingForm({ ...bookingForm, startTime: '13:00', endTime: '16:30' })}
+                        className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg transition cursor-pointer"
+                      >
+                        บ่าย (13-16:30)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBookingForm({ ...bookingForm, startTime: '08:30', endTime: '16:30' })}
+                        className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg transition cursor-pointer"
+                      >
+                        เต็มวัน
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mt-1.5">
+                      <input
+                        type="time"
+                        required
+                        value={bookingForm.startTime}
+                        onChange={(e) => setBookingForm({ ...bookingForm, startTime: e.target.value })}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-1.5 text-xs text-slate-900 dark:text-slate-100"
+                      />
+                      <input
+                        type="time"
+                        required
+                        value={bookingForm.endTime}
+                        onChange={(e) => setBookingForm({ ...bookingForm, endTime: e.target.value })}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-1.5 text-xs text-slate-900 dark:text-slate-100"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* TIME PICKER FOR TIMETABLE MODE */
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      ช่วงเวลาการเรียนการสอนในแต่ละวัน <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-1 text-[10px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setBookingForm({ ...bookingForm, startTime: '08:30', endTime: '12:00' })}
+                        className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg transition cursor-pointer"
+                      >
+                        เช้า (08:30-12)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBookingForm({ ...bookingForm, startTime: '13:00', endTime: '16:30' })}
+                        className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg transition cursor-pointer"
+                      >
+                        บ่าย (13-16:30)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBookingForm({ ...bookingForm, startTime: '08:30', endTime: '16:30' })}
+                        className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg transition cursor-pointer"
+                      >
+                        เต็มวัน
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-[10px] text-slate-500 mb-1 block">เวลาเริ่มต้น:</span>
+                      <input
+                        type="time"
+                        required
+                        value={bookingForm.startTime}
+                        onChange={(e) => setBookingForm({ ...bookingForm, startTime: e.target.value })}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 mb-1 block">เวลาสิ้นสุด:</span>
+                      <input
+                        type="time"
+                        required
+                        value={bookingForm.endTime}
+                        onChange={(e) => setBookingForm({ ...bookingForm, endTime: e.target.value })}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* CONFLICT STATUS & BATCH CONFLICT PREVIEW */}
+              {bookingMode === 'SINGLE' ? (
+                /* SINGLE MODE CONFLICT STATUS BANNER */
+                bookingForm.roomId && bookingForm.bookingDate && (
+                  <div className="space-y-2">
+                    {conflictItem ? (
+                      <div className="flex items-start gap-2.5 p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 rounded-2xl text-rose-800 dark:text-rose-300 text-xs">
+                        <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                        <div className="space-y-0.5">
+                          <p className="font-bold">
+                            ช่วงเวลาที่เลือกทับซ้อนกับคำขออื่น ({conflictItem.startTime} - {conflictItem.endTime} น.)
+                          </p>
+                          <p className="text-[11px] text-rose-700 dark:text-rose-400">
+                            ชื่องาน: &ldquo;{conflictItem.title}&rdquo; (สถานะ: {conflictItem.status === 'APPROVED' ? 'อนุมัติแล้ว' : 'รอพิจารณา'}) — กรุณาเลือกช่วงเวลาอื่น
+                          </p>
+                        </div>
+                      </div>
+                    ) : selectedRoomBookings.length > 0 ? (
+                      <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-1.5">
+                        <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
+                            <CalendarDays className="w-3.5 h-3.5 text-teal-600" />
+                            <span>ตารางการใช้ห้องในวันที่เลือก:</span>
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-normal">มี {selectedRoomBookings.length} รายการ</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedRoomBookings.map((b) => (
+                            <span
+                              key={b.id}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border ${
+                                b.status === 'APPROVED'
+                                  ? 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800'
+                                  : 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800'
+                              }`}
+                            >
+                              <Clock className="w-3 h-3" />
+                              <span>
+                                {b.startTime} - {b.endTime} น. ({b.status === 'APPROVED' ? 'อนุมัติแล้ว' : 'รออนุมัติ'})
+                              </span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 p-2.5 rounded-2xl border border-emerald-200 dark:border-emerald-800">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>ห้องว่างตลอดทั้งวัน สามารถเลือกช่วงเวลาที่ต้องการได้</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              ) : (
+                /* MULTI-ROOM & TIMETABLE CONFLICT ANALYSIS SECTION */
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-teal-600" />
+                      <span>ตรวจสอบตารางเวลาและสล็อตห้อง</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handlePreviewConflicts}
+                      disabled={checkingConflicts || selectedRoomIds.length === 0}
+                      className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      {checkingConflicts ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Search className="w-3.5 h-3.5" />
+                      )}
+                      <span>
+                        {checkingConflicts
+                          ? 'กำลังตรวจสอบ...'
+                          : `ตรวจสอบเวลาทับซ้อน (${
+                              selectedRoomIds.length *
+                              (bookingMode === 'MULTI_ROOM' ? 1 : computedTimetableDates.length)
+                            } สล็อต)`}
+                      </span>
+                    </button>
+                  </div>
+
+                  {previewAnalysis && (
+                    <div className="p-3.5 rounded-2xl border space-y-3 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                          ผลการวิเคราะห์ {previewAnalysis.totalSlots} สล็อต:
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 rounded-md">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            ว่าง {previewAnalysis.availableCount} สล็อต
+                          </span>
+                          {previewAnalysis.conflictedCount > 0 ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-100 dark:bg-rose-950/60 dark:text-rose-300 px-2 py-0.5 rounded-md">
+                              <AlertCircle className="w-3.5 h-3.5" />
+                              ชน {previewAnalysis.conflictedCount} สล็อต
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-teal-700 bg-teal-100 dark:bg-teal-950/60 dark:text-teal-300 px-2 py-0.5 rounded-md">
+                              ✨ ไม่พบเวลาทับซ้อน
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {previewAnalysis.conflictedCount > 0 && (
+                        <div className="space-y-2">
+                          <div className="max-h-36 overflow-y-auto space-y-1.5 p-2 bg-rose-50/60 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-800 text-[11px]">
+                            <p className="font-bold text-rose-800 dark:text-rose-300">
+                              รายการสล็อตที่มีการจองหรือกิจกรรมอื่นอยู่แล้ว:
+                            </p>
+                            {previewAnalysis.conflictedSlots.map((c: any, idx: number) => (
+                              <div
+                                key={idx}
+                                className="flex items-start justify-between gap-2 text-rose-700 dark:text-rose-300 border-b border-rose-100 dark:border-rose-900/40 pb-1 last:border-0 last:pb-0"
+                              >
+                                <div>
+                                  <span className="font-bold">[{c.roomCode}]</span> {c.date} ({c.startTime} - {c.endTime} น.)
+                                  <div className="text-[10px] text-rose-600 dark:text-rose-400">
+                                    ชนกับ: &ldquo;{c.conflictWith}&rdquo; ({c.status === 'APPROVED' ? 'อนุมัติแล้ว' : 'รออนุมัติ'})
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer pt-1">
+                            <input
+                              type="checkbox"
+                              checked={skipConflicts}
+                              onChange={(e) => setSkipConflicts(e.target.checked)}
+                              className="rounded text-teal-600 focus:ring-teal-500 w-4 h-4 cursor-pointer"
+                            />
+                            <span>
+                              ข้ามรายการที่ทับซ้อน และดำเนินการจองเฉพาะ {previewAnalysis.availableCount} สล็อตที่ห้องว่าง
+                            </span>
+                          </label>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2206,11 +2961,16 @@ export default function RoomsPage() {
                   <input
                     type="number"
                     min="1"
-                    max="150"
+                    max="300"
                     required
                     placeholder="กรุณากรอกจำนวนผู้เข้าใช้งาน (คน)"
                     value={bookingForm.attendeesCount}
-                    onChange={(e) => setBookingForm({ ...bookingForm, attendeesCount: e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value, 10)) })}
+                    onChange={(e) =>
+                      setBookingForm({
+                        ...bookingForm,
+                        attendeesCount: e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value, 10)),
+                      })
+                    }
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100"
                   />
                 </div>
@@ -2356,25 +3116,82 @@ export default function RoomsPage() {
                 </div>
               </div>
 
-              {/* Buttons */}
+              {/* Admin Auto-Approve Checkbox (for Batch & Timetable) */}
+              {canManageRooms && bookingMode !== 'SINGLE' && (
+                <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <div>
+                      <div className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                        อนุมัติรายการทันที (Auto-Approve สำหรับแอดมิน/เจ้าหน้าที่)
+                      </div>
+                      <div className="text-[10px] text-emerald-700 dark:text-emerald-400">
+                        คำขอที่สร้างจะเปลี่ยนสถานะเป็น &ldquo;อนุมัติแล้ว&rdquo; และล็อกตารางห้องเรียนทันที
+                      </div>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={autoApproveBatch}
+                    onChange={(e) => setAutoApproveBatch(e.target.checked)}
+                    className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                  />
+                </div>
+              )}
+
+              {/* Modal Buttons */}
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowBookingModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
                 >
                   ยกเลิก
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting || !!conflictItem}
-                  className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow transition flex items-center gap-1.5 cursor-pointer"
+                  disabled={
+                    Boolean(
+                      submitting ||
+                      (bookingMode === 'SINGLE' ? !!conflictItem : (
+                        selectedRoomIds.length === 0 ||
+                        (bookingMode === 'TIMETABLE' && computedTimetableDates.length === 0) ||
+                        (bookingMode === 'MULTI_ROOM' && !bookingForm.bookingDate) ||
+                        (previewAnalysis && previewAnalysis.conflictedCount > 0 && !skipConflicts) ||
+                        (previewAnalysis && previewAnalysis.availableCount === 0)
+                      ))
+                    )
+                  }
+                  className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow transition flex items-center gap-1.5 cursor-pointer"
                 >
-                  {submitting
-                    ? 'กำลังบันทึก...'
-                    : conflictItem
-                    ? '⚠️ เวลาซ้ำซ้อน ไม่สามารถจองได้'
-                    : 'ยื่นคำขอจองห้อง'}
+                  {submitting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>กำลังบันทึกข้อมูล...</span>
+                    </>
+                  ) : bookingMode === 'SINGLE' ? (
+                    conflictItem ? (
+                      '⚠️ เวลาซ้ำซ้อน ไม่สามารถจองได้'
+                    ) : (
+                      'ยื่นคำขอจองห้อง'
+                    )
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>
+                        ยืนยันการจอง{' '}
+                        {previewAnalysis
+                          ? skipConflicts
+                            ? `${previewAnalysis.availableCount} สล็อต (ที่ว่าง)`
+                            : `${previewAnalysis.totalSlots} สล็อต`
+                          : `${
+                              selectedRoomIds.length *
+                              (bookingMode === 'MULTI_ROOM' ? 1 : computedTimetableDates.length)
+                            } สล็อต`}
+                        {autoApproveBatch ? ' (อนุมัติทันที)' : ''}
+                      </span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

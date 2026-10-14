@@ -79,7 +79,6 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
     href: string;
     icon: any;
     roles: string[];
-    badge?: string;
     badgeCount?: number;
   }
 
@@ -107,14 +106,12 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           href: '/executive',
           icon: BarChart3,
           roles: ['ADMIN', 'EXECUTIVE'],
-          badge: 'ผู้บริหาร',
         },
         {
           label: 'ตารางงาน & กำหนดรับ-คืน',
           href: '/schedule',
           icon: CalendarDays,
           roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER'],
-          badge: 'เจ้าหน้าที่',
         },
       ],
     },
@@ -128,35 +125,30 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           href: '/borrow',
           icon: RefreshCw,
           roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'USER'],
-          badge: 'One-Stop',
         },
         {
           label: 'จุดเบิกจ่ายด่วน (Lab Store)',
           href: '/pos',
           icon: Store,
           roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'USER'],
-          badge: 'POS สแกนด่วน',
         },
         {
           label: 'ชุดฝึกปฏิบัติการ (Kits)',
           href: '/kits',
           icon: BriefcaseMedical,
           roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'USER'],
-          badge: 'แนะนำ',
         },
         {
           label: 'จองห้องสำหรับใช้งาน',
           href: '/rooms',
           icon: Building2,
           roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'USER'],
-          badge: 'ขอใช้ห้อง',
         },
         {
           label: 'ขอเข้าฝึกปฏิบัติด้วยตนเอง',
           href: '/practice',
           icon: QrCode,
           roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'USER'],
-          badge: 'OSCE',
         },
         {
           label: 'ประวัติเบิกจ่ายวัสดุ',
@@ -189,21 +181,18 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           href: '/maintenance',
           icon: Wrench,
           roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE'],
-          badge: 'PM / ซ่อม',
         },
         {
           label: 'รับเข้าพัสดุ (Stock In)',
           href: '/stock-in',
           icon: ArrowDownToLine,
           roles: ['ADMIN', 'OFFICER'],
-          badge: 'เจ้าหน้าที่',
         },
         {
           label: 'แบ่งบรรจุ & สเตอร์ไรด์',
           href: '/repack',
           icon: PackageCheck,
           roles: ['ADMIN', 'OFFICER'],
-          badge: 'งานแล็บ',
         },
       ],
     },
@@ -217,7 +206,6 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           href: '/air-conditioning',
           icon: Wind,
           roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE'],
-          badge: '10:00-14:00',
         },
         {
           label: 'จัดการรายวิชา & ต้นทุน',
@@ -243,21 +231,18 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           href: '/users',
           icon: Users,
           roles: ['ADMIN'],
-          badge: 'แอดมิน',
         },
         {
           label: 'ตั้งค่าข้อความแจ้งเตือน',
           href: '/settings/notifications',
           icon: Sliders,
           roles: ['ADMIN'],
-          badge: 'เทมเพลต',
         },
         {
           label: 'กำหนดภาคการศึกษา',
           href: '/settings/terms',
           icon: CalendarDays,
           roles: ['ADMIN', 'OFFICER'],
-          badge: 'ปฏิทิน',
         },
       ],
     },
@@ -398,12 +383,8 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
                           </div>
 
                           {item.badgeCount && item.badgeCount > 0 ? (
-                            <span className="flex items-center justify-center px-2 py-0.5 text-[10px] font-bold text-white bg-amber-500 rounded-full animate-pulse">
+                            <span className="flex items-center justify-center px-2 py-0.5 text-[10px] font-bold text-white bg-amber-500 rounded-full animate-pulse flex-shrink-0">
                               {item.badgeCount}
-                            </span>
-                          ) : item.badge ? (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-teal-300 border border-teal-500/30">
-                              {item.badge}
                             </span>
                           ) : null}
                         </Link>

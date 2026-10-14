@@ -81,19 +81,56 @@ export function getRoomCategory(code: string = '', name: string = ''): RoomCateg
 }
 
 function classifyActivityType(title: string = '', purpose: string = ''): 'COURSE' | 'OSCE' | 'PRACTICE' | 'TRAINING' | 'OTHER' {
-  const combined = (title + ' ' + purpose).toLowerCase();
-  if (combined.includes('osce') || combined.includes('สอบ') || combined.includes('ประเมินทักษะ')) {
+  const p = (purpose || '').trim().toLowerCase();
+  const t = (title || '').trim().toLowerCase();
+  const combined = `${t} ${p}`;
+
+  // 1. If purpose is explicitly 'อื่นๆ' / 'OTHER'
+  if (p === 'อื่นๆ' || p === 'other') {
+    // Only classify as OSCE if title explicitly indicates an exam (excluding 'ทดสอบ' / 'ตรวจสอบ')
+    const hasOsceExplicit = t.includes('osce') ||
+                           t.includes('สอบประเมิน') ||
+                           t.includes('การสอบ') ||
+                           (t.includes('สอบ') && !t.includes('ทดสอบ') && !t.includes('ตรวจสอบ'));
+    if (hasOsceExplicit) return 'OSCE';
+    if (t.includes('วิชา') || t.includes('การเรียนการสอน') || t.includes('nur')) return 'COURSE';
+    if (t.includes('ฝึกปฏิบัติ') || t.includes('หัตถการ')) return 'PRACTICE';
+    return 'OTHER';
+  }
+
+  // 2. Exact or Strong purpose matches from dropdown selections
+  if (p.includes('สอบประเมิน') || p.includes('osce')) {
     return 'OSCE';
   }
+  if (p.includes('การเรียนการสอน') || p.includes('บรรยาย')) {
+    return 'COURSE';
+  }
+  if (p.includes('ติว') || p.includes('ทบทวน') || p.includes('ฝึกปฏิบัติ') || p.includes('ซ้อม')) {
+    return 'PRACTICE';
+  }
+  if (p.includes('อบรม') || p.includes('workshop') || p.includes('สัมมนา') || p.includes('ประชุม') || p.includes('กิจกรรม')) {
+    return 'TRAINING';
+  }
+
+  // 3. Fallback based on combined text (strictly exclude "ทดสอบ" & "ตรวจสอบ" from false-matching "สอบ")
+  const isOsce = combined.includes('osce') ||
+                 combined.includes('ประเมินทักษะ') ||
+                 combined.includes('การสอบ') ||
+                 (combined.includes('สอบ') && !combined.includes('ทดสอบ') && !combined.includes('ตรวจสอบ'));
+  if (isOsce) {
+    return 'OSCE';
+  }
+
   if (combined.includes('ซ้อม') || combined.includes('ฝึกปฏิบัติ') || combined.includes('practice') || combined.includes('หัตถการ')) {
     return 'PRACTICE';
   }
-  if (combined.includes('อบรม') || combined.includes('สัมมนา') || combined.includes('workshop') || combined.includes('ประชุม')) {
+  if (combined.includes('อบรม') || combined.includes('สัมมนา') || combined.includes('workshop') || combined.includes('ประชุม') || combined.includes('กิจกรรม')) {
     return 'TRAINING';
   }
   if (combined.includes('วิชา') || combined.includes('เรียน') || combined.includes('สอน') || combined.includes('nur')) {
     return 'COURSE';
   }
+
   return 'OTHER';
 }
 
@@ -738,6 +775,9 @@ export default function MasterRoomCalendar({
             </span>
             <span className="flex items-center gap-1 font-medium">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> อบรม/กิจกรรม
+            </span>
+            <span className="flex items-center gap-1 font-medium">
+              <span className="w-2.5 h-2.5 rounded-full bg-slate-500"></span> อื่นๆ
             </span>
           </div>
         </div>

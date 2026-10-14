@@ -64,7 +64,6 @@ function getRoomCategory(code: string, name: string): RoomCategory {
   const n = name || '';
   if (
     c.includes('SIM') ||
-    c.includes('LAB-07') ||
     n.includes('SIM') ||
     n.includes('debrief') ||
     n.includes('จำลอง') ||

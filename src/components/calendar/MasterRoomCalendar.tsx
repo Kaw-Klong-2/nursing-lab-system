@@ -51,7 +51,6 @@ export function getRoomCategory(code: string = '', name: string = ''): RoomCateg
   const n = name;
   if (
     c.includes('SIM') ||
-    c.includes('LAB-07') ||
     n.includes('SIM') ||
     n.includes('debrief') ||
     n.includes('จำลอง') ||
@@ -93,7 +92,7 @@ function classifyActivityType(title: string = '', purpose: string = ''): 'COURSE
                            t.includes('การสอบ') ||
                            (t.includes('สอบ') && !t.includes('ทดสอบ') && !t.includes('ตรวจสอบ'));
     if (hasOsceExplicit) return 'OSCE';
-    if (t.includes('วิชา') || t.includes('การเรียนการสอน') || t.includes('nur')) return 'COURSE';
+    if (t.includes('วิชา') || t.includes('การเรียนการสอน')) return 'COURSE';
     if (t.includes('ฝึกปฏิบัติ') || t.includes('หัตถการ')) return 'PRACTICE';
     return 'OTHER';
   }
@@ -127,7 +126,7 @@ function classifyActivityType(title: string = '', purpose: string = ''): 'COURSE
   if (combined.includes('อบรม') || combined.includes('สัมมนา') || combined.includes('workshop') || combined.includes('ประชุม') || combined.includes('กิจกรรม')) {
     return 'TRAINING';
   }
-  if (combined.includes('วิชา') || combined.includes('เรียน') || combined.includes('สอน') || combined.includes('nur')) {
+  if (combined.includes('วิชา') || combined.includes('เรียน') || combined.includes('สอน')) {
     return 'COURSE';
   }
 

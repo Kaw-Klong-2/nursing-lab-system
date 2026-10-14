@@ -428,20 +428,22 @@ export default function NewAllocationModal({
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">-- กรุณาเลือกอาจารย์ผู้รับผิดชอบ --</option>
-                  {advisorName && !instructors.some((ins) => formatTeacherName(ins) === advisorName || ins.name === advisorName) && (
+                  {advisorName && !instructors.some((ins) => (ins && formatTeacherName(ins) === advisorName) || ins?.name === advisorName) && (
                     <option value={advisorName}>
                       {formatTeacherName(advisorName)} (อาจารย์ประจำรายวิชา)
                     </option>
                   )}
                   {Array.isArray(instructors) &&
-                    instructors.map((ins) => {
-                      const formatted = formatTeacherName(ins);
-                      return (
-                        <option key={ins.id} value={formatted}>
-                          {formatted} ({ins.department || 'อาจารย์พยาบาล'})
-                        </option>
-                      );
-                    })}
+                    instructors
+                      .filter((ins) => Boolean(ins && (ins.name || ins.id)))
+                      .map((ins, idx) => {
+                        const formatted = formatTeacherName(ins);
+                        return (
+                          <option key={ins.id || `ins-${idx}`} value={formatted}>
+                            {formatted} ({ins.department || 'อาจารย์พยาบาล'})
+                          </option>
+                        );
+                      })}
                 </select>
               )}
             </div>

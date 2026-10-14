@@ -15,7 +15,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       }
     }
     if (closeReason !== undefined) {
-      dataToUpdate.closeReason = closeReason;
+      dataToUpdate.closeReason = closeReason && String(closeReason).trim() ? String(closeReason).trim() : null;
     }
     if (availableSkills !== undefined) {
       dataToUpdate.availableSkills = availableSkills || null;

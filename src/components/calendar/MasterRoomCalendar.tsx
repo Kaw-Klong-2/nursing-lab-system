@@ -334,10 +334,12 @@ export default function MasterRoomCalendar({
         dateStr: sDateStr,
         startTime: s.startTime || '13:00',
         endTime: s.endTime || '16:00',
-        purpose: isClosed ? `ปิดรอบชั่วคราว: ${s.closeReason || 'เจ้าหน้าที่ปิดรอบ'}` : 'การฝึกทักษะหัตถการของนิสิต',
+        purpose: isClosed
+          ? (s.closeReason?.trim() ? `ปิดรอบชั่วคราว: ${s.closeReason.trim()}` : 'ปิดรอบชั่วคราว')
+          : 'การฝึกทักษะหัตถการของนิสิต',
         activityType: 'PRACTICE',
         userOrAdvisorName: isClosed
-          ? `ปิดรับจองชั่วคราว (${s.closeReason || 'เจ้าหน้าที่ปิดรอบ'})`
+          ? (s.closeReason?.trim() ? `ปิดรับจองชั่วคราว (${s.closeReason.trim()})` : 'ปิดรับจองชั่วคราว')
           : `นิสิตจองแล้ว ${bookedCount}/${s.maxCapacity} คน`,
         attendeesCount: bookedCount,
         status: isClosed ? 'CLOSED' : 'APPROVED',

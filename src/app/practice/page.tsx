@@ -405,7 +405,7 @@ export default function PracticePage() {
           endTime: editSlotForm.endTime,
           maxCapacity: Number(editSlotForm.maxCapacity) || 6,
           isOpen: editSlotForm.isOpen,
-          closeReason: editSlotForm.isOpen ? null : editSlotForm.closeReason || 'ปิดรอบโดยเจ้าหน้าที่',
+          closeReason: editSlotForm.isOpen ? null : (editSlotForm.closeReason?.trim() || null),
           availableSkills: editSlotForm.availableSkills || null,
         }),
       });
@@ -540,7 +540,7 @@ export default function PracticePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           isOpen: newIsOpen,
-          closeReason: newIsOpen ? null : closeReasonInput || 'ติดภารกิจการเรียนการสอนประจำ',
+          closeReason: newIsOpen ? null : (closeReasonInput?.trim() || null),
         }),
       });
 

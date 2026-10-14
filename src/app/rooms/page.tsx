@@ -40,6 +40,7 @@ import {
   ShieldCheck,
   DoorOpen,
   DoorClosed,
+  ArrowRightLeft,
   Info
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -267,6 +268,15 @@ export default function RoomsPage() {
   // Modal: Toggle Room Status with Reason
   const [roomToToggle, setRoomToToggle] = useState<any>(null);
   const [roomToggleReason, setRoomToggleReason] = useState('');
+
+  // Modal: Cancel Approved Booking (Admin / Officer)
+  const [cancelModalBooking, setCancelModalBooking] = useState<any>(null);
+  const [cancelReason, setCancelReason] = useState('');
+
+  // Modal: Reassign Room (Admin / Officer)
+  const [reassignModalBooking, setReassignModalBooking] = useState<any>(null);
+  const [targetRoomIdForReassign, setTargetRoomIdForReassign] = useState('');
+  const [reassignReason, setReassignReason] = useState('');
 
   // Month navigation helpers
   const handlePrevMonth = () => {
@@ -503,7 +513,7 @@ export default function RoomsPage() {
     }
   };
 
-  // Actions: Cancel Booking (by Requester)
+  // Actions: Cancel Booking (by Requester for Pending)
   const handleCancel = async (bookingId: string) => {
     if (!confirm('คุณต้องการยกเลิกคำขอจองห้องนี้ใช่หรือไม่?')) return;
     setSubmitting(true);
@@ -511,7 +521,7 @@ export default function RoomsPage() {
       const res = await fetch(`/api/room-bookings/${bookingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'CANCEL' }),
+        body: JSON.stringify({ action: 'CANCEL', userId: currentUser?.id }),
       });
 
       if (res.ok) {
@@ -523,6 +533,123 @@ export default function RoomsPage() {
       }
     } catch (err) {
       alert('เกิดข้อผิดพลาด');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Actions: Open Cancel Approved Booking Modal
+  const handleOpenCancelModal = (booking: any) => {
+    setCancelModalBooking(booking);
+    setCancelReason('');
+  };
+
+  // Actions: Confirm Cancel Approved Booking (by Admin / Lab Officer)
+  const handleConfirmCancelApproved = async () => {
+    if (!cancelModalBooking) return;
+    if (!cancelReason.trim()) {
+      alert('กรุณาระบุเหตุผลในการยกเลิกการจองห้อง');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/room-bookings/${cancelModalBooking.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'CANCEL',
+          userId: currentUser?.id,
+          reason: cancelReason.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert('ยกเลิกการจองและคืนห้องว่างเรียบร้อยแล้ว');
+        setCancelModalBooking(null);
+        setCancelReason('');
+        fetchData();
+      } else {
+        alert(data.error || 'เกิดข้อผิดพลาดในการยกเลิก');
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Actions: Open Reassign Modal
+  const handleOpenReassignModal = (booking: any) => {
+    setReassignModalBooking(booking);
+    setTargetRoomIdForReassign('');
+    setReassignReason('');
+  };
+
+  // Actions: Confirm Reassign Room (by Admin / Lab Officer)
+  const handleConfirmReassign = async () => {
+    if (!reassignModalBooking) return;
+    if (!targetRoomIdForReassign) {
+      alert('กรุณาเลือกห้องปฏิบัติการใหม่ที่ต้องการย้ายไป');
+      return;
+    }
+    if (targetRoomIdForReassign === reassignModalBooking.roomId) {
+      alert('ห้องที่เลือกเป็นห้องเดิม กรุณาเลือกห้องอื่น');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/room-bookings/${reassignModalBooking.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'REASSIGN_ROOM',
+          userId: currentUser?.id,
+          targetRoomId: targetRoomIdForReassign,
+          reason: reassignReason.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || 'ย้ายห้องปฏิบัติการเรียบร้อยแล้ว');
+        setReassignModalBooking(null);
+        setTargetRoomIdForReassign('');
+        setReassignReason('');
+        fetchData();
+      } else {
+        alert(data.error || 'เกิดข้อผิดพลาดในการย้ายห้อง');
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Actions: Permanent Delete Booking (by Admin only)
+  const handleDeleteBooking = async (bookingId: string) => {
+    if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบรายการจองห้องนี้ทิ้งถาวร? (เฉพาะแอดมิน) การดำเนินการนี้ไม่สามารถย้อนกลับได้')) {
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/room-bookings/${bookingId}?userId=${currentUser?.id}`, {
+        method: 'DELETE',
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert('ลบรายการจองห้องถาวรเรียบร้อยแล้ว');
+        fetchData();
+      } else {
+        alert(data.error || 'เกิดข้อผิดพลาดในการลบรายการ');
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
     } finally {
       setSubmitting(false);
     }
@@ -1444,7 +1571,7 @@ export default function RoomsPage() {
 
                           {/* Quick Approval Buttons for Pending */}
                           {b.status === 'PENDING' && canApprove && (
-                            <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
                               <button
                                 onClick={() => handleReject(b.id)}
                                 className="px-3 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-lg border border-rose-200 transition"
@@ -1457,6 +1584,37 @@ export default function RoomsPage() {
                               >
                                 อนุมัติคำขอ
                               </button>
+                            </div>
+                          )}
+
+                          {/* Quick Actions for Approved (Admin & Officer only) */}
+                          {b.status === 'APPROVED' && canManageRooms && (
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleOpenReassignModal(b)}
+                                className="px-2.5 py-1 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition flex items-center gap-1 cursor-pointer"
+                                title="ย้ายห้องปฏิบัติการ"
+                              >
+                                <ArrowRightLeft className="w-3 h-3" />
+                                <span>ย้ายห้อง</span>
+                              </button>
+                              <button
+                                onClick={() => handleOpenCancelModal(b)}
+                                className="px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 transition flex items-center gap-1 cursor-pointer"
+                                title="ยกเลิกการจองและคืนห้อง"
+                              >
+                                <XCircle className="w-3 h-3" />
+                                <span>ยกเลิกการจอง</span>
+                              </button>
+                              {isAdmin && (
+                                <button
+                                  onClick={() => handleDeleteBooking(b.id)}
+                                  className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-slate-200 transition cursor-pointer"
+                                  title="ลบรายการถาวร"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1517,22 +1675,53 @@ export default function RoomsPage() {
                           </div>
                         </div>
 
-                        {b.status === 'PENDING' && canApprove && (
-                          <div className="flex items-center gap-2 self-end md:self-center">
+                        <div className="flex items-center gap-2 self-end md:self-center">
+                          {b.status === 'PENDING' && canApprove && (
+                            <>
+                              <button
+                                onClick={() => handleReject(b.id)}
+                                className="px-3 py-1.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 font-bold cursor-pointer"
+                              >
+                                ไม่อนุมัติ
+                              </button>
+                              <button
+                                onClick={() => handleApprove(b.id)}
+                                className="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold shadow-sm cursor-pointer"
+                              >
+                                อนุมัติ
+                              </button>
+                            </>
+                          )}
+                          {b.status === 'APPROVED' && canManageRooms && (
+                            <>
+                              <button
+                                onClick={() => handleOpenReassignModal(b)}
+                                className="px-3 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center gap-1 transition cursor-pointer"
+                                title="ย้ายห้องปฏิบัติการ"
+                              >
+                                <ArrowRightLeft className="w-3.5 h-3.5" />
+                                <span>ย้ายห้อง</span>
+                              </button>
+                              <button
+                                onClick={() => handleOpenCancelModal(b)}
+                                className="px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center gap-1 transition cursor-pointer"
+                                title="ยกเลิกการจองและคืนห้อง"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                <span>ยกเลิกการจอง</span>
+                              </button>
+                            </>
+                          )}
+                          {isAdmin && (
                             <button
-                              onClick={() => handleReject(b.id)}
-                              className="px-3 py-1.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 font-bold"
+                              onClick={() => handleDeleteBooking(b.id)}
+                              className="p-1.5 rounded-xl border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition cursor-pointer"
+                              title="ลบรายการถาวร"
                             >
-                              ไม่อนุมัติ
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
-                            <button
-                              onClick={() => handleApprove(b.id)}
-                              className="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold shadow-sm"
-                            >
-                              อนุมัติ
-                            </button>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1688,6 +1877,18 @@ export default function RoomsPage() {
                             เหตุผลที่ไม่อนุมัติ: <strong>{b.rejectionReason}</strong>
                           </div>
                         )}
+
+                        {isCancelled && b.rejectionReason && (
+                          <div className="p-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 text-[11px] font-medium">
+                            เหตุผลที่ยกเลิก: <strong>{b.rejectionReason}</strong>
+                          </div>
+                        )}
+
+                        {b.note && (
+                          <div className="p-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 text-[11px] whitespace-pre-line">
+                            <strong>หมายเหตุ/ประวัติ:</strong> {b.note}
+                          </div>
+                        )}
                       </div>
 
                       <div className="space-y-1 text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-700">
@@ -1750,6 +1951,39 @@ export default function RoomsPage() {
                               <span>อนุมัติคำขอ</span>
                             </button>
                           </>
+                        )}
+
+                        {/* Approved Actions: Only Admin & Lab Officer can Reassign or Cancel approved bookings */}
+                        {isApproved && canManageRooms && (
+                          <>
+                            <button
+                              onClick={() => handleOpenReassignModal(b)}
+                              className="px-3.5 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                              title="ย้ายห้องปฏิบัติการสำหรับรายการที่อนุมัติแล้ว"
+                            >
+                              <ArrowRightLeft className="w-3.5 h-3.5" />
+                              <span>ย้ายห้อง</span>
+                            </button>
+                            <button
+                              onClick={() => handleOpenCancelModal(b)}
+                              className="px-3.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                              title="ยกเลิกการจองและคืนห้องว่างเข้าสู่ระบบ"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              <span>ยกเลิกการจอง (คืนห้อง)</span>
+                            </button>
+                          </>
+                        )}
+
+                        {/* Admin permanent delete */}
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleDeleteBooking(b.id)}
+                            className="p-1.5 rounded-xl border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition cursor-pointer"
+                            title="ลบรายการทิ้งถาวร (เฉพาะแอดมิน)"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         )}
                       </div>
                     </div>
@@ -2311,6 +2545,194 @@ export default function RoomsPage() {
                 }`}
               >
                 {submitting ? 'กำลังบันทึก...' : (roomToToggle.isActive ? 'ยืนยันปิดห้อง' : 'ยืนยันเปิดห้อง')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CANCEL APPROVED ROOM BOOKING */}
+      {cancelModalBooking && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400">
+                  <XCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-slate-100">
+                    ยกเลิกการจองห้องปฏิบัติการ (คืนห้อง)
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    เฉพาะผู้ดูแลระบบและเจ้าหน้าที่ห้องแล็บ
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setCancelModalBooking(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-lg font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-900/60 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>
+                เมื่อยืนยันยกเลิก ห้องปฏิบัติการนี้จะถูกปลดล็อกให้ว่างบนตารางปฏิทินทันที และระบบจะส่งการแจ้งเตือนไปยังผู้ขอใช้ห้อง
+              </span>
+            </div>
+
+            {/* Booking Details Summary */}
+            <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="font-mono font-bold text-slate-500">{cancelModalBooking.bookingNumber}</span>
+                <span className="font-bold text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950 px-2 py-0.5 rounded border border-teal-200 dark:border-teal-800">
+                  {cancelModalBooking.room?.name} ({cancelModalBooking.room?.code})
+                </span>
+              </div>
+              <div className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                {cancelModalBooking.title}
+              </div>
+              <div className="text-slate-600 dark:text-slate-400 flex flex-wrap gap-x-3 gap-y-1 pt-1">
+                <span>วันที่: <strong>{formatDate(cancelModalBooking.bookingDate)}</strong></span>
+                <span>เวลา: <strong>{cancelModalBooking.startTime} - {cancelModalBooking.endTime} น.</strong></span>
+                <span>ผู้ขอ: <strong>{formatUserName(cancelModalBooking.user)}</strong></span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                ระบุเหตุผลในการยกเลิก <span className="text-rose-500">*</span>
+              </label>
+              <textarea
+                rows={3}
+                required
+                placeholder="เช่น ผู้ขอแจ้งยกเลิกผ่านเจ้าหน้าที่, มีการย้ายสถานที่สอน, ห้องปิดปรับปรุงเร่งด่วน"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+              />
+            </div>
+
+            <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setCancelModalBooking(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                ปิดหน้าต่าง
+              </button>
+              <button
+                type="button"
+                disabled={submitting || !cancelReason.trim()}
+                onClick={handleConfirmCancelApproved}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-600/20 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                <span>{submitting ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิกและคืนห้อง'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: REASSIGN ROOM */}
+      {reassignModalBooking && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+                  <ArrowRightLeft className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-slate-100">
+                    ย้ายห้องปฏิบัติการ (เปลี่ยนห้อง)
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    เปลี่ยนห้องโดยยังคงวัน เวลา และสถานะอนุมัติเดิม
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setReassignModalBooking(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-lg font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Current Info */}
+            <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="font-mono font-bold text-slate-500">{reassignModalBooking.bookingNumber}</span>
+                <span className="font-bold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                  ห้องปัจจุบัน: {reassignModalBooking.room?.name} ({reassignModalBooking.room?.code})
+                </span>
+              </div>
+              <div className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                {reassignModalBooking.title}
+              </div>
+              <div className="text-slate-600 dark:text-slate-400 flex flex-wrap gap-x-3 gap-y-1 pt-1">
+                <span>วันที่: <strong>{formatDate(reassignModalBooking.bookingDate)}</strong></span>
+                <span>เวลา: <strong>{reassignModalBooking.startTime} - {reassignModalBooking.endTime} น.</strong></span>
+                <span>จำนวน: <strong>{reassignModalBooking.attendeesCount} คน</strong></span>
+              </div>
+            </div>
+
+            {/* Select Target Room */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                เลือกห้องปฏิบัติการใหม่ที่ต้องการย้ายไป <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={targetRoomIdForReassign}
+                onChange={(e) => setTargetRoomIdForReassign(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              >
+                <option value="">-- กรุณาเลือกห้องปฏิบัติการ --</option>
+                {visibleRooms
+                  .filter((r) => r.id !== reassignModalBooking.roomId && r.isActive)
+                  .map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} ({r.code}) {r.capacity ? `- ความจุ ${r.capacity} คน` : ''}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            {/* Reason */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                เหตุผลในการย้ายห้อง (จะบันทึกในหมายเหตุและแจ้งเตือนผู้ขอ)
+              </label>
+              <input
+                type="text"
+                placeholder="เช่น ห้องเดิมเครื่องปรับอากาศขัดข้อง, จัดสรรห้องใหม่ให้เหมาะสมกับจำนวนนิสิต"
+                value={reassignReason}
+                onChange={(e) => setReassignReason(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              />
+            </div>
+
+            <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setReassignModalBooking(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                disabled={submitting || !targetRoomIdForReassign}
+                onClick={handleConfirmReassign}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/20 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+                <span>{submitting ? 'กำลังย้ายห้อง...' : 'ยืนยันย้ายห้อง'}</span>
               </button>
             </div>
           </div>

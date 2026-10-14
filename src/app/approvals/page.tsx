@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import {
   CheckSquare,
@@ -2667,11 +2668,21 @@ export default function ApprovalsPage() {
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                         อนุมัติแล้ว {rm.approvedAt ? `(${new Date(rm.approvedAt).toLocaleDateString('th-TH')})` : ''}
                       </span>
-                      {rm.approver?.name && (
-                        <span className="text-slate-500 dark:text-slate-400 font-medium">
-                          ผู้อนุมัติ: <strong className="text-slate-700 dark:text-slate-200">{rm.approver.name}</strong>
-                        </span>
-                      )}
+                      <div className="flex items-center gap-3">
+                        {rm.approver?.name && (
+                          <span className="text-slate-500 dark:text-slate-400 font-medium">
+                            ผู้อนุมัติ: <strong className="text-slate-700 dark:text-slate-200">{rm.approver.name}</strong>
+                          </span>
+                        )}
+                        {(isAdmin || isOfficer) && (
+                          <Link
+                            href="/rooms"
+                            className="px-3 py-1 rounded-xl text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800 transition inline-flex items-center gap-1"
+                          >
+                            <span>จัดการห้อง (ย้าย/คืนห้อง)</span>
+                          </Link>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">

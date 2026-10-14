@@ -215,10 +215,29 @@ export async function PUT(
     }
 
     if (action === 'CANCEL') {
+      // If booking was already APPROVED, verify that the canceller is ADMIN or OFFICER
+      if (existing.status === 'APPROVED') {
+        if (userId) {
+          const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { role: true },
+          });
+          if (user && user.role !== 'ADMIN' && user.role !== 'OFFICER') {
+            return NextResponse.json(
+              { error: 'เฉพาะแอดมินหรือเจ้าหน้าที่ห้องแล็บเท่านั้นที่สามารถยกเลิกรายการที่อนุมัติแล้วได้' },
+              { status: 403 }
+            );
+          }
+        }
+      }
+
+      const cancelReasonText = reason?.trim() || (existing.status === 'APPROVED' ? 'ยกเลิกโดยเจ้าหน้าที่/แอดมิน' : 'ผู้ขอยกเลิกคำขอ');
+
       const updated = await prisma.roomBooking.update({
         where: { id },
         data: {
           status: 'CANCELLED',
+          rejectionReason: cancelReasonText,
         },
         include: {
           room: true,
@@ -226,8 +245,141 @@ export async function PUT(
         },
       });
 
+      // If cancelled by admin/officer on an approved booking, notify the requester
+      if (existing.status === 'APPROVED' && updated.userId) {
+        await createNotification({
+          userId: updated.userId,
+          title: 'รายการจองห้องปฏิบัติการถูกยกเลิก ⚠️',
+          message: `คำขอจองห้อง ${updated.room?.name || ''} (${updated.bookingNumber}) ถูกยกเลิกโดยเจ้าหน้าที่: ${cancelReasonText}`,
+          type: 'STATUS_UPDATE',
+          priority: 'HIGH',
+          linkUrl: '/rooms',
+          entityType: 'ROOM',
+          entityId: updated.id,
+        }).catch(() => {});
+      }
+
       invalidateCache('room:bookings:');
       return NextResponse.json(updated);
+    }
+
+    if (action === 'REASSIGN_ROOM') {
+      const { targetRoomId, reason } = body;
+      if (!targetRoomId) {
+        return NextResponse.json({ error: 'กรุณาระบุห้องปฏิบัติการเป้าหมาย' }, { status: 400 });
+      }
+
+      if (userId) {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { role: true },
+        });
+        if (user && user.role !== 'ADMIN' && user.role !== 'OFFICER') {
+          return NextResponse.json(
+            { error: 'เฉพาะแอดมินหรือเจ้าหน้าที่ห้องแล็บเท่านั้นที่สามารถย้ายห้องได้' },
+            { status: 403 }
+          );
+        }
+      }
+
+      const targetRoom = await prisma.practiceRoom.findUnique({
+        where: { id: targetRoomId },
+      });
+
+      if (!targetRoom) {
+        return NextResponse.json({ error: 'ไม่พบห้องปฏิบัติการเป้าหมาย' }, { status: 404 });
+      }
+
+      if (!targetRoom.isActive) {
+        return NextResponse.json(
+          { error: `ห้อง "${targetRoom.name}" ปิดให้บริการชั่วคราว ไม่สามารถย้ายไปห้องนี้ได้` },
+          { status: 400 }
+        );
+      }
+
+      // Check conflict in target room for the same date & time
+      const conflictingBooking = await prisma.roomBooking.findFirst({
+        where: {
+          id: { not: id },
+          roomId: targetRoomId,
+          bookingDate: existing.bookingDate,
+          status: 'APPROVED',
+          startTime: { lt: existing.endTime },
+          endTime: { gt: existing.startTime },
+        },
+      });
+
+      if (conflictingBooking) {
+        return NextResponse.json(
+          {
+            error: `ไม่สามารถย้ายไปห้อง "${targetRoom.name}" ได้ เนื่องจากห้องนี้มีการจองที่อนุมัติแล้ว (${conflictingBooking.startTime} - ${conflictingBooking.endTime} น.: ${conflictingBooking.title})`,
+          },
+          { status: 409 }
+        );
+      }
+
+      // Check conflict with open practice slot in target room
+      const dayStart = new Date(existing.bookingDate);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setDate(dayStart.getDate() + 1);
+
+      const conflictingSlot = await prisma.practiceSlot.findFirst({
+        where: {
+          roomId: targetRoomId,
+          date: { gte: dayStart, lt: dayEnd },
+          isOpen: true,
+          startTime: { lt: existing.endTime },
+          endTime: { gt: existing.startTime },
+        },
+      });
+
+      if (conflictingSlot) {
+        return NextResponse.json(
+          {
+            error: `ไม่สามารถย้ายไปห้อง "${targetRoom.name}" ได้ เนื่องจากมีรอบเปิดฝึกปฏิบัติการทักษะด้วยตนเองในช่วงเวลาดังกล่าว`,
+          },
+          { status: 409 }
+        );
+      }
+
+      const oldRoomName = existing.room?.name || 'ห้องเดิม';
+      const reassignNote = reason
+        ? `[ย้ายจาก ${oldRoomName} -> ${targetRoom.name}]: ${reason}`
+        : `[ย้ายห้องจาก ${oldRoomName} -> ${targetRoom.name}]`;
+
+      const updated = await prisma.roomBooking.update({
+        where: { id },
+        data: {
+          roomId: targetRoomId,
+          note: existing.note ? `${existing.note}\n${reassignNote}` : reassignNote,
+        },
+        include: {
+          room: true,
+          user: true,
+          approver: true,
+        },
+      });
+
+      // Notify the requester
+      if (updated.userId) {
+        await createNotification({
+          userId: updated.userId,
+          title: 'แจ้งย้ายห้องปฏิบัติการ 🏫',
+          message: `คำขอจองห้อง ${existing.bookingNumber} (${existing.title}) ได้รับการย้ายไปยังห้อง ${targetRoom.name} เรียบร้อยแล้ว`,
+          type: 'STATUS_UPDATE',
+          priority: 'HIGH',
+          linkUrl: '/rooms',
+          entityType: 'ROOM',
+          entityId: updated.id,
+        }).catch(() => {});
+      }
+
+      invalidateCache('room:bookings:');
+      return NextResponse.json({
+        message: `ย้ายห้องไปยัง "${targetRoom.name}" เรียบร้อยแล้ว`,
+        booking: updated,
+      });
     }
 
     // Default update fields
@@ -256,6 +408,22 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    const { searchParams } = new URL(req.url);
+    const userId = searchParams.get('userId');
+
+    if (userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+      if (user && user.role !== 'ADMIN') {
+        return NextResponse.json(
+          { error: 'เฉพาะผู้ดูแลระบบ (ADMIN) เท่านั้นที่สามารถลบรายการทิ้งถาวรได้' },
+          { status: 403 }
+        );
+      }
+    }
+
     await prisma.roomBooking.delete({
       where: { id },
     });

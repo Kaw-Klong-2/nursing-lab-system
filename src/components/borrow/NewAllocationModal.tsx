@@ -14,6 +14,7 @@ import {
   Stethoscope,
   GraduationCap,
   Edit3,
+  Layers,
 } from 'lucide-react';
 import { formatTeacherName } from '@/lib/user-utils';
 
@@ -52,7 +53,10 @@ export default function NewAllocationModal({
 
   // Equipment assets list
   const [loadingAssets, setLoadingAssets] = useState(true);
-  const [availableAssets, setAvailableAssets] = useState<any[]>([]);
+  const [rawEquipment, setRawEquipment] = useState<any[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const [selectedItemId, setSelectedItemId] = useState('');
+  const [showOnlySelected, setShowOnlySelected] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -131,9 +135,20 @@ export default function NewAllocationModal({
       })
       .catch((err) => console.error('Failed to load instructors', err));
 
-    // 5. Load available equipment assets with compact=true and 6s timeout safety
+    // 5. Load available equipment items with sessionStorage caching
+    try {
+      const cachedEq = sessionStorage.getItem('cached_equipment_items');
+      if (cachedEq) {
+        const parsed = JSON.parse(cachedEq);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setRawEquipment(parsed);
+          setLoadingAssets(false);
+        }
+      }
+    } catch {}
+
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     async function fetchAssets() {
       try {
@@ -142,24 +157,12 @@ export default function NewAllocationModal({
         });
         if (res.ok) {
           const items = await res.json();
-          const assets: any[] = [];
           if (Array.isArray(items)) {
-            items.forEach((it: any) => {
-              if (it && it.assets && Array.isArray(it.assets)) {
-                it.assets.forEach((a: any) => {
-                  if (a && a.status === 'AVAILABLE') {
-                    assets.push({
-                      ...a,
-                      itemName: it.name || a.assetCode || 'อุปกรณ์',
-                      itemCode: it.code || '',
-                      itemUnit: it.unit || 'ชิ้น',
-                    });
-                  }
-                });
-              }
-            });
+            setRawEquipment(items);
+            try {
+              sessionStorage.setItem('cached_equipment_items', JSON.stringify(items));
+            } catch {}
           }
-          setAvailableAssets(assets);
         }
       } catch (err: any) {
         if (err.name !== 'AbortError') {
@@ -177,6 +180,110 @@ export default function NewAllocationModal({
       clearTimeout(timeoutId);
     };
   }, [courses]);
+
+  // Extract unique categories and counts from rawEquipment
+  const categories = React.useMemo(() => {
+    const map = new Map<string, { id: string; name: string; assetCount: number }>();
+    if (Array.isArray(rawEquipment)) {
+      rawEquipment.forEach((it: any) => {
+        if (!it) return;
+        const catName = it.category?.name || 'หมวดหมู่อื่นๆ';
+        const catId = it.category?.id || catName;
+        const aList = it.availableAssets || it.assets || [];
+        const count = Array.isArray(aList) ? aList.length : 0;
+        if (!map.has(catId)) {
+          map.set(catId, { id: catId, name: catName, assetCount: count });
+        } else {
+          map.get(catId)!.assetCount += count;
+        }
+      });
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'th'));
+  }, [rawEquipment]);
+
+  const totalAssetsCount = React.useMemo(() => {
+    return categories.reduce((sum, c) => sum + c.assetCount, 0);
+  }, [categories]);
+
+  // Filter items in the selected category
+  const itemsInSelectedCategory = React.useMemo(() => {
+    if (!Array.isArray(rawEquipment)) return [];
+    if (!selectedCategoryId) return rawEquipment;
+    return rawEquipment.filter((it: any) => {
+      if (!it) return false;
+      return (
+        it.categoryId === selectedCategoryId ||
+        it.category?.id === selectedCategoryId ||
+        it.category?.name === selectedCategoryId
+      );
+    });
+  }, [rawEquipment, selectedCategoryId]);
+
+  // Candidate assets for selection based on category and chosen item
+  const allCandidateAssets = React.useMemo(() => {
+    const list: any[] = [];
+    const sourceItems = selectedItemId
+      ? itemsInSelectedCategory.filter((it: any) => it.id === selectedItemId)
+      : itemsInSelectedCategory;
+
+    sourceItems.forEach((it: any) => {
+      const aList = it.availableAssets || it.assets || [];
+      if (Array.isArray(aList)) {
+        aList.forEach((a: any) => {
+          if (a && (a.status === 'AVAILABLE' || a.isBorrowable !== false)) {
+            list.push({
+              ...a,
+              itemId: it.id,
+              itemName: it.name || a.assetCode || 'อุปกรณ์',
+              itemCode: it.code || '',
+              itemUnit: it.unit || 'ชิ้น',
+              categoryName: it.category?.name || 'หมวดหมู่อื่นๆ',
+              categoryId: it.category?.id || it.categoryId || '',
+            });
+          }
+        });
+      }
+    });
+    return list;
+  }, [itemsInSelectedCategory, selectedItemId]);
+
+  // Full selected assets list across all categories
+  const selectedAssetsFullList = React.useMemo(() => {
+    if (!Array.isArray(rawEquipment)) return [];
+    const map = new Map<string, any>();
+    rawEquipment.forEach((it: any) => {
+      const aList = it.availableAssets || it.assets || [];
+      if (Array.isArray(aList)) {
+        aList.forEach((a: any) => {
+          if (a && selectedAssetIds.includes(a.id)) {
+            map.set(a.id, {
+              ...a,
+              itemId: it.id,
+              itemName: it.name || a.assetCode || 'อุปกรณ์',
+              itemCode: it.code || '',
+              itemUnit: it.unit || 'ชิ้น',
+              categoryName: it.category?.name || 'หมวดหมู่อื่นๆ',
+            });
+          }
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [rawEquipment, selectedAssetIds]);
+
+  // Filtered assets by search keyword and view mode
+  const filteredAssets = React.useMemo(() => {
+    let list = showOnlySelected ? selectedAssetsFullList : allCandidateAssets;
+    if (!searchFilter.trim()) return list;
+    const q = searchFilter.toLowerCase().trim();
+    return list.filter((a) => {
+      const code = String(a.assetCode || '').toLowerCase();
+      const name = String(a.itemName || '').toLowerCase();
+      const loc = String(a.location || '').toLowerCase();
+      const cat = String(a.categoryName || '').toLowerCase();
+      return code.includes(q) || name.includes(q) || loc.includes(q) || cat.includes(q);
+    });
+  }, [allCandidateAssets, selectedAssetsFullList, showOnlySelected, searchFilter]);
 
   const handleCourseChange = (newCourseId: string) => {
     setCourseId(newCourseId);
@@ -210,19 +317,9 @@ export default function NewAllocationModal({
     }
   };
 
-  const safeAvailableAssets = Array.isArray(availableAssets) ? availableAssets : [];
-  const filteredAssets = safeAvailableAssets.filter((a) => {
-    if (!a) return false;
-    if (!searchFilter.trim()) return true;
-    const q = searchFilter.toLowerCase();
-    const code = String(a.assetCode || '').toLowerCase();
-    const name = String(a.itemName || '').toLowerCase();
-    const loc = String(a.location || '').toLowerCase();
-    return code.includes(q) || name.includes(q) || loc.includes(q);
-  });
-
   const toggleSelectAllFiltered = () => {
     const filteredIds = filteredAssets.map((a) => a.id);
+    if (filteredIds.length === 0) return;
     const allSelected = filteredIds.every((id) => selectedAssetIds.includes(id));
     if (allSelected) {
       setSelectedAssetIds(selectedAssetIds.filter((id) => !filteredIds.includes(id)));
@@ -477,45 +574,125 @@ export default function NewAllocationModal({
             </div>
           </div>
 
-          {/* Asset Selection Table */}
-          <div className="space-y-2 pt-1">
+          {/* Asset Selection Section */}
+          <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+            {/* Title & Selected Counter */}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                 <Stethoscope className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                 <span>เลือกครุภัณฑ์และหุ่นจำลองที่ต้องการจัดสรร</span>
-                <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[11px] font-black">
+                <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-xs font-black border border-indigo-200/60 dark:border-indigo-800">
                   เลือกแล้ว {selectedAssetIds.length} ชิ้น
                 </span>
               </div>
 
-              {filteredAssets.length > 0 && (
-                <button
-                  type="button"
-                  onClick={toggleSelectAllFiltered}
-                  className="text-[11px] text-indigo-600 hover:underline font-bold cursor-pointer"
-                >
-                  เลือกทั้งหมดในหน้านี้ ({filteredAssets.length} ชิ้น)
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {selectedAssetIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowOnlySelected(!showOnlySelected)}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1 cursor-pointer border ${
+                      showOnlySelected
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>{showOnlySelected ? 'แสดงทั้งหมด' : `ดูเฉพาะที่เลือก (${selectedAssetIds.length})`}</span>
+                  </button>
+                )}
+                {filteredAssets.length > 0 && !showOnlySelected && (
+                  <button
+                    type="button"
+                    onClick={toggleSelectAllFiltered}
+                    className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-bold cursor-pointer"
+                  >
+                    {filteredAssets.every((a) => selectedAssetIds.includes(a.id))
+                      ? `ยกเลิกทั้งหมด (${filteredAssets.length} ชิ้น)`
+                      : `เลือกทั้งหมดในหมวดนี้ (${filteredAssets.length} ชิ้น)`}
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* Filter Search */}
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="ค้นหารหัสครุภัณฑ์ หรือชื่อหุ่น (เช่น หุ่นทำคลอด, EQ-MNK-001)..."
-                value={searchFilter}
-                onChange={(e) => setSearchFilter(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs"
-              />
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            {/* Two-Level Filter: 1. Category Dropdown & 2. Item Dropdown (Like Borrow modal) */}
+            <div className="p-3 bg-slate-50/80 dark:bg-slate-950/50 rounded-2xl border border-slate-200/70 dark:border-slate-800 space-y-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* 1. Category Dropdown */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
+                    <Layers className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                    <span>1. เลือกประเภท / หมวดหมู่หุ่น</span>
+                  </label>
+                  <select
+                    value={selectedCategoryId}
+                    disabled={showOnlySelected}
+                    onChange={(e) => {
+                      setSelectedCategoryId(e.target.value);
+                      setSelectedItemId(''); // reset specific item
+                    }}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                  >
+                    <option value="">-- ทุกประเภท / ทุกหมวดหมู่ ({totalAssetsCount} ชิ้น) --</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        📁 {cat.name} ({cat.assetCount} ชิ้น)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. Specific Equipment Model Dropdown */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
+                    <Stethoscope className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                    <span>2. เลือกรายการหุ่น / ครุภัณฑ์</span>
+                  </label>
+                  <select
+                    value={selectedItemId}
+                    disabled={showOnlySelected}
+                    onChange={(e) => setSelectedItemId(e.target.value)}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                  >
+                    <option value="">-- ทุกรายการในประเภทนี้ ({itemsInSelectedCategory.length} รายการ) --</option>
+                    {itemsInSelectedCategory.map((it: any) => {
+                      const count = (it.availableAssets || it.assets || []).length;
+                      return (
+                        <option key={it.id} value={it.id}>
+                          [{it.code}] {it.name} (พร้อมใช้ {count} {it.unit || 'ชิ้น'})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              </div>
+
+              {/* 3. Search Filter */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="ค้นหาด่วนด้วยรหัสครุภัณฑ์ หรือชื่อหุ่น (เช่น หุ่นทำคลอด, EQ-MNK-001)..."
+                  value={searchFilter}
+                  onChange={(e) => setSearchFilter(e.target.value)}
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-800 dark:text-slate-200"
+                />
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                {searchFilter && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchFilter('')}
+                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Assets List */}
             <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden max-h-56 overflow-y-auto">
               {loadingAssets ? (
                 <div className="p-8 text-center text-xs text-slate-400">
-                  <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2" />
+                  <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-indigo-600" />
                   กำลังโหลดรายการครุภัณฑ์พร้อมใช้...
                 </div>
               ) : filteredAssets.length > 0 ? (
@@ -528,33 +705,55 @@ export default function NewAllocationModal({
                         onClick={() => toggleSelectAsset(asset.id)}
                         className={`p-2.5 flex items-center justify-between gap-3 cursor-pointer transition select-none ${
                           isChecked
-                            ? 'bg-indigo-50/50 dark:bg-indigo-950/40 font-semibold'
+                            ? 'bg-indigo-50/70 dark:bg-indigo-950/50 font-semibold'
                             : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
                         }`}
                       >
-                        <div className="flex items-center gap-2.5 overflow-hidden">
+                        <div className="flex items-center gap-2.5 overflow-hidden flex-1">
                           {isChecked ? (
                             <CheckSquare className="w-4 h-4 text-indigo-600 flex-shrink-0" />
                           ) : (
                             <Square className="w-4 h-4 text-slate-300 flex-shrink-0" />
                           )}
-                          <span className="font-mono text-[11px] font-bold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                          <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shrink-0">
                             {asset.assetCode}
                           </span>
                           <span className="text-slate-800 dark:text-slate-200 truncate">
                             {asset.itemName}
                           </span>
+                          {asset.categoryName && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 truncate hidden sm:inline-block">
+                              {asset.categoryName}
+                            </span>
+                          )}
                         </div>
-                        <div className="text-[11px] text-slate-400 whitespace-nowrap">
-                          ที่ตั้งเดิม: {asset.location || 'คลังพัสดุ'}
+                        <div className="text-[11px] text-slate-400 whitespace-nowrap shrink-0">
+                          {asset.location ? `ที่ตั้ง: ${asset.location}` : 'คลังพัสดุ'}
                         </div>
                       </div>
                     );
                   })}
                 </div>
               ) : (
-                <div className="p-8 text-center text-xs text-slate-400">
-                  ไม่พบคลังครุภัณฑ์พร้อมใช้ที่ตรงกับคำค้นหา
+                <div className="p-8 text-center text-xs text-slate-400 space-y-1">
+                  <p className="font-medium text-slate-600 dark:text-slate-400">
+                    {showOnlySelected
+                      ? 'ยังไม่ได้เลือกครุภัณฑ์หรือหุ่นจำลอง'
+                      : 'ไม่พบคลังครุภัณฑ์พร้อมใช้ที่ตรงกับเงื่อนไขการค้นหา'}
+                  </p>
+                  {(selectedCategoryId || selectedItemId || searchFilter) && !showOnlySelected && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategoryId('');
+                        setSelectedItemId('');
+                        setSearchFilter('');
+                      }}
+                      className="text-indigo-600 dark:text-indigo-400 hover:underline text-[11px] font-bold cursor-pointer"
+                    >
+                      ล้างตัวกรองทั้งหมด
+                    </button>
+                  )}
                 </div>
               )}
             </div>

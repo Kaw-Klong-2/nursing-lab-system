@@ -281,6 +281,7 @@ export async function GET(req: Request) {
           totalPiecesRemaining,
           isLowStock,
           availableAssets: item.type === 'EQUIPMENT' ? (item.assets || []).filter((a: any) => a.isBorrowable !== false) : [],
+          assets: item.type === 'EQUIPMENT' ? (item.assets || []).filter((a: any) => a.isBorrowable !== false) : [],
           nextRecommendedPacks:
             item.type === 'CONSUMABLE' && (item as any).targetRepacks?.[0]?.packItems?.length > 0
               ? {

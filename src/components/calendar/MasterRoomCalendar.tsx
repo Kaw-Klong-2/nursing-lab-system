@@ -317,7 +317,9 @@ export default function MasterRoomCalendar({
         ? s.bookings.filter((bk: any) => ['APPROVED', 'CHECKED_IN', 'PENDING'].includes(bk.status)).length
         : 0;
       const isClosed = !s.isOpen;
-      const title = s.availableSkills ? `รอบฝึกทักษะ: ${s.availableSkills}` : 'รอบฝึกปฏิบัติการอิสระของนิสิต';
+      const prefix = isClosed ? '[ปิดรอบ] ' : '';
+      const baseTitle = s.availableSkills ? `รอบฝึกทักษะ: ${s.availableSkills}` : 'รอบฝึกปฏิบัติการอิสระของนิสิต';
+      const title = `${prefix}${baseTitle}`;
 
       list.push({
         id: `ps-${s.id}`,

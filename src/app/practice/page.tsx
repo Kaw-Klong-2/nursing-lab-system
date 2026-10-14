@@ -42,6 +42,10 @@ import {
   Building,
   DoorClosed,
   Boxes,
+  Table,
+  ListFilter,
+  Stethoscope,
+  Eye,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import PracticeHoursSummary from '@/components/practice/PracticeHoursSummary';
@@ -70,7 +74,9 @@ export default function PracticePage() {
   const [lastUpdated, setLastUpdated] = useState<string>('');
 
   // Filter States & Calendar Mode
-  const [viewMode, setViewMode] = useState<'CALENDAR' | 'LIST'>('CALENDAR');
+  const [viewMode, setViewMode] = useState<'CALENDAR' | 'LIST' | 'TABLE'>('CALENDAR');
+  const [slotSearch, setSlotSearch] = useState('');
+  const [slotStatusFilter, setSlotStatusFilter] = useState<'ALL' | 'OPEN' | 'FULL' | 'CLOSED'>('ALL');
   const [currentMonth, setCurrentMonth] = useState<Date>(() => {
     const d = new Date();
     d.setDate(1);
@@ -81,6 +87,9 @@ export default function PracticePage() {
   });
   const [selectedRoomId, setSelectedRoomId] = useState<string>('ALL');
   const [bookingStatusFilter, setBookingStatusFilter] = useState<string>('ALL');
+  const [bookingViewMode, setBookingViewMode] = useState<'TABLE' | 'CARDS'>('TABLE');
+  const [bookingSearch, setBookingSearch] = useState('');
+  const [selectedBookingForDetail, setSelectedBookingForDetail] = useState<any>(null);
 
   // Create Slot / Event Modal State (Staff / Teacher)
   const [showCreateSlotModal, setShowCreateSlotModal] = useState(false);
@@ -886,16 +895,76 @@ export default function PracticePage() {
     }
   };
 
+  // Helper: Render Skill Tags
+  const renderSkillTags = (availableSkills?: string | null, maxTags = 3) => {
+    if (!availableSkills || !availableSkills.trim()) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 px-2 py-0.5 rounded-lg border border-slate-200/80 dark:border-slate-700/80">
+          <Sparkles className="w-3 h-3 text-amber-500" />
+          <span>ฝึกทักษะทั่วไป / อิสระ</span>
+        </span>
+      );
+    }
+    const skills = availableSkills.split(',').map((s) => s.trim()).filter(Boolean);
+    return (
+      <div className="flex flex-wrap items-center gap-1.5">
+        {skills.slice(0, maxTags).map((skill, idx) => (
+          <span
+            key={idx}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-800 dark:text-teal-200 bg-teal-50 dark:bg-teal-950/70 px-2 py-0.5 rounded-lg border border-teal-200/80 dark:border-teal-800/80 shadow-2xs"
+          >
+            <Stethoscope className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+            <span>{skill}</span>
+          </span>
+        ))}
+        {skills.length > maxTags && (
+          <span
+            className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded cursor-help"
+            title={skills.join(', ')}
+          >
+            +{skills.length - maxTags} หัตถการ
+          </span>
+        )}
+      </div>
+    );
+  };
+
   // Helper: Filter slots by room
   const filteredSlots = slots.filter((s) => {
     if (selectedRoomId === 'ALL') return true;
     return s.roomId === selectedRoomId;
   });
 
+  // Filtered slots for Compact Table & List Search
+  const tableFilteredSlots = filteredSlots.filter((slot) => {
+    if (slotStatusFilter === 'OPEN' && (!slot.isOpen || slot.isFull)) return false;
+    if (slotStatusFilter === 'FULL' && (!slot.isOpen || !slot.isFull)) return false;
+    if (slotStatusFilter === 'CLOSED' && slot.isOpen) return false;
+    if (slotSearch.trim()) {
+      const q = slotSearch.toLowerCase().trim();
+      const matchRoom = slot.room?.name?.toLowerCase().includes(q) || slot.room?.code?.toLowerCase().includes(q);
+      const matchSkills = slot.availableSkills?.toLowerCase().includes(q);
+      const matchDate = slot.date?.toLowerCase().includes(q);
+      return matchRoom || matchSkills || matchDate;
+    }
+    return true;
+  });
+
   // Helper: Filter bookings
   const filteredBookings = bookings.filter((b) => {
-    if (bookingStatusFilter === 'ALL') return true;
-    return b.status === bookingStatusFilter;
+    if (bookingStatusFilter !== 'ALL' && b.status !== bookingStatusFilter) return false;
+    if (bookingSearch.trim()) {
+      const q = bookingSearch.toLowerCase().trim();
+      const matchNum = b.bookingNumber?.toLowerCase().includes(q);
+      const matchName = formatUserName(b.user)?.toLowerCase().includes(q) || b.user?.name?.toLowerCase().includes(q);
+      const matchStudentId = b.user?.studentId?.toLowerCase().includes(q);
+      const matchSkill = b.skillTopic?.toLowerCase().includes(q);
+      const matchRoom = b.slot?.room?.name?.toLowerCase().includes(q) || b.slot?.room?.code?.toLowerCase().includes(q);
+      const matchAdvisor = b.advisorName?.toLowerCase().includes(q);
+      const matchKit = b.practiceKit?.name?.toLowerCase().includes(q);
+      return matchNum || matchName || matchStudentId || matchSkill || matchRoom || matchAdvisor || matchKit;
+    }
+    return true;
   });
 
   // Monthly Calendar Grid Generator
@@ -1308,6 +1377,17 @@ export default function PracticePage() {
                     <LayoutGrid className="w-3.5 h-3.5" />
                     <span>รายการการ์ด</span>
                   </button>
+                  <button
+                    onClick={() => setViewMode('TABLE')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                      viewMode === 'TABLE'
+                        ? 'bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300 shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                    }`}
+                  >
+                    <Table className="w-3.5 h-3.5" />
+                    <span>ตารางกระชับ</span>
+                  </button>
                 </div>
               </div>
 
@@ -1474,9 +1554,9 @@ export default function PracticePage() {
                                     ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
                                     : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 hover:shadow-sm'
                                 }`}
-                                title={`คลิกเพื่อดูรายละเอียด/จอง/แก้ไข: ${slot.room?.name || 'Lab'} (${slot.startTime}-${slot.endTime}) ${
-                                  !isOpen ? 'ปิดรอบ' : isFull ? 'เต็ม' : `ว่าง ${slot.availableSeats}/${slot.maxCapacity}`
-                                }`}
+                                title={`คลิกเพื่อดูรายละเอียด/จอง/แก้ไข: ${slot.room?.name || 'Lab'} (${slot.startTime}-${slot.endTime} น.) ${
+                                  !isOpen ? 'ปิดรอบ' : isFull ? 'เต็ม' : `ว่าง ${slot.availableSeats}/${slot.maxCapacity} ที่`
+                                }${slot.availableSkills ? ` | หัตถการ: ${slot.availableSkills}` : ''}`}
                               >
                                 <span className="truncate flex items-center gap-1">
                                   <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
@@ -1645,6 +1725,15 @@ export default function PracticePage() {
                                 </div>
                               )}
                             </div>
+
+                            {/* Available Skills Display */}
+                            <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1">
+                                <BriefcaseMedical className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+                                หัตถการที่เปิดให้ฝึก:
+                              </span>
+                              {renderSkillTags(slot.availableSkills, 3)}
+                            </div>
                           </div>
 
                           {/* Footer Actions */}
@@ -1801,6 +1890,15 @@ export default function PracticePage() {
                               </div>
                             )}
                           </div>
+
+                          {/* Available Skills Display */}
+                          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1">
+                              <BriefcaseMedical className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+                              หัตถการที่เปิดให้ฝึก:
+                            </span>
+                            {renderSkillTags(slot.availableSkills, 3)}
+                          </div>
                         </div>
 
                         {/* Footer Actions */}
@@ -1858,41 +1956,499 @@ export default function PracticePage() {
               )}
             </div>
           )}
+
+          {/* VIEW 3: COMPACT TABLE VIEW FOR SLOTS */}
+          {viewMode === 'TABLE' && (
+            <div className="space-y-4">
+              {/* Search & Status Filters */}
+              <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="ค้นหาห้องแล็บ, รหัสห้อง, หัตถการ, หรือวันที่ (เช่น 2026-10)..."
+                    value={slotSearch}
+                    onChange={(e) => setSlotSearch(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-4 py-2 text-xs font-medium text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                  <span className="text-slate-500 dark:text-slate-400 font-bold text-[11px] mr-1">สถานะ:</span>
+                  {[
+                    { id: 'ALL', label: 'ทั้งหมด' },
+                    { id: 'OPEN', label: 'เปิดรับจอง' },
+                    { id: 'FULL', label: 'เต็มแล้ว' },
+                    { id: 'CLOSED', label: 'ปิดรอบ' },
+                  ].map((st) => (
+                    <button
+                      key={st.id}
+                      onClick={() => setSlotStatusFilter(st.id as any)}
+                      className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer text-xs ${
+                        slotStatusFilter === st.id
+                          ? 'bg-teal-600 text-white shadow-sm'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                  <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500 ml-2">
+                    (พบ {tableFilteredSlots.length} รอบ)
+                  </span>
+                </div>
+              </div>
+
+              {/* High-density Slots Table */}
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
+                    <thead className="bg-slate-50 dark:bg-slate-800/80 text-[11px] font-bold text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                      <tr>
+                        <th className="py-3 px-4">วันที่</th>
+                        <th className="py-3 px-4">ช่วงเวลา</th>
+                        <th className="py-3 px-4">ห้องปฏิบัติการ</th>
+                        <th className="py-3 px-4">หัตถการที่เปิดให้ฝึก</th>
+                        <th className="py-3 px-4">ความจุ / ที่นั่ง</th>
+                        <th className="py-3 px-4 text-center">สถานะรอบ</th>
+                        <th className="py-3 px-4 text-right">การจัดการ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {loading ? (
+                        <tr>
+                          <td colSpan={7} className="py-12 text-center text-slate-400">
+                            <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-teal-600" />
+                            กำลังโหลดข้อมูลรอบฝึกปฏิบัติการ...
+                          </td>
+                        </tr>
+                      ) : tableFilteredSlots.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-12 text-center text-slate-400">
+                            ไม่พบรอบเวลาเปิดให้บริการตามเงื่อนไขที่เลือก
+                          </td>
+                        </tr>
+                      ) : (
+                        tableFilteredSlots.map((slot) => {
+                          const isOpen = slot.isOpen;
+                          const isFull = slot.isFull;
+                          const percent = Math.min(100, Math.round((slot.bookedCount / (slot.maxCapacity || 1)) * 100));
+
+                          return (
+                            <tr
+                              key={slot.id}
+                              className="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition cursor-pointer group"
+                              onClick={() => {
+                                setSelectedDate(slot.date);
+                                setSlotDetailModal(slot);
+                              }}
+                            >
+                              <td className="py-3 px-4 whitespace-nowrap font-bold text-slate-900 dark:text-slate-100">
+                                <div>
+                                  {new Date(slot.date).toLocaleDateString('th-TH', {
+                                    weekday: 'short',
+                                    day: 'numeric',
+                                    month: 'short',
+                                    year: '2-digit',
+                                  })}
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 whitespace-nowrap">
+                                <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-teal-600" />
+                                  {slot.startTime} - {slot.endTime} น.
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 whitespace-nowrap">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono text-[10px] font-bold text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800/60 px-1.5 py-0.5 rounded">
+                                    {slot.room?.code}
+                                  </span>
+                                  <span className="font-medium text-slate-900 dark:text-slate-100">
+                                    {slot.room?.name}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4">
+                                {renderSkillTags(slot.availableSkills, 2)}
+                              </td>
+                              <td className="py-3 px-4 whitespace-nowrap min-w-[140px]">
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="font-bold text-slate-800 dark:text-slate-200">
+                                      {slot.bookedCount} / {slot.maxCapacity} คน
+                                    </span>
+                                    <span className="text-[10px] text-slate-400">
+                                      ว่าง {slot.availableSeats} ที่
+                                    </span>
+                                  </div>
+                                  <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full transition-all ${
+                                        isFull
+                                          ? 'bg-amber-500'
+                                          : percent > 60
+                                          ? 'bg-teal-500'
+                                          : 'bg-emerald-500'
+                                      }`}
+                                      style={{ width: `${percent}%` }}
+                                    ></div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-center whitespace-nowrap">
+                                {!isOpen ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                    <Lock className="w-3 h-3 text-rose-600" /> ปิดรอบ
+                                  </span>
+                                ) : isFull ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                    <Users className="w-3 h-3 text-amber-600" /> เต็มแล้ว
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    <Unlock className="w-3 h-3 text-emerald-600" /> เปิดรับจอง
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedDate(slot.date);
+                                      setSlotDetailModal(slot);
+                                    }}
+                                    className="p-1.5 text-slate-500 hover:text-teal-600 hover:bg-teal-50 dark:hover:bg-slate-800 rounded-lg transition"
+                                    title="ดูรายละเอียดรอบ"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </button>
+
+                                  {/* Student Booking */}
+                                  {isOpen && !isFull && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenBookingModal(slot)}
+                                      className="px-2.5 py-1 text-xs font-bold text-white bg-teal-600 hover:bg-teal-500 rounded-lg shadow-xs transition"
+                                    >
+                                      จอง
+                                    </button>
+                                  )}
+
+                                  {/* Staff Controls */}
+                                  {canManageSlots && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenEditSlotModal(slot)}
+                                        className="p-1.5 text-slate-500 hover:text-teal-600 hover:bg-teal-50 dark:hover:bg-slate-800 rounded-lg transition"
+                                        title="แก้ไขรอบ"
+                                      >
+                                        <Edit className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSlotToToggle(slot);
+                                          setCloseReasonInput(slot.closeReason || '');
+                                        }}
+                                        className={`p-1.5 rounded-lg transition ${
+                                          isOpen
+                                            ? 'text-rose-500 hover:bg-rose-50 dark:hover:bg-slate-800'
+                                            : 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-slate-800'
+                                        }`}
+                                        title={isOpen ? 'ปิดรอบ' : 'เปิดรอบ'}
+                                      >
+                                        {isOpen ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteSlot(slot.id)}
+                                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition"
+                                        title="ลบรอบ"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* TAB 2: BOOKINGS & APPROVALS */}
       {activeTab === 'BOOKINGS' && (
         <div className="space-y-5">
-          {/* Status Tabs */}
-          <div className="flex flex-wrap items-center gap-2 p-1.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            {['ALL', 'PENDING', 'APPROVED', 'CHECKED_IN', 'COMPLETED', 'REJECTED'].map((st) => (
-              <button
-                key={st}
-                onClick={() => setBookingStatusFilter(st)}
-                className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
-                  bookingStatusFilter === st
-                    ? 'bg-teal-600 text-white shadow-sm'
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                {st === 'ALL' && 'ทั้งหมด'}
-                {st === 'PENDING' && 'รออาจารย์อนุมัติ'}
-                {st === 'APPROVED' && 'อนุมัติแล้ว (รอเข้าฝึก)'}
-                {st === 'CHECKED_IN' && 'กำลังฝึกปฏิบัติ'}
-                {st === 'COMPLETED' && 'ฝึกเสร็จสิ้น'}
-                {st === 'REJECTED' && 'ไม่อนุมัติ'}
-              </button>
-            ))}
+          {/* Header Controls: Status Tabs, Search & View Switcher */}
+          <div className="space-y-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              {/* Status Tabs */}
+              <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                {[
+                  { id: 'ALL', label: 'ทั้งหมด' },
+                  { id: 'PENDING', label: 'รออาจารย์อนุมัติ' },
+                  { id: 'APPROVED', label: 'อนุมัติแล้ว (รอเข้าฝึก)' },
+                  { id: 'CHECKED_IN', label: 'กำลังฝึกปฏิบัติ' },
+                  { id: 'COMPLETED', label: 'ฝึกเสร็จสิ้น' },
+                  { id: 'REJECTED', label: 'ไม่อนุมัติ' },
+                ].map((st) => {
+                  const count = st.id === 'ALL' ? bookings.length : bookings.filter((b) => b.status === st.id).length;
+                  return (
+                    <button
+                      key={st.id}
+                      onClick={() => setBookingStatusFilter(st.id)}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5 ${
+                        bookingStatusFilter === st.id
+                          ? 'bg-teal-600 text-white shadow-sm'
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <span>{st.label}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                          bookingStatusFilter === st.id
+                            ? 'bg-white/20 text-white'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* View Switcher: Table vs Cards */}
+              <div className="flex items-center gap-2 self-end md:self-auto">
+                <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold">
+                  <button
+                    onClick={() => setBookingViewMode('TABLE')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                      bookingViewMode === 'TABLE'
+                        ? 'bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300 shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                    }`}
+                  >
+                    <Table className="w-3.5 h-3.5" />
+                    <span>ตารางกระชับ</span>
+                  </button>
+                  <button
+                    onClick={() => setBookingViewMode('CARDS')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                      bookingViewMode === 'CARDS'
+                        ? 'bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300 shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                    }`}
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span>มุมมองการ์ด</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Search Box */}
+            <div className="relative max-w-md">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="ค้นหาเลขที่คำขอ, ชื่อนาย/นางสาว, รหัสนิสิต, หัตถการ, หรืออาจารย์..."
+                value={bookingSearch}
+                onChange={(e) => setBookingSearch(e.target.value)}
+                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs font-medium text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 shadow-sm"
+              />
+            </div>
           </div>
 
-          {/* Bookings List */}
-          {filteredBookings.length === 0 ? (
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-12 text-center text-slate-400 dark:text-slate-500 text-xs shadow-sm">
-              ไม่พบคำขอเข้าฝึกปฏิบัติในหมวดหมู่นี้
+          {/* Bookings Content: COMPACT TABLE vs CARDS */}
+          {bookingViewMode === 'TABLE' ? (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
+                  <thead className="bg-slate-50 dark:bg-slate-800/80 text-[11px] font-bold text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                    <tr>
+                      <th className="py-3 px-4">เลขที่คำขอ</th>
+                      <th className="py-3 px-4">วัน-เวลาฝึก</th>
+                      <th className="py-3 px-4">ห้องปฏิบัติการ</th>
+                      <th className="py-3 px-4">นิสิตผู้ขอ</th>
+                      <th className="py-3 px-4">หัตถการ & ชุดพัสดุ</th>
+                      <th className="py-3 px-4">อาจารย์ผู้ดูแล</th>
+                      <th className="py-3 px-4 text-center">สถานะ</th>
+                      <th className="py-3 px-4 text-right">การจัดการ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {filteredBookings.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-12 text-center text-slate-400">
+                          ไม่พบรายการคำขอเข้าฝึกปฏิบัติการตามเงื่อนไขที่เลือก
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredBookings.map((b) => {
+                        const isPending = b.status === 'PENDING';
+                        const isApproved = b.status === 'APPROVED';
+                        const isCheckedIn = b.status === 'CHECKED_IN';
+                        const isCompleted = b.status === 'COMPLETED';
+                        const isRejected = b.status === 'REJECTED';
+
+                        return (
+                          <tr
+                            key={b.id}
+                            className="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition cursor-pointer group"
+                            onClick={() => setSelectedBookingForDetail(b)}
+                          >
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <span className="font-mono text-xs font-black text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                                {b.bookingNumber}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <div className="font-bold text-slate-900 dark:text-slate-100">
+                                {new Date(b.slot?.date).toLocaleDateString('th-TH', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: '2-digit',
+                                })}
+                              </div>
+                              <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                                <Clock className="w-3 h-3 text-teal-600" />
+                                {b.slot?.startTime} - {b.slot?.endTime} น.
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <span className="font-bold text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 border border-teal-100 dark:border-teal-800/60 px-2 py-0.5 rounded text-[11px]">
+                                {b.slot?.room?.name || b.slot?.room?.code || '-'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <div className="font-semibold text-slate-900 dark:text-slate-100">
+                                {formatUserName(b.user)}
+                              </div>
+                              {b.user?.studentId && (
+                                <span className="font-mono text-[10px] text-teal-700 bg-teal-50 dark:bg-teal-950/60 px-1 rounded">
+                                  {b.user.studentId}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 max-w-[220px]">
+                              <div className="font-bold text-slate-900 dark:text-slate-100 truncate">
+                                {b.skillTopic}
+                              </div>
+                              {b.practiceKit && (
+                                <div className="text-[10px] text-teal-700 dark:text-teal-300 flex items-center gap-1 mt-0.5 truncate">
+                                  <Boxes className="w-3 h-3 flex-shrink-0" />
+                                  <span className="truncate">{b.practiceKit.name}</span>
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              {b.advisorName ? (
+                                <span className="text-[11px] text-indigo-700 dark:text-indigo-300 font-medium flex items-center gap-1">
+                                  <GraduationCap className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
+                                  <span>{formatTeacherName(b.advisorName)}</span>
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 text-[11px]">-</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              {isPending && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 px-2.5 py-0.5 rounded-full">
+                                  <Clock className="w-3 h-3 text-amber-600" /> รออนุมัติ
+                                </span>
+                              )}
+                              {isApproved && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200 px-2.5 py-0.5 rounded-full">
+                                  <CheckCircle2 className="w-3 h-3 text-teal-600" /> อนุมัติแล้ว
+                                </span>
+                              )}
+                              {isCheckedIn && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 px-2.5 py-0.5 rounded-full animate-pulse">
+                                  <Sparkles className="w-3 h-3 text-indigo-600" /> กำลังฝึก
+                                </span>
+                              )}
+                              {isCompleted && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                                  <Check className="w-3 h-3 text-emerald-600" /> เสร็จสิ้น ({b.actualMinutes || 0}น.)
+                                </span>
+                              )}
+                              {isRejected && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 px-2.5 py-0.5 rounded-full">
+                                  <XCircle className="w-3 h-3 text-rose-600" /> ไม่อนุมัติ
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-end gap-1.5">
+                                {/* QR Code Button */}
+                                {(isApproved || isCheckedIn) && (
+                                  <button
+                                    onClick={() => setActiveBookingForQr(b)}
+                                    className="p-1.5 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-slate-800 rounded-lg transition"
+                                    title="เปิดบัตร QR Code"
+                                  >
+                                    <QrCode className="w-4 h-4" />
+                                  </button>
+                                )}
+
+                                {/* Quick Approve / Reject for Instructors/Officers */}
+                                {isPending && canApprove && (
+                                  <>
+                                    <button
+                                      disabled={submitting}
+                                      onClick={() => handleApproveBooking(b.id)}
+                                      className="px-2.5 py-1 text-xs font-bold text-white bg-teal-600 hover:bg-teal-500 rounded-lg shadow-xs transition disabled:opacity-50"
+                                      title="อนุมัติคำขอ"
+                                    >
+                                      อนุมัติ
+                                    </button>
+                                    <button
+                                      disabled={submitting}
+                                      onClick={() => handleRejectBooking(b.id)}
+                                      className="px-2 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition disabled:opacity-50"
+                                      title="ไม่อนุมัติ"
+                                    >
+                                      ไม่อนุมัติ
+                                    </button>
+                                  </>
+                                )}
+
+                                {/* Detail Button */}
+                                <button
+                                  onClick={() => setSelectedBookingForDetail(b)}
+                                  className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
+                                  title="ดูรายละเอียดฉบับเต็ม"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          ) : (
-            <div className="space-y-4">
+          ) : filteredBookings.length === 0 ? (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-12 text-center text-slate-400 dark:text-slate-500 text-xs shadow-sm">
+                ไม่พบคำขอเข้าฝึกปฏิบัติในหมวดหมู่นี้
+              </div>
+            ) : (
+              <div className="space-y-4">
               {filteredBookings.map((b) => {
                 const isPending = b.status === 'PENDING';
                 const isApproved = b.status === 'APPROVED';
@@ -2908,6 +3464,17 @@ export default function PracticePage() {
                 </div>
               </div>
 
+              {/* Available Skills Display */}
+              <div className="bg-teal-50/70 dark:bg-teal-950/40 border border-teal-100 dark:border-teal-900/60 p-3.5 rounded-2xl space-y-1.5">
+                <span className="text-xs font-bold text-teal-900 dark:text-teal-200 flex items-center gap-1.5">
+                  <BriefcaseMedical className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                  หัตถการ / ทักษะที่เปิดให้ฝึกในรอบนี้:
+                </span>
+                <div className="pt-1">
+                  {renderSkillTags(slotDetailModal.availableSkills, 10)}
+                </div>
+              </div>
+
               {!slotDetailModal.isOpen && slotDetailModal.closeReason && (
                 <div className="bg-rose-50 border border-rose-100 p-3 rounded-2xl text-rose-700 text-xs flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
@@ -3567,6 +4134,161 @@ export default function PracticePage() {
               >
                 <Printer className="w-4 h-4" />
                 <span>พิมพ์บัตร QR Code</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: BOOKING DETAIL & QUICK ACTIONS */}
+      {selectedBookingForDetail && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150 border border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <span className="font-mono text-xs font-black text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                  {selectedBookingForDetail.bookingNumber}
+                </span>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 mt-1">
+                  รายละเอียดคำขอเข้าฝึกปฏิบัติการ
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedBookingForDetail(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-700 dark:text-slate-300">
+              {/* Slot & Room Info */}
+              <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl border border-slate-100 dark:border-slate-700/60 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-teal-800 dark:text-teal-300">
+                    {selectedBookingForDetail.slot?.room?.name} ({selectedBookingForDetail.slot?.room?.code})
+                  </span>
+                  <span className="font-semibold text-slate-600 dark:text-slate-300">
+                    {new Date(selectedBookingForDetail.slot?.date).toLocaleDateString('th-TH', {
+                      weekday: 'long',
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                  <Clock className="w-3.5 h-3.5 text-teal-600" />
+                  <span>เวลา {selectedBookingForDetail.slot?.startTime} - {selectedBookingForDetail.slot?.endTime} น.</span>
+                </div>
+              </div>
+
+              {/* Student Info */}
+              <div className="p-3 bg-white dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-700/60 space-y-1">
+                <span className="text-[11px] text-slate-400 font-bold block">ข้อมูลนิสิตผู้ยื่นคำขอ:</span>
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-slate-400" />
+                  <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                    {formatUserName(selectedBookingForDetail.user)}
+                  </span>
+                  {selectedBookingForDetail.user?.studentId && (
+                    <span className="font-mono text-xs text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1.5 py-0.5 rounded font-bold border border-teal-100 dark:border-teal-800/60">
+                      {selectedBookingForDetail.user.studentId}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Skills & Objectives */}
+              <div className="space-y-1.5">
+                <div>
+                  <span className="text-slate-400 font-bold">หัตถการที่ขอฝึก: </span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">{selectedBookingForDetail.skillTopic}</span>
+                </div>
+                {selectedBookingForDetail.objectives && (
+                  <div>
+                    <span className="text-slate-400 font-bold">วัตถุประสงค์: </span>
+                    <span className="text-slate-700 dark:text-slate-300">{selectedBookingForDetail.objectives}</span>
+                  </div>
+                )}
+                {selectedBookingForDetail.advisorName && (
+                  <div className="flex items-center gap-1 text-indigo-700 dark:text-indigo-300 font-semibold pt-1">
+                    <GraduationCap className="w-4 h-4 text-indigo-600" />
+                    <span>อาจารย์ผู้ดูแล: {formatTeacherName(selectedBookingForDetail.advisorName)}</span>
+                  </div>
+                )}
+                {selectedBookingForDetail.practiceKit && (
+                  <div className="bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800/60 p-2.5 rounded-xl text-teal-900 dark:text-teal-200 flex items-center gap-2">
+                    <Boxes className="w-4 h-4 text-teal-600 flex-shrink-0" />
+                    <span>ชุดพัสดุหัตถการ: <strong>{selectedBookingForDetail.practiceKit.name}</strong></span>
+                  </div>
+                )}
+                {selectedBookingForDetail.additionalEquipment && (
+                  <div className="bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/60 p-2.5 rounded-xl text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                    <Package className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <span>อุปกรณ์ขอเพิ่ม: <strong>{selectedBookingForDetail.additionalEquipment}</strong></span>
+                  </div>
+                )}
+                {selectedBookingForDetail.rejectionReason && (
+                  <div className="bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/60 p-2.5 rounded-xl text-rose-700 dark:text-rose-300 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                    <span>เหตุผลที่ไม่อนุมัติ: {selectedBookingForDetail.rejectionReason}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
+              {(selectedBookingForDetail.status === 'APPROVED' || selectedBookingForDetail.status === 'CHECKED_IN') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const b = selectedBookingForDetail;
+                    setSelectedBookingForDetail(null);
+                    setActiveBookingForQr(b);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <QrCode className="w-4 h-4" />
+                  <span>เปิดบัตร QR Code</span>
+                </button>
+              )}
+              {selectedBookingForDetail.status === 'PENDING' && canApprove && (
+                <>
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => {
+                      const id = selectedBookingForDetail.id;
+                      setSelectedBookingForDetail(null);
+                      handleRejectBooking(id);
+                    }}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 transition cursor-pointer"
+                  >
+                    ไม่อนุมัติ
+                  </button>
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => {
+                      const id = selectedBookingForDetail.id;
+                      setSelectedBookingForDetail(null);
+                      handleApproveBooking(id);
+                    }}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 hover:bg-teal-500 shadow-md shadow-teal-600/20 transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>อนุมัติคำขอ</span>
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelectedBookingForDetail(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
+              >
+                ปิด
               </button>
             </div>
           </div>

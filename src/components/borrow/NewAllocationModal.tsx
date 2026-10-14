@@ -6,29 +6,39 @@ import {
   Building2,
   BookOpen,
   Calendar,
-  CheckCircle2,
   Search,
   CheckSquare,
   Square,
   RefreshCw,
   Sparkles,
   Stethoscope,
+  GraduationCap,
+  Edit3,
 } from 'lucide-react';
+import { formatTeacherName } from '@/lib/user-utils';
 
 interface NewAllocationModalProps {
-  courses: any[];
+  courses?: any[];
   onClose: () => void;
   onSuccess: () => void;
 }
 
 export default function NewAllocationModal({
-  courses,
+  courses = [],
   onClose,
   onSuccess,
 }: NewAllocationModalProps) {
-  const [courseId, setCourseId] = useState(courses[0]?.id || '');
+  const safeInitialCourses = Array.isArray(courses) ? courses : [];
+  const [courseList, setCourseList] = useState<any[]>(safeInitialCourses);
+  const [courseId, setCourseId] = useState('');
   const [advisorName, setAdvisorName] = useState('');
-  const [targetLocation, setTargetLocation] = useState('ห้อง Lab 401 (แล็ปสูติศาสตร์-เด็ก)');
+  const [isEditingAdvisor, setIsEditingAdvisor] = useState(false);
+  const [instructors, setInstructors] = useState<any[]>([]);
+
+  const [targetLocation, setTargetLocation] = useState('');
+  const [rooms, setRooms] = useState<any[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
+
   const [purpose, setPurpose] = useState('จัดสรรหุ่นและครุภัณฑ์ประจำรายวิชาตลอดภาคการศึกษา');
 
   // Dates: Default 4 months
@@ -47,56 +57,150 @@ export default function NewAllocationModal({
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  // Load available assets and current active term
+  // Sync courseList when courses prop changes
   useEffect(() => {
+    if (Array.isArray(courses) && courses.length > 0) {
+      setCourseList(courses);
+    }
+  }, [courses]);
+
+  useEffect(() => {
+    // 1. Fetch courses directly if empty
+    if (!Array.isArray(courses) || courses.length === 0) {
+      fetch('/api/courses?compact=true')
+        .then((res) => (res.ok ? res.json() : []))
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setCourseList(data);
+          }
+        })
+        .catch(() => {});
+    }
+
+    // 2. Fetch academic term for default end date
     fetch('/api/academic-terms?current=true')
       .then((res) => (res.ok ? res.json() : null))
       .then((term) => {
-        if (term?.endDate) {
+        if (term?.endDate && typeof term.endDate === 'string') {
           setExpectedReturnDate(term.endDate.slice(0, 10));
         }
       })
       .catch(() => {});
 
+    // 3. Load practice rooms with sessionStorage caching
+    try {
+      const cachedRooms = sessionStorage.getItem('cached_practice_rooms');
+      if (cachedRooms) {
+        const parsed = JSON.parse(cachedRooms);
+        if (Array.isArray(parsed)) setRooms(parsed);
+      }
+    } catch {}
+
+    setLoadingRooms(true);
+    fetch('/api/rooms')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setRooms(data);
+          try {
+            sessionStorage.setItem('cached_practice_rooms', JSON.stringify(data));
+          } catch {}
+        }
+      })
+      .catch((err) => console.error('Failed to load rooms', err))
+      .finally(() => setLoadingRooms(false));
+
+    // 4. Load approvers/instructors with sessionStorage caching
+    try {
+      const cachedUsers = sessionStorage.getItem('cached_approver_users');
+      if (cachedUsers) {
+        const parsed = JSON.parse(cachedUsers);
+        if (Array.isArray(parsed)) setInstructors(parsed);
+      }
+    } catch {}
+
+    fetch('/api/users?role=APPROVER')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setInstructors(data);
+          try {
+            sessionStorage.setItem('cached_approver_users', JSON.stringify(data));
+          } catch {}
+        }
+      })
+      .catch((err) => console.error('Failed to load instructors', err));
+
+    // 5. Load available equipment assets with compact=true and 6s timeout safety
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+
     async function fetchAssets() {
       try {
-        const res = await fetch('/api/items?type=EQUIPMENT');
+        const res = await fetch('/api/items?type=EQUIPMENT&compact=true', {
+          signal: controller.signal,
+        });
         if (res.ok) {
           const items = await res.json();
-          // Flatten all available assets
           const assets: any[] = [];
-          items.forEach((it: any) => {
-            if (it.assets && Array.isArray(it.assets)) {
-              it.assets.forEach((a: any) => {
-                if (a.status === 'AVAILABLE') {
-                  assets.push({
-                    ...a,
-                    itemName: it.name,
-                    itemCode: it.code,
-                    itemUnit: it.unit,
-                  });
-                }
-              });
-            }
-          });
+          if (Array.isArray(items)) {
+            items.forEach((it: any) => {
+              if (it && it.assets && Array.isArray(it.assets)) {
+                it.assets.forEach((a: any) => {
+                  if (a && a.status === 'AVAILABLE') {
+                    assets.push({
+                      ...a,
+                      itemName: it.name || a.assetCode || 'อุปกรณ์',
+                      itemCode: it.code || '',
+                      itemUnit: it.unit || 'ชิ้น',
+                    });
+                  }
+                });
+              }
+            });
+          }
           setAvailableAssets(assets);
         }
-      } catch (err) {
-        console.error('Failed to load assets for allocation', err);
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          console.error('Failed to load assets for allocation', err);
+        }
       } finally {
+        clearTimeout(timeoutId);
         setLoadingAssets(false);
       }
     }
     fetchAssets();
-  }, []);
 
-  // Update advisor name when course changes
-  useEffect(() => {
-    const sel = courses.find((c) => c.id === courseId);
-    if (sel && sel.instructors && sel.instructors.length > 0) {
-      setAdvisorName(sel.instructors[0]?.user?.name || '');
+    return () => {
+      controller.abort();
+      clearTimeout(timeoutId);
+    };
+  }, [courses]);
+
+  const handleCourseChange = (newCourseId: string) => {
+    setCourseId(newCourseId);
+    if (!newCourseId) {
+      setAdvisorName('');
+      setIsEditingAdvisor(false);
+      return;
     }
-  }, [courseId, courses]);
+    const currentCourses = Array.isArray(courseList) ? courseList : [];
+    const sel = currentCourses.find((c) => c && c.id === newCourseId);
+    if (sel) {
+      const teacher =
+        sel.instructorName ||
+        (Array.isArray(sel.instructors) && sel.instructors[0]?.user?.name) ||
+        '';
+      if (teacher) {
+        setAdvisorName(formatTeacherName(teacher));
+        setIsEditingAdvisor(false);
+      } else {
+        setAdvisorName('');
+        setIsEditingAdvisor(true);
+      }
+    }
+  };
 
   const toggleSelectAsset = (id: string) => {
     if (selectedAssetIds.includes(id)) {
@@ -106,14 +210,15 @@ export default function NewAllocationModal({
     }
   };
 
-  const filteredAssets = availableAssets.filter((a) => {
+  const safeAvailableAssets = Array.isArray(availableAssets) ? availableAssets : [];
+  const filteredAssets = safeAvailableAssets.filter((a) => {
+    if (!a) return false;
     if (!searchFilter.trim()) return true;
     const q = searchFilter.toLowerCase();
-    return (
-      a.assetCode.toLowerCase().includes(q) ||
-      a.itemName.toLowerCase().includes(q) ||
-      (a.location && a.location.toLowerCase().includes(q))
-    );
+    const code = String(a.assetCode || '').toLowerCase();
+    const name = String(a.itemName || '').toLowerCase();
+    const loc = String(a.location || '').toLowerCase();
+    return code.includes(q) || name.includes(q) || loc.includes(q);
   });
 
   const toggleSelectAllFiltered = () => {
@@ -133,8 +238,8 @@ export default function NewAllocationModal({
       alert('กรุณาเลือกรายวิชา');
       return;
     }
-    if (!targetLocation.trim()) {
-      alert('กรุณาระบุห้องปฏิบัติการเป้าหมาย');
+    if (!targetLocation || !targetLocation.trim()) {
+      alert('กรุณาเลือกห้องปฏิบัติการ');
       return;
     }
     if (selectedAssetIds.length === 0) {
@@ -146,9 +251,9 @@ export default function NewAllocationModal({
     try {
       const payload = {
         courseId,
-        advisorName,
+        advisorName: advisorName ? formatTeacherName(advisorName) : null,
         purpose,
-        targetLocation,
+        targetLocation: targetLocation.trim(),
         borrowDate,
         expectedReturnDate,
         assetIds: selectedAssetIds,
@@ -161,23 +266,29 @@ export default function NewAllocationModal({
       });
 
       if (res.ok) {
-        alert('สร้างและจัดสรรครุภัณฑ์ประจำวิชาตลอดเทอมเรียบร้อยแล้ว');
+        alert('จัดสรรครุภัณฑ์ประจำวิชาตลอดเทอมเรียบร้อยแล้ว');
         onSuccess();
         onClose();
       } else {
         const err = await res.json();
-        alert(err.error || 'เกิดข้อผิดพลาดในการสร้างคำขอ');
+        alert(err.error || 'เกิดข้อผิดพลาดในการจัดสรรครุภัณฑ์');
       }
     } catch (err) {
-      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-3xl w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4 max-h-[92vh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-slate-900 rounded-3xl max-w-3xl w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4 max-h-[92vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2.5">
@@ -196,7 +307,7 @@ export default function NewAllocationModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -204,57 +315,141 @@ export default function NewAllocationModal({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-4 pr-1">
-          {/* Course & Location Info */}
+          {/* Course & Room Dropdowns */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                รายวิชาที่จัดสรร *
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>รายวิชาที่จัดสรร <span className="text-rose-500">*</span></span>
               </label>
               <select
+                required
                 value={courseId}
-                onChange={(e) => setCourseId(e.target.value)}
+                onChange={(e) => handleCourseChange(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500"
               >
-                {courses.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    [{c.code}] {c.name}
-                  </option>
-                ))}
+                <option value="">-- กรุณาเลือกรายวิชา --</option>
+                {Array.isArray(courseList) &&
+                  courseList.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      [{c.code}] {c.name} {c.instructorName ? `(${formatTeacherName(c.instructorName)})` : ''}
+                    </option>
+                  ))}
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                ห้องปฏิบัติการที่นำไปติดตั้งประจำ *
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>ห้องปฏิบัติการที่นำไปติดตั้งประจำ <span className="text-rose-500">*</span></span>
               </label>
-              <input
-                type="text"
+              <select
                 required
-                placeholder="เช่น ห้อง Lab 401 (แล็ปสูติศาสตร์), ห้อง Lab 302"
                 value={targetLocation}
                 onChange={(e) => setTargetLocation(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 font-bold"
-              />
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">-- กรุณาเลือกห้องปฏิบัติการ --</option>
+                {Array.isArray(rooms) &&
+                  rooms.map((r) => {
+                    const roomLabel = r.code ? `[${r.code}] ${r.name}` : r.name;
+                    return (
+                      <option key={r.id} value={roomLabel}>
+                        {roomLabel} {r.location ? `(${r.location})` : ''}
+                      </option>
+                    );
+                  })}
+              </select>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Advisor Selector */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                อาจารย์ผู้รับผิดชอบ / ผู้ประสานงาน
-              </label>
-              <input
-                type="text"
-                placeholder="ระบุชื่ออาจารย์"
-                value={advisorName}
-                onChange={(e) => setAdvisorName(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <GraduationCap className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>อาจารย์ผู้รับผิดชอบ</span>
+                </label>
+                {courseId && advisorName && !isEditingAdvisor && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingAdvisor(true)}
+                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="w-3 h-3" />
+                    <span>แก้ไขอาจารย์</span>
+                  </button>
+                )}
+                {isEditingAdvisor && courseId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentCourses = Array.isArray(courseList) ? courseList : [];
+                      const sel = currentCourses.find((c) => c && c.id === courseId);
+                      const teacher =
+                        sel?.instructorName ||
+                        (Array.isArray(sel?.instructors) && sel?.instructors[0]?.user?.name) ||
+                        '';
+                      if (teacher) {
+                        setAdvisorName(formatTeacherName(teacher));
+                        setIsEditingAdvisor(false);
+                      }
+                    }}
+                    className="text-[11px] font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>ใช้ค่าเริ่มต้น</span>
+                  </button>
+                )}
+              </div>
+
+              {courseId && advisorName && !isEditingAdvisor ? (
+                <div className="flex items-center justify-between bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl px-3 py-2 text-xs">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <span className="font-bold text-indigo-950 dark:text-indigo-200 truncate">
+                      {formatTeacherName(advisorName)}
+                    </span>
+                    <span className="text-[10px] bg-indigo-200/70 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-300 px-1.5 py-0.5 rounded-md font-bold shrink-0">
+                      เลือกให้อัตโนมัติ
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingAdvisor(true)}
+                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline shrink-0 cursor-pointer ml-1"
+                  >
+                    แก้ไข
+                  </button>
+                </div>
+              ) : (
+                <select
+                  value={advisorName}
+                  onChange={(e) => setAdvisorName(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">-- กรุณาเลือกอาจารย์ผู้รับผิดชอบ --</option>
+                  {advisorName && !instructors.some((ins) => formatTeacherName(ins) === advisorName || ins.name === advisorName) && (
+                    <option value={advisorName}>
+                      {formatTeacherName(advisorName)} (อาจารย์ประจำรายวิชา)
+                    </option>
+                  )}
+                  {Array.isArray(instructors) &&
+                    instructors.map((ins) => {
+                      const formatted = formatTeacherName(ins);
+                      return (
+                        <option key={ins.id} value={formatted}>
+                          {formatted} ({ins.department || 'อาจารย์พยาบาล'})
+                        </option>
+                      );
+                    })}
+                </select>
+              )}
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                วันที่เริ่มจัดสรร (วันเปิดเทอม)
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>วันที่เริ่มจัดสรร (วันเปิดเทอม)</span>
               </label>
               <input
                 type="date"
@@ -266,8 +461,9 @@ export default function NewAllocationModal({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                กำหนดส่งคืน (วันปิดเทอม / จบ OSCE)
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>กำหนดส่งคืน (วันปิดเทอม / จบ OSCE)</span>
               </label>
               <input
                 type="date"
@@ -283,7 +479,7 @@ export default function NewAllocationModal({
           <div className="space-y-2 pt-1">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <Stethoscope className="w-4 h-4 text-indigo-600" />
+                <Stethoscope className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                 <span>เลือกครุภัณฑ์และหุ่นจำลองที่ต้องการจัดสรร</span>
                 <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[11px] font-black">
                   เลือกแล้ว {selectedAssetIds.length} ชิ้น
@@ -367,7 +563,7 @@ export default function NewAllocationModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition"
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition cursor-pointer"
             >
               ยกเลิก
             </button>

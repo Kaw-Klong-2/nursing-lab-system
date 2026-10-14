@@ -147,40 +147,50 @@ export default function BorrowPage() {
 
       if (borrowRes.ok) {
         const data = await borrowRes.json();
-        setRequests(data);
-        try { sessionStorage.setItem('cached_borrow_requests', JSON.stringify(data)); } catch {}
+        if (Array.isArray(data)) {
+          setRequests(data);
+          try { sessionStorage.setItem('cached_borrow_requests', JSON.stringify(data)); } catch {}
+        }
       }
       if (itemsRes.ok) {
         const items = await itemsRes.json();
-        const filtered = items.filter((i: any) => i.isBorrowable !== false);
-        setEquipmentList(filtered);
-        try { sessionStorage.setItem('cached_borrow_equipment', JSON.stringify(filtered)); } catch {}
+        if (Array.isArray(items)) {
+          const filtered = items.filter((i: any) => i.isBorrowable !== false);
+          setEquipmentList(filtered);
+          try { sessionStorage.setItem('cached_borrow_equipment', JSON.stringify(filtered)); } catch {}
+        }
       }
       if (consumablesRes.ok) {
         const cItems = await consumablesRes.json();
-        setConsumablesList(cItems);
-        try { sessionStorage.setItem('cached_borrow_consumables', JSON.stringify(cItems)); } catch {}
+        if (Array.isArray(cItems)) {
+          setConsumablesList(cItems);
+          try { sessionStorage.setItem('cached_borrow_consumables', JSON.stringify(cItems)); } catch {}
+        }
       }
       if (coursesRes.ok) {
         const cData = await coursesRes.json();
-        setCourses(cData);
-        try { sessionStorage.setItem('cached_borrow_courses', JSON.stringify(cData)); } catch {}
+        if (Array.isArray(cData)) {
+          setCourses(cData);
+          try { sessionStorage.setItem('cached_borrow_courses', JSON.stringify(cData)); } catch {}
+        }
       }
       if (usersRes.ok) {
         const uData = await usersRes.json();
-        // Filter teachers/approvers or instructors
-        const teacherList = uData.filter(
-          (u: any) =>
-            u.role === 'APPROVER' ||
-            u.email.includes('teacher') ||
-            u.email.includes('approver') ||
-            u.name.startsWith('อ.') ||
-            u.name.startsWith('ผศ.') ||
-            u.name.startsWith('รศ.')
-        );
-        const finalTeachers = teacherList.length > 0 ? teacherList : uData;
-        setInstructors(finalTeachers);
-        try { sessionStorage.setItem('cached_borrow_instructors', JSON.stringify(finalTeachers)); } catch {}
+        if (Array.isArray(uData)) {
+          // Filter teachers/approvers or instructors
+          const teacherList = uData.filter(
+            (u: any) =>
+              u.role === 'APPROVER' ||
+              u.email?.includes('teacher') ||
+              u.email?.includes('approver') ||
+              u.name?.startsWith('อ.') ||
+              u.name?.startsWith('ผศ.') ||
+              u.name?.startsWith('รศ.')
+          );
+          const finalTeachers = teacherList.length > 0 ? teacherList : uData;
+          setInstructors(finalTeachers);
+          try { sessionStorage.setItem('cached_borrow_instructors', JSON.stringify(finalTeachers)); } catch {}
+        }
       }
       setLastUpdated(new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err) {
@@ -200,13 +210,38 @@ export default function BorrowPage() {
       const cInst = sessionStorage.getItem('cached_borrow_instructors');
 
       if (cReqs) {
-        setRequests(JSON.parse(cReqs));
-        setLoading(false);
+        try {
+          const parsed = JSON.parse(cReqs);
+          if (Array.isArray(parsed)) {
+            setRequests(parsed);
+            setLoading(false);
+          }
+        } catch {}
       }
-      if (cEq) setEquipmentList(JSON.parse(cEq));
-      if (cCon) setConsumablesList(JSON.parse(cCon));
-      if (cCourses) setCourses(JSON.parse(cCourses));
-      if (cInst) setInstructors(JSON.parse(cInst));
+      if (cEq) {
+        try {
+          const parsed = JSON.parse(cEq);
+          if (Array.isArray(parsed)) setEquipmentList(parsed);
+        } catch {}
+      }
+      if (cCon) {
+        try {
+          const parsed = JSON.parse(cCon);
+          if (Array.isArray(parsed)) setConsumablesList(parsed);
+        } catch {}
+      }
+      if (cCourses) {
+        try {
+          const parsed = JSON.parse(cCourses);
+          if (Array.isArray(parsed)) setCourses(parsed);
+        } catch {}
+      }
+      if (cInst) {
+        try {
+          const parsed = JSON.parse(cInst);
+          if (Array.isArray(parsed)) setInstructors(parsed);
+        } catch {}
+      }
     } catch {}
 
     fetchBorrowData();
@@ -2234,7 +2269,7 @@ export default function BorrowPage() {
       {/* New Semester-Long Course Allocation Modal */}
       {showNewAllocationModal && (
         <NewAllocationModal
-          courses={courses}
+          courses={Array.isArray(courses) ? courses : []}
           onClose={() => setShowNewAllocationModal(false)}
           onSuccess={() => {
             fetchAllocations();

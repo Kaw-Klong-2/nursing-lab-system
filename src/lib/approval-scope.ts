@@ -18,7 +18,7 @@ export const SCOPE_LABELS: Record<ApprovalScopeType, string> = {
  * ตรวจสอบว่าผู้ใช้มีสิทธิ์อนุมัติรายการประเภทนั้น ๆ หรือไม่
  */
 export function canUserApprove(
-  user: { role?: string; approvalScopes?: string | null } | null | undefined,
+  user: { role?: string; approvalScopes?: string | null; isExecutive?: boolean | null } | null | undefined,
   type: ApprovalScopeType
 ): boolean {
   if (!user) return false;
@@ -26,11 +26,15 @@ export function canUserApprove(
   // ADMIN can approve everything
   if (user.role === 'ADMIN') return true;
 
-  // Non-approvers cannot approve
-  if (user.role !== 'OFFICER' && user.role !== 'APPROVER') return false;
+  // If approvalScopes is explicitly NONE or empty string
+  if (!user.approvalScopes || user.approvalScopes === '' || user.approvalScopes === 'NONE') {
+    // Legacy fallback: only OFFICER or APPROVER without explicit empty scope defaults to true
+    if (user.role === 'OFFICER' || user.role === 'APPROVER') return true;
+    return false;
+  }
 
-  // If no scope is specified or set to ALL, user can approve all types
-  if (!user.approvalScopes || user.approvalScopes === 'ALL') return true;
+  // If scope is explicitly ALL
+  if (user.approvalScopes === 'ALL') return true;
 
   const scopes = user.approvalScopes
     .split(',')
@@ -43,10 +47,19 @@ export function canUserApprove(
  * ดึงรายการ Scope ทั้งหมดที่ผู้ใช้คนนี้มีสิทธิ์อนุมัติ
  */
 export function getEffectiveScopes(
-  user: { role?: string; approvalScopes?: string | null } | null | undefined
+  user: { role?: string; approvalScopes?: string | null; isExecutive?: boolean | null } | null | undefined
 ): ApprovalScopeType[] {
   if (!user) return [];
-  if (user.role === 'ADMIN' || !user.approvalScopes || user.approvalScopes === 'ALL') {
+  if (user.role === 'ADMIN') {
+    return ['BORROW', 'REQUISITION', 'PRACTICE', 'ROOM'];
+  }
+  if (!user.approvalScopes || user.approvalScopes === '' || user.approvalScopes === 'NONE') {
+    if (user.role === 'OFFICER' || user.role === 'APPROVER') {
+      return ['BORROW', 'REQUISITION', 'PRACTICE', 'ROOM'];
+    }
+    return [];
+  }
+  if (user.approvalScopes === 'ALL') {
     return ['BORROW', 'REQUISITION', 'PRACTICE', 'ROOM'];
   }
   const raw = user.approvalScopes.split(',').map((s) => s.trim().toUpperCase());

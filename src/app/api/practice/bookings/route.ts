@@ -152,8 +152,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4. Check duplicate booking by the same student in this slot
-    const existing = await prisma.practiceBooking.findFirst({
+    // 4. Check duplicate or overlapping practice bookings by the same student on this date
+    const existingSameSlot = await prisma.practiceBooking.findFirst({
       where: {
         userId,
         slotId,
@@ -161,9 +161,42 @@ export async function POST(req: Request) {
       },
     });
 
-    if (existing) {
+    if (existingSameSlot) {
       return NextResponse.json(
         { error: 'ท่านได้ยื่นคำขอในรอบเวลานี้ไปแล้ว' },
+        { status: 400 }
+      );
+    }
+
+    const overlappingBooking = await prisma.practiceBooking.findFirst({
+      where: {
+        userId,
+        status: { in: ['PENDING', 'APPROVED', 'CHECKED_IN'] },
+        slot: {
+          date: {
+            gte: slotDayStart,
+            lt: slotDayEnd,
+          },
+          startTime: { lt: slot.endTime },
+          endTime: { gt: slot.startTime },
+        },
+      },
+      include: {
+        slot: {
+          include: {
+            room: true,
+          },
+        },
+      },
+    });
+
+    if (overlappingBooking) {
+      const bookedRoom = overlappingBooking.slot.room?.name || 'ห้องปฏิบัติการ';
+      const bookedTime = `${overlappingBooking.slot.startTime} - ${overlappingBooking.slot.endTime} น.`;
+      return NextResponse.json(
+        {
+          error: `ท่านได้ทำการจองรอบฝึกทักษะในช่วงเวลาที่ซ้อนทับกันแล้ว (${bookedRoom} เวลา ${bookedTime}) กรุณาเลือกช่วงเวลาอื่นที่ไม่ซ้อนทับกัน`,
+        },
         { status: 400 }
       );
     }

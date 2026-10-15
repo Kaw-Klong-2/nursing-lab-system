@@ -15,6 +15,9 @@ export interface User {
   studentId?: string | null;
   phone?: string | null;
   approvalScopes?: string | null;
+  isExecutive?: boolean | null;
+  executiveRole?: string | null;
+  status?: string | null;
 }
 
 // Session timeout constants
@@ -405,8 +408,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isAdmin = currentUser?.role === 'ADMIN';
   const isOfficer = currentUser?.role === 'OFFICER' || isAdmin;
-  const isApprover = currentUser?.role === 'APPROVER' || isAdmin;
-  const isExecutive = currentUser?.role === 'EXECUTIVE' || isAdmin;
+  const isExecutive = currentUser?.isExecutive === true || currentUser?.role === 'EXECUTIVE' || isAdmin;
+  const isApprover =
+    currentUser?.role === 'APPROVER' ||
+    (Boolean(currentUser?.approvalScopes) && currentUser?.approvalScopes !== 'NONE' && currentUser?.approvalScopes !== '') ||
+    isAdmin;
   const isTeacher =
     currentUser?.role === 'TEACHER' ||
     currentUser?.role === 'APPROVER' ||

@@ -29,6 +29,11 @@ export async function GET(req: Request) {
         { department: { contains: 'หัวหน้า' } },
         { prefix: { in: ['อ.', 'ผศ.', 'ผศ.ดร.', 'รศ.', 'รศ.ดร.', 'ศ.', 'ศ.ดร.', 'ดร.', 'อาจารย์'] } },
       ];
+    } else if (role === 'EXECUTIVE') {
+      whereCondition.OR = [
+        { role: 'EXECUTIVE' },
+        { isExecutive: true },
+      ];
     } else if (role === 'INSTRUCTOR' || role === 'TEACHER') {
       whereCondition.OR = [
         { role: 'TEACHER' },
@@ -64,6 +69,8 @@ export async function GET(req: Request) {
         avatar: true,
         status: true,
         approvalScopes: true,
+        isExecutive: true,
+        executiveRole: true,
       },
       orderBy: { name: 'asc' },
     });
@@ -108,7 +115,9 @@ export async function POST(req: Request) {
         studentId: trimmedStudentId,
         phone: body.phone,
         status: body.status || 'ACTIVE',
-        approvalScopes: body.approvalScopes || 'ALL',
+        approvalScopes: body.approvalScopes !== undefined ? body.approvalScopes : null,
+        isExecutive: body.isExecutive === true,
+        executiveRole: body.isExecutive ? (body.executiveRole ? String(body.executiveRole).trim() : null) : null,
       },
     });
 

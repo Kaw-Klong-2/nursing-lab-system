@@ -129,6 +129,53 @@ export async function POST(req: Request) {
 
     // Batch creation support
     if (Array.isArray(body.slots) && body.slots.length > 0) {
+      // Validate each slot against existing slots and approved room bookings
+      for (const s of body.slots) {
+        const sDate = parseDateAsUtcMidnight(s.date);
+        const sStart = new Date(sDate);
+        sStart.setHours(0, 0, 0, 0);
+        const sEnd = new Date(sStart);
+        sEnd.setDate(sStart.getDate() + 1);
+
+        const slotConflict = await prisma.practiceSlot.findFirst({
+          where: {
+            roomId: s.roomId,
+            date: { gte: sStart, lt: sEnd },
+            startTime: { lt: s.endTime },
+            endTime: { gt: s.startTime },
+          },
+          include: { room: true },
+        });
+
+        if (slotConflict) {
+          return NextResponse.json(
+            {
+              error: `ไม่สามารถสร้างรอบฝึกทักษะได้: ห้อง "${slotConflict.room.name}" วันที่ ${s.date} มีรอบฝึกทักษะซ้อนทับกันอยู่แล้ว (${slotConflict.startTime} - ${slotConflict.endTime} น.)`,
+            },
+            { status: 409 }
+          );
+        }
+
+        const roomConflict = await prisma.roomBooking.findFirst({
+          where: {
+            roomId: s.roomId,
+            bookingDate: { gte: sStart, lt: sEnd },
+            status: 'APPROVED',
+            startTime: { lt: s.endTime },
+            endTime: { gt: s.startTime },
+          },
+        });
+
+        if (roomConflict) {
+          return NextResponse.json(
+            {
+              error: `ไม่สามารถสร้างรอบฝึกทักษะได้: วันที่ ${s.date} เวลา ${s.startTime} - ${s.endTime} น. ห้องนี้ได้รับการอนุมัติให้ใช้เรียนการสอน/กิจกรรมแล้ว ("${roomConflict.title}")`,
+            },
+            { status: 409 }
+          );
+        }
+      }
+
       const dataToInsert = body.slots.map((s: any) => {
         const slotDate = parseDateAsUtcMidnight(s.date);
         return {
@@ -157,6 +204,50 @@ export async function POST(req: Request) {
     }
 
     const slotDate = parseDateAsUtcMidnight(date);
+    const slotDayStart = new Date(slotDate);
+    slotDayStart.setHours(0, 0, 0, 0);
+    const slotDayEnd = new Date(slotDayStart);
+    slotDayEnd.setDate(slotDayStart.getDate() + 1);
+
+    // 1. Check existing practice slot in same room with overlapping time
+    const existingSlot = await prisma.practiceSlot.findFirst({
+      where: {
+        roomId,
+        date: { gte: slotDayStart, lt: slotDayEnd },
+        startTime: { lt: endTime },
+        endTime: { gt: startTime },
+      },
+      include: { room: true },
+    });
+
+    if (existingSlot) {
+      return NextResponse.json(
+        {
+          error: `ห้อง "${existingSlot.room.name}" มีการเปิดรอบฝึกทักษะในช่วงเวลานี้อยู่แล้ว (${existingSlot.startTime} - ${existingSlot.endTime} น.) ไม่สามารถเปิดรอบซ้ำซ้อนได้`,
+        },
+        { status: 409 }
+      );
+    }
+
+    // 2. Check approved room booking in same room with overlapping time
+    const conflictingApprovedRoom = await prisma.roomBooking.findFirst({
+      where: {
+        roomId,
+        bookingDate: { gte: slotDayStart, lt: slotDayEnd },
+        status: 'APPROVED',
+        startTime: { lt: endTime },
+        endTime: { gt: startTime },
+      },
+    });
+
+    if (conflictingApprovedRoom) {
+      return NextResponse.json(
+        {
+          error: `ไม่สามารถเปิดรอบฝึกทักษะได้: ห้องนี้ได้รับการอนุมัติให้ใช้งานการเรียนการสอน/กิจกรรมแล้ว (${conflictingApprovedRoom.startTime} - ${conflictingApprovedRoom.endTime} น.: "${conflictingApprovedRoom.title}")`,
+        },
+        { status: 409 }
+      );
+    }
 
     const slot = await prisma.practiceSlot.create({
       data: {

@@ -60,6 +60,15 @@ export async function PUT(
     }
     if (body.status !== undefined) dataToUpdate.status = body.status;
     if (body.approvalScopes !== undefined) dataToUpdate.approvalScopes = body.approvalScopes;
+    if (body.isExecutive !== undefined) {
+      dataToUpdate.isExecutive = body.isExecutive === true;
+      if (!body.isExecutive) {
+        dataToUpdate.executiveRole = null;
+      }
+    }
+    if (body.executiveRole !== undefined) {
+      dataToUpdate.executiveRole = body.executiveRole ? String(body.executiveRole).trim() : null;
+    }
 
     const updatedUser = await prisma.user.update({
       where: { id },

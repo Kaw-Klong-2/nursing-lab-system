@@ -355,3 +355,96 @@ export function getRoleLabel(role?: string | null): string {
   }
 }
 
+export interface UserBadgeInfo {
+  type: 'PRIMARY' | 'EXECUTIVE' | 'APPROVER';
+  label: string;
+  detail?: string;
+  badgeClass: string;
+}
+
+/**
+ * Returns composite badges for a user: Primary Role + Executive (if any) + Approver Scopes (if any).
+ */
+export function getUserBadges(user?: {
+  role?: string | null;
+  isExecutive?: boolean | null;
+  executiveRole?: string | null;
+  approvalScopes?: string | null;
+} | null): UserBadgeInfo[] {
+  if (!user) return [];
+  const badges: UserBadgeInfo[] = [];
+
+  // 1. Primary role
+  const role = user.role || 'USER';
+  let primaryLabel = getRoleLabel(role);
+  let primaryClass = 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800';
+
+  if (role === 'ADMIN') {
+    primaryLabel = 'ผู้ดูแลระบบ';
+    primaryClass = 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800';
+  } else if (role === 'OFFICER') {
+    primaryLabel = 'เจ้าหน้าที่ห้องแล็บ';
+    primaryClass = 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800';
+  } else if (role === 'TEACHER') {
+    primaryLabel = 'อาจารย์';
+    primaryClass = 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800';
+  } else if (role === 'APPROVER') {
+    primaryLabel = 'ผู้อนุมัติ';
+    primaryClass = 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800';
+  } else if (role === 'USER') {
+    primaryLabel = 'นิสิต';
+    primaryClass = 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800';
+  }
+
+  badges.push({
+    type: 'PRIMARY',
+    label: primaryLabel,
+    badgeClass: primaryClass,
+  });
+
+  // 2. Executive dimension
+  if (user.isExecutive || role === 'EXECUTIVE') {
+    const execTitle = user.executiveRole?.trim() || 'ผู้บริหาร';
+    badges.push({
+      type: 'EXECUTIVE',
+      label: `🏛️ ${execTitle}`,
+      detail: execTitle,
+      badgeClass: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800',
+    });
+  }
+
+  // 3. Approver dimension
+  const hasScopes = Boolean(user.approvalScopes && user.approvalScopes !== 'NONE' && user.approvalScopes !== '');
+  if (role !== 'ADMIN' && (hasScopes || role === 'APPROVER')) {
+    let scopeText = 'ทั้งหมด';
+    if (user.approvalScopes && user.approvalScopes !== 'ALL') {
+      const raw = user.approvalScopes.split(',').map((s) => s.trim().toUpperCase());
+      const hasBorrow = raw.includes('BORROW');
+      const hasReq = raw.includes('REQUISITION');
+      const hasPractice = raw.includes('PRACTICE');
+      const hasRoom = raw.includes('ROOM');
+
+      if (hasBorrow && hasReq && !hasPractice && !hasRoom) {
+        scopeText = 'พัสดุและครุภัณฑ์';
+      } else if (!hasBorrow && !hasReq && (hasPractice || hasRoom)) {
+        scopeText = 'ห้องปฏิบัติการ';
+      } else {
+        const labels: string[] = [];
+        if (hasBorrow) labels.push('ยืม');
+        if (hasReq) labels.push('เบิก');
+        if (hasPractice) labels.push('ฝึกทักษะ');
+        if (hasRoom) labels.push('จองห้อง');
+        scopeText = labels.join(', ');
+      }
+    }
+    badges.push({
+      type: 'APPROVER',
+      label: `📋 สิทธิ์อนุมัติ: ${scopeText}`,
+      detail: scopeText,
+      badgeClass: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800',
+    });
+  }
+
+  return badges;
+}
+

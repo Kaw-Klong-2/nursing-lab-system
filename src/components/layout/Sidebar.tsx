@@ -43,7 +43,7 @@ interface SidebarProps {
 
 export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps = {}) {
   const pathname = usePathname();
-  const { currentUser, isOfficer, isApprover, isAdmin, logout } = useAuth();
+  const { currentUser, isOfficer, isApprover, isExecutive, isAdmin, logout } = useAuth();
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
@@ -315,9 +315,15 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
 
         <nav className="space-y-2">
           {navGroups.map((group) => {
-            const visibleItems = group.items.filter((item) =>
-              item.roles.includes(userRole)
-            );
+            const visibleItems = group.items.filter((item) => {
+              if (item.href === '/executive') {
+                return isExecutive || isAdmin || item.roles.includes(userRole);
+              }
+              if (item.href === '/approvals') {
+                return isApprover || isAdmin || item.roles.includes(userRole);
+              }
+              return item.roles.includes(userRole);
+            });
             if (visibleItems.length === 0) return null;
 
             const isOpen = openGroups[group.groupKey] ?? true;
@@ -408,12 +414,22 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           <div className="text-xs font-bold text-white">
             {formatUserName(currentUser) || 'ผู้ใช้งาน'}
           </div>
-          <div className="text-[10px] text-slate-400">
-            {userRole === 'ADMIN' && 'เข้าถึงและกำหนดค่าได้ทุกระบบ'}
-            {userRole === 'OFFICER' && 'จัดการคลัง รับเข้า จ่ายของ และตรวจคืน'}
-            {userRole === 'APPROVER' && 'มีสิทธิ์อนุมัติคำขอยืมและเบิก (หัวหน้าภาค/ผู้บริหาร)'}
-            {userRole === 'TEACHER' && 'มีสิทธิ์กดรับทราบคำขอ ยืมพัสดุสอน และดูต้นทุนวิชา'}
-            {userRole === 'USER' && 'มีสิทธิ์ยื่นคำขอยืมและขอเบิกวัสดุ'}
+          <div className="text-[10px] text-slate-400 space-y-0.5">
+            {currentUser?.isExecutive && (
+              <div className="text-rose-300 font-semibold">
+                🏛️ {currentUser.executiveRole || 'ผู้บริหาร'}
+              </div>
+            )}
+            {userRole === 'ADMIN' && <div>เข้าถึงและกำหนดค่าได้ทุกระบบ</div>}
+            {userRole === 'OFFICER' && <div>จัดการคลัง รับเข้า จ่ายของ และตรวจคืน</div>}
+            {userRole === 'APPROVER' && <div>มีสิทธิ์อนุมัติคำขอยืมและเบิก (หัวหน้าภาค/ผู้บริหาร)</div>}
+            {userRole === 'TEACHER' && <div>อาจารย์ผู้สอน (มีสิทธิ์รับทราบคำขอ/ยืมสอน)</div>}
+            {userRole === 'USER' && <div>นิสิต (มีสิทธิ์ยื่นคำขอยืมและขอเบิกวัสดุ)</div>}
+            {userRole !== 'ADMIN' && currentUser?.approvalScopes && currentUser.approvalScopes !== 'NONE' && (
+              <div className="text-amber-300 font-medium pt-0.5">
+                📋 มีสิทธิ์อนุมัติคำขอในระบบ
+              </div>
+            )}
           </div>
         </div>
 

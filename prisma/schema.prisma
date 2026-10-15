@@ -21,6 +21,8 @@ model User {
   avatar      String?
   status      String   @default("ACTIVE")
   approvalScopes String? @default("ALL") // "ALL" or comma-separated: "BORROW,REQUISITION,PRACTICE,ROOM"
+  isExecutive    Boolean  @default(false)
+  executiveRole  String?  // ตำแหน่งบริหาร เช่น คณบดี, รองคณบดีฝ่ายวิชาการ (ถ้าเว้นว่างจะแสดงค่าเริ่มต้น "ผู้บริหาร")
   resetToken  String?
   resetTokenExpiry DateTime?
   pendingEmail    String?

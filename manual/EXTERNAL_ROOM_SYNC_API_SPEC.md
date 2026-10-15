@@ -79,7 +79,12 @@ console.log('พบรายการจองห้องแล็บ:', result
       "requester_type": "personnel",
       "booking_type": "academic",
       "course_code": "01418112",
-      "course_name": "การพยาบาลผู้ใหญ่และผู้สูงอายุ 1",
+      "course_name": "การพยาบาลผู้ใหญ่และผู้สูงอายุ 1 (ชั้นปีที่ 2)",
+      "course_name_raw": "การพยาบาลผู้ใหญ่และผู้สูงอายุ 1",
+      "student_year": 2,
+      "term_semester": "1/2569",
+      "course_target_year": 2,
+      "course_year_level": "ชั้นปีที่ 2",
       "instructor_name": "ผศ.ดร.สมชาย ใจดี",
       "overall_objective": "การเรียนการสอนภาคปฏิบัติการสวนปัสสาวะ",
       "status": "pending",
@@ -121,21 +126,24 @@ console.log('พบรายการจองห้องแล็บ:', result
 เมื่อระบบปลายทางดึงข้อมูลไป สามารถนำค่าไป `insert` หรือ `upsert` ลงตารางทั้ง 2 ของท่านได้ทันที:
 
 ### ตาราง `room_bookings` (หัวใบจอง)
-| ข้อมูลจาก API แล็บ | คอลัมน์เป้าหมายใน `room_bookings` | ตัวอย่างค่า |
-| :--- | :--- | :--- |
-| `booking_code` | `booking_code` | `ROOM-25691015-001` |
-| `requester_type` | `requester_type` | `personnel` หรือ `guest` |
-| `booking_type` | `booking_type` | `academic`, `meeting`, หรือ `event` |
-| `course_code` | `course_code` | `01418112` |
-| `course_name` | `course_name` | `การพยาบาลผู้ใหญ่และผู้สูงอายุ 1` |
-| `instructor_name` | `instructor_name` | `ผศ.ดร.สมชาย ใจดี` |
-| `overall_objective` | `overall_objective` | `การเรียนการสอนภาคปฏิบัติ...` |
-| `requester_name` | `guest_name` | `ผศ.ดร.สมชาย ใจดี` |
-| `requester_email` | `guest_email` | `somchai.j@ku.th` |
-| `requester_phone` | `guest_phone` | `081-234-5678` |
-| `equipment_req` | `equipment_req` | Array ของอุปกรณ์ |
-| `status` | `status` | `approved` |
-| `deep_link_url` | `admin_notes` | บันทึก URL ลิงก์ตรงกลับมาระบบแล็บ |
+| ข้อมูลจาก API แล็บ | คอลัมน์เป้าหมายใน `room_bookings` | ตัวอย่างค่า | คำอธิบาย |
+| :--- | :--- | :--- | :--- |
+| `booking_code` | `booking_code` | `ROOM-25691015-001` | รหัสอ้างอิงใบจอง |
+| `requester_type` | `requester_type` | `personnel` หรือ `guest` | ประเภทผู้ขอจอง |
+| `booking_type` | `booking_type` | `academic`, `meeting`, หรือ `event` | ประเภทวัตถุประสงค์ |
+| `course_code` | `course_code` | `01418112` | รหัสวิชา |
+| `course_name` | `course_name` | `การพยาบาลผู้ใหญ่และผู้สูงอายุ 1 (ชั้นปีที่ 2)` | ชื่อวิชา (มีชั้นปีกำกับเพื่อแสดงผลบนตารางปฏิทินทันที) |
+| `student_year` | `student_year` | `2` (Integer) | ชั้นปีของนิสิต (ตรงกับคอลัมน์ลำดับที่ 8 ใน room_bookings) |
+| `term_semester` | `term_semester` | `1/2569` (Text) | ภาคการศึกษา (ตรงกับคอลัมน์ลำดับที่ 9 ใน room_bookings) |
+| `course_target_year` | `student_year` | `2` (Integer) | ฟิลด์สำรองสำหรับชั้นปี |
+| `instructor_name` | `instructor_name` | `ผศ.ดร.สมชาย ใจดี` | อาจารย์ผู้รับผิดชอบ |
+| `overall_objective` | `overall_objective` | `การเรียนการสอนภาคปฏิบัติ...` | วัตถุประสงค์ |
+| `requester_name` | `guest_name` | `ผศ.ดร.สมชาย ใจดี` | ผู้ติดต่อ |
+| `requester_email` | `guest_email` | `somchai.j@ku.th` | อีเมล |
+| `requester_phone` | `guest_phone` | `081-234-5678` | เบอร์โทรศัพท์ |
+| `equipment_req` | `equipment_req` | Array ของอุปกรณ์ | รายการอุปกรณ์ที่ขอใช้ |
+| `status` | `status` | `approved` | สถานะใบจอง |
+| `deep_link_url` | `admin_notes` | บันทึก URL ลิงก์ตรงกลับมาระบบแล็บ | ลิงก์ตรงสำหรับเปิดดูในระบบแล็บ |
 
 ### ตาราง `room_booking_slots` (สล็อตเวลาบนปฏิทิน)
 | ข้อมูลจาก API แล็บ | คอลัมน์เป้าหมายใน `room_booking_slots` | ตัวอย่างค่า |

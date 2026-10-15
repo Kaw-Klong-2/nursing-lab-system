@@ -153,6 +153,9 @@ export async function GET(req: Request) {
             id: true,
             code: true,
             name: true,
+            targetYear: true,
+            semester: true,
+            academicYear: true,
           },
         },
         approver: {
@@ -212,7 +215,14 @@ export async function GET(req: Request) {
         requester_type: requesterType,
         booking_type: bookingType,
         course_code: b.course?.code || null,
-        course_name: b.course?.name || null,
+        course_name: b.course
+          ? (b.course.targetYear ? `${b.course.name} (ชั้นปีที่ ${b.course.targetYear})` : b.course.name)
+          : null,
+        course_name_raw: b.course?.name || null,
+        student_year: b.course?.targetYear || null, // ตรงกับคอลัมน์ student_year (integer) ในตาราง room_bookings
+        term_semester: b.course ? `${b.course.semester}/${b.course.academicYear}` : null, // ตรงกับคอลัมน์ term_semester (text) ในตาราง room_bookings เช่น "1/2569"
+        course_target_year: b.course?.targetYear || null,
+        course_year_level: b.course?.targetYear ? `ชั้นปีที่ ${b.course.targetYear}` : null,
         instructor_name: b.advisorName || null,
         overall_objective: b.title,
         status: b.status.toLowerCase(), // approved, pending, rejected, cancelled

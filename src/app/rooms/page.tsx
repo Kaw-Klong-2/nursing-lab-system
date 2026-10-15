@@ -2181,9 +2181,14 @@ export default function RoomsPage() {
                         </div>
 
                         {b.course && (
-                          <div className="inline-flex items-center gap-1 text-teal-800 bg-teal-50 px-2 py-0.5 rounded font-bold">
+                          <div className="inline-flex items-center gap-1.5 text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded font-bold border border-teal-100 dark:border-teal-800">
                             <BookOpen className="w-3.5 h-3.5" />
                             <span>รายวิชา: [{b.course.code}] {b.course.name}</span>
+                            {b.course.targetYear && (
+                              <span className="text-[10px] bg-teal-200/80 dark:bg-teal-900 text-teal-900 dark:text-teal-200 px-1.5 py-0.2 rounded font-bold">
+                                ชั้นปีที่ {b.course.targetYear}
+                              </span>
+                            )}
                           </div>
                         )}
 
@@ -3021,7 +3026,7 @@ export default function RoomsPage() {
                       <option value="">-- ไม่ระบุรายวิชา (ฝึกอิสระ/กิจกรรม) --</option>
                       {courses.map((c) => (
                         <option key={c.id} value={c.id}>
-                          [{c.code}] {c.name} ({formatTeacherName(c.instructorName || 'อาจารย์ผู้รับผิดชอบ')})
+                          [{c.code}] {c.name} {c.targetYear ? `(ชั้นปีที่ ${c.targetYear})` : ''} ({formatTeacherName(c.instructorName || 'อาจารย์ผู้รับผิดชอบ')})
                         </option>
                       ))}
                     </select>

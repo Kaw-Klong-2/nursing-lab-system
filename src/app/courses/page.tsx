@@ -45,13 +45,26 @@ export default function CoursesPage() {
   // Search & Status Filter
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const [yearFilter, setYearFilter] = useState<'ALL' | '1' | '2' | '3' | '4'>('ALL');
   const [toggleSubmitting, setToggleSubmitting] = useState(false);
 
   // New Course Modal State
   const [showNewModal, setShowNewModal] = useState(false);
-  const [newCourse, setNewCourse] = useState({
+  const [newCourse, setNewCourse] = useState<{
+    code: string;
+    name: string;
+    targetYear: number | null;
+    semester: string;
+    academicYear: string;
+    instructorName: string;
+    description: string;
+    allocatedBudget: number;
+    studentCount: number;
+    status: string;
+  }>({
     code: '',
     name: '',
+    targetYear: 1,
     semester: '1',
     academicYear: '2569',
     instructorName: '',
@@ -68,6 +81,7 @@ export default function CoursesPage() {
     id: string;
     code: string;
     name: string;
+    targetYear: number | null;
     semester: string;
     academicYear: string;
     instructorName: string;
@@ -167,6 +181,7 @@ export default function CoursesPage() {
         setNewCourse({
           code: '',
           name: '',
+          targetYear: 1,
           semester: currentTerm ? toLegacySemesterCode(currentTerm.term) : '1',
           academicYear: currentTerm?.academicYear || '2569',
           instructorName: '',
@@ -199,6 +214,10 @@ export default function CoursesPage() {
       id: course.id,
       code: course.code,
       name: course.name,
+      targetYear:
+        course.targetYear !== undefined && course.targetYear !== null
+          ? Number(course.targetYear)
+          : null,
       semester: course.semester || '1',
       academicYear: course.academicYear || '2569',
       instructorName: formattedInst,
@@ -280,13 +299,16 @@ export default function CoursesPage() {
     const courseStatus = c.status || 'ACTIVE';
     const matchesStatus =
       statusFilter === 'ALL' || courseStatus === statusFilter;
+    const matchesYear =
+      yearFilter === 'ALL' ||
+      (c.targetYear ? String(c.targetYear) === yearFilter : false);
     const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
       !q ||
       c.code?.toLowerCase().includes(q) ||
       c.name?.toLowerCase().includes(q) ||
       c.instructorName?.toLowerCase().includes(q);
-    return matchesStatus && matchesSearch;
+    return matchesStatus && matchesYear && matchesSearch;
   });
 
   const activeCount = courses.filter((c: any) => (c.status || 'ACTIVE') === 'ACTIVE').length;
@@ -465,6 +487,25 @@ export default function CoursesPage() {
             </button>
           </div>
 
+          {/* Year Filter Tabs */}
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl text-[10px] font-bold text-center">
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 px-1.5 shrink-0">ชั้นปี:</span>
+            {(['ALL', '1', '2', '3', '4'] as const).map((yr) => (
+              <button
+                key={yr}
+                type="button"
+                onClick={() => setYearFilter(yr)}
+                className={`flex-1 py-1 rounded-lg transition cursor-pointer ${
+                  yearFilter === yr
+                    ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                {yr === 'ALL' ? 'ทุกปี' : `ปี ${yr}`}
+              </button>
+            ))}
+          </div>
+
           {/* Course Cards List */}
           <div className="space-y-2.5">
             {filteredCourses.length === 0 ? (
@@ -494,6 +535,11 @@ export default function CoursesPage() {
                         <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-teal-50 dark:bg-teal-950/70 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
                           {c.code}
                         </span>
+                        {c.targetYear && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                            ชั้นปีที่ {c.targetYear}
+                          </span>
+                        )}
                         {isActive ? (
                           <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                             เปิดสอน
@@ -570,6 +616,14 @@ export default function CoursesPage() {
                       <span>ผู้ประสานงาน: <strong className="text-slate-700 dark:text-slate-300">{formatTeacherName(selectedCourse.instructorName)}</strong></span>
                       <span>•</span>
                       <span>{formatTermName(selectedCourse.semester)}/{selectedCourse.academicYear}</span>
+                      {selectedCourse.targetYear && (
+                        <>
+                          <span>•</span>
+                          <span className="inline-flex items-center gap-1 text-indigo-700 dark:text-indigo-400 font-bold bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800">
+                            ชั้นปีที่ {selectedCourse.targetYear}
+                          </span>
+                        </>
+                      )}
                       <span>•</span>
                       <span className="inline-flex items-center gap-1 text-teal-700 dark:text-teal-400 font-bold bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded-md border border-teal-200 dark:border-teal-800">
                         <Users className="w-3 h-3" />
@@ -828,7 +882,28 @@ export default function CoursesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    ชั้นปีของนิสิต
+                  </label>
+                  <select
+                    value={newCourse.targetYear === null ? '' : newCourse.targetYear}
+                    onChange={(e) =>
+                      setNewCourse({
+                        ...newCourse,
+                        targetYear: e.target.value === '' ? null : Number(e.target.value),
+                      })
+                    }
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-teal-500/20 cursor-pointer"
+                  >
+                    <option value="">ทุกชั้นปี / ไม่ระบุ</option>
+                    <option value="1">ชั้นปีที่ 1</option>
+                    <option value="2">ชั้นปีที่ 2</option>
+                    <option value="3">ชั้นปีที่ 3</option>
+                    <option value="4">ชั้นปีที่ 4</option>
+                  </select>
+                </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     ภาคการศึกษา
@@ -1032,7 +1107,32 @@ export default function CoursesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    ชั้นปีของนิสิต
+                  </label>
+                  <select
+                    value={
+                      editCourse.targetYear === null || editCourse.targetYear === undefined
+                        ? ''
+                        : editCourse.targetYear
+                    }
+                    onChange={(e) =>
+                      setEditCourse({
+                        ...editCourse,
+                        targetYear: e.target.value === '' ? null : Number(e.target.value),
+                      })
+                    }
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-teal-500/20 cursor-pointer"
+                  >
+                    <option value="">ทุกชั้นปี / ไม่ระบุ</option>
+                    <option value="1">ชั้นปีที่ 1</option>
+                    <option value="2">ชั้นปีที่ 2</option>
+                    <option value="3">ชั้นปีที่ 3</option>
+                    <option value="4">ชั้นปีที่ 4</option>
+                  </select>
+                </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     ภาคการศึกษา

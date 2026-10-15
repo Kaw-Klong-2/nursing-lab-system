@@ -56,6 +56,7 @@ model Course {
   id              String   @id @default(cuid())
   code            String   @unique
   name            String
+  targetYear      Int?     @default(1) // ชั้นปีของนิสิต เช่น 1, 2, 3, 4 (null = ทุกชั้นปี/ไม่ระบุ)
   semester        String   @default("1")
   academicYear    String   @default("2569")
   instructorName  String

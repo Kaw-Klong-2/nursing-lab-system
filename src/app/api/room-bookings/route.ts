@@ -69,6 +69,7 @@ export async function GET(req: Request) {
             id: true,
             code: true,
             name: true,
+            targetYear: true,
           },
         },
         approver: {

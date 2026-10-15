@@ -37,6 +37,7 @@ export async function PUT(
     const {
       code,
       name,
+      targetYear,
       semester,
       academicYear,
       instructorName,
@@ -73,6 +74,10 @@ export async function PUT(
       data: {
         code: code.trim(),
         name: name.trim(),
+        targetYear:
+          targetYear !== undefined && targetYear !== null && targetYear !== ''
+            ? Number(targetYear)
+            : null,
         semester: semester ? String(semester) : '1',
         academicYear: academicYear ? String(academicYear) : '2569',
         instructorName: formatTeacherName(instructorName),

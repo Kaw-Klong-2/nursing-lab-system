@@ -31,6 +31,9 @@ export async function GET(req: Request) {
           id: true,
           code: true,
           name: true,
+          targetYear: true,
+          semester: true,
+          academicYear: true,
           instructorName: true,
           allocatedBudget: true,
           studentCount: true,
@@ -108,6 +111,7 @@ export async function GET(req: Request) {
         id: course.id,
         code: course.code,
         name: course.name,
+        targetYear: course.targetYear,
         semester: course.semester,
         academicYear: course.academicYear,
         instructorName: course.instructorName,
@@ -149,6 +153,10 @@ export async function POST(req: Request) {
       data: {
         code: body.code,
         name: body.name,
+        targetYear:
+          body.targetYear !== undefined && body.targetYear !== null && body.targetYear !== ''
+            ? Number(body.targetYear)
+            : null,
         semester: body.semester || '1',
         academicYear: body.academicYear || '2569',
         instructorName: body.instructorName ? formatTeacherName(body.instructorName) : '',

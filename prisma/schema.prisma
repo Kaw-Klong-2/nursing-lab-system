@@ -542,6 +542,7 @@ model PracticeConfig {
 model RoomBooking {
   id              String        @id @default(cuid())
   bookingNumber   String        @unique // เช่น "ROOM-25690911-001"
+  batchGroupId    String?       // รหัสเชื่อมโยงกลุ่มการจองหลายห้อง/หลายวัน เช่น "BATCH-25691015-cuid"
   roomId          String
   room            PracticeRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
   userId          String
@@ -573,6 +574,7 @@ model RoomBooking {
 
   @@index([roomId, bookingDate])
   @@index([userId, status])
+  @@index([batchGroupId])
 }
 
 model Notification {

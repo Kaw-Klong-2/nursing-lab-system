@@ -12,8 +12,13 @@ export async function GET(req: Request) {
     const roomId = searchParams.get('roomId');
     const userId = searchParams.get('userId');
     const status = searchParams.get('status');
+    const batchGroupId = searchParams.get('batchGroupId');
 
     const where: any = {};
+
+    if (batchGroupId) {
+      where.batchGroupId = batchGroupId;
+    }
 
     if (roomId && roomId !== 'ALL') {
       where.roomId = roomId;

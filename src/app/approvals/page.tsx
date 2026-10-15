@@ -74,7 +74,12 @@ export default function ApprovalsPage() {
       const params = new URLSearchParams(window.location.search);
       const targetId = params.get('id');
       const targetType = params.get('type');
-      if (targetId) {
+      const targetBatchId = params.get('batchId') || params.get('batchGroupId');
+      if (targetBatchId) {
+        setHighlightId(targetBatchId);
+        setActiveTab('ROOM');
+        setStatusFilter('PENDING');
+      } else if (targetId) {
         setHighlightId(targetId);
       }
       if (targetType) {
@@ -90,7 +95,7 @@ export default function ApprovalsPage() {
   useEffect(() => {
     if (highlightId && !loading) {
       const timer = setTimeout(() => {
-        const el = document.getElementById(`approval-card-${highlightId}`);
+        const el = document.getElementById(`approval-card-${highlightId}`) || document.getElementById(`approval-row-${highlightId}`);
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
@@ -103,7 +108,7 @@ export default function ApprovalsPage() {
     if (currentUser && !isAdmin) {
       // If user came via direct deep link with specific type or id, do not override
       const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-      if (params?.get('type') || params?.get('id')) return;
+      if (params?.get('type') || params?.get('id') || params?.get('batchId') || params?.get('batchGroupId')) return;
 
       const hasItems = canUserApprove(currentUser, 'BORROW') || canUserApprove(currentUser, 'REQUISITION');
       const hasRooms = canUserApprove(currentUser, 'PRACTICE') || canUserApprove(currentUser, 'ROOM');
@@ -136,7 +141,7 @@ export default function ApprovalsPage() {
       ...allPracticeBookings.map((p) => ({ ...p, _type: 'PRACTICE' })),
       ...allRoomBookings.map((rm) => ({ ...rm, _type: 'ROOM' })),
     ];
-    const match = all.find((item) => item.id === highlightId);
+    const match = all.find((item) => item.id === highlightId || item.batchGroupId === highlightId);
     if (match) {
       if (match.status === 'PENDING') {
         setStatusFilter('PENDING');
@@ -158,7 +163,13 @@ export default function ApprovalsPage() {
   }, [highlightId, loading, allBorrows, allRequisitions, allPracticeBookings, allRoomBookings]);
 
   // Reject Modal State
-  const [rejectItem, setRejectItem] = useState<{ id: string; type: 'BORROW' | 'REQUISITION' | 'PRACTICE' | 'ROOM' } | null>(null);
+  const [rejectItem, setRejectItem] = useState<{
+    id: string;
+    type: 'BORROW' | 'REQUISITION' | 'PRACTICE' | 'ROOM';
+    isBatch?: boolean;
+    batchGroupId?: string;
+    batchCount?: number;
+  } | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
@@ -285,6 +296,44 @@ export default function ApprovalsPage() {
     }
   };
 
+  const handleBatchRoomApprove = async (batchGroupId: string, count: number) => {
+    if (!canApproveRoom) {
+      alert('ท่านไม่มีสิทธิ์อนุมัติการจองห้องปฏิบัติการ (อยู่นอกเหนือขอบเขตความรับผิดชอบ)');
+      return;
+    }
+    if (!window.confirm(`ยืนยันการอนุมัติคำขอจองห้องทั้งชุดจำนวน ${count} รายการใช่หรือไม่?`)) {
+      return;
+    }
+    setApprovingId(batchGroupId);
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/room-bookings/batch-approval', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          batchGroupId,
+          action: 'APPROVE',
+          userId: currentUser?.id,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        if (data.conflicts && data.conflicts.length > 0) {
+          alert(`อนุมัติสำเร็จ ${data.approvedCount} รายการ\n⚠️ พบความขัดแย้งเวลา ${data.conflicts.length} รายการ (ไม่ได้อนุมัติ)`);
+        }
+        await fetchData();
+      } else {
+        alert(data.error || 'เกิดข้อผิดพลาดในการอนุมัติชุดคำขอ');
+      }
+    } catch (err) {
+      alert('Network error');
+    } finally {
+      setApprovingId(null);
+      setSubmitting(false);
+    }
+  };
+
   const handleRejectSubmit = async () => {
     if (!rejectItem) return;
     if (!canUserApprove(currentUser, rejectItem.type)) {
@@ -293,6 +342,29 @@ export default function ApprovalsPage() {
     }
     setSubmitting(true);
     try {
+      if (rejectItem.isBatch && rejectItem.batchGroupId) {
+        const res = await fetch('/api/room-bookings/batch-approval', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            batchGroupId: rejectItem.batchGroupId,
+            action: 'REJECT',
+            userId: currentUser?.id,
+            reason: rejectionReason,
+          }),
+        });
+
+        if (res.ok) {
+          setRejectItem(null);
+          setRejectionReason('');
+          await fetchData();
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          alert(errData.error || 'เกิดข้อผิดพลาดในการไม่อนุมัติชุดคำขอ');
+        }
+        return;
+      }
+
       const endpoint =
         rejectItem.type === 'BORROW'
           ? `/api/borrow/${rejectItem.id}`
@@ -453,69 +525,6 @@ export default function ApprovalsPage() {
       ? allRoomBookings
       : allRoomBookings.filter((r) => isRelevantToUser(r, currentUser, 'ROOM'));
 
-  // Filter Borrows by statusFilter
-  const filteredBorrows = scopedBorrows.filter((b) => {
-    if (statusFilter === 'PENDING') return b.status === 'PENDING';
-    if (statusFilter === 'APPROVED') return isApproved(b.status);
-    if (statusFilter === 'REJECTED') return b.status === 'REJECTED';
-    return true;
-  });
-
-  // Filter Requisitions by statusFilter (exclude requisitions that are already linked & shown inside a unified BorrowRequest)
-  const filteredRequisitions = scopedRequisitions.filter((r) => {
-    if (r.borrowRequest) return false;
-    if (statusFilter === 'PENDING') return r.status === 'PENDING';
-    if (statusFilter === 'APPROVED') return isApproved(r.status);
-    if (statusFilter === 'REJECTED') return r.status === 'REJECTED';
-    return true;
-  });
-
-  // Filter Practice Bookings by statusFilter
-  const filteredPracticeBookings = scopedPracticeBookings.filter((p) => {
-    if (statusFilter === 'PENDING') return p.status === 'PENDING';
-    if (statusFilter === 'APPROVED') return isApproved(p.status);
-    if (statusFilter === 'REJECTED') return p.status === 'REJECTED';
-    return true;
-  });
-
-  // Filter Room Bookings by statusFilter
-  const filteredRoomBookings = scopedRoomBookings.filter((r) => {
-    if (statusFilter === 'PENDING') return r.status === 'PENDING';
-    if (statusFilter === 'APPROVED') return isApproved(r.status);
-    if (statusFilter === 'REJECTED') return r.status === 'REJECTED';
-    return true;
-  });
-
-  // Total counts for main status tabs (unified requests counted once)
-  const pendingCount =
-    scopedBorrows.filter((b) => b.status === 'PENDING').length +
-    scopedRequisitions.filter((r) => !r.borrowRequest && r.status === 'PENDING').length +
-    scopedPracticeBookings.filter((p) => p.status === 'PENDING').length +
-    scopedRoomBookings.filter((r) => r.status === 'PENDING').length;
-
-  const approvedCount =
-    scopedBorrows.filter((b) => isApproved(b.status)).length +
-    scopedRequisitions.filter((r) => !r.borrowRequest && isApproved(r.status)).length +
-    scopedPracticeBookings.filter((p) => isApproved(p.status)).length +
-    scopedRoomBookings.filter((r) => isApproved(r.status)).length;
-
-  const rejectedCount =
-    scopedBorrows.filter((b) => b.status === 'REJECTED').length +
-    scopedRequisitions.filter((r) => !r.borrowRequest && r.status === 'REJECTED').length +
-    scopedPracticeBookings.filter((p) => p.status === 'REJECTED').length +
-    scopedRoomBookings.filter((r) => r.status === 'REJECTED').length;
-
-  const currentTabTotal =
-    activeTab === 'ALL'
-      ? filteredBorrows.length + filteredRequisitions.length + filteredPracticeBookings.length + filteredRoomBookings.length
-      : activeTab === 'BORROW'
-      ? filteredBorrows.length
-      : activeTab === 'REQUISITION'
-      ? filteredRequisitions.length
-      : activeTab === 'PRACTICE'
-      ? filteredPracticeBookings.length
-      : filteredRoomBookings.length;
-
   // Total items in system vs relevant to teacher
   const totalSystemItems =
     allBorrows.length +
@@ -616,6 +625,22 @@ export default function ApprovalsPage() {
       className: string;
     };
     raw: any;
+    // Batch group support
+    isBatch?: boolean;
+    batchGroupId?: string;
+    batchCount?: number;
+    batchItems?: any[];
+    batchType?: 'TIMETABLE' | 'MULTI_ROOM' | 'MULTI_DAY' | 'SPECIAL' | 'SINGLE';
+    batchSummary?: {
+      roomsCount: number;
+      datesCount: number;
+      roomNames: string[];
+      datesText: string;
+      totalSlots: number;
+      pendingSlots: number;
+      approvedSlots: number;
+      rejectedSlots: number;
+    };
   }
 
   const mapBorrowToUnified = (b: any): UnifiedApprovalItem => {
@@ -714,7 +739,8 @@ export default function ApprovalsPage() {
   };
 
   const mapRoomToUnified = (rm: any): UnifiedApprovalItem => {
-    const dateNeeded = rm.bookingDate ? `${rm.bookingDate}T${rm.startTime || '08:00'}:00` : rm.createdAt;
+    const cleanDate = typeof rm.bookingDate === 'string' ? rm.bookingDate.split('T')[0] : new Date(rm.bookingDate).toISOString().split('T')[0];
+    const dateNeeded = rm.bookingDate ? `${cleanDate}T${rm.startTime || '08:00'}:00` : rm.createdAt;
     const dateNeededDate = rm.bookingDate
       ? new Date(rm.bookingDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })
       : '-';
@@ -749,12 +775,228 @@ export default function ApprovalsPage() {
     };
   };
 
+  const groupRoomBookingsToUnified = (
+    bookingsList: any[],
+    targetStatus: 'PENDING' | 'APPROVED' | 'REJECTED'
+  ): UnifiedApprovalItem[] => {
+    const batchMap = new Map<string, any[]>();
+    const singles: any[] = [];
+
+    for (const b of bookingsList) {
+      if (b.batchGroupId) {
+        if (!batchMap.has(b.batchGroupId)) {
+          batchMap.set(b.batchGroupId, []);
+        }
+        batchMap.get(b.batchGroupId)!.push(b);
+      } else {
+        singles.push(b);
+      }
+    }
+
+    const result: UnifiedApprovalItem[] = [];
+
+    // 1. Process singles
+    for (const b of singles) {
+      let matches = false;
+      if (targetStatus === 'PENDING') matches = b.status === 'PENDING';
+      else if (targetStatus === 'APPROVED') matches = isApproved(b.status);
+      else if (targetStatus === 'REJECTED') matches = b.status === 'REJECTED';
+
+      if (matches) {
+        result.push(mapRoomToUnified(b));
+      }
+    }
+
+    // 2. Process batches
+    for (const [batchId, items] of batchMap.entries()) {
+      const sorted = [...items].sort((a, b) => {
+        const dateDiff = new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        return (a.startTime || '').localeCompare(b.startTime || '');
+      });
+
+      const pendingSlots = sorted.filter((it) => it.status === 'PENDING');
+      const approvedSlots = sorted.filter((it) => isApproved(it.status));
+      const rejectedSlots = sorted.filter((it) => it.status === 'REJECTED');
+
+      let matches = false;
+      if (targetStatus === 'PENDING') {
+        matches = pendingSlots.length > 0;
+      } else if (targetStatus === 'APPROVED') {
+        matches = approvedSlots.length > 0 && pendingSlots.length === 0;
+      } else if (targetStatus === 'REJECTED') {
+        matches = rejectedSlots.length > 0 && pendingSlots.length === 0;
+      }
+
+      if (!matches) continue;
+
+      const distinctRooms = Array.from(new Set(sorted.map((it) => it.room?.name || it.roomId)));
+      const distinctDates = Array.from(
+        new Set(
+          sorted.map((it) =>
+            typeof it.bookingDate === 'string'
+              ? it.bookingDate.split('T')[0]
+              : new Date(it.bookingDate).toISOString().split('T')[0]
+          )
+        )
+      );
+
+      let bType: 'TIMETABLE' | 'MULTI_ROOM' | 'MULTI_DAY' | 'SPECIAL' | 'SINGLE' = 'SINGLE';
+      if (sorted.some((it) => it.isTimetable || it.note?.includes('[ตารางเรียน'))) {
+        bType = 'TIMETABLE';
+      } else if (distinctRooms.length > 1 && distinctDates.length === 1) {
+        bType = 'MULTI_ROOM';
+      } else if (distinctRooms.length === 1 && distinctDates.length > 1) {
+        bType = 'MULTI_DAY';
+      } else if (distinctRooms.length > 1 && distinctDates.length > 1) {
+        bType = 'SPECIAL';
+      } else {
+        bType = 'SINGLE';
+      }
+
+      const firstItem = sorted[0];
+      const earliestDate = sorted[0].bookingDate;
+      const latestDate = sorted[sorted.length - 1].bookingDate;
+
+      const datesText =
+        distinctDates.length === 1
+          ? new Date(earliestDate).toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: '2-digit' })
+          : `${new Date(earliestDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} - ${new Date(latestDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} (${distinctDates.length} วัน)`;
+
+      const summaryText =
+        bType === 'TIMETABLE'
+          ? `ตารางเรียน ${sorted.length} คาบ (${distinctRooms.join(', ')})`
+          : bType === 'MULTI_ROOM'
+          ? `จองพร้อมกัน ${distinctRooms.length} ห้อง (${distinctRooms.join(', ')})`
+          : bType === 'MULTI_DAY'
+          ? `ต่อเนื่อง ${distinctDates.length} วัน (${distinctRooms.join(', ')})`
+          : bType === 'SPECIAL'
+          ? `${distinctRooms.length} ห้อง x ${distinctDates.length} วัน (${sorted.length} คาบ)`
+          : `${distinctRooms.join(', ')} (${sorted.length} คาบ)`;
+
+      const cleanEarliest =
+        typeof earliestDate === 'string'
+          ? earliestDate.split('T')[0]
+          : new Date(earliestDate).toISOString().split('T')[0];
+      const dateNeeded = `${cleanEarliest}T${firstItem.startTime || '08:00'}:00`;
+
+      result.push({
+        id: batchId,
+        type: 'ROOM',
+        requestNumber: batchId,
+        createdAt: firstItem.createdAt,
+        dateNeeded,
+        dateNeededDisplay: datesText,
+        dateNeededDate: datesText,
+        dateNeededTime: `${firstItem.startTime} - ${firstItem.endTime} น.`,
+        user: firstItem.user,
+        course: firstItem.course,
+        purpose: firstItem.title
+          ? `${firstItem.title}${firstItem.purpose ? ` (${firstItem.purpose})` : ''}`
+          : (firstItem.purpose || 'จองห้องปฏิบัติการ'),
+        itemsSummary: summaryText,
+        status: pendingSlots.length > 0 ? 'PENDING' : approvedSlots.length > 0 ? 'APPROVED' : 'REJECTED',
+        canApprove: Boolean(canApproveRoom),
+        instructorAcknowledged: true,
+        advisorName: firstItem.advisorName,
+        badge: getItemTimeBadge(firstItem.createdAt, dateNeeded),
+        raw: firstItem,
+        isBatch: true,
+        batchGroupId: batchId,
+        batchCount: sorted.length,
+        batchItems: sorted,
+        batchType: bType,
+        batchSummary: {
+          roomsCount: distinctRooms.length,
+          datesCount: distinctDates.length,
+          roomNames: distinctRooms,
+          datesText,
+          totalSlots: sorted.length,
+          pendingSlots: pendingSlots.length,
+          approvedSlots: approvedSlots.length,
+          rejectedSlots: rejectedSlots.length,
+        },
+      });
+    }
+
+    return result;
+  };
+
+  // Filter Borrows by statusFilter
+  const filteredBorrows = scopedBorrows.filter((b) => {
+    if (statusFilter === 'PENDING') return b.status === 'PENDING';
+    if (statusFilter === 'APPROVED') return isApproved(b.status);
+    if (statusFilter === 'REJECTED') return b.status === 'REJECTED';
+    return true;
+  });
+
+  // Filter Requisitions by statusFilter (exclude requisitions that are already linked & shown inside a unified BorrowRequest)
+  const filteredRequisitions = scopedRequisitions.filter((r) => {
+    if (r.borrowRequest) return false;
+    if (statusFilter === 'PENDING') return r.status === 'PENDING';
+    if (statusFilter === 'APPROVED') return isApproved(r.status);
+    if (statusFilter === 'REJECTED') return r.status === 'REJECTED';
+    return true;
+  });
+
+  // Filter Practice Bookings by statusFilter
+  const filteredPracticeBookings = scopedPracticeBookings.filter((p) => {
+    if (statusFilter === 'PENDING') return p.status === 'PENDING';
+    if (statusFilter === 'APPROVED') return isApproved(p.status);
+    if (statusFilter === 'REJECTED') return p.status === 'REJECTED';
+    return true;
+  });
+
+  // Group and Filter Room Bookings
+  const roomPendingUnified = groupRoomBookingsToUnified(scopedRoomBookings, 'PENDING');
+  const roomApprovedUnified = groupRoomBookingsToUnified(scopedRoomBookings, 'APPROVED');
+  const roomRejectedUnified = groupRoomBookingsToUnified(scopedRoomBookings, 'REJECTED');
+
+  const filteredRoomUnified =
+    statusFilter === 'PENDING'
+      ? roomPendingUnified
+      : statusFilter === 'APPROVED'
+      ? roomApprovedUnified
+      : roomRejectedUnified;
+
+  // Total counts for main status tabs (unified requests counted once)
+  const pendingCount =
+    scopedBorrows.filter((b) => b.status === 'PENDING').length +
+    scopedRequisitions.filter((r) => !r.borrowRequest && r.status === 'PENDING').length +
+    scopedPracticeBookings.filter((p) => p.status === 'PENDING').length +
+    roomPendingUnified.length;
+
+  const approvedCount =
+    scopedBorrows.filter((b) => isApproved(b.status)).length +
+    scopedRequisitions.filter((r) => !r.borrowRequest && isApproved(r.status)).length +
+    scopedPracticeBookings.filter((p) => isApproved(p.status)).length +
+    roomApprovedUnified.length;
+
+  const rejectedCount =
+    scopedBorrows.filter((b) => b.status === 'REJECTED').length +
+    scopedRequisitions.filter((r) => !r.borrowRequest && r.status === 'REJECTED').length +
+    scopedPracticeBookings.filter((p) => p.status === 'REJECTED').length +
+    roomRejectedUnified.length;
+
+  const currentTabTotal =
+    activeTab === 'ALL'
+      ? filteredBorrows.length + filteredRequisitions.length + filteredPracticeBookings.length + filteredRoomUnified.length
+      : activeTab === 'BORROW'
+      ? filteredBorrows.length
+      : activeTab === 'REQUISITION'
+      ? filteredRequisitions.length
+      : activeTab === 'PRACTICE'
+      ? filteredPracticeBookings.length
+      : filteredRoomUnified.length;
+
   const matchesSearch = (item: UnifiedApprovalItem, query: string) => {
     if (!query.trim()) return true;
     const q = query.trim().toLowerCase();
     const userName = formatUserName(item.user).toLowerCase();
     const studentId = (item.user?.studentId || '').toLowerCase();
     const reqNum = (item.requestNumber || '').toLowerCase();
+    const batchId = (item.batchGroupId || '').toLowerCase();
+    const roomNames = (item.batchSummary?.roomNames || []).join(' ').toLowerCase();
     const purpose = (item.purpose || '').toLowerCase();
     const items = (item.itemsSummary || '').toLowerCase();
     const courseCode = ((item.course?.code || item.course?.courseCode) || '').toLowerCase();
@@ -763,6 +1005,8 @@ export default function ApprovalsPage() {
 
     return (
       reqNum.includes(q) ||
+      batchId.includes(q) ||
+      roomNames.includes(q) ||
       userName.includes(q) ||
       studentId.includes(q) ||
       purpose.includes(q) ||
@@ -799,7 +1043,7 @@ export default function ApprovalsPage() {
     baseUnifiedItems.push(...filteredPracticeBookings.map(mapPracticeToUnified));
   }
   if (activeTab === 'ALL' || activeTab === 'ROOM') {
-    baseUnifiedItems.push(...filteredRoomBookings.map(mapRoomToUnified));
+    baseUnifiedItems.push(...filteredRoomUnified);
   }
 
   // Filter with Search query
@@ -841,6 +1085,24 @@ export default function ApprovalsPage() {
 
     for (const item of itemsToApprove) {
       try {
+        if (item.type === 'ROOM' && item.isBatch && item.batchGroupId) {
+          const res = await fetch('/api/room-bookings/batch-approval', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              batchGroupId: item.batchGroupId,
+              action: 'APPROVE',
+              userId: currentUser?.id,
+            }),
+          });
+          if (res.ok) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+          continue;
+        }
+
         const endpoint =
           item.type === 'BORROW'
             ? `/api/borrow/${item.id}`
@@ -1041,6 +1303,141 @@ export default function ApprovalsPage() {
     }
 
     if (item.type === 'ROOM') {
+      if (item.isBatch && item.batchItems) {
+        return (
+          <div className="space-y-3.5 text-xs bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-slate-700 dark:text-slate-300">รหัสชุดคำขอ:</span>
+                <span className="font-mono font-bold text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[11px]">{item.batchGroupId}</span>
+                <span className="text-[10px] font-bold text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded-full border border-teal-200 dark:border-teal-800">
+                  รวม {item.batchCount} สล็อต ({item.batchSummary?.roomsCount} ห้อง, {item.batchSummary?.datesCount} วัน)
+                </span>
+              </div>
+              {item.advisorName && (
+                <div className="text-[11px] text-slate-500">
+                  อาจารย์ผู้รับผิดชอบ: <strong className="text-slate-700 dark:text-slate-300">{formatTeacherName(item.advisorName)}</strong>
+                </div>
+              )}
+            </div>
+
+            {/* Sub-slots Table */}
+            <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-800">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800 text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
+                    <th className="py-2 px-3 w-10 text-center">#</th>
+                    <th className="py-2 px-3 whitespace-nowrap">วันที่ใช้งาน</th>
+                    <th className="py-2 px-3 whitespace-nowrap">ห้องปฏิบัติการ</th>
+                    <th className="py-2 px-3 whitespace-nowrap">ช่วงเวลา</th>
+                    <th className="py-2 px-3 whitespace-nowrap">สถานะ</th>
+                    {statusFilter === 'PENDING' && canApproveRoom && (
+                      <th className="py-2 px-3 text-right whitespace-nowrap">พิจารณาเฉพาะสล็อต</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-[11px]">
+                  {item.batchItems.map((slot: any, idx: number) => {
+                    const slotPending = slot.status === 'PENDING';
+                    const slotApproved = isApproved(slot.status);
+                    const slotDate = new Date(slot.bookingDate);
+                    return (
+                      <tr key={slot.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition">
+                        <td className="py-2 px-3 text-center text-slate-400 font-mono font-bold">{idx + 1}</td>
+                        <td className="py-2 px-3 font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                          {slotDate.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td className="py-2 px-3 font-bold text-indigo-700 dark:text-indigo-400 whitespace-nowrap">
+                          {slot.room?.name || slot.roomId} <span className="text-[10px] text-slate-400 font-normal">({slot.room?.code})</span>
+                        </td>
+                        <td className="py-2 px-3 text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                          {slot.startTime} - {slot.endTime} น.
+                        </td>
+                        <td className="py-2 px-3 whitespace-nowrap">
+                          {slotPending ? (
+                            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                              รออนุมัติ
+                            </span>
+                          ) : slotApproved ? (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                              อนุมัติแล้ว
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                              ไม่อนุมัติ
+                            </span>
+                          )}
+                        </td>
+                        {statusFilter === 'PENDING' && canApproveRoom && (
+                          <td className="py-2 px-3 text-right whitespace-nowrap">
+                            {slotPending ? (
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  disabled={submitting}
+                                  onClick={() => setRejectItem({ id: slot.id, type: 'ROOM' })}
+                                  className="px-2 py-0.5 rounded text-[10px] font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 transition cursor-pointer"
+                                  title="ไม่อนุมัติเฉพาะสล็อตนี้"
+                                >
+                                  ไม่อนุมัติ
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={submitting || approvingId === slot.id}
+                                  onClick={() => handleApprove(slot.id, 'ROOM')}
+                                  className="px-2 py-0.5 rounded text-[10px] font-bold text-white bg-teal-600 hover:bg-teal-500 transition cursor-pointer"
+                                  title="อนุมัติเฉพาะสล็อตนี้"
+                                >
+                                  {approvingId === slot.id ? '...' : 'อนุมัติ'}
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-[10px]">-</span>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Quick Batch Action inside expanded drawer */}
+            {statusFilter === 'PENDING' && canApproveRoom && (
+              <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  ต้องการดำเนินการพร้อมกันทั้งชุด {item.batchSummary?.pendingSlots || item.batchCount} รายการ:
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => setRejectItem({ id: item.id, type: 'ROOM', isBatch: true, batchGroupId: item.batchGroupId, batchCount: item.batchCount })}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 border border-rose-200 transition cursor-pointer"
+                  >
+                    ไม่อนุมัติทั้งชุด
+                  </button>
+                  <button
+                    type="button"
+                    disabled={submitting || approvingId === item.batchGroupId}
+                    onClick={() => handleBatchRoomApprove(item.batchGroupId!, item.batchCount || 1)}
+                    className="px-4 py-1.5 rounded-xl text-xs font-extrabold text-white bg-teal-600 hover:bg-teal-500 shadow transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    {approvingId === item.batchGroupId ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Check className="w-3.5 h-3.5 font-black" />
+                    )}
+                    <span>อนุมัติทั้งชุด ({item.batchSummary?.pendingSlots || item.batchCount} รายการ)</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
+
       return (
         <div className="space-y-3 text-xs bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1170,6 +1567,24 @@ export default function ApprovalsPage() {
                               <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-indigo-100 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 inline-flex items-center gap-0.5">
                                 <Sparkles className="w-2.5 h-2.5 text-indigo-600" /> ฝึกปฏิบัติ
                               </span>
+                            ) : item.isBatch ? (
+                              item.batchType === 'TIMETABLE' ? (
+                                <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 inline-flex items-center gap-0.5">
+                                  <BookOpen className="w-2.5 h-2.5 text-emerald-600" /> ตารางเรียน ({item.batchCount})
+                                </span>
+                              ) : item.batchType === 'MULTI_ROOM' ? (
+                                <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-indigo-100 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700 inline-flex items-center gap-0.5">
+                                  <Building2 className="w-2.5 h-2.5 text-indigo-600" /> หลายห้อง ({item.batchSummary?.roomsCount})
+                                </span>
+                              ) : item.batchType === 'MULTI_DAY' ? (
+                                <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 inline-flex items-center gap-0.5">
+                                  <Calendar className="w-2.5 h-2.5 text-amber-600" /> ต่อเนื่อง ({item.batchSummary?.datesCount} วัน)
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-purple-100 dark:bg-purple-950/70 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-700 inline-flex items-center gap-0.5">
+                                  <Sparkles className="w-2.5 h-2.5 text-purple-600" /> พิเศษ ({item.batchCount})
+                                </span>
+                              )
                             ) : (
                               <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-blue-100 dark:bg-blue-950/70 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 inline-flex items-center gap-0.5">
                                 <Building2 className="w-2.5 h-2.5 text-blue-600" /> จองห้อง
@@ -1254,19 +1669,41 @@ export default function ApprovalsPage() {
                                 <button
                                   type="button"
                                   disabled={submitting}
-                                  onClick={() => setRejectItem({ id: item.id, type: item.type })}
+                                  onClick={() => {
+                                    if (item.isBatch && item.batchGroupId) {
+                                      setRejectItem({
+                                        id: item.id,
+                                        type: item.type,
+                                        isBatch: true,
+                                        batchGroupId: item.batchGroupId,
+                                        batchCount: item.batchCount,
+                                      });
+                                    } else {
+                                      setRejectItem({ id: item.id, type: item.type });
+                                    }
+                                  }}
                                   className="px-2 py-1 rounded-lg text-[10px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/60 border border-rose-200 dark:border-rose-800 transition cursor-pointer"
                                 >
-                                  ไม่อนุมัติ
+                                  {item.isBatch ? 'ปฏิเสธทั้งชุด' : 'ไม่อนุมัติ'}
                                 </button>
                                 <button
                                   type="button"
-                                  disabled={submitting}
-                                  onClick={() => handleApprove(item.id, item.type)}
+                                  disabled={submitting || approvingId === (item.batchGroupId || item.id)}
+                                  onClick={() => {
+                                    if (item.isBatch && item.batchGroupId) {
+                                      handleBatchRoomApprove(item.batchGroupId, item.batchCount || 1);
+                                    } else {
+                                      handleApprove(item.id, item.type);
+                                    }
+                                  }}
                                   className="px-2.5 py-1 rounded-lg text-[10px] font-bold text-white bg-teal-600 hover:bg-teal-500 shadow-xs transition cursor-pointer flex items-center gap-1"
                                 >
-                                  {approvingId === item.id ? <RefreshCw className="w-2.5 h-2.5 animate-spin" /> : <Check className="w-2.5 h-2.5" />}
-                                  <span>อนุมัติ</span>
+                                  {approvingId === (item.batchGroupId || item.id) ? (
+                                    <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                                  ) : (
+                                    <Check className="w-2.5 h-2.5" />
+                                  )}
+                                  <span>{item.isBatch ? `อนุมัติทั้งชุด (${item.batchCount})` : 'อนุมัติ'}</span>
                                 </button>
                               </>
                             ) : (
@@ -1523,7 +1960,7 @@ export default function ApprovalsPage() {
           }`}
         >
           <Building2 className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-          <span>จองห้องใช้งาน ({filteredRoomBookings.length})</span>
+          <span>จองห้องใช้งาน ({filteredRoomUnified.length})</span>
         </button>
       </div>
 
@@ -2516,6 +2953,239 @@ export default function ApprovalsPage() {
             }
 
             if (item.type === 'ROOM') {
+              if (item.isBatch) {
+                const badge = item.badge;
+                const isExpanded = Boolean(expandedItemIds[item.id]);
+                return (
+                  <div
+                    key={`batch-${item.id}`}
+                    id={`approval-card-${item.id}`}
+                    className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-5 space-y-4 hover:shadow-md transition shadow-xs border-l-4 ${
+                      item.batchType === 'TIMETABLE'
+                        ? 'border-l-emerald-500'
+                        : item.batchType === 'MULTI_ROOM'
+                        ? 'border-l-indigo-500'
+                        : item.batchType === 'MULTI_DAY'
+                        ? 'border-l-amber-500'
+                        : 'border-l-purple-500'
+                    } ${item.id === highlightId ? 'ring-2 ring-teal-500 shadow-xl shadow-teal-500/20' : ''}`}
+                  >
+                    {/* Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {badge && (
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${badge.className}`}>
+                            {badge.text}
+                          </span>
+                        )}
+
+                        {item.batchType === 'TIMETABLE' ? (
+                          <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 flex items-center gap-1.5 shadow-xs">
+                            <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <span>📚 ตารางเรียนประจำภาคเรียน ({item.batchCount} ครั้ง)</span>
+                          </span>
+                        ) : item.batchType === 'MULTI_ROOM' ? (
+                          <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700 flex items-center gap-1.5 shadow-xs">
+                            <Building2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                            <span>👥 จองหลายห้องพร้อมกัน ({item.batchSummary?.roomsCount} ห้อง)</span>
+                          </span>
+                        ) : item.batchType === 'MULTI_DAY' ? (
+                          <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300 dark:border-amber-700 flex items-center gap-1.5 shadow-xs">
+                            <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                            <span>📅 จองห้องเดียวต่อเนื่อง ({item.batchSummary?.datesCount} วัน)</span>
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 border border-purple-300 dark:border-purple-700 flex items-center gap-1.5 shadow-xs">
+                            <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                            <span>👥📅 กิจกรรมพิเศษ ({item.batchSummary?.roomsCount} ห้อง x {item.batchSummary?.datesCount} วัน)</span>
+                          </span>
+                        )}
+
+                        <span className="font-mono text-xs font-black text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                          {item.batchGroupId}
+                        </span>
+
+                        <span className="text-[10px] font-bold text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded-full border border-teal-200 dark:border-teal-800">
+                          รวม {item.batchCount} สล็อต
+                        </span>
+                      </div>
+
+                      <div className="text-[11px] text-slate-400">
+                        ยื่นคำขอเมื่อ: {new Date(item.createdAt).toLocaleDateString('th-TH')} {new Date(item.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                      </div>
+                    </div>
+
+                    {/* Body */}
+                    <div className="space-y-2.5 text-xs">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                          <span>{item.purpose}</span>
+                        </div>
+                        <div className="text-slate-500 flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5 text-slate-400" />
+                          <span>ผู้ขอจอง: <strong className="text-slate-700 dark:text-slate-300">{formatUserName(item.user) || '-'}</strong></span>
+                          {item.user?.studentId && (
+                            <span className="text-[10px] text-teal-700 bg-teal-50 px-1.5 py-0.2 rounded font-mono border border-teal-200">
+                              {item.user.studentId}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 4 Summary Stat Cards */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                          <Building2 className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                          <div>
+                            <div className="text-[10px] text-slate-400">ห้องปฏิบัติการ ({item.batchSummary?.roomsCount} ห้อง)</div>
+                            <strong className="text-indigo-800 dark:text-indigo-300">{item.batchSummary?.roomNames.join(', ')}</strong>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                          <Calendar className="w-4 h-4 text-teal-600 flex-shrink-0" />
+                          <div>
+                            <div className="text-[10px] text-slate-400">วันที่ใช้งาน</div>
+                            <strong className="text-slate-900 dark:text-slate-100">{item.dateNeededDisplay}</strong>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                          <Clock className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                          <div>
+                            <div className="text-[10px] text-slate-400">ช่วงเวลา</div>
+                            <strong className="text-slate-900 dark:text-slate-100">{item.dateNeededTime}</strong>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                          <User className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                          <div>
+                            <div className="text-[10px] text-slate-400">จำนวนผู้เข้าร่วม</div>
+                            <strong className="text-slate-900 dark:text-slate-100">{item.raw?.attendeesCount || 1} คน</strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Course / Teacher info */}
+                      {(item.course || item.advisorName || item.raw?.contactPhone || item.raw?.equipmentNeeded || item.raw?.note) && (
+                        <div className="bg-slate-50/50 dark:bg-slate-950/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800/80 text-[11px] space-y-1.5 text-slate-600 dark:text-slate-400">
+                          {item.course && (
+                            <div>
+                              <span className="font-bold text-slate-500">วิชาที่เกี่ยวข้อง: </span>
+                              <span className="text-slate-800 dark:text-slate-200 font-medium">{item.course.code || item.course.courseCode} {item.course.name || item.course.courseName}</span>
+                            </div>
+                          )}
+                          {item.advisorName && (
+                            <div>
+                              <span className="font-bold text-slate-500">อาจารย์ผู้รับผิดชอบ/ที่ปรึกษา: </span>
+                              <span className="text-slate-800 dark:text-slate-200 font-medium">{formatTeacherName(item.advisorName)}</span>
+                            </div>
+                          )}
+                          {item.raw?.equipmentNeeded && (
+                            <div>
+                              <span className="font-bold text-amber-700 dark:text-amber-400">อุปกรณ์/ครุภัณฑ์ที่ต้องการใช้: </span>
+                              <span className="text-slate-800 dark:text-slate-200 font-medium">{item.raw.equipmentNeeded}</span>
+                            </div>
+                          )}
+                          {item.raw?.note && (
+                            <div>
+                              <span className="font-bold text-slate-500">หมายเหตุเพิ่มเติม: </span>
+                              <span className="text-slate-800 dark:text-slate-200">{item.raw.note}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Expandable Drawer Button */}
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleExpandItem(item.id)}
+                          className="px-3 py-1.5 rounded-xl text-xs font-bold text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 border border-teal-200 dark:border-teal-800 transition inline-flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <span>{isExpanded ? '▲ ซ่อนรายละเอียดสล็อตย่อย' : `▼ ตรวจสอบรายละเอียดรายสล็อต (${item.batchCount} รายการ)`}</span>
+                        </button>
+                      </div>
+
+                      {/* Expanded Sub-slots Drawer in Card View */}
+                      {isExpanded && (
+                        <div className="pt-2">
+                          {renderExpandedDetails(item)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Actions / Status Footer */}
+                    {statusFilter === 'PENDING' ? (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <div className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/80 px-2.5 py-1 rounded-lg font-medium inline-flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-amber-600" />
+                          <span>รอพิจารณาอนุมัติคำขอชุดนี้ ({item.batchSummary?.pendingSlots || item.batchCount} รายการ)</span>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2">
+                          {canApprove && (
+                            canApproveRoom ? (
+                              <>
+                                <button
+                                  disabled={submitting}
+                                  onClick={() => setRejectItem({ id: item.id, type: 'ROOM', isBatch: true, batchGroupId: item.batchGroupId, batchCount: item.batchCount })}
+                                  className="px-4 py-2 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 disabled:opacity-50 disabled:cursor-not-allowed border border-rose-200 dark:border-rose-800 transition cursor-pointer"
+                                >
+                                  ปฏิเสธทั้งชุด
+                                </button>
+                                <button
+                                  disabled={submitting || approvingId === item.batchGroupId}
+                                  onClick={() => handleBatchRoomApprove(item.batchGroupId!, item.batchCount || 1)}
+                                  className="px-5 py-2 rounded-xl text-xs font-extrabold text-white bg-teal-600 hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-teal-600/20 transition cursor-pointer flex items-center gap-1.5"
+                                >
+                                  {approvingId === item.batchGroupId ? (
+                                    <>
+                                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                      <span>กำลังอนุมัติทั้งชุด...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Check className="w-3.5 h-3.5 font-black" />
+                                      <span>อนุมัติทั้งชุด ({item.batchSummary?.pendingSlots || item.batchCount} รายการ)</span>
+                                    </>
+                                  )}
+                                </button>
+                              </>
+                            ) : (
+                              <span className="px-3 py-1.5 rounded-xl text-[11px] font-semibold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center gap-1.5">
+                                <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
+                                <span>ไม่อยู่ในขอบเขตการอนุมัติของคุณ</span>
+                              </span>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    ) : statusFilter === 'APPROVED' ? (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          อนุมัติแล้วทั้งชุด ({item.batchSummary?.approvedSlots || item.batchCount} รายการ)
+                        </span>
+                        {(isAdmin || isOfficer) && (
+                          <Link
+                            href="/rooms"
+                            className="px-3 py-1 rounded-xl text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800 transition inline-flex items-center gap-1"
+                          >
+                            <span>ดูที่หน้าตารางห้อง</span>
+                          </Link>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                          <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                          ไม่อนุมัติทั้งชุด ({item.batchCount} รายการ)
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
               const rm = item.raw;
               const badge = item.badge;
               return (

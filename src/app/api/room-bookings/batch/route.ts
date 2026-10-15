@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
 import { formatTeacherName } from '@/lib/user-utils';
+import { createNotification, notifyRoles } from '@/lib/notifications';
 
 interface BatchSlotItem {
   roomId: string;
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
       isTimetable: explicitIsTimetable,
     } = body;
 
-    // 1. Authorization check: Only ADMIN or OFFICER can use batch/timetable booking
+    // 1. Authorization check: ADMIN, OFFICER, or TEACHER can use batch booking
     if (!userId) {
       return NextResponse.json({ error: 'ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบก่อน' }, { status: 401 });
     }
@@ -53,9 +54,12 @@ export async function POST(req: Request) {
       select: { id: true, name: true, role: true },
     });
 
-    if (!user || (user.role !== 'ADMIN' && user.role !== 'OFFICER')) {
+    const isStaff = user?.role === 'ADMIN' || user?.role === 'OFFICER';
+    const isTeacher = user?.role === 'TEACHER';
+
+    if (!user || (!isStaff && !isTeacher)) {
       return NextResponse.json(
-        { error: 'เฉพาะผู้ดูแลระบบ (Admin) หรือเจ้าหน้าที่ห้องแล็บ (Officer) เท่านั้นที่สามารถจองหลายห้องหรือจัดตารางเรียนได้' },
+        { error: 'เฉพาะอาจารย์ผู้สอน, เจ้าหน้าที่ห้องแล็บ หรือผู้ดูแลระบบเท่านั้นที่สามารถจองหลายห้องหรือจองหลายวันได้' },
         { status: 403 }
       );
     }
@@ -259,12 +263,20 @@ export async function POST(req: Request) {
       },
     });
 
-    const isTimetable = explicitIsTimetable !== undefined ? Boolean(explicitIsTimetable) : (dates.length > 1 || Boolean(courseId));
+    const finalIsTimetable = isStaff ? (explicitIsTimetable !== undefined ? Boolean(explicitIsTimetable) : false) : false;
+    const finalAutoApprove = isStaff ? Boolean(autoApprove) : false;
+    const batchGroupId = `BATCH-${datePrefix}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
     const isMultiRoom = roomIds.length > 1;
-    const batchTag = isTimetable
+    const isMultiDay = dates.length > 1;
+    const batchTag = finalIsTimetable
       ? `[ตารางเรียน${termName ? `: ${termName}` : ''}]`
+      : (isMultiRoom && isMultiDay)
+      ? '[จองหลายห้องหลายวัน]'
       : isMultiRoom
       ? '[จองหลายห้อง]'
+      : isMultiDay
+      ? '[จองต่อเนื่องหลายวัน]'
       : '';
 
     const finalNote = [batchTag, note?.trim()].filter(Boolean).join(' ');
@@ -277,12 +289,13 @@ export async function POST(req: Request) {
 
       const booking = await prisma.roomBooking.create({
         data: {
+          batchGroupId,
           bookingNumber,
           roomId: slot.roomId,
           userId,
           title: title.trim(),
           purpose: purpose.trim(),
-          isTimetable,
+          isTimetable: finalIsTimetable,
           bookingDate: slot.date,
           startTime: slot.startTime,
           endTime: slot.endTime,
@@ -292,9 +305,9 @@ export async function POST(req: Request) {
           contactPhone: contactPhone || null,
           equipmentNeeded: equipmentNeeded || null,
           note: finalNote || null,
-          status: autoApprove ? 'APPROVED' : 'PENDING',
-          approverId: autoApprove ? userId : null,
-          approvedAt: autoApprove ? new Date() : null,
+          status: finalAutoApprove ? 'APPROVED' : 'PENDING',
+          approverId: finalAutoApprove ? userId : null,
+          approvedAt: finalAutoApprove ? new Date() : null,
         },
         include: {
           room: true,
@@ -306,8 +319,56 @@ export async function POST(req: Request) {
 
     invalidateCache('room:bookings:');
 
+    // Bundled Notification dispatch (1 notification per batch request, 0 spam)
+    const uniqueRoomNames = Array.from(new Set(availableSlots.map((s) => s.roomName))).join(', ');
+    const dateSummary = dates.length === 1
+      ? dates[0]
+      : `${dates[0]} ถึง ${dates[dates.length - 1]} (${dates.length} วัน)`;
+
+    if (!finalAutoApprove) {
+      // 1. Notify Approvers (OFFICER, ADMIN, APPROVER) ONCE
+      await notifyRoles(
+        ['OFFICER', 'ADMIN', 'APPROVER'],
+        {
+          title: `มีคำขอจองห้องแบบกลุ่ม (${createdBookings.length} รายการ) 🏢`,
+          message: `${user.name || 'ผู้ใช้งาน'} ส่งคำขอจองห้อง ${uniqueRoomNames} (${dateSummary}) ชื่องาน: "${title.trim()}"`,
+          type: 'APPROVAL',
+          priority: 'HIGH',
+          linkUrl: `/approvals?batchId=${batchGroupId}&type=ROOM`,
+          entityType: 'ROOM',
+          entityId: createdBookings[0]?.id,
+        },
+        'ROOM'
+      ).catch(() => {});
+
+      // 2. Notify Requester ONCE
+      await createNotification({
+        userId,
+        title: 'ยื่นคำขอจองห้องแบบกลุ่มสำเร็จ 📋',
+        message: `บันทึกคำขอจองห้อง ${createdBookings.length} รายการสำหรับ "${title.trim()}" เรียบร้อยแล้ว อยู่ระหว่างรอเจ้าหน้าที่ตรวจสอบ`,
+        type: 'STATUS_UPDATE',
+        priority: 'NORMAL',
+        linkUrl: '/rooms',
+        entityType: 'ROOM',
+        entityId: createdBookings[0]?.id,
+      }).catch(() => {});
+    } else {
+      // Auto-approved by staff
+      await createNotification({
+        userId,
+        title: 'จองห้องปฏิบัติการสำเร็จ 🎉',
+        message: `บันทึกและอนุมัติการจองห้อง ${createdBookings.length} รายการ (${uniqueRoomNames}) สำหรับ "${title.trim()}" เรียบร้อยแล้ว`,
+        type: 'STATUS_UPDATE',
+        priority: 'NORMAL',
+        linkUrl: '/schedule',
+        entityType: 'ROOM',
+        entityId: createdBookings[0]?.id,
+      }).catch(() => {});
+    }
+
     return NextResponse.json({
       message: `บันทึกรายการสำเร็จ ${createdBookings.length} รายการ${conflictedSlots.length > 0 ? ` (ข้ามรายการที่ชน ${conflictedSlots.length} รายการ)` : ''}`,
+      batchGroupId,
       totalRequested: candidateSlots.length,
       createdCount: createdBookings.length,
       skippedCount: conflictedSlots.length,

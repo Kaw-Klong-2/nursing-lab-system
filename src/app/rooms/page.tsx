@@ -269,9 +269,13 @@ export default function RoomsPage() {
     note: '',
   });
 
-  // Booking Modes: SINGLE (normal single room), MULTI_ROOM (multiple rooms on 1 date), TIMETABLE (recurring course schedule)
-  const [bookingMode, setBookingMode] = useState<'SINGLE' | 'MULTI_ROOM' | 'TIMETABLE'>('SINGLE');
+  // Booking Modes: SINGLE (normal single room), MULTI_ROOM (multiple rooms on 1 date), MULTI_DAY (continuous multi-day), TIMETABLE (recurring course schedule)
+  const [bookingMode, setBookingMode] = useState<'SINGLE' | 'MULTI_ROOM' | 'MULTI_DAY' | 'TIMETABLE'>('SINGLE');
   const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([]);
+
+  // Multi-Day State (General non-timetable continuous booking)
+  const [multiDayStartDate, setMultiDayStartDate] = useState<string>('');
+  const [multiDayEndDate, setMultiDayEndDate] = useState<string>('');
 
   // Timetable & Academic Terms State
   const [academicTerms, setAcademicTerms] = useState<any[]>([]);
@@ -325,6 +329,14 @@ export default function RoomsPage() {
   const [targetRoomIdForReassign, setTargetRoomIdForReassign] = useState('');
   const [reassignReason, setReassignReason] = useState('');
 
+  // Batch Bookings Expanded Drawers State
+  const [expandedBatchIds, setExpandedBatchIds] = useState<string[]>([]);
+  const toggleExpandBatch = (batchId: string) => {
+    setExpandedBatchIds((prev) =>
+      prev.includes(batchId) ? prev.filter((id) => id !== batchId) : [...prev, batchId]
+    );
+  };
+
   // Month navigation helpers
   const handlePrevMonth = () => {
     setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
@@ -345,9 +357,15 @@ export default function RoomsPage() {
       const year = currentMonth.getFullYear();
       const month = currentMonth.getMonth() + 1;
 
+      // In CALENDAR view we fetch by month for fast render; in REQUESTS view we fetch all bookings so user can view/manage across months
+      const bookingsUrl =
+        activeTab === 'REQUESTS'
+          ? '/api/room-bookings'
+          : `/api/room-bookings?year=${year}&month=${month}`;
+
       const [roomsRes, bookingsRes, coursesRes, usersRes, termsRes] = await Promise.all([
         fetch('/api/rooms?includeInactive=true&includeArchived=true'),
-        fetch(`/api/room-bookings?year=${year}&month=${month}`),
+        fetch(bookingsUrl),
         fetch('/api/courses?compact=true'),
         fetch('/api/users?role=INSTRUCTOR'),
         fetch('/api/academic-terms'),
@@ -394,7 +412,7 @@ export default function RoomsPage() {
 
   useEffect(() => {
     fetchData();
-  }, [currentMonth]);
+  }, [currentMonth, activeTab]);
 
   // Timetable & Multi-room helper functions
   const handleSelectTerm = (termId: string) => {
@@ -501,10 +519,34 @@ export default function RoomsPage() {
     return dates;
   }, [bookingMode, timetableStartDate, timetableEndDate, selectedDaysOfWeek, timetableFrequency]);
 
+  // Compute dates for multi-day continuous booking
+  const computedMultiDayDates = useMemo(() => {
+    if (bookingMode !== 'MULTI_DAY') return [];
+    if (!multiDayStartDate || !multiDayEndDate) return [];
+    const [sY, sM, sD] = multiDayStartDate.split('-').map(Number);
+    const [eY, eM, eD] = multiDayEndDate.split('-').map(Number);
+    if (!sY || !sM || !sD || !eY || !eM || !eD) return [];
+
+    const start = new Date(sY, sM - 1, sD, 12, 0, 0);
+    const end = new Date(eY, eM - 1, eD, 12, 0, 0);
+    if (start > end) return [];
+
+    const dates: string[] = [];
+    const cur = new Date(start);
+    while (cur <= end) {
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, '0');
+      const d = String(cur.getDate()).padStart(2, '0');
+      dates.push(`${y}-${m}-${d}`);
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
+  }, [bookingMode, multiDayStartDate, multiDayEndDate]);
+
   // Reset preview when key booking attributes change
   useEffect(() => {
     setPreviewAnalysis(null);
-  }, [selectedRoomIds, bookingForm.bookingDate, computedTimetableDates, bookingForm.startTime, bookingForm.endTime, bookingMode]);
+  }, [selectedRoomIds, bookingForm.bookingDate, computedTimetableDates, computedMultiDayDates, bookingForm.startTime, bookingForm.endTime, bookingMode]);
 
   // Set user info to form when available
   useEffect(() => {
@@ -568,12 +610,16 @@ export default function RoomsPage() {
     const targetDates =
       bookingMode === 'MULTI_ROOM'
         ? (bookingForm.bookingDate ? [bookingForm.bookingDate] : [])
+        : bookingMode === 'MULTI_DAY'
+        ? computedMultiDayDates
         : computedTimetableDates;
 
     if (targetDates.length === 0) {
       alert(
         bookingMode === 'MULTI_ROOM'
           ? 'กรุณาระบุวันที่ต้องการใช้งานห้อง'
+          : bookingMode === 'MULTI_DAY'
+          ? 'กรุณาระบุวันที่เริ่มต้นและสิ้นสุดของกิจกรรมต่อเนื่อง'
           : 'ไม่พบวันที่ตรงกับเงื่อนไขตารางเรียน กรุณาตรวจสอบวันเริ่มต้น-สิ้นสุด และวันในสัปดาห์ที่เลือก'
       );
       return;
@@ -634,12 +680,16 @@ export default function RoomsPage() {
     const targetDates =
       bookingMode === 'MULTI_ROOM'
         ? (bookingForm.bookingDate ? [bookingForm.bookingDate] : [])
+        : bookingMode === 'MULTI_DAY'
+        ? computedMultiDayDates
         : computedTimetableDates;
 
     if (targetDates.length === 0) {
       alert(
         bookingMode === 'MULTI_ROOM'
           ? 'กรุณาระบุวันที่ต้องการใช้งานห้อง'
+          : bookingMode === 'MULTI_DAY'
+          ? 'กรุณาระบุวันที่เริ่มต้นและสิ้นสุดของกิจกรรมต่อเนื่อง'
           : 'ไม่พบวันที่ตรงกับเงื่อนไขตารางเรียน กรุณาตรวจสอบช่วงวันที่และวันในสัปดาห์'
       );
       return;
@@ -687,7 +737,7 @@ export default function RoomsPage() {
           equipmentNeeded: bookingForm.equipmentNeeded || null,
           note: bookingForm.note || null,
           isTimetable: canManageRooms && bookingMode === 'TIMETABLE',
-          autoApprove: autoApproveBatch,
+          autoApprove: canManageRooms ? autoApproveBatch : false,
           skipConflicts: skipConflicts,
           previewOnly: false,
           termName: currentTermObj?.name || '',
@@ -864,6 +914,97 @@ export default function RoomsPage() {
       }
     } catch (err) {
       alert('เกิดข้อผิดพลาด');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Actions: Approve Batch Bookings (1-Click for Admin/Officer)
+  const handleBatchRoomApprove = async (batchGroupId: string, count: number) => {
+    if (!confirm(`ยืนยันการอนุมัติคำขอจองห้องทั้งชุด (${count} รายการ)?`)) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/room-bookings/batch-approval', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          batchGroupId,
+          action: 'APPROVE',
+          userId: currentUser?.id,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert(`อนุมัติคำขอจองห้องทั้งชุดเรียบร้อยแล้ว (${data.approvedCount} รายการ)`);
+        fetchData();
+      } else {
+        alert(data.error || 'เกิดข้อผิดพลาดในการอนุมัติชุดคำขอ');
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Actions: Reject Batch Bookings (with reason for Admin/Officer)
+  const handleBatchRoomReject = async (batchGroupId: string, count: number) => {
+    const reason = prompt(`กรุณาระบุเหตุผลที่ไม่อนุมัติคำขอทั้งชุด (${count} รายการ):`);
+    if (reason === null) return;
+
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/room-bookings/batch-approval', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          batchGroupId,
+          action: 'REJECT',
+          userId: currentUser?.id,
+          reason,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert(`บันทึกไม่อนุมัติคำขอทั้งชุดเรียบร้อยแล้ว (${data.rejectedCount} รายการ)`);
+        fetchData();
+      } else {
+        alert(data.error || 'เกิดข้อผิดพลาด');
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Actions: Cancel Batch Bookings (by Requester or Admin)
+  const handleBatchRoomCancel = async (batchGroupId: string, count: number) => {
+    if (!confirm(`คุณต้องการยกเลิกคำขอจองห้องทั้งชุด (${count} รายการ) ใช่หรือไม่?`)) return;
+
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/room-bookings/batch-approval', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          batchGroupId,
+          action: 'CANCEL',
+          userId: currentUser?.id,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || `ยกเลิกคำขอทั้งชุดเรียบร้อยแล้ว (${count} รายการ)`);
+        fetchData();
+      } else {
+        alert(data.error || 'เกิดข้อผิดพลาดในการยกเลิกชุดคำขอ');
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
     } finally {
       setSubmitting(false);
     }
@@ -1125,15 +1266,153 @@ export default function RoomsPage() {
     if (statusFilter !== 'ALL' && b.status !== statusFilter) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
+      const matchBatch = b.batchGroupId?.toLowerCase().includes(q);
       const matchNumber = b.bookingNumber?.toLowerCase().includes(q);
       const matchTitle = b.title?.toLowerCase().includes(q);
       const matchPurpose = b.purpose?.toLowerCase().includes(q);
       const matchUser = b.user?.name?.toLowerCase().includes(q) || b.user?.studentId?.toLowerCase().includes(q);
       const matchRoom = b.room?.name?.toLowerCase().includes(q) || b.room?.code?.toLowerCase().includes(q);
-      if (!matchNumber && !matchTitle && !matchPurpose && !matchUser && !matchRoom) return false;
+      if (!matchBatch && !matchNumber && !matchTitle && !matchPurpose && !matchUser && !matchRoom) return false;
     }
     return true;
   });
+
+  interface GroupedRoomBooking {
+    isBatch: boolean;
+    batchGroupId?: string;
+    batchType?: 'TIMETABLE' | 'MULTI_ROOM' | 'MULTI_DAY' | 'SPECIAL' | 'SINGLE';
+    batchSummary?: {
+      totalSlots: number;
+      pendingSlots: number;
+      approvedSlots: number;
+      rejectedSlots: number;
+      cancelledSlots: number;
+      roomNames: string[];
+      datesText: string;
+      earliestDate: string;
+      latestDate: string;
+      slots: any[];
+    };
+    primary: any;
+  }
+
+  const groupedBookings: GroupedRoomBooking[] = useMemo(() => {
+    const batchMap = new Map<string, any[]>();
+    const singles: any[] = [];
+
+    for (const b of filteredBookings) {
+      if (b.batchGroupId) {
+        if (!batchMap.has(b.batchGroupId)) {
+          batchMap.set(b.batchGroupId, []);
+        }
+        batchMap.get(b.batchGroupId)!.push(b);
+      } else {
+        singles.push(b);
+      }
+    }
+
+    const result: GroupedRoomBooking[] = [];
+
+    // Add batches
+    for (const [batchId, items] of batchMap.entries()) {
+      const sorted = [...items].sort((a, b) => {
+        const dateDiff = new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        return (a.startTime || '').localeCompare(b.startTime || '');
+      });
+
+      const pendingSlots = sorted.filter((it) => it.status === 'PENDING').length;
+      const approvedSlots = sorted.filter((it) => it.status === 'APPROVED').length;
+      const rejectedSlots = sorted.filter((it) => it.status === 'REJECTED').length;
+      const cancelledSlots = sorted.filter((it) => it.status === 'CANCELLED').length;
+
+      const distinctRooms = Array.from(new Set(sorted.map((it) => it.room?.name || it.roomId)));
+      const distinctDates = Array.from(
+        new Set(
+          sorted.map((it) =>
+            typeof it.bookingDate === 'string'
+              ? it.bookingDate.split('T')[0]
+              : new Date(it.bookingDate).toISOString().split('T')[0]
+          )
+        )
+      );
+
+      let bType: 'TIMETABLE' | 'MULTI_ROOM' | 'MULTI_DAY' | 'SPECIAL' | 'SINGLE' = 'SINGLE';
+      if (sorted.some((it) => it.isTimetable || it.note?.includes('[ตารางเรียน'))) {
+        bType = 'TIMETABLE';
+      } else if (distinctRooms.length > 1 && distinctDates.length === 1) {
+        bType = 'MULTI_ROOM';
+      } else if (distinctRooms.length === 1 && distinctDates.length > 1) {
+        bType = 'MULTI_DAY';
+      } else if (distinctRooms.length > 1 && distinctDates.length > 1) {
+        bType = 'SPECIAL';
+      } else {
+        bType = 'SINGLE';
+      }
+
+      const earliestDate = sorted[0].bookingDate;
+      const latestDate = sorted[sorted.length - 1].bookingDate;
+      let datesText = '';
+      if (distinctDates.length === 1) {
+        datesText = formatDate(earliestDate);
+      } else {
+        datesText = `${formatDate(earliestDate)} - ${formatDate(latestDate)} (${distinctDates.length} วัน)`;
+      }
+
+      result.push({
+        isBatch: true,
+        batchGroupId: batchId,
+        batchType: bType,
+        batchSummary: {
+          totalSlots: sorted.length,
+          pendingSlots,
+          approvedSlots,
+          rejectedSlots,
+          cancelledSlots,
+          roomNames: distinctRooms,
+          datesText,
+          earliestDate: typeof earliestDate === 'string' ? earliestDate : earliestDate.toISOString(),
+          latestDate: typeof latestDate === 'string' ? latestDate : latestDate.toISOString(),
+          slots: sorted,
+        },
+        primary: sorted[0],
+      });
+    }
+
+    // Add singles
+    for (const b of singles) {
+      result.push({
+        isBatch: false,
+        primary: b,
+      });
+    }
+
+    // Sort by latest created or earliest bookingDate
+    return result.sort((a, b) => {
+      const timeA = new Date(a.primary.createdAt || a.primary.bookingDate).getTime();
+      const timeB = new Date(b.primary.createdAt || b.primary.bookingDate).getTime();
+      return timeB - timeA;
+    });
+  }, [filteredBookings]);
+
+  // Request-level pending count (counting batch groups as 1 request)
+  const pendingRequestsCount = useMemo(() => {
+    const batchSet = new Set<string>();
+    let count = 0;
+    for (const b of bookings) {
+      if (b.status === 'PENDING') {
+        if (b.batchGroupId) {
+          if (!batchSet.has(b.batchGroupId)) {
+            batchSet.add(b.batchGroupId);
+            count++;
+          }
+        } else {
+          count++;
+        }
+      }
+    }
+    return count;
+  }, [bookings]);
 
   // Selected date bookings
   const selectedDateBookings = filteredBookings.filter((b) => {
@@ -2061,7 +2340,7 @@ export default function RoomsPage() {
             <div className="flex flex-wrap items-center gap-1.5">
               {[
                 { key: 'ALL', label: `ทั้งหมด (${bookings.length})` },
-                { key: 'PENDING', label: `รออนุมัติ (${bookings.filter((b) => b.status === 'PENDING').length})` },
+                { key: 'PENDING', label: `รออนุมัติ (${pendingRequestsCount})` },
                 { key: 'APPROVED', label: `อนุมัติแล้ว (${bookings.filter((b) => b.status === 'APPROVED').length})` },
                 { key: 'REJECTED', label: 'ไม่อนุมัติ' },
                 { key: 'CANCELLED', label: 'ยกเลิก' },
@@ -2083,7 +2362,7 @@ export default function RoomsPage() {
             <div className="relative w-full md:w-64">
               <input
                 type="text"
-                placeholder="ค้นหาชื่อห้อง / หัวข้องาน / ผู้ขอ..."
+                placeholder="ค้นหาชื่อห้อง / หัวข้องาน / ผู้ขอ / รหัสชุด..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 pl-8 pr-3 text-xs focus:ring-2 focus:ring-teal-500/20"
@@ -2093,238 +2372,654 @@ export default function RoomsPage() {
           </div>
 
           {/* Bookings Card List */}
-          {filteredBookings.length === 0 ? (
+          {groupedBookings.length === 0 ? (
             <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 p-12 text-center text-slate-400 text-xs shadow-sm">
               ไม่พบรายการคำขอจองห้องที่ตรงกับเงื่อนไข
             </div>
           ) : (
             <div className="space-y-4">
-              {filteredBookings.map((b) => {
-                const isPending = b.status === 'PENDING';
-                const isApproved = b.status === 'APPROVED';
-                const isRejected = b.status === 'REJECTED';
-                const isCancelled = b.status === 'CANCELLED';
-                const isMyBooking = currentUser?.id === b.userId;
+              {groupedBookings.map((item) => {
+                if (item.isBatch && item.batchSummary && item.batchGroupId) {
+                  const b = item.primary;
+                  const isBatchPending = item.batchSummary.pendingSlots > 0;
+                  const isBatchApproved =
+                    item.batchSummary.pendingSlots === 0 && item.batchSummary.approvedSlots > 0;
+                  const isBatchRejected =
+                    item.batchSummary.pendingSlots === 0 &&
+                    item.batchSummary.approvedSlots === 0 &&
+                    item.batchSummary.rejectedSlots > 0;
+                  const isBatchCancelled =
+                    item.batchSummary.cancelledSlots === item.batchSummary.totalSlots;
+                  const isMyBooking = currentUser?.id === b.userId;
+                  const isExpanded = expandedBatchIds.includes(item.batchGroupId);
 
-                return (
-                  <div
-                    key={b.id}
-                    className={`bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm space-y-4 border-l-4 ${
-                      isApproved
-                        ? 'border-l-emerald-500'
-                        : isPending
-                        ? 'border-l-amber-500'
-                        : 'border-l-rose-500'
-                    }`}
-                  >
-                    {/* Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-xs font-black text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded">
-                          {b.bookingNumber}
-                        </span>
-                        <span className="text-xs font-bold text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950 px-2.5 py-0.5 rounded border border-teal-100 dark:border-teal-800">
-                          {b.room?.name} ({b.room?.code})
-                        </span>
+                  // Visual theme borders by batchType
+                  const themeBorder =
+                    item.batchType === 'TIMETABLE'
+                      ? 'border-l-emerald-500'
+                      : item.batchType === 'MULTI_ROOM'
+                      ? 'border-l-indigo-500'
+                      : item.batchType === 'MULTI_DAY'
+                      ? 'border-l-amber-500'
+                      : item.batchType === 'SPECIAL'
+                      ? 'border-l-purple-500'
+                      : isBatchApproved
+                      ? 'border-l-emerald-500'
+                      : isBatchPending
+                      ? 'border-l-amber-500'
+                      : 'border-l-slate-400';
 
-                        {isPending && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full">
-                            <Clock className="w-3 h-3 text-amber-600" /> รออนุมัติ
+                  return (
+                    <div
+                      key={item.batchGroupId}
+                      id={`booking-card-${item.batchGroupId}`}
+                      className={`bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm space-y-4 border-l-4 ${themeBorder} transition-all`}
+                    >
+                      {/* Header */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs font-black text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded">
+                            {item.batchGroupId}
                           </span>
-                        )}
-                        {isApproved && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> อนุมัติแล้ว
-                          </span>
-                        )}
-                        {isRejected && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-rose-100 text-rose-800 px-2.5 py-0.5 rounded-full">
-                            <XCircle className="w-3 h-3 text-rose-600" /> ไม่อนุมัติ
-                          </span>
-                        )}
-                        {isCancelled && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">
-                            ยกเลิกแล้ว
-                          </span>
-                        )}
-                        {(b.isTimetable || b.note?.includes('[ตารางเรียน')) && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-full">
-                            <BookOpen className="w-3 h-3 text-indigo-600 dark:text-indigo-400" /> ตารางเรียน
-                          </span>
-                        )}
-                        {b.note?.includes('[จองหลายห้อง]') && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-2 py-0.5 rounded-full">
-                            <Building2 className="w-3 h-3 text-purple-600 dark:text-purple-400" /> จองหลายห้อง
-                          </span>
-                        )}
+
+                          {/* Batch Type Badge */}
+                          {item.batchType === 'TIMETABLE' && (
+                            <span className="inline-flex items-center gap-1.5 text-xs font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2.5 py-0.5 rounded-full">
+                              <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                              <span>ตารางเรียนรายวิชา ({item.batchSummary.totalSlots} คาบ)</span>
+                            </span>
+                          )}
+                          {item.batchType === 'MULTI_ROOM' && (
+                            <span className="inline-flex items-center gap-1.5 text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2.5 py-0.5 rounded-full">
+                              <Building2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                              <span>จองหลายห้อง ({item.batchSummary.roomNames.length} ห้อง)</span>
+                            </span>
+                          )}
+                          {item.batchType === 'MULTI_DAY' && (
+                            <span className="inline-flex items-center gap-1.5 text-xs font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-2.5 py-0.5 rounded-full">
+                              <CalendarDays className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                              <span>จองห้องเดียวต่อเนื่อง ({item.batchSummary.totalSlots} วัน)</span>
+                            </span>
+                          )}
+                          {item.batchType === 'SPECIAL' && (
+                            <span className="inline-flex items-center gap-1.5 text-xs font-bold bg-purple-50 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-2.5 py-0.5 rounded-full">
+                              <Layers className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                              <span>กิจกรรมพิเศษ ({item.batchSummary.roomNames.length} ห้อง x {item.batchSummary.totalSlots} สล็อต)</span>
+                            </span>
+                          )}
+
+                          {/* Overall Status Badge */}
+                          {isBatchPending && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              <span>รออนุมัติ ({item.batchSummary.pendingSlots}/{item.batchSummary.totalSlots})</span>
+                            </span>
+                          )}
+                          {isBatchApproved && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>อนุมัติแล้วทั้งชุด ({item.batchSummary.approvedSlots})</span>
+                            </span>
+                          )}
+                          {isBatchRejected && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-rose-100 text-rose-800 px-2.5 py-0.5 rounded-full">
+                              <XCircle className="w-3 h-3 text-rose-600" />
+                              <span>ไม่อนุมัติ ({item.batchSummary.rejectedSlots})</span>
+                            </span>
+                          )}
+                          {isBatchCancelled && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">
+                              ยกเลิกแล้วทั้งชุด
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                          <Users className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="font-bold text-slate-800 dark:text-slate-200">{formatUserName(b.user)}</span>
+                          {b.user?.studentId && (
+                            <span className="text-[10px] font-mono text-teal-700 bg-teal-50 px-1.5 py-0.2 rounded">
+                              {b.user.studentId}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
-                      <div className="text-xs text-slate-500 flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="font-bold text-slate-800 dark:text-slate-200">{formatUserName(b.user)}</span>
-                        {b.user?.studentId && (
-                          <span className="text-[10px] font-mono text-teal-700 bg-teal-50 px-1.5 py-0.2 rounded">
-                            {b.user.studentId}
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                      {/* Details Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                        <div className="md:col-span-2 space-y-1.5">
+                          <div>
+                            <span className="text-slate-400 font-bold">ชื่องาน/การใช้งาน: </span>
+                            <span className="text-slate-900 dark:text-slate-100 font-black text-sm">{b.title}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-bold">วัตถุประสงค์: </span>
+                            <span className="text-slate-700 dark:text-slate-300 font-medium">{b.purpose}</span>
+                          </div>
 
-                    {/* Details */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                      <div className="md:col-span-2 space-y-1.5">
-                        <div>
-                          <span className="text-slate-400 font-bold">ชื่องาน/การใช้งาน: </span>
-                          <span className="text-slate-900 dark:text-slate-100 font-black text-sm">{b.title}</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 font-bold">วัตถุประสงค์: </span>
-                          <span className="text-slate-700 dark:text-slate-300 font-medium">{b.purpose}</span>
+                          {b.course && (
+                            <div className="inline-flex items-center gap-1.5 text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded font-bold border border-teal-100 dark:border-teal-800">
+                              <BookOpen className="w-3.5 h-3.5" />
+                              <span>รายวิชา: [{b.course.code}] {b.course.name}</span>
+                              {b.course.targetYear && (
+                                <span className="text-[10px] bg-teal-200/80 dark:bg-teal-900 text-teal-900 dark:text-teal-200 px-1.5 py-0.2 rounded font-bold">
+                                  ชั้นปีที่ {b.course.targetYear}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {b.advisorName && (
+                            <div className="flex items-center gap-1 text-indigo-700 font-semibold">
+                              <GraduationCap className="w-3.5 h-3.5 text-indigo-600" />
+                              <span>อาจารย์ผู้รับผิดชอบ/ที่ปรึกษา: {formatTeacherName(b.advisorName)}</span>
+                            </div>
+                          )}
+
+                          {b.equipmentNeeded && (
+                            <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] font-medium flex items-start gap-1.5">
+                              <Package className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
+                              <span>อุปกรณ์ที่ขอให้จัดเตรียม: <strong>{b.equipmentNeeded}</strong></span>
+                            </div>
+                          )}
+
+                          {b.note && (
+                            <div className="p-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 text-[11px] whitespace-pre-line">
+                              <strong>หมายเหตุ/ประวัติ:</strong> {b.note}
+                            </div>
+                          )}
                         </div>
 
-                        {b.course && (
-                          <div className="inline-flex items-center gap-1.5 text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded font-bold border border-teal-100 dark:border-teal-800">
-                            <BookOpen className="w-3.5 h-3.5" />
-                            <span>รายวิชา: [{b.course.code}] {b.course.name}</span>
-                            {b.course.targetYear && (
-                              <span className="text-[10px] bg-teal-200/80 dark:bg-teal-900 text-teal-900 dark:text-teal-200 px-1.5 py-0.2 rounded font-bold">
-                                ชั้นปีที่ {b.course.targetYear}
+                        {/* Stat Summary Box */}
+                        <div className="space-y-2 text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-700">
+                          <div className="flex items-start gap-1.5">
+                            <Building2 className="w-4 h-4 text-teal-600 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-bold text-slate-900 dark:text-slate-100">
+                                {item.batchSummary.roomNames.length === 1
+                                  ? item.batchSummary.roomNames[0]
+                                  : `${item.batchSummary.roomNames.length} ห้องปฏิบัติการ`}
+                              </span>
+                              {item.batchSummary.roomNames.length > 1 && (
+                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                  {item.batchSummary.roomNames.join(', ')}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-start gap-1.5 font-bold">
+                            <Calendar className="w-4 h-4 text-teal-600 flex-shrink-0 mt-0.5" />
+                            <span>{item.batchSummary.datesText}</span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 font-bold text-teal-700 dark:text-teal-400">
+                            <Clock className="w-4 h-4 text-teal-600" />
+                            <span>เวลา: {b.startTime} - {b.endTime} น.</span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 text-slate-500 pt-1 border-t border-slate-200/60 dark:border-slate-700">
+                            <Users className="w-3.5 h-3.5 text-slate-400" />
+                            <span>จำนวนผู้ใช้: {b.attendeesCount} คน</span>
+                            {b.contactPhone && (
+                              <span className="ml-auto flex items-center gap-1 text-[11px]">
+                                <Phone className="w-3 h-3 text-slate-400" /> {b.contactPhone}
                               </span>
                             )}
                           </div>
-                        )}
-
-                        {b.advisorName && (
-                          <div className="flex items-center gap-1 text-indigo-700 font-semibold">
-                            <GraduationCap className="w-3.5 h-3.5 text-indigo-600" />
-                            <span>อาจารย์ผู้รับผิดชอบ/ที่ปรึกษา: {formatTeacherName(b.advisorName)}</span>
-                          </div>
-                        )}
-
-                        {b.equipmentNeeded && (
-                          <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] font-medium flex items-start gap-1.5">
-                            <Package className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
-                            <span>อุปกรณ์ที่ขอให้จัดเตรียม: <strong>{b.equipmentNeeded}</strong></span>
-                          </div>
-                        )}
-
-                        {isRejected && b.rejectionReason && (
-                          <div className="p-2 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-[11px] font-medium">
-                            เหตุผลที่ไม่อนุมัติ: <strong>{b.rejectionReason}</strong>
-                          </div>
-                        )}
-
-                        {isCancelled && b.rejectionReason && (
-                          <div className="p-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 text-[11px] font-medium">
-                            เหตุผลที่ยกเลิก: <strong>{b.rejectionReason}</strong>
-                          </div>
-                        )}
-
-                        {b.note && (
-                          <div className="p-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 text-[11px] whitespace-pre-line">
-                            <strong>หมายเหตุ/ประวัติ:</strong> {b.note}
-                          </div>
-                        )}
+                        </div>
                       </div>
 
-                      <div className="space-y-1 text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-700">
-                        <div className="flex items-center gap-1.5 font-bold">
-                          <Calendar className="w-4 h-4 text-teal-600" />
-                          <span>วันที่: {formatDate(b.bookingDate)}</span>
+                      {/* Actions Bar */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                        {/* Drawer Toggle Button */}
+                        <button
+                          type="button"
+                          onClick={() => toggleExpandBatch(item.batchGroupId!)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold transition cursor-pointer"
+                        >
+                          {isExpanded ? (
+                            <>
+                              <ChevronUp className="w-3.5 h-3.5 text-teal-600" />
+                              <span>ซ่อนรายละเอียดรายสล็อต</span>
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="w-3.5 h-3.5 text-teal-600" />
+                              <span>ตรวจสอบรายละเอียดรายสล็อต ({item.batchSummary.totalSlots} รายการ)</span>
+                            </>
+                          )}
+                        </button>
+
+                        {/* Batch Action Buttons */}
+                        <div className="flex items-center gap-2 flex-wrap justify-end">
+                          {/* Cancel whole batch for Requester */}
+                          {isBatchPending && isMyBooking && (
+                            <button
+                              type="button"
+                              disabled={submitting}
+                              onClick={() =>
+                                handleBatchRoomCancel(
+                                  item.batchGroupId!,
+                                  item.batchSummary!.pendingSlots
+                                )
+                              }
+                              className="px-3.5 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer"
+                            >
+                              ยกเลิกคำขอทั้งชุด ({item.batchSummary.pendingSlots})
+                            </button>
+                          )}
+
+                          {/* Approver 1-Click Batch Actions */}
+                          {isBatchPending && canApprove && (
+                            <>
+                              <button
+                                type="button"
+                                disabled={submitting}
+                                onClick={() =>
+                                  handleBatchRoomReject(
+                                    item.batchGroupId!,
+                                    item.batchSummary!.pendingSlots
+                                  )
+                                }
+                                className="px-3.5 py-1.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-bold transition cursor-pointer"
+                              >
+                                ไม่อนุมัติทั้งชุด
+                              </button>
+                              <button
+                                type="button"
+                                disabled={submitting}
+                                onClick={() =>
+                                  handleBatchRoomApprove(
+                                    item.batchGroupId!,
+                                    item.batchSummary!.pendingSlots
+                                  )
+                                }
+                                className="px-4 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow transition cursor-pointer flex items-center gap-1"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>อนุมัติทั้งชุด ({item.batchSummary.pendingSlots})</span>
+                              </button>
+                            </>
+                          )}
                         </div>
-                        <div className="flex items-center gap-1.5 font-bold text-teal-700">
-                          <Clock className="w-4 h-4 text-teal-600" />
-                          <span>เวลา: {b.startTime} - {b.endTime} น.</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-slate-500 pt-1">
-                          <Users className="w-3.5 h-3.5 text-slate-400" />
-                          <span>จำนวนผู้ใช้: {b.attendeesCount} คน</span>
-                        </div>
-                        {b.contactPhone && (
-                          <div className="flex items-center gap-1.5 text-slate-500">
-                            <Phone className="w-3.5 h-3.5 text-slate-400" />
-                            <span>โทร: {b.contactPhone}</span>
-                          </div>
-                        )}
                       </div>
+
+                      {/* Expandable Drawer of Sub-Slots */}
+                      {isExpanded && (
+                        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                          <div className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between pb-1">
+                            <span>รายการสล็อตการใช้ห้องในชุดคำขอนี้ ({item.batchSummary.totalSlots} รายการ)</span>
+                            <span className="text-[11px] text-slate-400 font-normal">
+                              คลิกจัดการสล็อตเดี่ยวหรืออนุมัติ/ไม่อนุมัติเป็นรายตัวได้
+                            </span>
+                          </div>
+
+                          <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+                            <table className="w-full text-xs text-left">
+                              <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 font-bold border-b border-slate-200 dark:border-slate-700">
+                                <tr>
+                                  <th className="py-2.5 px-3">#</th>
+                                  <th className="py-2.5 px-3">รหัสคำขอ</th>
+                                  <th className="py-2.5 px-3">ห้องปฏิบัติการ</th>
+                                  <th className="py-2.5 px-3">วันที่ใช้งาน</th>
+                                  <th className="py-2.5 px-3">ช่วงเวลา</th>
+                                  <th className="py-2.5 px-3 text-center">สถานะ</th>
+                                  <th className="py-2.5 px-3 text-right">การจัดการ</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                                {item.batchSummary.slots.map((slot, sIdx) => {
+                                  const slotPending = slot.status === 'PENDING';
+                                  const slotApproved = slot.status === 'APPROVED';
+                                  const slotRejected = slot.status === 'REJECTED';
+                                  const slotCancelled = slot.status === 'CANCELLED';
+
+                                  return (
+                                    <tr
+                                      key={slot.id}
+                                      className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition"
+                                    >
+                                      <td className="py-2.5 px-3 font-mono text-slate-400 text-[11px]">
+                                        {sIdx + 1}
+                                      </td>
+                                      <td className="py-2.5 px-3 font-mono font-bold text-slate-700 dark:text-slate-300 text-[11px]">
+                                        {slot.bookingNumber}
+                                      </td>
+                                      <td className="py-2.5 px-3 font-bold text-teal-800 dark:text-teal-300">
+                                        {slot.room?.name} ({slot.room?.code})
+                                      </td>
+                                      <td className="py-2.5 px-3 font-medium text-slate-700 dark:text-slate-300">
+                                        {formatDate(slot.bookingDate)}
+                                      </td>
+                                      <td className="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-400">
+                                        {slot.startTime} - {slot.endTime} น.
+                                      </td>
+                                      <td className="py-2.5 px-3 text-center">
+                                        {slotPending && (
+                                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                                            <Clock className="w-2.5 h-2.5 text-amber-600" /> รออนุมัติ
+                                          </span>
+                                        )}
+                                        {slotApproved && (
+                                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                                            <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> อนุมัติแล้ว
+                                          </span>
+                                        )}
+                                        {slotRejected && (
+                                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
+                                            <XCircle className="w-2.5 h-2.5 text-rose-600" /> ไม่อนุมัติ
+                                          </span>
+                                        )}
+                                        {slotCancelled && (
+                                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+                                            ยกเลิกแล้ว
+                                          </span>
+                                        )}
+                                      </td>
+                                      <td className="py-2.5 px-3 text-right">
+                                        <div className="flex items-center justify-end gap-1.5">
+                                          {slotPending && isMyBooking && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleCancel(slot.id)}
+                                              className="px-2 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 text-[10px] font-bold cursor-pointer"
+                                            >
+                                              ยกเลิก
+                                            </button>
+                                          )}
+                                          {slotPending && canApprove && (
+                                            <>
+                                              <button
+                                                type="button"
+                                                disabled={submitting}
+                                                onClick={() => handleReject(slot.id)}
+                                                className="px-2 py-1 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 text-[10px] font-bold cursor-pointer"
+                                              >
+                                                ไม่อนุมัติ
+                                              </button>
+                                              <button
+                                                type="button"
+                                                disabled={submitting}
+                                                onClick={() => handleApprove(slot.id)}
+                                                className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-[10px] font-bold cursor-pointer flex items-center gap-1"
+                                              >
+                                                <Check className="w-2.5 h-2.5" />
+                                                <span>อนุมัติ</span>
+                                              </button>
+                                            </>
+                                          )}
+                                          {slotApproved && canManageRooms && (
+                                            <>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleOpenReassignModal(slot)}
+                                                className="px-2 py-1 rounded-lg border border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 text-[10px] font-bold cursor-pointer"
+                                                title="ย้ายห้อง"
+                                              >
+                                                ย้ายห้อง
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleOpenCancelModal(slot)}
+                                                className="px-2 py-1 rounded-lg border border-rose-200 text-rose-700 bg-rose-50/50 hover:bg-rose-100 text-[10px] font-bold cursor-pointer"
+                                                title="คืนห้อง"
+                                              >
+                                                คืนห้อง
+                                              </button>
+                                            </>
+                                          )}
+                                          {isAdmin && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeleteBooking(slot.id)}
+                                              className="p-1 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 text-[10px] cursor-pointer"
+                                              title="ลบรายการถาวร"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
                     </div>
+                  );
+                } else {
+                  // Render Single Booking Card
+                  const b = item.primary;
+                  const isPending = b.status === 'PENDING';
+                  const isApproved = b.status === 'APPROVED';
+                  const isRejected = b.status === 'REJECTED';
+                  const isCancelled = b.status === 'CANCELLED';
+                  const isMyBooking = currentUser?.id === b.userId;
 
-                    {/* Actions */}
-                    <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
-                      <div>
-                        {b.approver && (
-                          <span className="text-[11px] text-slate-400">
-                            ผู้อนุมัติ: {b.approver.name}
+                  return (
+                    <div
+                      key={b.id}
+                      className={`bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm space-y-4 border-l-4 ${
+                        isApproved
+                          ? 'border-l-emerald-500'
+                          : isPending
+                          ? 'border-l-amber-500'
+                          : 'border-l-rose-500'
+                      }`}
+                    >
+                      {/* Header */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs font-black text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded">
+                            {b.bookingNumber}
                           </span>
-                        )}
+                          <span className="text-xs font-bold text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950 px-2.5 py-0.5 rounded border border-teal-100 dark:border-teal-800">
+                            {b.room?.name} ({b.room?.code})
+                          </span>
+
+                          {isPending && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full">
+                              <Clock className="w-3 h-3 text-amber-600" /> รออนุมัติ
+                            </span>
+                          )}
+                          {isApproved && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" /> อนุมัติแล้ว
+                            </span>
+                          )}
+                          {isRejected && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-rose-100 text-rose-800 px-2.5 py-0.5 rounded-full">
+                              <XCircle className="w-3 h-3 text-rose-600" /> ไม่อนุมัติ
+                            </span>
+                          )}
+                          {isCancelled && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">
+                              ยกเลิกแล้ว
+                            </span>
+                          )}
+                          {(b.isTimetable || b.note?.includes('[ตารางเรียน')) && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-full">
+                              <BookOpen className="w-3 h-3 text-indigo-600 dark:text-indigo-400" /> ตารางเรียน
+                            </span>
+                          )}
+                          {b.note?.includes('[จองหลายห้อง]') && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-2 py-0.5 rounded-full">
+                              <Building2 className="w-3 h-3 text-purple-600 dark:text-purple-400" /> จองหลายห้อง
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                          <Users className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="font-bold text-slate-800 dark:text-slate-200">{formatUserName(b.user)}</span>
+                          {b.user?.studentId && (
+                            <span className="text-[10px] font-mono text-teal-700 bg-teal-50 px-1.5 py-0.2 rounded">
+                              {b.user.studentId}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        {isPending && isMyBooking && (
-                          <button
-                            onClick={() => handleCancel(b.id)}
-                            className="px-3.5 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer"
-                          >
-                            ยกเลิกคำขอ
-                          </button>
-                        )}
+                      {/* Details */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                        <div className="md:col-span-2 space-y-1.5">
+                          <div>
+                            <span className="text-slate-400 font-bold">ชื่องาน/การใช้งาน: </span>
+                            <span className="text-slate-900 dark:text-slate-100 font-black text-sm">{b.title}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-bold">วัตถุประสงค์: </span>
+                            <span className="text-slate-700 dark:text-slate-300 font-medium">{b.purpose}</span>
+                          </div>
 
-                        {isPending && canApprove && (
-                          <>
-                            <button
-                              disabled={submitting}
-                              onClick={() => handleReject(b.id)}
-                              className="px-3.5 py-1.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-bold transition cursor-pointer"
-                            >
-                              ไม่อนุมัติ
-                            </button>
-                            <button
-                              disabled={submitting}
-                              onClick={() => handleApprove(b.id)}
-                              className="px-4 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow transition cursor-pointer flex items-center gap-1"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              <span>อนุมัติคำขอ</span>
-                            </button>
-                          </>
-                        )}
+                          {b.course && (
+                            <div className="inline-flex items-center gap-1.5 text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded font-bold border border-teal-100 dark:border-teal-800">
+                              <BookOpen className="w-3.5 h-3.5" />
+                              <span>รายวิชา: [{b.course.code}] {b.course.name}</span>
+                              {b.course.targetYear && (
+                                <span className="text-[10px] bg-teal-200/80 dark:bg-teal-900 text-teal-900 dark:text-teal-200 px-1.5 py-0.2 rounded font-bold">
+                                  ชั้นปีที่ {b.course.targetYear}
+                                </span>
+                              )}
+                            </div>
+                          )}
 
-                        {/* Approved Actions: Only Admin & Lab Officer can Reassign or Cancel approved bookings */}
-                        {isApproved && canManageRooms && (
-                          <>
-                            <button
-                              onClick={() => handleOpenReassignModal(b)}
-                              className="px-3.5 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
-                              title="ย้ายห้องปฏิบัติการสำหรับรายการที่อนุมัติแล้ว"
-                            >
-                              <ArrowRightLeft className="w-3.5 h-3.5" />
-                              <span>ย้ายห้อง</span>
-                            </button>
-                            <button
-                              onClick={() => handleOpenCancelModal(b)}
-                              className="px-3.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
-                              title="ยกเลิกการจองและคืนห้องว่างเข้าสู่ระบบ"
-                            >
-                              <XCircle className="w-3.5 h-3.5" />
-                              <span>ยกเลิกการจอง (คืนห้อง)</span>
-                            </button>
-                          </>
-                        )}
+                          {b.advisorName && (
+                            <div className="flex items-center gap-1 text-indigo-700 font-semibold">
+                              <GraduationCap className="w-3.5 h-3.5 text-indigo-600" />
+                              <span>อาจารย์ผู้รับผิดชอบ/ที่ปรึกษา: {formatTeacherName(b.advisorName)}</span>
+                            </div>
+                          )}
 
-                        {/* Admin permanent delete */}
-                        {isAdmin && (
-                          <button
-                            onClick={() => handleDeleteBooking(b.id)}
-                            className="p-1.5 rounded-xl border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition cursor-pointer"
-                            title="ลบรายการทิ้งถาวร (เฉพาะแอดมิน)"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                          {b.equipmentNeeded && (
+                            <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] font-medium flex items-start gap-1.5">
+                              <Package className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
+                              <span>อุปกรณ์ที่ขอให้จัดเตรียม: <strong>{b.equipmentNeeded}</strong></span>
+                            </div>
+                          )}
+
+                          {isRejected && b.rejectionReason && (
+                            <div className="p-2 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-[11px] font-medium">
+                              เหตุผลที่ไม่อนุมัติ: <strong>{b.rejectionReason}</strong>
+                            </div>
+                          )}
+
+                          {isCancelled && b.rejectionReason && (
+                            <div className="p-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 text-[11px] font-medium">
+                              เหตุผลที่ยกเลิก: <strong>{b.rejectionReason}</strong>
+                            </div>
+                          )}
+
+                          {b.note && (
+                            <div className="p-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 text-[11px] whitespace-pre-line">
+                              <strong>หมายเหตุ/ประวัติ:</strong> {b.note}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="space-y-1 text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-700">
+                          <div className="flex items-center gap-1.5 font-bold">
+                            <Calendar className="w-4 h-4 text-teal-600" />
+                            <span>วันที่: {formatDate(b.bookingDate)}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 font-bold text-teal-700">
+                            <Clock className="w-4 h-4 text-teal-600" />
+                            <span>เวลา: {b.startTime} - {b.endTime} น.</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-slate-500 pt-1">
+                            <Users className="w-3.5 h-3.5 text-slate-400" />
+                            <span>จำนวนผู้ใช้: {b.attendeesCount} คน</span>
+                          </div>
+                          {b.contactPhone && (
+                            <div className="flex items-center gap-1.5 text-slate-500">
+                              <Phone className="w-3.5 h-3.5 text-slate-400" />
+                              <span>โทร: {b.contactPhone}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+                        <div>
+                          {b.approver && (
+                            <span className="text-[11px] text-slate-400">
+                              ผู้อนุมัติ: {b.approver.name}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {isPending && isMyBooking && (
+                            <button
+                              onClick={() => handleCancel(b.id)}
+                              className="px-3.5 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer"
+                            >
+                              ยกเลิกคำขอ
+                            </button>
+                          )}
+
+                          {isPending && canApprove && (
+                            <>
+                              <button
+                                disabled={submitting}
+                                onClick={() => handleReject(b.id)}
+                                className="px-3.5 py-1.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-bold transition cursor-pointer"
+                              >
+                                ไม่อนุมัติ
+                              </button>
+                              <button
+                                disabled={submitting}
+                                onClick={() => handleApprove(b.id)}
+                                className="px-4 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow transition cursor-pointer flex items-center gap-1"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>อนุมัติคำขอ</span>
+                              </button>
+                            </>
+                          )}
+
+                          {/* Approved Actions: Only Admin & Lab Officer can Reassign or Cancel approved bookings */}
+                          {isApproved && canManageRooms && (
+                            <>
+                              <button
+                                onClick={() => handleOpenReassignModal(b)}
+                                className="px-3.5 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                                title="ย้ายห้องปฏิบัติการสำหรับรายการที่อนุมัติแล้ว"
+                              >
+                                <ArrowRightLeft className="w-3.5 h-3.5" />
+                                <span>ย้ายห้อง</span>
+                              </button>
+                              <button
+                                onClick={() => handleOpenCancelModal(b)}
+                                className="px-3.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                                title="ยกเลิกการจองและคืนห้องว่างเข้าสู่ระบบ"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                <span>ยกเลิกการจอง (คืนห้อง)</span>
+                              </button>
+                            </>
+                          )}
+
+                          {/* Admin permanent delete */}
+                          {isAdmin && (
+                            <button
+                              onClick={() => handleDeleteBooking(b.id)}
+                              className="p-1.5 rounded-xl border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition cursor-pointer"
+                              title="ลบรายการทิ้งถาวร (เฉพาะแอดมิน)"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
+                  );
+                }
               })}
             </div>
           )}
@@ -2384,7 +3079,7 @@ export default function RoomsPage() {
               </button>
             </div>
 
-            {/* Mode Switcher (Visible to Admin & Officers only) */}
+            {/* Mode Switcher */}
             {canManageRooms ? (
               <div className="space-y-2 bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
                 <div className="flex items-center justify-between">
@@ -2399,7 +3094,7 @@ export default function RoomsPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {/* ปุ่ม 1: จองห้องปกติ */}
+                  {/* ปุ่ม 1: จองห้องปกติทั่วไป */}
                   <button
                     type="button"
                     onClick={() => {
@@ -2416,10 +3111,10 @@ export default function RoomsPage() {
                     </div>
                     <div className="text-left">
                       <div className="font-bold flex items-center gap-1">
-                        <span>จองห้องปกติทั่วไป</span>
+                        <span>จองห้องทั่วไป / กิจกรรม</span>
                         {bookingMode !== 'TIMETABLE' && <span className="text-[10px] text-teal-600">✓ เลือกอยู่</span>}
                       </div>
-                      <div className="text-[10px] opacity-75 font-normal">จองรายครั้ง, ประชุม, ฝึกทักษะ, สอบ</div>
+                      <div className="text-[10px] opacity-75 font-normal">จองห้องเดียว, หลายห้อง, อบรม, สอบ OSCE</div>
                     </div>
                   </button>
 
@@ -2456,8 +3151,8 @@ export default function RoomsPage() {
 
                 {/* Sub-modes for จองห้องปกติ */}
                 {bookingMode !== 'TIMETABLE' ? (
-                  <div className="flex items-center gap-1.5 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
-                    <span className="text-[11px] font-semibold text-slate-500">รูปแบบห้อง:</span>
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                    <span className="text-[11px] font-semibold text-slate-500">รูปแบบการจอง:</span>
                     <button
                       type="button"
                       onClick={() => setBookingMode('SINGLE')}
@@ -2468,7 +3163,7 @@ export default function RoomsPage() {
                       }`}
                     >
                       <Building className="w-3 h-3" />
-                      <span>จองห้องเดี่ยว (1 ห้อง)</span>
+                      <span>ห้องเดียว (1 วัน)</span>
                     </button>
                     <button
                       type="button"
@@ -2485,7 +3180,24 @@ export default function RoomsPage() {
                       }`}
                     >
                       <Layers className="w-3 h-3" />
-                      <span>จองหลายห้องพร้อมกัน</span>
+                      <span>หลายห้อง (วันเดียว)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBookingMode('MULTI_DAY');
+                        if (bookingForm.roomId && !selectedRoomIds.includes(bookingForm.roomId)) {
+                          setSelectedRoomIds([bookingForm.roomId]);
+                        }
+                      }}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                        bookingMode === 'MULTI_DAY'
+                          ? 'bg-amber-600 text-white shadow-xs'
+                          : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 border border-slate-200 dark:border-slate-600'
+                      }`}
+                    >
+                      <CalendarDays className="w-3 h-3" />
+                      <span>ต่อเนื่องหลายวัน</span>
                     </button>
                   </div>
                 ) : (
@@ -2495,11 +3207,73 @@ export default function RoomsPage() {
                   </div>
                 )}
               </div>
+            ) : isTeacher ? (
+              /* อาจารย์ผู้สอน: เลือกจองทั่วไปได้ทั้ง 3 แบบ (ไม่เห็นตารางเรียน) */
+              <div className="space-y-2 bg-purple-50/60 dark:bg-purple-950/30 p-2.5 rounded-2xl border border-purple-200/80 dark:border-purple-800/80">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
+                    <GraduationCap className="w-4 h-4 text-purple-600" />
+                    <span>แบบฟอร์มการจองห้องสำหรับอาจารย์ผู้สอน:</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-purple-700 bg-purple-100/80 dark:bg-purple-900/60 px-2 py-0.5 rounded-full">
+                    รอเจ้าหน้าที่อนุมัติ
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-purple-200/60 dark:border-purple-800/60">
+                  <span className="text-[11px] font-semibold text-slate-500">รูปแบบการจอง:</span>
+                  <button
+                    type="button"
+                    onClick={() => setBookingMode('SINGLE')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                      bookingMode === 'SINGLE'
+                        ? 'bg-teal-600 text-white shadow-xs'
+                        : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 border border-slate-200 dark:border-slate-600'
+                    }`}
+                  >
+                    <Building className="w-3 h-3" />
+                    <span>ห้องเดียว (1 วัน)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBookingMode('MULTI_ROOM');
+                      if (bookingForm.roomId && !selectedRoomIds.includes(bookingForm.roomId)) {
+                        setSelectedRoomIds([bookingForm.roomId]);
+                      }
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                      bookingMode === 'MULTI_ROOM'
+                        ? 'bg-purple-600 text-white shadow-xs'
+                        : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 border border-slate-200 dark:border-slate-600'
+                    }`}
+                  >
+                    <Layers className="w-3 h-3" />
+                    <span>หลายห้อง (วันเดียว เช่น OSCE)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBookingMode('MULTI_DAY');
+                      if (bookingForm.roomId && !selectedRoomIds.includes(bookingForm.roomId)) {
+                        setSelectedRoomIds([bookingForm.roomId]);
+                      }
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                      bookingMode === 'MULTI_DAY'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 border border-slate-200 dark:border-slate-600'
+                    }`}
+                  >
+                    <CalendarDays className="w-3 h-3" />
+                    <span>ต่อเนื่องหลายวัน (เช่น อบรม CPR)</span>
+                  </button>
+                </div>
+              </div>
             ) : (
-              /* ผู้ใช้ทั่วไป / นิสิต: ล็อกเป็นจองห้องปกติ */
+              /* นิสิต / ผู้ใช้ทั่วไป: ล็อกเป็นจองห้องเดียว 1 วัน */
               <div className="bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/60 p-2.5 rounded-2xl flex items-center gap-2 text-xs text-teal-800 dark:text-teal-200">
                 <Building className="w-4 h-4 text-teal-600 shrink-0" />
-                <span>แบบฟอร์มยื่นคำขอจองห้องปฏิบัติการพยาบาลสำหรับการใช้งานทั่วไป / ซ้อมฝึกทักษะ</span>
+                <span>แบบฟอร์มยื่นคำขอจองห้องปฏิบัติการพยาบาลสำหรับนิสิต (จองห้องเดียว 1 วัน)</span>
               </div>
             )}
 
@@ -2745,8 +3519,8 @@ export default function RoomsPage() {
                 </div>
               )}
 
-              {/* DATE & TIME (SINGLE & MULTI_ROOM MODES) */}
-              {bookingMode !== 'TIMETABLE' ? (
+              {/* DATE & TIME SECTION */}
+              {bookingMode === 'SINGLE' || bookingMode === 'MULTI_ROOM' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -2803,6 +3577,100 @@ export default function RoomsPage() {
                         onChange={(e) => setBookingForm({ ...bookingForm, endTime: e.target.value })}
                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-1.5 text-xs text-slate-900 dark:text-slate-100"
                       />
+                    </div>
+                  </div>
+                </div>
+              ) : bookingMode === 'MULTI_DAY' ? (
+                /* MULTI-DAY DATE RANGE & TIME CONTROLS */
+                <div className="space-y-3 bg-amber-50/60 dark:bg-amber-950/30 p-3.5 rounded-2xl border border-amber-200/80 dark:border-amber-800/80">
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-900 dark:text-amber-200">
+                    <CalendarDays className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    <span>กำหนดช่วงวันที่จัดกิจกรรมต่อเนื่อง (ไม่ใช่ตารางเรียน)</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        วันที่เริ่มต้น <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={multiDayStartDate}
+                        onChange={(e) => setMultiDayStartDate(e.target.value)}
+                        className="w-full bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-slate-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        วันที่สิ้นสุด <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={multiDayEndDate}
+                        onChange={(e) => setMultiDayEndDate(e.target.value)}
+                        className="w-full bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-slate-100"
+                      />
+                    </div>
+                  </div>
+
+                  {computedMultiDayDates.length > 0 && (
+                    <div className="text-[11px] font-bold text-amber-800 dark:text-amber-300 bg-white dark:bg-slate-900 px-2.5 py-1.5 rounded-lg border border-amber-200 dark:border-amber-800 flex items-center justify-between">
+                      <span>📅 รวม {computedMultiDayDates.length} วันต่อเนื่อง ({selectedRoomIds.length} ห้อง × {computedMultiDayDates.length} วัน = {selectedRoomIds.length * computedMultiDayDates.length} สล็อต)</span>
+                    </div>
+                  )}
+
+                  <div className="pt-2 border-t border-amber-200/50 dark:border-amber-800/50">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                        ช่วงเวลาการใช้งานในแต่ละวัน <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="flex items-center gap-1 text-[10px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setBookingForm({ ...bookingForm, startTime: '08:30', endTime: '12:00' })}
+                          className="px-2 py-0.5 bg-white dark:bg-slate-800 hover:bg-amber-100 rounded-lg transition cursor-pointer text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                        >
+                          เช้า (08:30-12)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBookingForm({ ...bookingForm, startTime: '13:00', endTime: '16:30' })}
+                          className="px-2 py-0.5 bg-white dark:bg-slate-800 hover:bg-amber-100 rounded-lg transition cursor-pointer text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                        >
+                          บ่าย (13-16:30)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBookingForm({ ...bookingForm, startTime: '08:30', endTime: '16:30' })}
+                          className="px-2 py-0.5 bg-white dark:bg-slate-800 hover:bg-amber-100 rounded-lg transition cursor-pointer text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                        >
+                          เต็มวัน
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-[10px] text-slate-500 mb-1 block">เวลาเริ่มต้น:</span>
+                        <input
+                          type="time"
+                          required
+                          value={bookingForm.startTime}
+                          onChange={(e) => setBookingForm({ ...bookingForm, startTime: e.target.value })}
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 mb-1 block">เวลาสิ้นสุด:</span>
+                        <input
+                          type="time"
+                          required
+                          value={bookingForm.endTime}
+                          onChange={(e) => setBookingForm({ ...bookingForm, endTime: e.target.value })}
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2938,7 +3806,7 @@ export default function RoomsPage() {
                           ? 'กำลังตรวจสอบ...'
                           : `ตรวจสอบเวลาทับซ้อน (${
                               selectedRoomIds.length *
-                              (bookingMode === 'MULTI_ROOM' ? 1 : computedTimetableDates.length)
+                              (bookingMode === 'MULTI_ROOM' ? 1 : bookingMode === 'MULTI_DAY' ? computedMultiDayDates.length : computedTimetableDates.length)
                             } สล็อต)`}
                       </span>
                     </button>
@@ -3278,6 +4146,7 @@ export default function RoomsPage() {
                         selectedRoomIds.length === 0 ||
                         (bookingMode === 'TIMETABLE' && computedTimetableDates.length === 0) ||
                         (bookingMode === 'MULTI_ROOM' && !bookingForm.bookingDate) ||
+                        (bookingMode === 'MULTI_DAY' && computedMultiDayDates.length === 0) ||
                         (previewAnalysis && previewAnalysis.conflictedCount > 0 && !skipConflicts) ||
                         (previewAnalysis && previewAnalysis.availableCount === 0)
                       ))
@@ -3307,9 +4176,9 @@ export default function RoomsPage() {
                             : `${previewAnalysis.totalSlots} สล็อต`
                           : `${
                               selectedRoomIds.length *
-                              (bookingMode === 'MULTI_ROOM' ? 1 : computedTimetableDates.length)
+                              (bookingMode === 'MULTI_ROOM' ? 1 : bookingMode === 'MULTI_DAY' ? computedMultiDayDates.length : computedTimetableDates.length)
                             } สล็อต`}
-                        {autoApproveBatch ? ' (อนุมัติทันที)' : ''}
+                        {canManageRooms && autoApproveBatch ? ' (อนุมัติทันที)' : ''}
                       </span>
                     </>
                   )}

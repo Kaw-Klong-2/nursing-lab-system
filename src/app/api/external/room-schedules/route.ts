@@ -52,6 +52,7 @@ export async function GET(req: Request) {
     const roomCodeParam = searchParams.get('room_code'); // LAB-SIM-01 etc.
     const rawStatusParam = searchParams.get('status')?.trim();
     let statusParam = rawStatusParam?.toUpperCase();
+    const typeParam = searchParams.get('type')?.trim().toLowerCase(); // timetable, general, booking, all
 
     // Map common Thai / alternate status aliases
     if (statusParam === 'รออนุมัติ' || statusParam === 'WAITING') {
@@ -61,6 +62,13 @@ export async function GET(req: Request) {
     }
 
     const where: any = {};
+
+    // กรองประเภท: ตารางเรียน (timetable) vs การจองห้องปกติ (general/booking)
+    if (typeParam === 'timetable') {
+      where.isTimetable = true;
+    } else if (typeParam === 'general' || typeParam === 'booking') {
+      where.isTimetable = false;
+    }
 
     // กรองสถานะ (Default: ทั้ง APPROVED และ PENDING เพื่อให้ฝั่งโน้นเห็นทั้งที่อนุมัติแล้วและกำลังรอพิจารณา)
     if (!statusParam || statusParam === 'ALL') {
@@ -212,19 +220,23 @@ export async function GET(req: Request) {
         // ข้อมูลหลักสำหรับตาราง room_bookings
         id: b.id,
         booking_code: b.bookingNumber,
+        is_timetable: b.isTimetable,
+        schedule_type: b.isTimetable ? 'timetable' : 'general_booking',
+        schedule_type_th: b.isTimetable ? 'ตารางเรียน' : 'การจองทั่วไป',
+        category: b.isTimetable ? 'TIMETABLE' : 'BOOKING',
         requester_type: requesterType,
-        booking_type: bookingType,
+        booking_type: b.isTimetable ? 'academic' : bookingType,
         course_code: b.course?.code || null,
         course_name: b.course
           ? (b.course.targetYear ? `${b.course.name} (ชั้นปีที่ ${b.course.targetYear})` : b.course.name)
           : null,
         course_name_raw: b.course?.name || null,
-        student_year: b.course?.targetYear || null, // ตรงกับคอลัมน์ student_year (integer) ในตาราง room_bookings
+        student_year: b.isTimetable ? (b.course?.targetYear || null) : (b.course?.targetYear || null), // ตรงกับคอลัมน์ student_year (integer) ในตาราง room_bookings
         term_semester: b.course ? `${b.course.semester}/${b.course.academicYear}` : null, // ตรงกับคอลัมน์ term_semester (text) ในตาราง room_bookings เช่น "1/2569"
         course_target_year: b.course?.targetYear || null,
         course_year_level: b.course?.targetYear ? `ชั้นปีที่ ${b.course.targetYear}` : null,
         instructor_name: b.advisorName || null,
-        overall_objective: b.title,
+        overall_objective: b.isTimetable ? `[ตารางเรียน] ${b.title}` : b.title,
         status: b.status.toLowerCase(), // approved, pending, rejected, cancelled
         status_raw: b.status.toUpperCase(), // APPROVED, PENDING, REJECTED
         booking_status: b.status.toUpperCase(), // APPROVED, PENDING
@@ -258,7 +270,7 @@ export async function GET(req: Request) {
         booking_date: dateString, // 2026-10-15
         start_time: formatTime(b.startTime), // 08:30:00
         end_time: formatTime(b.endTime), // 12:00:00
-        slot_objective: b.title,
+        slot_objective: b.isTimetable ? `[ตารางเรียน] ${b.title}` : b.title,
         participants: b.attendeesCount || 1,
         equipment_req: equipmentArray,
 
@@ -285,6 +297,7 @@ export async function GET(req: Request) {
         source: 'Nursing Lab System',
         count: formattedData.length,
         filter: {
+          type: typeParam || 'ALL',
           status: statusParam || 'ALL',
           room_code: roomCodeParam || 'ALL',
           date: dateParam || 'UPCOMING_60_DAYS',

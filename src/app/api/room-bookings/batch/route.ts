@@ -40,6 +40,7 @@ export async function POST(req: Request) {
       previewOnly = false,
       termName,
       userId,
+      isTimetable: explicitIsTimetable,
     } = body;
 
     // 1. Authorization check: Only ADMIN or OFFICER can use batch/timetable booking
@@ -258,7 +259,7 @@ export async function POST(req: Request) {
       },
     });
 
-    const isTimetable = dates.length > 1;
+    const isTimetable = explicitIsTimetable !== undefined ? Boolean(explicitIsTimetable) : (dates.length > 1 || Boolean(courseId));
     const isMultiRoom = roomIds.length > 1;
     const batchTag = isTimetable
       ? `[ตารางเรียน${termName ? `: ${termName}` : ''}]`
@@ -281,6 +282,7 @@ export async function POST(req: Request) {
           userId,
           title: title.trim(),
           purpose: purpose.trim(),
+          isTimetable,
           bookingDate: slot.date,
           startTime: slot.startTime,
           endTime: slot.endTime,

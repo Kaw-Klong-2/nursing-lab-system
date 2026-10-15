@@ -686,6 +686,7 @@ export default function RoomsPage() {
           contactPhone: bookingForm.contactPhone || null,
           equipmentNeeded: bookingForm.equipmentNeeded || null,
           note: bookingForm.note || null,
+          isTimetable: canManageRooms && bookingMode === 'TIMETABLE',
           autoApprove: autoApproveBatch,
           skipConflicts: skipConflicts,
           previewOnly: false,
@@ -763,6 +764,7 @@ export default function RoomsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...bookingForm,
+          isTimetable: false,
           advisorName: bookingForm.advisorName ? formatTeacherName(bookingForm.advisorName) : null,
           userId: currentUser?.id,
         }),
@@ -2145,7 +2147,7 @@ export default function RoomsPage() {
                             ยกเลิกแล้ว
                           </span>
                         )}
-                        {b.note?.includes('[ตารางเรียน') && (
+                        {(b.isTimetable || b.note?.includes('[ตารางเรียน')) && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-full">
                             <BookOpen className="w-3 h-3 text-indigo-600 dark:text-indigo-400" /> ตารางเรียน
                           </span>
@@ -2382,58 +2384,122 @@ export default function RoomsPage() {
               </button>
             </div>
 
-            {/* Mode Switcher (Visible to Admin & Officers) */}
-            {canManageRooms && (
-              <div className="bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl flex items-center gap-1 text-xs font-bold border border-slate-200/60 dark:border-slate-700/60">
-                <button
-                  type="button"
-                  onClick={() => setBookingMode('SINGLE')}
-                  className={`flex-1 py-2 px-3 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                    bookingMode === 'SINGLE'
-                      ? 'bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                  }`}
-                >
-                  <Building className="w-3.5 h-3.5" />
-                  <span>จองเดี่ยว (ครั้งเดียว)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBookingMode('MULTI_ROOM');
-                    if (bookingForm.roomId && !selectedRoomIds.includes(bookingForm.roomId)) {
-                      setSelectedRoomIds([bookingForm.roomId]);
-                    }
-                  }}
-                  className={`flex-1 py-2 px-3 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                    bookingMode === 'MULTI_ROOM'
-                      ? 'bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-300 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                  }`}
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                  <span>จองหลายห้องพร้อมกัน</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBookingMode('TIMETABLE');
-                    if (bookingForm.roomId && !selectedRoomIds.includes(bookingForm.roomId)) {
-                      setSelectedRoomIds([bookingForm.roomId]);
-                    }
-                    if (!bookingForm.purpose) {
-                      setBookingForm((prev) => ({ ...prev, purpose: 'การเรียนการสอน' }));
-                    }
-                  }}
-                  className={`flex-1 py-2 px-3 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                    bookingMode === 'TIMETABLE'
-                      ? 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-300 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                  }`}
-                >
-                  <CalendarDays className="w-3.5 h-3.5" />
-                  <span>จัดตารางเรียนตลอดเทอม</span>
-                </button>
+            {/* Mode Switcher (Visible to Admin & Officers only) */}
+            {canManageRooms ? (
+              <div className="space-y-2 bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>เลือกประเภทการดำเนินการ:</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800 flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-amber-600" />
+                    <span>สิทธิ์เฉพาะแอดมิน & เจ้าหน้าที่</span>
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {/* ปุ่ม 1: จองห้องปกติ */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (bookingMode === 'TIMETABLE') setBookingMode('SINGLE');
+                    }}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-start gap-2.5 border ${
+                      bookingMode !== 'TIMETABLE'
+                        ? 'bg-white dark:bg-slate-700 text-teal-800 dark:text-teal-200 shadow-sm border-teal-500/40 ring-1 ring-teal-500/20'
+                        : 'bg-white/60 dark:bg-slate-850 text-slate-500 border-slate-200 dark:border-slate-700 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <div className={`p-1.5 rounded-lg ${bookingMode !== 'TIMETABLE' ? 'bg-teal-100 dark:bg-teal-900/60 text-teal-700 dark:text-teal-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                      <Building className="w-4 h-4" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-bold flex items-center gap-1">
+                        <span>จองห้องปกติทั่วไป</span>
+                        {bookingMode !== 'TIMETABLE' && <span className="text-[10px] text-teal-600">✓ เลือกอยู่</span>}
+                      </div>
+                      <div className="text-[10px] opacity-75 font-normal">จองรายครั้ง, ประชุม, ฝึกทักษะ, สอบ</div>
+                    </div>
+                  </button>
+
+                  {/* ปุ่ม 2: ตารางเรียน */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBookingMode('TIMETABLE');
+                      if (bookingForm.roomId && !selectedRoomIds.includes(bookingForm.roomId)) {
+                        setSelectedRoomIds([bookingForm.roomId]);
+                      }
+                      if (!bookingForm.purpose) {
+                        setBookingForm((prev) => ({ ...prev, purpose: 'การเรียนการสอน' }));
+                      }
+                    }}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-start gap-2.5 border ${
+                      bookingMode === 'TIMETABLE'
+                        ? 'bg-white dark:bg-slate-700 text-indigo-800 dark:text-indigo-200 shadow-sm border-indigo-500/40 ring-2 ring-indigo-500/20'
+                        : 'bg-white/60 dark:bg-slate-855 text-slate-500 border-slate-200 dark:border-slate-700 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <div className={`p-1.5 rounded-lg ${bookingMode === 'TIMETABLE' ? 'bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                      <BookOpen className="w-4 h-4" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-bold flex items-center gap-1">
+                        <span>ตารางเรียนประจำภาคเรียน</span>
+                        {bookingMode === 'TIMETABLE' && <span className="text-[10px] text-indigo-600">✓ เลือกอยู่</span>}
+                      </div>
+                      <div className="text-[10px] opacity-75 font-normal">ระบุชั้นปีนิสิต & ขึ้นตารางสอนฝั่งระบบกลาง</div>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Sub-modes for จองห้องปกติ */}
+                {bookingMode !== 'TIMETABLE' ? (
+                  <div className="flex items-center gap-1.5 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                    <span className="text-[11px] font-semibold text-slate-500">รูปแบบห้อง:</span>
+                    <button
+                      type="button"
+                      onClick={() => setBookingMode('SINGLE')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                        bookingMode === 'SINGLE'
+                          ? 'bg-teal-600 text-white shadow-xs'
+                          : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 border border-slate-200 dark:border-slate-600'
+                      }`}
+                    >
+                      <Building className="w-3 h-3" />
+                      <span>จองห้องเดี่ยว (1 ห้อง)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBookingMode('MULTI_ROOM');
+                        if (bookingForm.roomId && !selectedRoomIds.includes(bookingForm.roomId)) {
+                          setSelectedRoomIds([bookingForm.roomId]);
+                        }
+                      }}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                        bookingMode === 'MULTI_ROOM'
+                          ? 'bg-purple-600 text-white shadow-xs'
+                          : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 border border-slate-200 dark:border-slate-600'
+                      }`}
+                    >
+                      <Layers className="w-3 h-3" />
+                      <span>จองหลายห้องพร้อมกัน</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-indigo-50/70 dark:bg-indigo-950/40 p-2 rounded-xl text-[11px] text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5 border border-indigo-200/60 dark:border-indigo-800/60">
+                    <Info className="w-3.5 h-3.5 shrink-0" />
+                    <span>ข้อมูลจะถูกส่งไปยัง <strong>&ldquo;ตารางสอน & ตารางเรียนประจำภาคเรียน&rdquo;</strong> ฝั่งระบบกลางของคณะ พร้อมชั้นปีของนิสิต</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* ผู้ใช้ทั่วไป / นิสิต: ล็อกเป็นจองห้องปกติ */
+              <div className="bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/60 p-2.5 rounded-2xl flex items-center gap-2 text-xs text-teal-800 dark:text-teal-200">
+                <Building className="w-4 h-4 text-teal-600 shrink-0" />
+                <span>แบบฟอร์มยื่นคำขอจองห้องปฏิบัติการพยาบาลสำหรับการใช้งานทั่วไป / ซ้อมฝึกทักษะ</span>
               </div>
             )}
 
@@ -3005,9 +3071,17 @@ export default function RoomsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                      รายวิชาที่เกี่ยวข้อง (ถ้ามี)
+                      {bookingMode === 'TIMETABLE' ? (
+                        <span className="text-indigo-700 dark:text-indigo-300 flex items-center gap-1">
+                          <GraduationCap className="w-3.5 h-3.5" />
+                          <span>รายวิชาที่จัดตารางเรียน <span className="text-rose-500">*</span></span>
+                        </span>
+                      ) : (
+                        <span>รายวิชาที่เกี่ยวข้อง (ถ้ามี)</span>
+                      )}
                     </label>
                     <select
+                      required={bookingMode === 'TIMETABLE'}
                       value={bookingForm.courseId}
                       onChange={(e) => {
                         const cId = e.target.value;
@@ -3016,20 +3090,43 @@ export default function RoomsPage() {
                           ...prev,
                           courseId: cId,
                           advisorName: selectedC?.instructorName ? formatTeacherName(selectedC.instructorName) : (cId ? prev.advisorName : ''),
+                          title: bookingMode === 'TIMETABLE' && selectedC ? `${selectedC.code} ${selectedC.name} (ชั้นปีที่ ${selectedC.targetYear || 1})` : prev.title,
+                          purpose: bookingMode === 'TIMETABLE' ? 'การเรียนการสอน' : prev.purpose,
                         }));
                         if (selectedC?.instructorName) {
                           setIsEditingAdvisor(false);
                         }
                       }}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500/20"
+                      className={`w-full bg-white dark:bg-slate-900 border rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-slate-100 focus:ring-2 ${
+                        bookingMode === 'TIMETABLE'
+                          ? 'border-indigo-300 dark:border-indigo-700 focus:ring-indigo-500/20'
+                          : 'border-slate-200 dark:border-slate-700 focus:ring-teal-500/20'
+                      }`}
                     >
-                      <option value="">-- ไม่ระบุรายวิชา (ฝึกอิสระ/กิจกรรม) --</option>
+                      <option value="">{bookingMode === 'TIMETABLE' ? '-- กรุณาเลือกรายวิชา --' : '-- ไม่ระบุรายวิชา (ฝึกอิสระ/กิจกรรม) --'}</option>
                       {courses.map((c) => (
                         <option key={c.id} value={c.id}>
                           [{c.code}] {c.name} {c.targetYear ? `(ชั้นปีที่ ${c.targetYear})` : ''} ({formatTeacherName(c.instructorName || 'อาจารย์ผู้รับผิดชอบ')})
                         </option>
                       ))}
                     </select>
+
+                    {/* Display active course student year and semester badge */}
+                    {bookingForm.courseId && (() => {
+                      const curC = courses.find((c) => c.id === bookingForm.courseId);
+                      if (!curC) return null;
+                      return (
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-full">
+                            <GraduationCap className="w-3 h-3 text-indigo-600" />
+                            <span>นิสิตชั้นปีที่ {curC.targetYear || 1}</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                            ภาคเรียน {curC.semester}/{curC.academicYear}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div>

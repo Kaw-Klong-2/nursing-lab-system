@@ -108,7 +108,20 @@ export async function POST(req: Request) {
       equipmentNeeded,
       note,
       userId,
+      isTimetable,
     } = body;
+
+    // เฉพาะแอดมิน (ADMIN) หรือเจ้าหน้าที่ (OFFICER) เท่านั้นที่มีสิทธิ์เลือกสร้าง 'ตารางเรียน'
+    let finalIsTimetable = false;
+    if (isTimetable) {
+      const creatorUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+      if (creatorUser && (creatorUser.role === 'ADMIN' || creatorUser.role === 'OFFICER')) {
+        finalIsTimetable = true;
+      }
+    }
 
     if (!roomId || !bookingDate || !startTime || !endTime || !title || !purpose || !userId || !attendeesCount || Number(attendeesCount) <= 0) {
       return NextResponse.json(
@@ -255,6 +268,7 @@ export async function POST(req: Request) {
         userId,
         title,
         purpose,
+        isTimetable: finalIsTimetable,
         bookingDate: bDate,
         startTime,
         endTime,

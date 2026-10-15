@@ -30,10 +30,12 @@
 | `year` | Integer | ไม่บังคับ | `2026` | ปี ค.ศ. ที่ต้องการดึง (เช่น 2026) |
 | `room_code` | String | ไม่บังคับ | `LAB-SIM-01` | กรองเฉพาะรหัสห้องที่ต้องการ |
 | `status` | String | ไม่บังคับ | `ALL` | ค่าเริ่มต้นคือ `ALL` ส่งทั้ง `APPROVED` (อนุมัติแล้ว) และ `PENDING` (รออนุมัติ) หรือระบุ `APPROVED`, `PENDING`, หรือคอมม่าคั่น `APPROVED,PENDING` ได้ |
+| `type` | String | ไม่บังคับ | `timetable` | **กรองประเภทข้อมูล:** <br>• `timetable`: ดึงเฉพาะตารางเรียนประจำภาคเรียน (สำหรับหน้า **"ตารางสอน & ตารางเรียนประจำภาคเรียน (Academic Timetables)"**)<br>• `general` หรือ `booking`: ดึงเฉพาะการจองห้องปกติทั่วไป (สำหรับหน้า **"ตาราง & รายการห้องและพื้นที่"**)<br>• `all` (ค่าเริ่มต้น): ส่งทั้งหมด พร้อมฟิลด์ `is_timetable` ให้ฝั่งโน้นคัดกรองเอง |
 
 > **หมายเหตุ:** 
 > 1. หากไม่ระบุพารามิเตอร์วันที่ใดๆ ระบบจะส่งข้อมูลรายการที่อนุมัติแล้วและกำลังรอพิจารณา **ตั้งแต่วันนี้ล่วงหน้า 60 วัน** ให้อัตโนมัติ
-> 2. ทุกรายการจะมีฟิลด์สถานะส่งให้หลายรูปแบบ: `status` (`"approved"` / `"pending"`), `booking_status` (`"APPROVED"` / `"PENDING"`), `is_approved` (`true`/`false`), และ `is_pending` (`true`/`false`) เพื่อให้ฝั่งโน้นนำไปใช้แมปเงื่อนไขได้สะดวก 100%
+> 2. ทุกรายการจะมีฟิลด์จำแนกประเภทส่งให้อย่างชัดเจน: `is_timetable` (`true`/`false`), `schedule_type` (`"timetable"` / `"general_booking"`), และ `category` (`"TIMETABLE"` / `"BOOKING"`) เพื่อให้ระบบกลางนำไปแสดงผลตรงตามหน้าจอเป๊ะๆ 100%
+> 3. รายการที่เป็น **ตารางเรียน (`is_timetable: true`)** จะมีค่า `student_year` ระบุชั้นปีของนิสิต (เช่น `1`, `2`, `3`, `4`) เพื่อให้นำไปแสดงในแท็บ `นิสิต 1` - `นิสิต 4` ได้อย่างถูกต้อง
 
 ---
 
@@ -76,6 +78,10 @@ console.log('พบรายการจองห้องแล็บ:', result
     {
       "id": "cmts1234567890abcdef",
       "booking_code": "ROOM-25691015-001",
+      "is_timetable": true,
+      "schedule_type": "timetable",
+      "schedule_type_th": "ตารางเรียน",
+      "category": "TIMETABLE",
       "requester_type": "personnel",
       "booking_type": "academic",
       "course_code": "01418112",
@@ -86,7 +92,7 @@ console.log('พบรายการจองห้องแล็บ:', result
       "course_target_year": 2,
       "course_year_level": "ชั้นปีที่ 2",
       "instructor_name": "ผศ.ดร.สมชาย ใจดี",
-      "overall_objective": "การเรียนการสอนภาคปฏิบัติการสวนปัสสาวะ",
+      "overall_objective": "[ตารางเรียน] การเรียนการสอนภาคปฏิบัติการสวนปัสสาวะ",
       "status": "pending",
       "status_raw": "PENDING",
       "booking_status": "PENDING",

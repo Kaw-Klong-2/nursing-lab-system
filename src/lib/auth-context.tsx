@@ -125,7 +125,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const urlParams = new URLSearchParams(window.location.search);
-        const portalToken = urlParams.get('portal_token');
+        const rawPortalToken = urlParams.get('portal_token');
+        const portalToken = rawPortalToken ? rawPortalToken.replace(/ /g, '+') : null;
         const portalEmail = urlParams.get('email') || urlParams.get('login_hint');
 
         // 0. Handle seamless SSO Hand-off from external portal (portal_token or email param)
@@ -140,16 +141,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const data = await res.json();
             if (res.ok && data.success && data.user) {
               const u: User = data.user;
-              setCurrentUser(u);
               localStorage.setItem('active_user_id', u.id);
               localStorage.setItem('cached_current_user', JSON.stringify(u));
               localStorage.setItem('session_last_active', Date.now().toString());
-              localStorage.setItem('session_expires_at', (Date.now() + SESSION_LIFETIME_NORMAL_MS).toString());
+              localStorage.setItem('session_expires_at', (Date.now() + SESSION_LIFETIME_REMEMBER_MS).toString());
               localStorage.setItem('session_remember_me', 'true');
+              setCurrentUser(u);
               console.log('[AUTH SSO] Successfully authenticated via portal handoff for:', u.email);
 
               // Clean portal_token & email params from URL cleanly without full page refresh
-              if (portalToken) urlParams.delete('portal_token');
+              if (rawPortalToken) urlParams.delete('portal_token');
               const newSearch = urlParams.toString();
               const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
               window.history.replaceState({}, '', newUrl);
@@ -298,7 +299,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const user: User = data.user;
-      setCurrentUser(user);
 
       if (typeof window !== 'undefined') {
         const now = Date.now();
@@ -322,6 +322,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('session_remember_me', effectiveRememberMe ? 'true' : 'false');
       }
 
+      setCurrentUser(user);
+
       return { success: true };
     } catch (err: any) {
       console.error('Login request failed', err);
@@ -344,7 +346,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const user: User = data.user;
-      setCurrentUser(user);
 
       if (typeof window !== 'undefined') {
         const now = Date.now();
@@ -366,6 +367,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('session_last_active', now.toString());
         localStorage.setItem('session_remember_me', effectiveRememberMe ? 'true' : 'false');
       }
+
+      setCurrentUser(user);
 
       return { success: true };
     } catch (err: any) {

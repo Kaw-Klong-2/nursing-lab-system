@@ -79,7 +79,7 @@ export default function LoginPage() {
   // If already logged in, redirect straight to destination
   useEffect(() => {
     if (!isLoading && currentUser) {
-      router.push(getDestinationUrl());
+      router.replace(getDestinationUrl());
     }
   }, [currentUser, isLoading, router]);
 
@@ -91,12 +91,14 @@ export default function LoginPage() {
 
     const res = await login(email, password, rememberMe);
     if (res.success) {
-      router.push(getDestinationUrl());
+      router.replace(getDestinationUrl());
     } else {
       setError(res.error || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง');
       setSubmitting(false);
     }
   };
+
+  const googleProcessingRef = useRef(false);
 
   // Handle Google OAuth Credential
   const handleGoogleCredentialResponse = async (response: any) => {
@@ -104,6 +106,9 @@ export default function LoginPage() {
       setError('ไม่พบข้อมูลการยืนยันตัวตนจาก Google');
       return;
     }
+
+    if (googleProcessingRef.current) return;
+    googleProcessingRef.current = true;
 
     if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
@@ -116,16 +121,16 @@ export default function LoginPage() {
     try {
       const res = await loginWithGoogle(response.credential, rememberMe);
       if (res.success) {
-        const dest = getDestinationUrl();
-        // Use hard navigation to guarantee complete session state hydration on mobile Safari / iOS PWA
-        window.location.href = dest;
+        router.replace(getDestinationUrl());
       } else {
         setError(res.error || 'เข้าสู่ระบบด้วย Google ไม่สำเร็จ');
         setGoogleSubmitting(false);
+        googleProcessingRef.current = false;
       }
     } catch (err) {
       setError('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์ Google');
       setGoogleSubmitting(false);
+      googleProcessingRef.current = false;
     }
   };
 
@@ -135,7 +140,7 @@ export default function LoginPage() {
         try {
           const raw = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
           const cred = raw?.credential || raw?.id_token;
-          if (cred) {
+          if (cred && !googleProcessingRef.current) {
             handleGoogleCredentialResponse({ credential: cred });
           }
         } catch (e) {}
@@ -150,7 +155,7 @@ export default function LoginPage() {
     const clientId =
       process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
       '852809851978-sdl1j15pb8db2uh6lm9kcmopghn4hhv2.apps.googleusercontent.com';
-    if (typeof window !== 'undefined' && (window as any).google && googleBtnContainerRef.current) {
+    if (typeof window !== 'undefined' && (window as any).google?.accounts?.id && googleBtnContainerRef.current) {
       try {
         // Expose callback globally so GIS in all browser contexts can reliably invoke it
         (window as any).handleGoogleCredentialResponse = handleGoogleCredentialResponse;
@@ -173,10 +178,9 @@ export default function LoginPage() {
           initOptions.login_hint = loginHint;
         }
 
-        // Only use redirect mode if explicitly configured via NEXT_PUBLIC_GOOGLE_REDIRECT_MODE=true
-        // Otherwise use popup mode with COOP same-origin-allow-popups and postMessage listener so it works
-        // across Desktop, Mobile Safari, and PWA without requiring extra Redirect URI setup in Google Console.
-        if (isStandalone && process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_MODE === 'true') {
+        // On iOS standalone PWA (Add to Home Screen), WebKit blocks popup window.opener communication.
+        // Use redirect mode to /api/auth/google/callback so authentication stays 100% inside the PWA.
+        if (isStandalone && process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_MODE !== 'false') {
           initOptions.ux_mode = 'redirect';
           initOptions.login_uri = `${window.location.origin}/api/auth/google/callback`;
         }
@@ -197,15 +201,27 @@ export default function LoginPage() {
           width: String(btnWidth),
           locale: 'th',
         });
+        return true;
       } catch (err) {
         console.error('Failed to initialize Google Sign-In button', err);
       }
     }
+    return false;
   };
 
   useEffect(() => {
-    initializeGoogleBtn();
-  }, [googleBtnContainerRef.current]);
+    if (initializeGoogleBtn()) return;
+    const interval = setInterval(() => {
+      if (initializeGoogleBtn()) {
+        clearInterval(interval);
+      }
+    }, 150);
+    const timeout = setTimeout(() => clearInterval(interval), 6000);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, []);
 
   // Step 1: Request OTP
   const handleRequestOtp = async (e: React.FormEvent) => {

@@ -139,11 +139,48 @@ export async function handleGoogleAuthRequest(req: Request) {
         sig,
       };
       const portalToken = Buffer.from(JSON.stringify(tokenPayload)).toString('base64');
+      const encodedToken = encodeURIComponent(portalToken);
+      const targetUrl = `/?portal_token=${encodedToken}`;
+      const serializedUser = JSON.stringify(sanitizedUser).replace(/</g, '\\u003c');
 
-      return NextResponse.redirect(
-        new URL(`/?portal_token=${portalToken}`, req.url),
-        303
-      );
+      const html = `<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>กำลังเข้าสู่ระบบ KUNurse+Lab...</title>
+</head>
+<body style="background:#0f172a;color:#f8fafc;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+  <div style="text-align:center;">
+    <p style="font-size:14px;color:#2dd4bf;font-weight:bold;">กำลังเข้าสู่ระบบ KUNurse+Lab...</p>
+  </div>
+  <script>
+    (function() {
+      try {
+        var user = ${serializedUser};
+        var now = Date.now();
+        var lifetime = 30 * 24 * 60 * 60 * 1000;
+        localStorage.setItem('active_user_id', user.id);
+        localStorage.setItem('cached_current_user', JSON.stringify(user));
+        localStorage.setItem('session_expires_at', String(now + lifetime));
+        localStorage.setItem('session_last_active', String(now));
+        localStorage.setItem('session_remember_me', 'true');
+        window.location.replace('/');
+      } catch (e) {
+        window.location.replace(${JSON.stringify(targetUrl)});
+      }
+    })();
+  </script>
+</body>
+</html>`;
+
+      return new NextResponse(html, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
+      });
     }
 
     return NextResponse.json({

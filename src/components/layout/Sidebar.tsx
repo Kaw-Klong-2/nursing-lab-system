@@ -220,6 +220,12 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           icon: Wind,
           roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE'],
         },
+        {
+          label: 'ประวัติการทำรายการ (Audit Logs)',
+          href: '/audit-logs',
+          icon: History,
+          roles: ['ADMIN', 'OFFICER'],
+        },
       ],
     },
     {
@@ -234,7 +240,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           roles: ['ADMIN'],
         },
         {
-          label: 'ประวัติการทำรายการ',
+          label: 'ประวัติการทำรายการ (Audit Logs)',
           href: '/audit-logs',
           icon: History,
           roles: ['ADMIN', 'OFFICER'],
@@ -255,13 +261,13 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
     },
   ];
 
-  // Track open state for dropdown groups
+  // Track open state for dropdown groups (Default all open so menus are clearly visible)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     overview: true,
     services: true,
     inventory: true,
-    analytics: false,
-    admin: false,
+    analytics: true,
+    admin: true,
   });
 
   // Auto-expand group containing current pathname
@@ -328,6 +334,9 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
               }
               if (item.href === '/approvals') {
                 return isApprover || isAdmin || item.roles.includes(userRole);
+              }
+              if (item.href === '/audit-logs') {
+                return isAdmin || isOfficer;
               }
               return item.roles.includes(userRole);
             });

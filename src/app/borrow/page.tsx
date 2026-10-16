@@ -488,6 +488,9 @@ export default function BorrowPage() {
         if (r.userId !== currentUser?.id) return false;
       }
       if (filterStatus === 'ALL') return true;
+      if (filterStatus === 'OVERDUE') {
+        return r.status === 'BORROWED' && new Date(r.expectedReturnDate).getTime() < Date.now();
+      }
       return r.status === filterStatus;
     });
   }, [requests, isStaff, viewScope, currentUser?.id, filterStatus]);
@@ -595,12 +598,15 @@ export default function BorrowPage() {
             { key: 'ALL', label: 'ทั้งหมด' },
             { key: 'PENDING', label: 'รออนุมัติ' },
             { key: 'APPROVED', label: 'รอจ่ายของ' },
-            { key: 'BORROWED', label: '🔄 กำลังยืมอยู่ (รอส่งคืน/ตรวจรับคืน)' },
+            { key: 'BORROWED', label: '🔄 กำลังยืมอยู่' },
+            { key: 'OVERDUE', label: '🔴 เกินกำหนดคืน' },
             { key: 'RETURNED_COMPLETE', label: 'คืนแล้ว (สมบูรณ์)' },
             { key: 'RETURNED_WITH_ISSUE', label: 'คืนแล้ว (พบชำรุด)' },
           ].map((tab) => {
             const count = tab.key === 'ALL'
               ? requests.length
+              : tab.key === 'OVERDUE'
+              ? requests.filter((b: any) => b.status === 'BORROWED' && new Date(b.expectedReturnDate).getTime() < Date.now()).length
               : requests.filter((b: any) => b.status === tab.key).length;
             return (
               <button
@@ -658,7 +664,7 @@ export default function BorrowPage() {
       </div>
 
       {/* Return Helper Info Banner */}
-      {filterStatus === 'BORROWED' && (
+      {(filterStatus === 'BORROWED' || filterStatus === 'OVERDUE') && (
         <div className="bg-purple-50/90 border border-purple-200 text-purple-950 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-purple-600/20">

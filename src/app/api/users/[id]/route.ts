@@ -123,7 +123,23 @@ export async function PUT(
       });
     }
 
-    return NextResponse.json(updatedUser);
+    const sanitizedUser = {
+      id: updatedUser.id,
+      prefix: updatedUser.prefix,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      department: updatedUser.department,
+      studentId: updatedUser.studentId,
+      phone: updatedUser.phone,
+      avatar: updatedUser.avatar,
+      status: updatedUser.status,
+      approvalScopes: updatedUser.role === 'USER' ? null : (updatedUser.approvalScopes || null),
+      isExecutive: Boolean(updatedUser.isExecutive),
+      executiveRole: updatedUser.executiveRole || null,
+    };
+
+    return NextResponse.json(sanitizedUser);
   } catch (error: any) {
     console.error('Update user error:', error);
     return NextResponse.json(

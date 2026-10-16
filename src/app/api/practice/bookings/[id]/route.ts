@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { sendApprovalNotificationWithQrEmail } from '@/lib/email';
 import { createNotification } from '@/lib/notifications';
 import { canUserApprove } from '@/lib/approval-scope';
+import { logActivity } from '@/lib/activity-log';
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -128,6 +129,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         }).catch(() => {});
       }
 
+      logActivity({
+        userId,
+        action: 'APPROVE',
+        entityType: 'PRACTICE_BOOKING',
+        entityId: updated.id,
+        entityTitle: updated.bookingNumber,
+        details: `อนุมัติคำขอเข้าฝึกทักษะ ${updated.bookingNumber} (${updated.skillTopic})`,
+      });
+
       return NextResponse.json(updated);
     }
 
@@ -159,6 +169,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           entityId: updated.id,
         }).catch(() => {});
       }
+
+      logActivity({
+        userId,
+        action: 'REJECT',
+        entityType: 'PRACTICE_BOOKING',
+        entityId: updated.id,
+        entityTitle: updated.bookingNumber,
+        details: `ปฏิเสธคำขอเข้าฝึกทักษะ ${updated.bookingNumber} (เหตุผล: ${updated.rejectionReason || 'ไม่อนุมัติ'})`,
+      });
 
       return NextResponse.json(updated);
     }

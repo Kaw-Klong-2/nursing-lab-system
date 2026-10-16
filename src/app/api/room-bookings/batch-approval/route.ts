@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
 import { canUserApprove } from '@/lib/approval-scope';
 import { createNotification } from '@/lib/notifications';
+import { logActivity } from '@/lib/activity-log';
 
 export async function POST(req: Request) {
   try {
@@ -288,6 +289,15 @@ export async function POST(req: Request) {
     }
 
     invalidateCache('room:bookings:');
+
+    logActivity({
+      userId,
+      action: approvedIds.length > 0 ? 'APPROVE' : 'REJECT',
+      entityType: 'ROOM_BOOKING',
+      entityId: batchGroupId,
+      entityTitle: bookingTitle,
+      details: `พิจารณาคำขอจองห้องแบบกลุ่ม "${bookingTitle}" (อนุมัติ ${approvedIds.length} รายการ, ปฏิเสธ ${rejectedIds.length} รายการ)`,
+    });
 
     // 4. Send SINGLE Bundled Notification to Requester summarizing result
     if (requesterId) {

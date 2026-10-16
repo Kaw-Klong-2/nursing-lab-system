@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
+import { logActivity } from '@/lib/activity-log';
 
 export async function GET(req: Request) {
   try {
@@ -162,6 +163,16 @@ export async function POST(req: Request) {
 
       invalidateCache('items:');
       invalidateCache('dashboard:');
+
+      logActivity({
+        userId,
+        action: 'STOCK_IN',
+        entityType: 'STOCK',
+        entityId: lot.id,
+        entityTitle: `${item.name} (Lot: ${lotNumber})`,
+        details: `รับเข้าวัสดุสิ้นเปลือง ${item.name} Lot: ${lotNumber} จำนวน ${qty} ${packageUnit || item.unit || 'หน่วย'}`,
+      });
+
       return NextResponse.json({ success: true, lot, transaction: tx, boxes: createdBoxes });
     } else {
       // Equipment
@@ -210,6 +221,16 @@ export async function POST(req: Request) {
 
       invalidateCache('items:');
       invalidateCache('dashboard:');
+
+      logActivity({
+        userId,
+        action: 'STOCK_IN',
+        entityType: 'ITEM',
+        entityId: asset.id,
+        entityTitle: assetCode,
+        details: `รับเข้าครุภัณฑ์ ${item.name} รหัส ${assetCode}`,
+      });
+
       return NextResponse.json({ success: true, asset, transaction: tx });
     }
   } catch (error: any) {

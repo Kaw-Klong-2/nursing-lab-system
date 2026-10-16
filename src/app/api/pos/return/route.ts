@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
+import { logActivity } from '@/lib/activity-log';
 
 export async function POST(req: Request) {
   try {
@@ -115,6 +116,15 @@ export async function POST(req: Request) {
     invalidateCache('borrow:list');
     invalidateCache('items:list');
     invalidateCache('dashboard:stats');
+
+    logActivity({
+      userId: operatorId || borrowRequest.user.id,
+      action: 'RETURN',
+      entityType: 'BORROW',
+      entityId: borrowRequest.id,
+      entityTitle: asset.assetCode,
+      details: `รับคืนครุภัณฑ์ ${asset.assetCode} (${asset.item.name}) ผ่าน POS จาก ${borrowRequest.user.name} [สภาพ: ${condition}]`,
+    });
 
     return NextResponse.json({
       success: true,

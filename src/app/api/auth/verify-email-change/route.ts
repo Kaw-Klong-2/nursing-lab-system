@@ -77,6 +77,9 @@ export async function POST(req: Request) {
       },
     });
 
+    const { invalidateCache } = await import('@/lib/cache');
+    invalidateCache('users:');
+
     return NextResponse.json({
       success: true,
       message: 'ยืนยันและเปลี่ยนอีเมลสำเร็จเรียบร้อยแล้ว',
@@ -91,6 +94,9 @@ export async function POST(req: Request) {
         phone: updatedUser.phone,
         avatar: updatedUser.avatar,
         status: updatedUser.status,
+        approvalScopes: updatedUser.role === 'USER' ? null : (updatedUser.approvalScopes || null),
+        isExecutive: Boolean(updatedUser.isExecutive),
+        executiveRole: updatedUser.executiveRole || null,
       },
     });
   } catch (error: any) {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
+import { logActivity } from '@/lib/activity-log';
 
 export async function POST(req: Request) {
   try {
@@ -340,6 +341,15 @@ export async function POST(req: Request) {
     invalidateCache('dashboard:stats');
     invalidateCache('requisitions:list');
     invalidateCache('borrow:list');
+
+    logActivity({
+      userId: operatorId || user.id,
+      action: dispensedDetails.length > 0 && borrowedDetails.length === 0 ? 'DISPENSE' : 'CHECKOUT',
+      entityType: dispensedDetails.length > 0 && borrowedDetails.length === 0 ? 'REQUISITION' : 'BORROW',
+      entityId: receiptNumber,
+      entityTitle: receiptNumber,
+      details: `ทำรายการผ่านจุดเบิกด่วน (POS) ให้แก่ ${user.name} (วัสดุ ${dispensedDetails.length} รายการ, ครุภัณฑ์ ${borrowedDetails.length} ชิ้น)`,
+    });
 
     return NextResponse.json({
       success: true,

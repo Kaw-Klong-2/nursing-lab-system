@@ -257,6 +257,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setAvailableUsers(users);
           if (typeof window !== 'undefined') {
             localStorage.setItem('cached_users', JSON.stringify(users));
+            const currentActiveId = localStorage.getItem('active_user_id');
+            if (currentActiveId && checkSessionActive()) {
+              const freshUser = users.find((u) => u.id === currentActiveId);
+              if (freshUser) {
+                const isRoot = isDefaultAdminUser(freshUser);
+                const hasAdminTab = sessionStorage.getItem('active_admin_session') === 'true';
+                if (!isRoot || hasAdminTab) {
+                  setCurrentUser(freshUser);
+                  localStorage.setItem('cached_current_user', JSON.stringify(freshUser));
+                }
+              }
+            }
           }
         }
       } catch (err) {

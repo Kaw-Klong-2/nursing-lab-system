@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
 import { canUserApprove } from '@/lib/approval-scope';
 import { createNotification } from '@/lib/notifications';
+import { logActivity } from '@/lib/activity-log';
 
 export async function GET(
   req: Request,
@@ -163,6 +164,15 @@ export async function PUT(
 
       invalidateCache('room:bookings:');
 
+      logActivity({
+        userId,
+        action: 'APPROVE',
+        entityType: 'ROOM_BOOKING',
+        entityId: updated.id,
+        entityTitle: updated.bookingNumber,
+        details: `อนุมัติคำขอจองห้อง ${updated.room?.name || ''} (${updated.bookingNumber}: ${updated.title})`,
+      });
+
       // Notify the requester
       if (updated.userId) {
         await createNotification({
@@ -196,6 +206,15 @@ export async function PUT(
       });
 
       invalidateCache('room:bookings:');
+
+      logActivity({
+        userId,
+        action: 'REJECT',
+        entityType: 'ROOM_BOOKING',
+        entityId: updated.id,
+        entityTitle: updated.bookingNumber,
+        details: `ปฏิเสธคำขอจองห้อง ${updated.room?.name || ''} (${updated.bookingNumber} - เหตุผล: ${updated.rejectionReason})`,
+      });
 
       // Notify the requester
       if (updated.userId) {

@@ -89,7 +89,7 @@ export default function PwaInstallPrompt() {
               <Smartphone className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-white">ติดตั้งแอปห้องแล็บพยาบาล</h4>
+              <h4 className="text-xs font-bold text-white">ติดตั้งแอป KUNurse+Lab</h4>
               <p className="text-[11px] text-teal-300">ใช้งานสะดวก เต็มหน้าจอ เปิดไว ไม่ต้องเข้าเบราว์เซอร์</p>
             </div>
           </div>

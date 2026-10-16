@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sendPushToUser } from '@/lib/webpush';
 import { prisma } from '@/lib/prisma';
+import { SYSTEM_INFO } from '@/lib/system-info';
 
 export async function POST(req: Request) {
   try {
@@ -20,8 +21,8 @@ export async function POST(req: Request) {
       user?.role === 'APPROVER' || user?.role === 'OFFICER' || user?.role === 'ADMIN';
 
     const testPayload = {
-      title: 'ทดสอบการแจ้งเตือนสำเร็จ 🔔',
-      message: `สวัสดีคุณ ${user?.name || 'ผู้ใช้งาน'} โทรศัพท์ของคุณเชื่อมต่อระบบแจ้งเตือนของห้องปฏิบัติการพยาบาลศาสตร์เรียบร้อยแล้ว`,
+      title: `[${SYSTEM_INFO.brandName}] ทดสอบการแจ้งเตือนสำเร็จ 🔔`,
+      message: `สวัสดีคุณ ${user?.name || 'ผู้ใช้งาน'} อุปกรณ์ของคุณเชื่อมต่อระบบแจ้งเตือนของ ${SYSTEM_INFO.brandName} เรียบร้อยแล้ว`,
       linkUrl: isApproverOrOfficer ? '/approvals' : '/dashboard',
       tag: `test-push-${Date.now()}`,
       actions: isApproverOrOfficer

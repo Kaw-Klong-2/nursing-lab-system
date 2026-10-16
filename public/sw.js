@@ -14,13 +14,13 @@ self.addEventListener('push', (event) => {
       data = event.data.json();
     } catch (e) {
       data = {
-        title: 'ระบบห้องแล็บพยาบาล',
+        title: 'KUNurse+Lab',
         message: event.data.text(),
       };
     }
   }
 
-  const title = data.title || 'ระบบห้องปฏิบัติการพยาบาลศาสตร์';
+  const title = data.title || 'KUNurse+Lab | ระบบบริหารจัดการห้องปฏิบัติการพยาบาล';
   const options = {
     body: data.message || 'มีการแจ้งเตือนใหม่ในระบบ',
     icon: data.icon || '/icons/icon-192x192.png',

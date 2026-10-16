@@ -174,6 +174,13 @@ export default function LoginPage() {
           initOptions.login_hint = loginHint;
         }
 
+        // On mobile / iOS standalone PWA (Add to Home Screen), WebKit enforces strict cross-origin isolation on popups.
+        // Full-page redirect mode allows users to authenticate seamlessly inside the PWA without any popup failures.
+        if (isMobileOrStandalone) {
+          initOptions.ux_mode = 'redirect';
+          initOptions.login_uri = `${window.location.origin}/api/auth/google/callback`;
+        }
+
         (window as any).google.accounts.id.initialize(initOptions);
 
         const containerWidth = googleBtnContainerRef.current.clientWidth || 320;

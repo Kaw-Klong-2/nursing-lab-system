@@ -49,11 +49,8 @@ export function isDefaultAdminUser(user: Partial<User> | null | undefined): bool
   if (!user) return false;
   const email = (user.email || '').toLowerCase().trim();
   const studentId = (user.studentId || '').toLowerCase().trim();
-  const role = user.role;
-  return (
-    email === 'admin@lab.nurse.ac.th' ||
-    (role === 'ADMIN' && (studentId === 'admin' || !studentId))
-  );
+  // Strictly target only the default shared demo root admin account
+  return email === 'admin@lab.nurse.ac.th' || (email === 'admin' && studentId === 'admin');
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -188,10 +185,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             } catch (e) {}
           }
 
-          // Detect external referral or deep-link parameter
+          // Detect external referral or deep-link parameter (excluding legitimate Google OAuth returns)
+          const isGoogleOAuthReferrer =
+            Boolean(document.referrer) &&
+            (document.referrer.includes('accounts.google.com') ||
+              document.referrer.includes('google.com'));
+
           const isExternalReferrer =
             Boolean(document.referrer) &&
-            !document.referrer.includes(window.location.host);
+            !document.referrer.includes(window.location.host) &&
+            !isGoogleOAuthReferrer;
 
           const hasExternalDeepLink =
             urlParams.has('bookingNumber') ||

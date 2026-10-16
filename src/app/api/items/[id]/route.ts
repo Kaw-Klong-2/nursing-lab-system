@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
+import { logActivity } from '@/lib/activity-log';
 
 // PUT: Update an item (name, code, category, etc.)
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -77,6 +78,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     invalidateCache('items:');
     invalidateCache('dashboard:');
+
+    await logActivity({
+      userId: body.userId || null,
+      action: 'UPDATE',
+      entityType: 'ITEM',
+      entityId: updated.id,
+      entityTitle: `${updated.code} (${updated.name})`,
+      details: `แก้ไขข้อมูลรายการพัสดุ ${updated.code} - ${updated.name}`,
+    });
+
     return NextResponse.json({ success: true, item: updated });
   } catch (error: any) {
     console.error('Update item error:', error);
@@ -129,6 +140,15 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     invalidateCache('items:');
     invalidateCache('dashboard:');
+
+    await logActivity({
+      action: 'DELETE',
+      entityType: 'ITEM',
+      entityId: id,
+      entityTitle: `${item.code} (${item.name})`,
+      details: `ลบรายการพัสดุ ${item.code} - ${item.name}`,
+    });
+
     return NextResponse.json({ success: true, message: 'ลบรายการพัสดุเรียบร้อยแล้ว' });
   } catch (error: any) {
     console.error('Delete item error:', error);

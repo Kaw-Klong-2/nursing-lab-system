@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
 import { createNotification, notifyAdvisorByName, notifyRoles } from '@/lib/notifications';
+import { logActivity } from '@/lib/activity-log';
 
 export async function PUT(req: Request) {
   try {
@@ -445,6 +446,15 @@ export async function PUT(req: Request) {
         entityId: primaryRecord.id,
       }).catch(() => {});
     }
+
+    await logActivity({
+      userId,
+      action: 'UPDATE',
+      entityType: borrowRecord ? 'BORROW' : 'REQUISITION',
+      entityId: primaryRecord.id,
+      entityTitle: reqNum,
+      details: `แก้ไขข้อมูลคำขอเลขที่ ${reqNum} และรีเซ็ตสถานะเป็นรออนุมัติ`,
+    });
 
     return NextResponse.json({
       success: true,

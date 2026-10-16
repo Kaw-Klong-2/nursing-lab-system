@@ -162,6 +162,30 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     if (action === 'REJECT') {
+      if (userId) {
+        const approverUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { role: true, approvalScopes: true },
+        });
+        if (approverUser && !canUserApprove(approverUser, 'BORROW')) {
+          return NextResponse.json(
+            { error: 'ท่านไม่มีสิทธิ์ปฏิเสธรายการยืมครุภัณฑ์ (อยู่นอกเหนือขอบเขตความรับผิดชอบ)' },
+            { status: 403 }
+          );
+        }
+      }
+
+      if (borrow.status !== 'PENDING') {
+        return NextResponse.json(
+          {
+            error: 'CONCURRENCY_CONFLICT',
+            message: '⚠️ ข้อมูลคำขอมีการเปลี่ยนแปลง กรุณาตรวจสอบใหม่อีกครั้ง',
+            currentStatus: borrow.status,
+          },
+          { status: 409 }
+        );
+      }
+
       const updated = await prisma.borrowRequest.update({
         where: { id },
         data: {
@@ -220,6 +244,23 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     if (action === 'CHECKOUT') {
+      if (borrow.status === 'BORROWED' || borrow.status === 'RETURNED_COMPLETE' || borrow.status === 'RETURNED_WITH_ISSUE') {
+        return NextResponse.json(
+          {
+            error: 'CONCURRENCY_CONFLICT',
+            message: '⚠️ คำขอยืมนี้ได้รับการส่งมอบครุภัณฑ์ไปแล้ว',
+            currentStatus: borrow.status,
+          },
+          { status: 409 }
+        );
+      }
+      if (borrow.status !== 'APPROVED') {
+        return NextResponse.json(
+          { error: 'สามารถส่งมอบครุภัณฑ์ได้เฉพาะคำขอที่ได้รับการอนุมัติแล้วเท่านั้น' },
+          { status: 400 }
+        );
+      }
+
       // 1. Process equipment items with officer adjustments
       for (const bItem of borrow.items) {
         const adj = Array.isArray(borrowItemAdjustments)
@@ -328,14 +369,28 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
               const isSub = reqItem.isSubUnit === true;
               const ratio = Number(reqItem.item?.conversionRatio) > 0 ? Number(reqItem.item?.conversionRatio) : 1;
 
+              const whereLots: any = {
+                itemId: reqItem.itemId,
+                OR: [
+                  { quantityRemaining: { gt: 0 } },
+                  { openPackRemainder: { gt: 0 } },
+                ],
+              };
+
+              // Strict safety lock: if requested for human use, NEVER deduct expired lots
+              if (linkedReq.useTarget === 'HUMAN') {
+                whereLots.AND = [
+                  {
+                    OR: [
+                      { expiryDate: null },
+                      { expiryDate: { gte: new Date() } },
+                    ],
+                  },
+                ];
+              }
+
               let availableLots = await prisma.stockLot.findMany({
-                where: {
-                  itemId: reqItem.itemId,
-                  OR: [
-                    { quantityRemaining: { gt: 0 } },
-                    { openPackRemainder: { gt: 0 } },
-                  ],
-                },
+                where: whereLots,
                 orderBy: [
                   { expiryDate: 'asc' },
                   { receivedDate: 'asc' },
@@ -370,6 +425,23 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                       piecesRemaining: newPieces,
                     },
                   });
+
+                  // Update individual StockLotBoxes in sequential order (1..N)
+                  const availableBoxes = await prisma.stockLotBox.findMany({
+                    where: {
+                      lotId: lot.id,
+                      status: { in: ['IN_STOCK', 'IN_USE'] },
+                    },
+                    orderBy: { boxNumberInLot: 'asc' },
+                    take: deduct,
+                  });
+
+                  if (availableBoxes.length > 0) {
+                    await prisma.stockLotBox.updateMany({
+                      where: { id: { in: availableBoxes.map((b) => b.id) } },
+                      data: { status: 'DISPENSED' },
+                    });
+                  }
 
                   await prisma.stockTransaction.create({
                     data: {
@@ -440,6 +512,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                         piecesRemaining: newPieces,
                       },
                     });
+
+                    // Update StockLotBox
+                    const availableBoxes = await prisma.stockLotBox.findMany({
+                      where: { lotId: lot.id, status: { in: ['IN_STOCK', 'IN_USE'] } },
+                      orderBy: { boxNumberInLot: 'asc' },
+                      take: deductPacks,
+                    });
+                    if (availableBoxes.length > 0) {
+                      await prisma.stockLotBox.updateMany({
+                        where: { id: { in: availableBoxes.map((b) => b.id) } },
+                        data: { status: 'DISPENSED' },
+                      });
+                    }
 
                     const availablePacks = await prisma.repackPackItem.findMany({
                       where: { repackRecord: { subLotNumber: lot.lotNumber }, status: 'AVAILABLE' },
@@ -555,6 +640,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                         },
                       });
 
+                      // Update StockLotBox for opened pack
+                      const availableBoxes = await prisma.stockLotBox.findMany({
+                        where: { lotId: lot.id, status: { in: ['IN_STOCK'] } },
+                        orderBy: { boxNumberInLot: 'asc' },
+                        take: packsToOpen,
+                      });
+                      if (availableBoxes.length > 0) {
+                        await prisma.stockLotBox.updateMany({
+                          where: { id: { in: availableBoxes.map((b) => b.id) } },
+                          data: { status: leftoverPieces > 0 ? 'IN_USE' : 'DISPENSED' },
+                        });
+                      }
+
                       const pieceCost = lot.unitCost / lotPackSize;
                       const costForDispensedPieces = piecesToDeduct * pieceCost;
 
@@ -647,6 +745,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     if (action === 'RETURN') {
+      if (borrow.status === 'RETURNED_COMPLETE' || borrow.status === 'RETURNED_WITH_ISSUE') {
+        return NextResponse.json(
+          {
+            error: 'CONCURRENCY_CONFLICT',
+            message: '⚠️ คำขอยืมนี้ได้รับการตรวจรับคืนครุภัณฑ์ไปแล้ว',
+            currentStatus: borrow.status,
+          },
+          { status: 409 }
+        );
+      }
+
       // Officer checks in equipment with individual item condition evaluation
       // body.itemReturns can be an array: [{ id: borrowItemId, condition: 'GOOD'|'DAMAGED', note?: string }]
       const { itemReturns } = body;

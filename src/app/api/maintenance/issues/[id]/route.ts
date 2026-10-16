@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { invalidateCache } from '@/lib/cache';
+import { logActivity } from '@/lib/activity-log';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +33,14 @@ export async function PUT(
           actionNote: actionNote || 'เจ้าหน้าที่รับเรื่องเรียบร้อย กำลังเข้าตรวจสอบ',
           resolvedById: userId || null,
         },
+      });
+      await logActivity({
+        userId: userId || null,
+        action: 'UPDATE',
+        entityType: 'ITEM',
+        entityId: issue.assetId,
+        entityTitle: `${issue.reportNumber} (${issue.asset.assetCode})`,
+        details: `รับเรื่องแจ้งปัญหาครุภัณฑ์ ${issue.asset.assetCode}: ${actionNote || 'กำลังเข้าตรวจสอบ'}`,
       });
       return NextResponse.json({ success: true, report: updated });
     }
@@ -69,6 +79,18 @@ export async function PUT(
         },
       });
 
+      invalidateCache('items:');
+      invalidateCache('dashboard:');
+
+      await logActivity({
+        userId: userId || null,
+        action: 'UPDATE',
+        entityType: 'ITEM',
+        entityId: issue.assetId,
+        entityTitle: `${issue.reportNumber} (${issue.asset.assetCode})`,
+        details: `ส่งซ่อมครุภัณฑ์จากใบแจ้งปัญหา ${issue.reportNumber} (${issue.asset.assetCode})`,
+      });
+
       return NextResponse.json({ success: true, report: updated });
     }
 
@@ -96,6 +118,18 @@ export async function PUT(
         });
       }
 
+      invalidateCache('items:');
+      invalidateCache('dashboard:');
+
+      await logActivity({
+        userId: userId || null,
+        action: 'UPDATE',
+        entityType: 'ITEM',
+        entityId: issue.assetId,
+        entityTitle: `${issue.reportNumber} (${issue.asset.assetCode})`,
+        details: `ปิดเรื่องแจ้งปัญหา ${issue.reportNumber} (${issue.asset.assetCode}) อุปกรณ์พร้อมใช้งาน`,
+      });
+
       return NextResponse.json({ success: true, report: updated });
     }
 
@@ -110,6 +144,16 @@ export async function PUT(
           resolvedAt: new Date(),
         },
       });
+
+      await logActivity({
+        userId: userId || null,
+        action: 'REJECT',
+        entityType: 'ITEM',
+        entityId: issue.assetId,
+        entityTitle: `${issue.reportNumber} (${issue.asset.assetCode})`,
+        details: `ปฏิเสธเรื่องแจ้งปัญหา ${issue.reportNumber} (${issue.asset.assetCode})`,
+      });
+
       return NextResponse.json({ success: true, report: updated });
     }
 

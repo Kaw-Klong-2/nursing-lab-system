@@ -394,7 +394,7 @@ export default function AirConditioningPage() {
 
     try {
       const res = await fetch(
-        `/api/ac-logs?roomId=${encodeURIComponent(selectedCell.room.id)}&dateStr=${encodeURIComponent(selectedCell.dateStr)}`,
+        `/api/ac-logs?roomId=${encodeURIComponent(selectedCell.room.id)}&dateStr=${encodeURIComponent(selectedCell.dateStr)}${currentUser?.id ? `&userId=${encodeURIComponent(currentUser.id)}` : ''}`,
         {
           method: 'DELETE',
         }

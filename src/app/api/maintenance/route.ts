@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { invalidateCache } from '@/lib/cache';
+import { logActivity } from '@/lib/activity-log';
 
 // GET: List all maintenance records
 export async function GET(req: Request) {
@@ -74,6 +76,18 @@ export async function POST(req: Request) {
         },
       });
 
+      invalidateCache('items:');
+      invalidateCache('dashboard:');
+
+      await logActivity({
+        userId: userId || null,
+        action: 'UPDATE',
+        entityType: 'ITEM',
+        entityId: assetId,
+        entityTitle: `${log.asset?.assetCode || ''} (${log.asset?.item?.name || ''})`,
+        details: `ส่งซ่อมครุภัณฑ์ ${log.asset?.assetCode || ''} อาการ: ${issue}`,
+      });
+
       return NextResponse.json({ success: true, log }, { status: 201 });
     }
 
@@ -116,6 +130,18 @@ export async function POST(req: Request) {
           },
         });
       }
+
+      invalidateCache('items:');
+      invalidateCache('dashboard:');
+
+      await logActivity({
+        userId: userId || null,
+        action: 'UPDATE',
+        entityType: 'ITEM',
+        entityId: assetId,
+        entityTitle: `${updatedAsset.assetCode} (${updatedAsset.item?.name || ''})`,
+        details: `ซ่อมเสร็จและรับคืนเข้าคลังพร้อมใช้งาน: ${updatedAsset.assetCode} (${technicianNote || 'พร้อมใช้งาน'})`,
+      });
 
       return NextResponse.json({ success: true, asset: updatedAsset });
     }

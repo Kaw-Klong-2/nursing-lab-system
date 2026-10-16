@@ -159,6 +159,30 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     if (action === 'REJECT') {
+      if (userId) {
+        const approverUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { role: true, approvalScopes: true },
+        });
+        if (approverUser && !canUserApprove(approverUser, 'REQUISITION')) {
+          return NextResponse.json(
+            { error: 'ท่านไม่มีสิทธิ์ปฏิเสธรายการเบิกวัสดุสิ้นเปลือง (อยู่นอกเหนือขอบเขตความรับผิดชอบ)' },
+            { status: 403 }
+          );
+        }
+      }
+
+      if (requisition.status !== 'PENDING') {
+        return NextResponse.json(
+          {
+            error: 'CONCURRENCY_CONFLICT',
+            message: '⚠️ ข้อมูลคำขอมีการเปลี่ยนแปลง กรุณาตรวจสอบใหม่อีกครั้ง',
+            currentStatus: requisition.status,
+          },
+          { status: 409 }
+        );
+      }
+
       const updated = await prisma.requisitionRequest.update({
         where: { id },
         data: {
@@ -215,6 +239,23 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     if (action === 'DISPENSE') {
+      if (requisition.status === 'DISPENSED') {
+        return NextResponse.json(
+          {
+            error: 'CONCURRENCY_CONFLICT',
+            message: '⚠️ คำขอเบิกนี้ได้รับการจ่ายพัสดุไปแล้ว',
+            currentStatus: requisition.status,
+          },
+          { status: 409 }
+        );
+      }
+      if (requisition.status !== 'APPROVED') {
+        return NextResponse.json(
+          { error: 'สามารถจ่ายพัสดุได้เฉพาะคำขอที่ได้รับการอนุมัติแล้วเท่านั้น' },
+          { status: 400 }
+        );
+      }
+
       // Officer dispenses items and deducts stock FIFO with adjustments
       let actualTotalCost = 0;
 

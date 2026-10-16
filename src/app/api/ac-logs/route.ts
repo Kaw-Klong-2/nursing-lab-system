@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logActivity } from '@/lib/activity-log';
 
 // Helper: Calculate hours between two "HH:mm" strings
 function calculateHours(openTime?: string | null, closeTime?: string | null): number {
@@ -123,8 +124,8 @@ export async function POST(req: Request) {
       });
     }
 
-    // Role check: Only OFFICER and ADMIN
-    if (currentUser && currentUser.role !== 'ADMIN' && currentUser.role !== 'OFFICER') {
+    // Strict role check: Require OFFICER or ADMIN
+    if (!currentUser || (currentUser.role !== 'ADMIN' && currentUser.role !== 'OFFICER')) {
       return NextResponse.json(
         { error: 'เฉพาะเจ้าหน้าที่และผู้ดูแลระบบเท่านั้นที่มีสิทธิ์บันทึกการเปิด-ปิดแอร์' },
         { status: 403 }
@@ -233,6 +234,16 @@ export async function POST(req: Request) {
       }
     });
 
+    await logActivity({
+      userId: currentUser.id,
+      userName: currentUser.name,
+      userRole: currentUser.role,
+      action: 'UPDATE',
+      entityType: 'SYSTEM',
+      entityTitle: `บันทึกการเปิด-ปิดแอร์ (${results.length} รายการ)`,
+      details: `บันทึกหรือปรับปรุงตารางเวลาเปิด-ปิดเครื่องปรับอากาศ จำนวน ${results.length} รายการ`,
+    });
+
     return NextResponse.json({
       success: true,
       message: `บันทึกข้อมูลการเปิด-ปิดเครื่องปรับอากาศสำเร็จ ${results.length} รายการ`,
@@ -253,6 +264,20 @@ export async function DELETE(req: Request) {
     const { searchParams } = new URL(req.url);
     const roomId = searchParams.get('roomId');
     const dateStr = searchParams.get('dateStr');
+    const userId = searchParams.get('userId');
+
+    if (userId) {
+      const currentUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, role: true },
+      });
+      if (!currentUser || (currentUser.role !== 'ADMIN' && currentUser.role !== 'OFFICER')) {
+        return NextResponse.json(
+          { error: 'เฉพาะเจ้าหน้าที่และผู้ดูแลระบบเท่านั้นที่มีสิทธิ์ลบข้อมูลการเปิด-ปิดแอร์' },
+          { status: 403 }
+        );
+      }
+    }
 
     if (!roomId || !dateStr) {
       return NextResponse.json({ error: 'กรุณาระบุ roomId และ dateStr' }, { status: 400 });
@@ -266,6 +291,15 @@ export async function DELETE(req: Request) {
         roomId,
         date: recordDate,
       },
+    });
+
+    await logActivity({
+      userId: userId || null,
+      action: 'DELETE',
+      entityType: 'SYSTEM',
+      entityId: roomId,
+      entityTitle: `ลบข้อมูลแอร์ (${dateStr})`,
+      details: `ลบข้อมูลบันทึกการเปิด-ปิดเครื่องปรับอากาศวันที่ ${dateStr}`,
     });
 
     return NextResponse.json({

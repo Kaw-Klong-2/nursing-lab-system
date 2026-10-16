@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
+import { logActivity } from '@/lib/activity-log';
 
 // PUT: Update an individual asset
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -73,6 +74,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     invalidateCache('items:');
     invalidateCache('dashboard:');
+
+    await logActivity({
+      userId: body.userId || null,
+      action: 'UPDATE',
+      entityType: 'ITEM',
+      entityId: updated.id,
+      entityTitle: `${updated.assetCode} (${updated.item?.name || ''})`,
+      details: `แก้ไขข้อมูลชิ้นครุภัณฑ์ ${updated.assetCode} (สถานะ: ${updated.status}, สภาพ: ${updated.condition})`,
+    });
+
     return NextResponse.json({ success: true, asset: updated });
   } catch (error: any) {
     console.error('Update asset error:', error);
@@ -91,6 +102,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const asset = await prisma.equipmentAsset.findUnique({
       where: { id },
       include: {
+        item: true,
         borrowItems: true,
       },
     });
@@ -128,6 +140,15 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     invalidateCache('items:');
     invalidateCache('dashboard:');
+
+    await logActivity({
+      action: 'DELETE',
+      entityType: 'ITEM',
+      entityId: id,
+      entityTitle: `${asset.assetCode} (${asset.item?.name || ''})`,
+      details: `ลบชิ้นครุภัณฑ์รหัส ${asset.assetCode}`,
+    });
+
     return NextResponse.json({ success: true, message: 'ลบข้อมูลอุปกรณ์เรียบร้อยแล้ว' });
   } catch (error: any) {
     console.error('Delete asset error:', error);

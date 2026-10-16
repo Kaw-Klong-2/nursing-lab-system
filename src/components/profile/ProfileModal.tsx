@@ -451,10 +451,10 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   if (!isOpen || !currentUser) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="bg-gradient-to-r from-teal-700 via-teal-800 to-slate-900 p-6 text-white flex items-center justify-between border-b border-teal-600/30">
+        <div className="flex-shrink-0 bg-gradient-to-r from-teal-700 via-teal-800 to-slate-900 p-5 sm:p-6 text-white flex items-center justify-between border-b border-teal-600/30">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-teal-300">
               <User className="w-5 h-5" />
@@ -487,7 +487,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         </div>
 
         {/* Tab Selector */}
-        <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/40 px-3 sm:px-6 pt-3 gap-2 overflow-x-auto no-scrollbar">
+        <div className="flex-shrink-0 flex border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/40 px-3 sm:px-6 pt-3 gap-2 overflow-x-auto no-scrollbar">
           <button
             type="button"
             onClick={() => {
@@ -555,7 +555,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-5 sm:p-6 overflow-y-auto flex-1 overscroll-contain">
           {successMsg && (
             <div className="mb-4 p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/70 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />

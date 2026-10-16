@@ -26,6 +26,10 @@ import {
   urlBase64ToUint8Array,
   isPushNotificationSupported,
   getNotificationPermission,
+  getEffectivePushStatus,
+  getServiceWorkerRegistrationWithTimeout,
+  syncPushSubscriptionToBackend,
+  setPushUserDisabled,
 } from '@/lib/webpush-client';
 import { ORG_CONFIG } from '@/lib/constants/organization';
 
@@ -101,53 +105,29 @@ export default function NotificationBell() {
   const lastSeenNotifIdRef = useRef<string | null>(null);
   const isFirstLoadRef = useRef(true);
 
-  // Push Notification state
-  const [pushStatus, setPushStatus] = useState<'LOADING' | 'ENABLED' | 'DISABLED' | 'BLOCKED' | 'UNSUPPORTED'>('LOADING');
+  // Push Notification state - initialized synchronously with effective status
+  const [pushStatus, setPushStatus] = useState<'LOADING' | 'ENABLED' | 'DISABLED' | 'BLOCKED' | 'UNSUPPORTED'>(() => {
+    if (typeof window === 'undefined') return 'LOADING';
+    return getEffectivePushStatus();
+  });
   const [isSubscribingPush, setIsSubscribingPush] = useState(false);
   const [isTestingPush, setIsTestingPush] = useState(false);
   const [pushFeedback, setPushFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
   const checkPush = async () => {
     if (typeof window === 'undefined') return;
-    if (!isPushNotificationSupported()) {
-      setPushStatus('UNSUPPORTED');
-      return;
-    }
-    const perm = getNotificationPermission();
-    if (perm === 'unsupported') {
-      setPushStatus('UNSUPPORTED');
-      return;
-    }
-    if (perm === 'denied') {
-      setPushStatus('BLOCKED');
-      return;
-    }
-    try {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
-      }
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
-      if (sub && perm === 'granted') {
-        setPushStatus('ENABLED');
-        if (currentUser?.id) {
-          fetch('/api/notifications/push/subscribe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userId: currentUser.id,
-              subscription: sub.toJSON(),
-              userAgent: navigator.userAgent,
-            }),
-          }).catch(() => {});
-        }
-      } else {
-        setPushStatus('DISABLED');
-      }
-    } catch {
-      setPushStatus(perm === 'granted' ? 'ENABLED' : 'DISABLED');
+    const status = getEffectivePushStatus();
+    setPushStatus(status);
+
+    if (status === 'ENABLED' && currentUser?.id) {
+      await syncPushSubscriptionToBackend(currentUser.id);
     }
   };
+
+  // Sync push status and background subscription on component mount or user change
+  useEffect(() => {
+    checkPush();
+  }, [currentUser?.id]);
 
   useEffect(() => {
     if (isOpen) {
@@ -166,8 +146,10 @@ export default function NotificationBell() {
       }
       const permission = await window.Notification.requestPermission();
       if (permission === 'granted') {
-        const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-        await navigator.serviceWorker.ready;
+        const reg = await getServiceWorkerRegistrationWithTimeout(5000);
+        if (!reg) {
+          throw new Error('Service Worker ยังไม่พร้อมใช้งาน กรุณาลองใหม่อีกครั้ง');
+        }
         const sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
@@ -185,11 +167,7 @@ export default function NotificationBell() {
           const errData = await res.json().catch(() => ({}));
           throw new Error(errData.error || 'บันทึกอุปกรณ์ไม่สำเร็จ');
         }
-        try {
-          if (typeof window !== 'undefined' && window.localStorage) {
-            localStorage.setItem('push_prompt_setup_done', 'true');
-          }
-        } catch {}
+        setPushUserDisabled(false);
         setPushStatus('ENABLED');
         setPushFeedback({ success: true, message: 'เปิดรับแจ้งเตือนบนอุปกรณ์นี้สำเร็จแล้ว ✅' });
       } else if (permission === 'denied') {
@@ -468,6 +446,8 @@ export default function NotificationBell() {
                     ? 'แจ้งเตือนบนอุปกรณ์: ถูกบล็อก 🔴'
                     : pushStatus === 'UNSUPPORTED'
                     ? 'แจ้งเตือนบนอุปกรณ์: ไม่รองรับ'
+                    : pushStatus === 'LOADING'
+                    ? 'กำลังตรวจสอบการแจ้งเตือน...'
                     : 'แจ้งเตือนเข้ามือถือ: ยังไม่เปิด ⚪'}
                 </span>
               </div>

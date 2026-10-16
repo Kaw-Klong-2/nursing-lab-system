@@ -8,6 +8,10 @@ import {
   urlBase64ToUint8Array,
   isPushNotificationSupported,
   getNotificationPermission,
+  isPushUserDisabled,
+  setPushUserDisabled,
+  syncPushSubscriptionToBackend,
+  getServiceWorkerRegistrationWithTimeout,
 } from '@/lib/webpush-client';
 
 function safeGetItem(key: string): string | null {
@@ -42,19 +46,12 @@ export default function PushNotificationManager() {
 
     if (!supported) return;
 
-    // Pre-register service worker in background safely
-    try {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
-      }
-    } catch {}
-
     // Check notification permission safely
     const permission = getNotificationPermission();
 
-    // If permission already granted, auto-sync existing subscription with backend in background
-    if (permission === 'granted') {
-      syncSubscriptionInBackground();
+    // If permission already granted and user didn't disable it, auto-sync subscription with backend in background
+    if (permission === 'granted' && !isPushUserDisabled()) {
+      syncPushSubscriptionToBackend(currentUser.id);
       return;
     }
 
@@ -72,28 +69,6 @@ export default function PushNotificationManager() {
     }
   }, [currentUser]);
 
-  const syncSubscriptionInBackground = async () => {
-    try {
-      if (!isPushNotificationSupported()) return;
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
-
-      if (sub && currentUser?.id) {
-        await fetch('/api/notifications/push/subscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: currentUser.id,
-            subscription: sub.toJSON(),
-            userAgent: navigator.userAgent,
-          }),
-        });
-      }
-    } catch (err) {
-      console.warn('[Push] Background sync error:', err);
-    }
-  };
-
   const handleEnablePush = async () => {
     if (!currentUser?.id) return;
     setLoading(true);
@@ -103,8 +78,10 @@ export default function PushNotificationManager() {
       }
       const permission = await window.Notification.requestPermission();
       if (permission === 'granted') {
-        const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-        await navigator.serviceWorker.ready;
+        const reg = await getServiceWorkerRegistrationWithTimeout(5000);
+        if (!reg) {
+          throw new Error('Service Worker ยังไม่พร้อมใช้งาน กรุณาลองใหม่อีกครั้ง');
+        }
 
         const sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
@@ -126,6 +103,7 @@ export default function PushNotificationManager() {
           throw new Error(errData.error || 'Failed to save subscription');
         }
 
+        setPushUserDisabled(false);
         safeSetItem('push_prompt_setup_done', 'true');
         setIsSuccess(true);
         setTimeout(() => {

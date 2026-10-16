@@ -35,6 +35,10 @@ import {
   urlBase64ToUint8Array,
   isPushNotificationSupported,
   getNotificationPermission,
+  getEffectivePushStatus,
+  getServiceWorkerRegistrationWithTimeout,
+  syncPushSubscriptionToBackend,
+  setPushUserDisabled,
 } from '@/lib/webpush-client';
 import { SYSTEM_INFO } from '@/lib/system-info';
 
@@ -78,8 +82,11 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const [emailOtpSentTo, setEmailOtpSentTo] = useState('');
   const [emailDevOtp, setEmailDevOtp] = useState<string | null>(null);
 
-  // Push Notification state
-  const [pushStatus, setPushStatus] = useState<'LOADING' | 'ENABLED' | 'DISABLED' | 'BLOCKED' | 'UNSUPPORTED'>('LOADING');
+  // Push Notification state - initialized synchronously with effective status
+  const [pushStatus, setPushStatus] = useState<'LOADING' | 'ENABLED' | 'DISABLED' | 'BLOCKED' | 'UNSUPPORTED'>(() => {
+    if (typeof window === 'undefined') return 'LOADING';
+    return getEffectivePushStatus();
+  });
   const [isPushWorking, setIsPushWorking] = useState(false);
   const [isTestingPush, setIsTestingPush] = useState(false);
   const [pushTestFeedback, setPushTestFeedback] = useState<{ success: boolean; message: string } | null>(null);
@@ -304,45 +311,11 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
   const checkPushSubscription = async () => {
     if (typeof window === 'undefined') return;
-    if (!isPushNotificationSupported()) {
-      setPushStatus('UNSUPPORTED');
-      return;
-    }
+    const status = getEffectivePushStatus();
+    setPushStatus(status);
 
-    const perm = getNotificationPermission();
-    if (perm === 'unsupported') {
-      setPushStatus('UNSUPPORTED');
-      return;
-    }
-    if (perm === 'denied') {
-      setPushStatus('BLOCKED');
-      return;
-    }
-
-    try {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
-      }
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
-      if (sub && perm === 'granted') {
-        setPushStatus('ENABLED');
-        if (currentUser?.id) {
-          fetch('/api/notifications/push/subscribe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userId: currentUser.id,
-              subscription: sub.toJSON(),
-              userAgent: navigator.userAgent,
-            }),
-          }).catch(() => {});
-        }
-      } else {
-        setPushStatus('DISABLED');
-      }
-    } catch {
-      setPushStatus(perm === 'granted' ? 'ENABLED' : 'DISABLED');
+    if (status === 'ENABLED' && currentUser?.id) {
+      await syncPushSubscriptionToBackend(currentUser.id);
     }
   };
 
@@ -364,8 +337,10 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       }
       const permission = await window.Notification.requestPermission();
       if (permission === 'granted') {
-        const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-        await navigator.serviceWorker.ready;
+        const reg = await getServiceWorkerRegistrationWithTimeout(5000);
+        if (!reg) {
+          throw new Error('Service Worker ยังไม่พร้อมใช้งาน กรุณาลองใหม่อีกครั้ง');
+        }
         const sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
@@ -383,11 +358,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
           const errData = await res.json().catch(() => ({}));
           throw new Error(errData.error || 'บันทึกอุปกรณ์ไม่สำเร็จ');
         }
-        try {
-          if (typeof window !== 'undefined' && window.localStorage) {
-            localStorage.setItem('push_prompt_setup_done', 'true');
-          }
-        } catch {}
+        setPushUserDisabled(false);
         setPushStatus('ENABLED');
         setSuccessMsg('เปิดรับการแจ้งเตือนบนอุปกรณ์นี้เรียบร้อยแล้ว ✅');
       } else if (permission === 'denied') {
@@ -404,16 +375,19 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const handleDisablePush = async () => {
     setIsPushWorking(true);
     try {
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
-      if (sub) {
-        await fetch('/api/notifications/push/subscribe', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ endpoint: sub.endpoint }),
-        });
-        await sub.unsubscribe();
+      const reg = await getServiceWorkerRegistrationWithTimeout(3000);
+      if (reg) {
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          await fetch('/api/notifications/push/subscribe', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint: sub.endpoint }),
+          }).catch(() => {});
+          await sub.unsubscribe().catch(() => {});
+        }
       }
+      setPushUserDisabled(true);
       setPushStatus('DISABLED');
       setSuccessMsg('ปิดการแจ้งเตือนบนอุปกรณ์นี้แล้ว');
     } catch (err: any) {

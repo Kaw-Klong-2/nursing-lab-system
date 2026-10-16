@@ -105,6 +105,10 @@ export default function LoginPage() {
       return;
     }
 
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     setError(null);
     setTimeoutNotice(false);
     setGoogleSubmitting(true);
@@ -112,7 +116,9 @@ export default function LoginPage() {
     try {
       const res = await loginWithGoogle(response.credential, rememberMe);
       if (res.success) {
-        router.push(getDestinationUrl());
+        const dest = getDestinationUrl();
+        // Use hard navigation to guarantee complete session state hydration on mobile Safari / iOS PWA
+        window.location.href = dest;
       } else {
         setError(res.error || 'เข้าสู่ระบบด้วย Google ไม่สำเร็จ');
         setGoogleSubmitting(false);
@@ -122,6 +128,22 @@ export default function LoginPage() {
       setGoogleSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    const handleWindowMessage = (event: MessageEvent) => {
+      if (event.origin?.includes('accounts.google.com') && event.data) {
+        try {
+          const raw = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+          const cred = raw?.credential || raw?.id_token;
+          if (cred) {
+            handleGoogleCredentialResponse({ credential: cred });
+          }
+        } catch (e) {}
+      }
+    };
+    window.addEventListener('message', handleWindowMessage);
+    return () => window.removeEventListener('message', handleWindowMessage);
+  }, [rememberMe]);
 
   // Initialize Google Identity Services button
   const initializeGoogleBtn = () => {

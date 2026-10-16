@@ -103,7 +103,9 @@ export async function POST(req: Request) {
       phone: user.phone,
       avatar: user.avatar,
       status: user.status,
-      approvalScopes: user.approvalScopes || 'ALL',
+      approvalScopes: user.role === 'USER' ? null : (user.approvalScopes || null),
+      isExecutive: Boolean(user.isExecutive),
+      executiveRole: user.executiveRole || null,
     };
 
     return NextResponse.json({

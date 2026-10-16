@@ -59,7 +59,22 @@ export async function PUT(
       dataToUpdate.password = await hashPassword(body.password);
     }
     if (body.status !== undefined) dataToUpdate.status = body.status;
-    if (body.approvalScopes !== undefined) dataToUpdate.approvalScopes = body.approvalScopes;
+    
+    // Check effective role to strictly forbid approvalScopes for USER (นิสิต)
+    let effectiveRole = body.role;
+    if (!effectiveRole) {
+      const existingUser = await prisma.user.findUnique({
+        where: { id },
+        select: { role: true },
+      });
+      effectiveRole = existingUser?.role;
+    }
+
+    if (effectiveRole === 'USER') {
+      dataToUpdate.approvalScopes = null;
+    } else if (body.approvalScopes !== undefined) {
+      dataToUpdate.approvalScopes = body.approvalScopes || null;
+    }
     if (body.isExecutive !== undefined) {
       dataToUpdate.isExecutive = body.isExecutive === true;
       if (!body.isExecutive) {

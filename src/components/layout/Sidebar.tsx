@@ -425,7 +425,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
             {userRole === 'APPROVER' && <div>มีสิทธิ์อนุมัติคำขอยืมและเบิก (หัวหน้าภาค/ผู้บริหาร)</div>}
             {userRole === 'TEACHER' && <div>อาจารย์ผู้สอน (มีสิทธิ์รับทราบคำขอ/ยืมสอน)</div>}
             {userRole === 'USER' && <div>นิสิต (มีสิทธิ์ยื่นคำขอยืมและขอเบิกวัสดุ)</div>}
-            {userRole !== 'ADMIN' && currentUser?.approvalScopes && currentUser.approvalScopes !== 'NONE' && (
+            {userRole !== 'ADMIN' && userRole !== 'USER' && currentUser?.approvalScopes && currentUser.approvalScopes !== 'NONE' && (
               <div className="text-amber-300 font-medium pt-0.5">
                 📋 มีสิทธิ์อนุมัติคำขอในระบบ
               </div>

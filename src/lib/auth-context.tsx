@@ -410,9 +410,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isOfficer = currentUser?.role === 'OFFICER' || isAdmin;
   const isExecutive = currentUser?.isExecutive === true || currentUser?.role === 'EXECUTIVE' || isAdmin;
   const isApprover =
-    currentUser?.role === 'APPROVER' ||
-    (Boolean(currentUser?.approvalScopes) && currentUser?.approvalScopes !== 'NONE' && currentUser?.approvalScopes !== '') ||
-    isAdmin;
+    currentUser?.role !== 'USER' && (
+      currentUser?.role === 'APPROVER' ||
+      (Boolean(currentUser?.approvalScopes) && currentUser?.approvalScopes !== 'NONE' && currentUser?.approvalScopes !== '') ||
+      isAdmin
+    );
   const isTeacher =
     currentUser?.role === 'TEACHER' ||
     currentUser?.role === 'APPROVER' ||

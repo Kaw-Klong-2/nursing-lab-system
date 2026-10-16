@@ -115,7 +115,7 @@ export async function POST(req: Request) {
         studentId: trimmedStudentId,
         phone: body.phone,
         status: body.status || 'ACTIVE',
-        approvalScopes: body.approvalScopes !== undefined ? body.approvalScopes : null,
+        approvalScopes: (body.role || 'USER') === 'USER' ? null : (body.approvalScopes || null),
         isExecutive: body.isExecutive === true,
         executiveRole: body.isExecutive ? (body.executiveRole ? String(body.executiveRole).trim() : null) : null,
       },

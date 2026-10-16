@@ -22,11 +22,14 @@ export function canUserApprove(
   type: ApprovalScopeType
 ): boolean {
   if (!user) return false;
+
+  // นิสิต (USER) can NEVER approve anything under any circumstance
+  if (user.role === 'USER') return false;
   
   // ADMIN can approve everything
   if (user.role === 'ADMIN') return true;
 
-  // If approvalScopes is explicitly NONE or empty string
+  // If approvalScopes is explicitly NONE, empty string or null
   if (!user.approvalScopes || user.approvalScopes === '' || user.approvalScopes === 'NONE') {
     // Legacy fallback: only OFFICER or APPROVER without explicit empty scope defaults to true
     if (user.role === 'OFFICER' || user.role === 'APPROVER') return true;
@@ -49,7 +52,7 @@ export function canUserApprove(
 export function getEffectiveScopes(
   user: { role?: string; approvalScopes?: string | null; isExecutive?: boolean | null } | null | undefined
 ): ApprovalScopeType[] {
-  if (!user) return [];
+  if (!user || user.role === 'USER') return [];
   if (user.role === 'ADMIN') {
     return ['BORROW', 'REQUISITION', 'PRACTICE', 'ROOM'];
   }
@@ -70,7 +73,8 @@ export function getEffectiveScopes(
  * แสดงป้ายข้อความสรุปขอบเขตความรับผิดชอบ
  */
 export function formatApprovalScopeBadge(scopes: string | null | undefined): string {
-  if (!scopes || scopes === 'ALL') return 'ดูแล: ทั้งหมด';
+  if (!scopes || scopes === 'NONE' || scopes === '') return 'ไม่มีสิทธิ์อนุมัติ';
+  if (scopes === 'ALL') return 'ดูแล: ทั้งหมด';
   
   const raw = scopes.split(',').map((s) => s.trim().toUpperCase());
   const hasBorrow = raw.includes('BORROW');

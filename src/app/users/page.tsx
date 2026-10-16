@@ -98,6 +98,13 @@ export default function UsersPage() {
   };
 
   const handleToggleApprover = (enabled: boolean, target: any, setter: (val: any) => void) => {
+    if (target.role === 'USER') {
+      setter({
+        ...target,
+        approvalScopes: '',
+      });
+      return;
+    }
     setter({
       ...target,
       approvalScopes: enabled ? 'ALL' : '',
@@ -472,7 +479,7 @@ export default function UsersPage() {
     ADMIN: users.filter((u) => u.role === 'ADMIN').length,
     EXECUTIVE: users.filter((u) => u.isExecutive || u.role === 'EXECUTIVE').length,
     OFFICER: users.filter((u) => u.role === 'OFFICER').length,
-    APPROVER: users.filter((u) => u.role === 'APPROVER' || (Boolean(u.approvalScopes) && u.approvalScopes !== 'NONE' && u.approvalScopes !== '')).length,
+    APPROVER: users.filter((u) => u.role !== 'USER' && (u.role === 'APPROVER' || (Boolean(u.approvalScopes) && u.approvalScopes !== 'NONE' && u.approvalScopes !== ''))).length,
     TEACHER: users.filter((u) => u.role === 'TEACHER').length,
     USER: users.filter((u) => u.role === 'USER').length,
   };
@@ -482,7 +489,7 @@ export default function UsersPage() {
       if (selectedTab === 'EXECUTIVE') {
         if (!u.isExecutive && u.role !== 'EXECUTIVE') return false;
       } else if (selectedTab === 'APPROVER') {
-        const hasApproval = u.role === 'APPROVER' || (Boolean(u.approvalScopes) && u.approvalScopes !== 'NONE' && u.approvalScopes !== '');
+        const hasApproval = u.role !== 'USER' && (u.role === 'APPROVER' || (Boolean(u.approvalScopes) && u.approvalScopes !== 'NONE' && u.approvalScopes !== ''));
         if (!hasApproval) return false;
       } else if (u.role !== selectedTab) {
         return false;
@@ -1006,7 +1013,7 @@ export default function UsersPage() {
                             ...u,
                             isExecutive: Boolean(u.isExecutive),
                             executiveRole: u.executiveRole || '',
-                            approvalScopes: u.approvalScopes || '',
+                            approvalScopes: u.role === 'USER' ? '' : (u.approvalScopes || ''),
                             password: '',
                           })
                         }
@@ -1118,7 +1125,14 @@ export default function UsersPage() {
                 </label>
                 <select
                   value={newUser.role}
-                  onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                  onChange={(e) => {
+                    const newRole = e.target.value;
+                    setNewUser({
+                      ...newUser,
+                      role: newRole,
+                      approvalScopes: newRole === 'USER' ? '' : newUser.approvalScopes,
+                    });
+                  }}
                   className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-teal-500/20 cursor-pointer"
                 >
                   <option value="USER">นิสิต (Student)</option>
@@ -1167,8 +1181,9 @@ export default function UsersPage() {
                 )}
               </div>
 
-              {/* Approval Permissions Dimension */}
-              <div className="p-3.5 bg-gradient-to-br from-amber-50/70 to-slate-50 dark:from-amber-950/20 dark:to-slate-900/60 rounded-2xl border border-amber-100 dark:border-amber-900/40 space-y-2.5">
+              {/* Approval Permissions Dimension (Only for non-students) */}
+              {newUser.role !== 'USER' && (
+                <div className="p-3.5 bg-gradient-to-br from-amber-50/70 to-slate-50 dark:from-amber-950/20 dark:to-slate-900/60 rounded-2xl border border-amber-100 dark:border-amber-900/40 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -1252,6 +1267,7 @@ export default function UsersPage() {
                   </div>
                 )}
               </div>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -1389,7 +1405,14 @@ export default function UsersPage() {
                   </label>
                   <select
                     value={editingUser.role}
-                    onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
+                    onChange={(e) => {
+                      const newRole = e.target.value;
+                      setEditingUser({
+                        ...editingUser,
+                        role: newRole,
+                        approvalScopes: newRole === 'USER' ? '' : editingUser.approvalScopes,
+                      });
+                    }}
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-teal-500/20 cursor-pointer"
                   >
                     <option value="USER">นิสิต (Student)</option>
@@ -1452,8 +1475,9 @@ export default function UsersPage() {
                 )}
               </div>
 
-              {/* Approval Permissions Dimension */}
-              <div className="p-3.5 bg-gradient-to-br from-amber-50/70 to-slate-50 dark:from-amber-950/20 dark:to-slate-900/60 rounded-2xl border border-amber-100 dark:border-amber-900/40 space-y-2.5">
+              {/* Approval Permissions Dimension (Only for non-students) */}
+              {editingUser.role !== 'USER' && (
+                <div className="p-3.5 bg-gradient-to-br from-amber-50/70 to-slate-50 dark:from-amber-950/20 dark:to-slate-900/60 rounded-2xl border border-amber-100 dark:border-amber-900/40 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -1537,6 +1561,7 @@ export default function UsersPage() {
                   </div>
                 )}
               </div>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">

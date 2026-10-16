@@ -413,9 +413,9 @@ export function getUserBadges(user?: {
     });
   }
 
-  // 3. Approver dimension
+  // 3. Approver dimension (Never applies to USER / นิสิต)
   const hasScopes = Boolean(user.approvalScopes && user.approvalScopes !== 'NONE' && user.approvalScopes !== '');
-  if (role !== 'ADMIN' && (hasScopes || role === 'APPROVER')) {
+  if (role !== 'ADMIN' && role !== 'USER' && (hasScopes || role === 'APPROVER')) {
     let scopeText = 'ทั้งหมด';
     if (user.approvalScopes && user.approvalScopes !== 'ALL') {
       const raw = user.approvalScopes.split(',').map((s) => s.trim().toUpperCase());

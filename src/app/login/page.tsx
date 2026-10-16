@@ -152,13 +152,6 @@ export default function LoginPage() {
           initOptions.login_hint = loginHint;
         }
 
-        // On mobile / iOS standalone PWA, WebKit blocks popup window.opener postMessage.
-        // Directing via ux_mode: 'redirect' provides a 100% reliable full-page redirect flow.
-        if (isMobileOrStandalone) {
-          initOptions.ux_mode = 'redirect';
-          initOptions.login_uri = `${window.location.origin}/api/auth/google/callback`;
-        }
-
         (window as any).google.accounts.id.initialize(initOptions);
 
         const containerWidth = googleBtnContainerRef.current.clientWidth || 320;

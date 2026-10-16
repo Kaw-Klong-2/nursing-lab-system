@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
 import { createNotification } from '@/lib/notifications';
 import { canUserApprove } from '@/lib/approval-scope';
+import { logActivity } from '@/lib/activity-log';
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -146,6 +147,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         entityId: requisition.id,
       }).catch(() => {});
 
+      logActivity({
+        userId,
+        action: 'APPROVE',
+        entityType: 'REQUISITION',
+        entityId: requisition.id,
+        details: { requestNumber: requisition.requestNumber, totalItems: requisition.items.length },
+      });
+
       return respondUpdated(updated);
     }
 
@@ -182,6 +191,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         entityType: 'REQUISITION',
         entityId: requisition.id,
       }).catch(() => {});
+
+      logActivity({
+        userId,
+        action: 'REJECT',
+        entityType: 'REQUISITION',
+        entityId: requisition.id,
+        details: { requestNumber: requisition.requestNumber, reason: reason || 'ไม่อนุมัติ' },
+      });
 
       return respondUpdated(updated);
     }
@@ -603,6 +620,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         entityType: 'REQUISITION',
         entityId: requisition.id,
       }).catch(() => {});
+
+      logActivity({
+        userId,
+        action: 'DISPENSE',
+        entityType: 'REQUISITION',
+        entityId: requisition.id,
+        details: {
+          requestNumber: requisition.requestNumber,
+          totalCost: actualTotalCost,
+          itemCount: requisition.items.length,
+          note: dispenseNote ? String(dispenseNote).trim() : null,
+        },
+      });
 
       invalidateCache('items:');
       invalidateCache('dashboard:');

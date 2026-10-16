@@ -19,6 +19,7 @@ import {
   Sparkles,
   QrCode,
   Edit3,
+  Bell,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import EditRequestModal from '@/components/requests/EditRequestModal';
@@ -658,6 +659,13 @@ export default function StudentDashboard({ embedded = false }: StudentDashboardP
                       {!isOverdue && !isDueToday && <Info className="w-3.5 h-3.5 text-slate-500" />}
                       <span>{returnInfo.label}</span>
                     </div>
+
+                    {req.lastRemindedAt && (
+                      <div className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/40 px-2.5 py-1 rounded-xl border border-violet-200 dark:border-violet-800">
+                        <Bell className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
+                        <span>เจ้าหน้าที่ส่งแจ้งเตือนกำหนดคืนแล้ว ({formatDate(req.lastRemindedAt)})</span>
+                      </div>
+                    )}
 
                     {/* Edit Request Button for Student in PENDING only */}
                     {req.status === 'PENDING' && (

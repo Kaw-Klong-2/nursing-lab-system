@@ -41,7 +41,7 @@ import { COMMON_USER_PREFIXES, formatUserName, getUserBadges } from '@/lib/user-
 import { formatApprovalScopeBadge, ApprovalScopeType } from '@/lib/approval-scope';
 
 export default function UsersPage() {
-  const { availableUsers, isAdmin } = useAuth();
+  const { availableUsers, isAdmin, currentUser } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState<string>('ALL');
@@ -211,7 +211,7 @@ export default function UsersPage() {
       const res = await fetch(`/api/users/${resettingUser.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: newResetPassword }),
+        body: JSON.stringify({ password: newResetPassword, actorId: currentUser?.id }),
       });
 
       if (res.ok) {
@@ -235,7 +235,7 @@ export default function UsersPage() {
       const res = await fetch(`/api/users/${deactivatingUser.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'INACTIVE' }),
+        body: JSON.stringify({ status: 'INACTIVE', actorId: currentUser?.id }),
       });
       if (res.ok) {
         setDeactivatingUser(null);
@@ -257,7 +257,7 @@ export default function UsersPage() {
       const res = await fetch(`/api/users/${u.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'ACTIVE' }),
+        body: JSON.stringify({ status: 'ACTIVE', actorId: currentUser?.id }),
       });
       if (res.ok) {
         fetchUsers();
@@ -307,7 +307,7 @@ export default function UsersPage() {
       const res = await fetch(`/api/users/${editingUser.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingUser),
+        body: JSON.stringify({ ...editingUser, actorId: currentUser?.id }),
       });
       if (res.ok) {
         setEditingUser(null);

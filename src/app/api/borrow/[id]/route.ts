@@ -4,6 +4,7 @@ import { invalidateCache } from '@/lib/cache';
 import { formatUserName } from '@/lib/user-utils';
 import { createNotification } from '@/lib/notifications';
 import { canUserApprove } from '@/lib/approval-scope';
+import { logActivity } from '@/lib/activity-log';
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -136,6 +137,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         }).catch((e) => console.error('Failed to sync linked requisition approve:', e));
       }
 
+      logActivity({
+        userId,
+        action: 'APPROVE',
+        entityType: 'BORROW',
+        entityId: borrow.id,
+        entityTitle: borrow.requestNumber,
+        details: `อนุมัติคำขอยืมครุภัณฑ์เลขที่ ${borrow.requestNumber}`,
+      });
+
       // Notify student
       createNotification({
         userId: borrow.userId,
@@ -172,6 +182,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           },
         }).catch((e) => console.error('Failed to sync linked requisition reject:', e));
       }
+
+      logActivity({
+        userId,
+        action: 'REJECT',
+        entityType: 'BORROW',
+        entityId: borrow.id,
+        entityTitle: borrow.requestNumber,
+        details: `ปฏิเสธคำขอยืมครุภัณฑ์เลขที่ ${borrow.requestNumber} (เหตุผล: ${reason || 'ไม่อนุมัติ'})`,
+      });
 
       // Notify student
       createNotification({
@@ -615,6 +634,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         entityId: borrow.id,
       }).catch(() => {});
 
+      logActivity({
+        userId,
+        action: 'CHECKOUT',
+        entityType: 'BORROW',
+        entityId: borrow.id,
+        entityTitle: borrow.requestNumber,
+        details: `เจ้าหน้าที่ส่งมอบครุภัณฑ์คำขอเลขที่ ${borrow.requestNumber} ให้นิสิต (${borrow.user?.name || 'ไม่ระบุชื่อ'})`,
+      });
+
       return respondUpdated(updated);
     }
 
@@ -729,6 +757,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         entityType: 'BORROW',
         entityId: borrow.id,
       }).catch(() => {});
+
+      logActivity({
+        userId,
+        action: 'RETURN',
+        entityType: 'BORROW',
+        entityId: borrow.id,
+        entityTitle: borrow.requestNumber,
+        details: `ตรวจรับคืนครุภัณฑ์คำขอเลขที่ ${borrow.requestNumber} (${hasAnyDamaged ? 'พบรายการชำรุด' : 'สภาพปกติครบถ้วน'})`,
+        metadata: {
+          hasAnyDamaged,
+          returnNote: returnNote || null,
+        },
+      });
 
       return respondUpdated(updated);
     }

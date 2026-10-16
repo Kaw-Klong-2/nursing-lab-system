@@ -49,6 +49,7 @@ model User {
   resolvedIssues      EquipmentIssueReport[] @relation("ResolvedIssues")
   createdInspectionPlans InspectionPlan[]  @relation("CreatedInspectionPlans")
   checkedPlanItems    InspectionPlanItem[] @relation("CheckedPlanItems")
+  activityLogs        ActivityLog[]
 
   @@index([role, status])
   @@index([studentId])
@@ -267,6 +268,8 @@ model BorrowRequest {
   // Optional 1-to-1 linkage with RequisitionRequest for unified one-stop requests
   requisitionRequestId String?              @unique
   requisitionRequest   RequisitionRequest?  @relation(fields: [requisitionRequestId], references: [id], onDelete: SetNull)
+
+  lastRemindedAt     DateTime? // บันทึกวันเวลาที่ส่งแจ้งเตือนเตือนความจำล่าสุด
 
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -792,4 +795,26 @@ model AcademicTerm {
 
   @@unique([academicYear, term])
   @@index([isCurrent, status])
+}
+
+model ActivityLog {
+  id          String    @id @default(cuid())
+  userId      String?   // ผู้กระทำ (null ถ้าเป็นคำสั่งอัตโนมัติจากระบบ)
+  userName    String?   // ชื่อผู้กระทำ (Snapshot ณ ขณะทำรายการ)
+  userRole    String?   // บทบาทผู้กระทำ (ADMIN, OFFICER, TEACHER, USER)
+  action      String    // "APPROVE", "REJECT", "CHECKOUT", "RETURN", "REMIND", "STOCK_IN", "STOCK_ADJUST", "ROLE_UPDATE", "USER_CREATE", "USER_DELETE", "BOOKING_CANCEL"
+  entityType  String    // "BORROW", "REQUISITION", "ROOM_BOOKING", "PRACTICE_BOOKING", "ITEM", "USER", "SYSTEM"
+  entityId    String?   // รหัสอ้างอิง ID ของ Record
+  entityTitle String?   // ข้อความอ้างอิง เช่น "BRW-20261016-001", "เครื่อง AED หมายเลข 1"
+  details     String?   // รายละเอียดสรุปที่อ่านเข้าใจง่าย
+  metadata    Json?     // ข้อมูล snapshot เชิงลึก (เช่น รายการของที่ส่งมอบ, สิทธิ์เดิม -> สิทธิ์ใหม่)
+  ipAddress   String?   // IP Address (ถ้ามี)
+  createdAt   DateTime  @default(now())
+
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
 }

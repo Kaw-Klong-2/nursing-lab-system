@@ -30,6 +30,7 @@ import {
   MapPin,
   Info,
   FileText,
+  Bell,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import UnifiedRequestModal from '@/components/requests/UnifiedRequestModal';
@@ -110,6 +111,30 @@ export default function BorrowPage() {
   const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string>('');
+  const [remindingId, setRemindingId] = useState<string | null>(null);
+
+  const handleRemindStudent = async (borrowId: string) => {
+    if (!confirm('ยืนยันส่งการแจ้งเตือนเตือนคืนอุปกรณ์ไปยังนิสิตผู้ยืม?')) return;
+    setRemindingId(borrowId);
+    try {
+      const res = await fetch(`/api/borrow/${borrowId}/remind`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senderId: currentUser?.id }),
+      });
+      if (res.ok) {
+        alert('ส่งการแจ้งเตือนกำหนดคืนให้นิสิตเรียบร้อยแล้ว');
+        fetchBorrowData();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'ไม่สามารถส่งการแจ้งเตือนได้');
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+    } finally {
+      setRemindingId(null);
+    }
+  };
 
   // Course Allocation State
   const [primaryTab, setPrimaryTab] = useState<'REQUESTS' | 'ALLOCATION'>('REQUESTS');
@@ -766,13 +791,39 @@ export default function BorrowPage() {
                         {new Date(req.borrowDate).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })} น.
                       </span>
                     </div>
-                    <div className="flex items-start gap-1.5">
+                    <div className="flex items-start gap-1.5 flex-wrap">
                       <Clock className="w-3.5 h-3.5 text-rose-500 flex-shrink-0 mt-0.5" />
                       <span>
                         <strong className="text-slate-800 dark:text-slate-100">กำหนดคืน:</strong>{' '}
                         {new Date(req.expectedReturnDate).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })} น.
                       </span>
+                      {req.status === 'BORROWED' && (() => {
+                        const now = new Date().getTime();
+                        const due = new Date(req.expectedReturnDate).getTime();
+                        const diffHours = (due - now) / (1000 * 60 * 60);
+                        if (diffHours < 0) {
+                          const overdueDays = Math.ceil(Math.abs(diffHours) / 24);
+                          return (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 animate-pulse ml-1">
+                              🔴 เกินกำหนด {overdueDays} วัน
+                            </span>
+                          );
+                        } else if (diffHours <= 24) {
+                          return (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 ml-1">
+                              🟠 ครบกำหนดภายใน 24 ชม.
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
+                    {req.lastRemindedAt && (
+                      <div className="text-[10px] text-violet-600 dark:text-violet-400 flex items-center gap-1 pt-0.5">
+                        <Bell className="w-3 h-3" />
+                        <span>แจ้งเตือนล่าสุด: {new Date(req.lastRemindedAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })} น.</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -937,9 +988,9 @@ export default function BorrowPage() {
 
 
 
-              {/* Action Buttons for Officer */}
-              {isOfficer && (
-                <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+              {/* Action Buttons for Officer & Admin */}
+              {(isOfficer || isAdmin) && (
+                <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
                   {req.status === 'APPROVED' && (
                     <button
                       onClick={() => {
@@ -995,25 +1046,37 @@ export default function BorrowPage() {
                   )}
 
                   {req.status === 'BORROWED' && (
-                    <button
-                      onClick={() => {
-                        setActiveBorrowForAction(req);
-                        setActionType('RETURN');
-                        setReturnCondition('GOOD');
-                        setReturnNote('');
-                        setItemReturns(
-                          (req.items || []).map((it: any) => ({
-                            id: it.id,
-                            condition: 'GOOD',
-                            note: '',
-                          }))
-                        );
-                      }}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow transition cursor-pointer"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                      <span>ตรวจรับคืนอุปกรณ์ (Check-in & Inspect)</span>
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleRemindStudent(req.id)}
+                        disabled={remindingId === req.id}
+                        title="ส่งแจ้งเตือนกำหนดคืนทาง In-app และ Web Push ให้นิสิตทันที"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-violet-50 dark:bg-violet-950/50 hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
+                      >
+                        <Bell className={`w-3.5 h-3.5 ${remindingId === req.id ? 'animate-bounce' : ''}`} />
+                        <span>{remindingId === req.id ? 'กำลังส่งเตือน...' : 'ส่งเตือนนิสิต'}</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setActiveBorrowForAction(req);
+                          setActionType('RETURN');
+                          setReturnCondition('GOOD');
+                          setReturnNote('');
+                          setItemReturns(
+                            (req.items || []).map((it: any) => ({
+                              id: it.id,
+                              condition: 'GOOD',
+                              note: '',
+                            }))
+                          );
+                        }}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow transition cursor-pointer"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                        <span>ตรวจรับคืนอุปกรณ์ (Check-in & Inspect)</span>
+                      </button>
+                    </>
                   )}
                 </div>
               )}

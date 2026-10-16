@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { hashPassword } from '@/lib/auth-security';
 import { invalidateCache } from '@/lib/cache';
+import { logActivity } from '@/lib/activity-log';
 
 export async function PUT(
   req: Request,
@@ -91,6 +92,37 @@ export async function PUT(
     });
 
     invalidateCache('users:');
+
+    // Audit log
+    const actorId = body.actorId || body.userId;
+    if (body.role !== undefined || body.approvalScopes !== undefined || body.status !== undefined || body.isExecutive !== undefined) {
+      logActivity({
+        userId: actorId,
+        action: 'ROLE_UPDATE',
+        entityType: 'USER',
+        entityId: id,
+        details: {
+          targetName: updatedUser.name,
+          targetEmail: updatedUser.email,
+          newRole: updatedUser.role,
+          newStatus: updatedUser.status,
+          approvalScopes: updatedUser.approvalScopes,
+          isExecutive: updatedUser.isExecutive,
+        },
+      });
+    } else {
+      logActivity({
+        userId: actorId,
+        action: 'UPDATE',
+        entityType: 'USER',
+        entityId: id,
+        details: {
+          targetName: updatedUser.name,
+          targetEmail: updatedUser.email,
+        },
+      });
+    }
+
     return NextResponse.json(updatedUser);
   } catch (error: any) {
     console.error('Update user error:', error);
@@ -107,8 +139,20 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    const existing = await prisma.user.findUnique({
+      where: { id },
+      select: { name: true, email: true },
+    });
     await prisma.user.delete({ where: { id } });
     invalidateCache('users:');
+
+    logActivity({
+      action: 'DELETE',
+      entityType: 'USER',
+      entityId: id,
+      details: { deletedUserName: existing?.name, deletedUserEmail: existing?.email },
+    });
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Delete user error:', error);

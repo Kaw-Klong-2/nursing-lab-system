@@ -31,6 +31,7 @@ import {
   Wind,
   LogOut,
   Wrench,
+  History,
 } from 'lucide-react';
 import ProfileModal from '@/components/profile/ProfileModal';
 import ThemeToggle from '@/components/common/ThemeToggle';
@@ -231,6 +232,12 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           href: '/users',
           icon: Users,
           roles: ['ADMIN'],
+        },
+        {
+          label: 'ประวัติการทำรายการ',
+          href: '/audit-logs',
+          icon: History,
+          roles: ['ADMIN', 'OFFICER'],
         },
         {
           label: 'กำหนดภาคการศึกษา',

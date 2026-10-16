@@ -292,11 +292,20 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
   const renderSidebarContent = (isMobile = false) => (
     <>
       <div>
-        <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between border-b border-slate-800/80 pb-3 mb-2">
-          <div className="flex items-center gap-2">
-            <span>ระบบห้องแล็บพยาบาล</span>
-            <span className="text-[10px] bg-slate-800 text-teal-400 px-1.5 py-0.5 rounded font-mono border border-slate-700">
-              {userRole}
+        <div className="px-3 py-2.5 flex items-center justify-between border-b border-slate-800/80 pb-3 mb-2">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-black tracking-tight text-white flex items-center gap-0.5">
+                <span>KUNurse</span>
+                <span className="text-teal-400 font-black text-sm select-none">+</span>
+                <span>Lab</span>
+              </span>
+              <span className="text-[9px] bg-slate-800 text-teal-400 px-1.5 py-0.5 rounded font-mono border border-slate-700 font-bold">
+                {userRole}
+              </span>
+            </div>
+            <span className="text-[10px] text-slate-400 mt-0.5">
+              คณะพยาบาลศาสตร์ มก.
             </span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -478,6 +487,16 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
         {/* Theme Toggle Button */}
         <div className="pt-2">
           <ThemeToggle className="w-full justify-center py-2" showLabel />
+        </div>
+
+        {/* Developer Credit & Copyright Footer */}
+        <div className="pt-3 pb-1 border-t border-slate-800/80 text-center select-none space-y-0.5">
+          <div className="text-[10px] text-slate-400 font-mono tracking-wide hover:text-teal-400 transition cursor-default">
+            &copy; 2026 Developed by <span className="font-bold text-slate-300">KIy&#123;d6]K</span>
+          </div>
+          <div className="text-[9px] text-slate-400">
+            v1.0.0 &bull; Faculty of Nursing, KU
+          </div>
         </div>
       </div>
 

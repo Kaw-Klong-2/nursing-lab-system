@@ -306,11 +306,16 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-teal-500 to-cyan-400 text-white shadow-xl shadow-teal-500/20 mb-2">
             <Stethoscope className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">
-            ระบบบริหารพัสดุและครุภัณฑ์
+          <h1 className="text-3xl font-black text-white tracking-tight flex items-center justify-center gap-0.5">
+            <span>KUNurse</span>
+            <span className="text-teal-400 font-black text-3xl select-none">+</span>
+            <span>Lab</span>
           </h1>
           <p className="text-xs text-teal-300 font-medium flex items-center justify-center gap-1.5">
-            <Building2 className="w-3.5 h-3.5" /> ห้องปฏิบัติการพยาบาลศาสตร์ (Simulation Lab)
+            <Building2 className="w-3.5 h-3.5" /> ระบบบริหารจัดการห้องปฏิบัติการพยาบาล
+          </p>
+          <p className="text-[11px] text-slate-400">
+            คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์
           </p>
         </div>
 
@@ -472,6 +477,16 @@ export default function LoginPage() {
             </span>
             <span>ติดต่อแอดมินเพื่อขอเปิดบัญชีใช้งาน</span>
           </div>
+        </div>
+
+        {/* Footer Credit & Copyright */}
+        <div className="pt-1 text-center select-none space-y-1">
+          <p className="text-[11px] text-slate-400 font-mono tracking-wide">
+            &copy; 2026 Developed by <span className="font-semibold text-slate-300">KIy&#123;d6]K</span>
+          </p>
+          <p className="text-[10px] text-slate-400">
+            KUNurse+Lab &bull; คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์
+          </p>
         </div>
       </div>
 

@@ -271,11 +271,14 @@ export default function PublicAssetPage() {
               <Stethoscope className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-none">
-                ระบบข้อมูลครุภัณฑ์พยาบาล
+              <div className="text-xs font-black text-slate-900 dark:text-slate-100 leading-none flex items-center gap-0.5">
+                <span>KUNurse</span>
+                <span className="text-teal-500 dark:text-teal-400 font-black">+</span>
+                <span>Lab</span>
+                <span className="text-[10px] text-slate-400 font-normal ml-1">&bull; ทะเบียนครุภัณฑ์</span>
               </div>
               <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
-                คณะพยาบาลศาสตร์ / Nursing Lab
+                คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์
               </div>
             </div>
           </Link>
@@ -732,9 +735,9 @@ export default function PublicAssetPage() {
         </div>
 
         {/* Footer info */}
-        <div className="text-center text-[11px] text-slate-400 dark:text-slate-500 space-y-1">
-          <div>ระบบบริหารจัดการห้องปฏิบัติการพยาบาลศาสตร์</div>
-          <div>สแกน QR Code จากตัวเครื่องเพื่อเปิดดูข้อมูลแบบสาธารณะโดยไม่ต้องล็อกอิน</div>
+        <div className="text-center text-[11px] text-slate-400 dark:text-slate-500 space-y-1 select-none">
+          <div>KUNurse+Lab | ระบบบริหารจัดการห้องปฏิบัติการพยาบาล คณะพยาบาลศาสตร์ มก.</div>
+          <div className="text-[10px] font-mono">&copy; 2026 Developed by KIy&#123;d6]K</div>
         </div>
       </div>
 

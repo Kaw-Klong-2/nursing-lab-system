@@ -93,18 +93,22 @@ export default function Navbar({ onToggleMobileMenu, isMobileMenuOpen }: NavbarP
           </button>
         )}
 
-        <Link href="/" className="flex items-center gap-2.5 sm:gap-3">
-          <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-teal-600 to-cyan-500 text-white shadow-md shadow-teal-500/20 flex-shrink-0">
+        <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group">
+          <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-teal-600 to-cyan-500 text-white shadow-md shadow-teal-500/20 flex-shrink-0 group-hover:scale-105 transition-transform">
             <Stethoscope className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xs sm:text-sm md:text-base font-bold text-slate-900 dark:text-white leading-tight">
-              <span className="hidden sm:inline">ระบบบริหารพัสดุ-ครุภัณฑ์ & ต้นทุนรายวิชา</span>
-              <span className="sm:hidden font-extrabold text-teal-950 dark:text-teal-200">ห้องแล็บพยาบาล</span>
+            <h1 className="text-sm sm:text-base md:text-lg font-black tracking-tight leading-tight flex items-center gap-0.5">
+              <span className="text-slate-900 dark:text-white">KUNurse</span>
+              <span className="text-teal-500 dark:text-teal-400 font-black text-base sm:text-lg select-none">+</span>
+              <span className="text-slate-900 dark:text-white">Lab</span>
+              <span className="hidden xl:inline text-xs font-medium text-slate-400 dark:text-slate-500 ml-1.5 border-l border-slate-300 dark:border-slate-700 pl-2">
+                ระบบบริหารจัดการห้องปฏิบัติการพยาบาล
+              </span>
             </h1>
             <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1">
-              <Building2 className="w-3 h-3 text-slate-400" />
-              <span>ห้องปฏิบัติการพยาบาลศาสตร์</span>
+              <Building2 className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+              <span>คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์</span>
             </p>
           </div>
         </Link>

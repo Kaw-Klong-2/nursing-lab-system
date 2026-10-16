@@ -7,7 +7,7 @@ const resendApiKey = process.env.RESEND_API_KEY || '';
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 // Sender email address
-const senderEmail = process.env.EMAIL_FROM || 'Nursing Lab System <onboarding@resend.dev>';
+const senderEmail = process.env.EMAIL_FROM || 'KUNurse+Lab <onboarding@resend.dev>';
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 /**
@@ -77,7 +77,7 @@ export async function sendApprovalRequestEmail(params: {
         
         <!-- Header -->
         <div style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); padding: 28px; text-align: center; color: #ffffff;">
-          <h2 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em;">ระบบห้องปฏิบัติการพยาบาล (Nursing Lab)</h2>
+          <h2 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em;">KUNurse+Lab | ห้องปฏิบัติการพยาบาล</h2>
           <p style="margin: 6px 0 0; opacity: 0.9; font-size: 13px;">มีคำขอใหม่รอการพิจารณาอนุมัติจากท่าน</p>
         </div>
 
@@ -120,7 +120,7 @@ export async function sendApprovalRequestEmail(params: {
 
         <!-- Footer -->
         <div style="background-color: #f8fafc; padding: 16px 28px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9;">
-          ระบบบริหารจัดการห้องปฏิบัติการพยาบาล คณะพยาบาลศาสตร์ • อีเมลแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับอีเมลนี้
+          KUNurse+Lab | ระบบบริหารจัดการห้องปฏิบัติการพยาบาล คณะพยาบาลศาสตร์ • อีเมลแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับอีเมลนี้
         </div>
       </div>
     </body>
@@ -232,7 +232,7 @@ export async function sendApprovalNotificationWithQrEmail(params: {
 
         <!-- Footer -->
         <div style="background-color: #f8fafc; padding: 16px 28px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9;">
-          ระบบบริหารจัดการห้องปฏิบัติการพยาบาล คณะพยาบาลศาสตร์
+          KUNurse+Lab | ระบบบริหารจัดการห้องปฏิบัติการพยาบาล คณะพยาบาลศาสตร์ มก.
         </div>
       </div>
     </body>
@@ -243,7 +243,7 @@ export async function sendApprovalNotificationWithQrEmail(params: {
     const result = await resend.emails.send({
       from: senderEmail,
       to: [studentEmail],
-      subject: `[อนุมัติแล้ว] QR Code เข้าห้องฝึกปฏิบัติการ (${bookingNumber})`,
+      subject: `[อนุมัติแล้ว] QR Code เข้าห้องฝึกปฏิบัติการ (${bookingNumber}) - KUNurse+Lab`,
       html: htmlContent,
     });
     return { success: true, data: result };
@@ -279,7 +279,7 @@ export async function sendPasswordResetEmail(params: {
       <div style="max-width: 500px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;">
         <div style="background: linear-gradient(135deg, #0d9488, #0f766e); padding: 24px; text-align: center; color: #ffffff;">
           <h2 style="margin: 0; font-size: 20px; font-weight: 700;">รีเซ็ตรหัสผ่าน</h2>
-          <p style="margin: 4px 0 0; font-size: 12px; color: #ccfbf1;">ห้องปฏิบัติการพยาบาลศาสตร์</p>
+          <p style="margin: 4px 0 0; font-size: 12px; color: #ccfbf1;">KUNurse+Lab | ห้องปฏิบัติการพยาบาล</p>
         </div>
         <div style="padding: 24px;">
           <p style="font-size: 14px; color: #334155; margin-top: 0;">เรียนคุณ <b>${recipientName}</b>,</p>
@@ -297,7 +297,7 @@ export async function sendPasswordResetEmail(params: {
           </div>
         </div>
         <div style="background-color: #f8fafc; padding: 12px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9;">
-          ระบบบริหารจัดการห้องปฏิบัติการพยาบาลศาสตร์
+          KUNurse+Lab | ระบบบริหารจัดการห้องปฏิบัติการพยาบาล คณะพยาบาลศาสตร์ มก.
         </div>
       </div>
     </body>
@@ -308,7 +308,7 @@ export async function sendPasswordResetEmail(params: {
     const result = await resend.emails.send({
       from: senderEmail,
       to: [recipientEmail],
-      subject: `[รหัส OTP: ${otpCode}] สำหรับรีเซ็ตรหัสผ่านระบบห้องแล็บพยาบาล`,
+      subject: `[รหัส OTP: ${otpCode}] รีเซ็ตรหัสผ่าน - KUNurse+Lab`,
       html: htmlContent,
     });
     return { success: true, data: result };
@@ -344,7 +344,7 @@ export async function sendEmailChangeOtpEmail(params: {
       <div style="max-width: 500px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;">
         <div style="background: linear-gradient(135deg, #0d9488, #0f766e); padding: 24px; text-align: center; color: #ffffff;">
           <h2 style="margin: 0; font-size: 20px; font-weight: 700;">ยืนยันการเปลี่ยนอีเมล</h2>
-          <p style="margin: 4px 0 0; font-size: 12px; color: #ccfbf1;">ห้องปฏิบัติการพยาบาลศาสตร์ (Nursing Lab)</p>
+          <p style="margin: 4px 0 0; font-size: 12px; color: #ccfbf1;">KUNurse+Lab | ห้องปฏิบัติการพยาบาลศาสตร์</p>
         </div>
         <div style="padding: 24px;">
           <p style="font-size: 14px; color: #334155; margin-top: 0;">เรียนคุณ <b>${recipientName}</b>,</p>
@@ -362,7 +362,7 @@ export async function sendEmailChangeOtpEmail(params: {
           </div>
         </div>
         <div style="background-color: #f8fafc; padding: 12px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9;">
-          ระบบบริหารจัดการห้องปฏิบัติการพยาบาลศาสตร์ คณะพยาบาลศาสตร์
+          KUNurse+Lab | ระบบบริหารจัดการห้องปฏิบัติการพยาบาล คณะพยาบาลศาสตร์ มก.
         </div>
       </div>
     </body>
@@ -373,7 +373,7 @@ export async function sendEmailChangeOtpEmail(params: {
     const result = await resend.emails.send({
       from: senderEmail,
       to: [recipientEmail],
-      subject: `[รหัส OTP: ${otpCode}] ยืนยันการเปลี่ยนอีเมล - ระบบห้องแล็บพยาบาล`,
+      subject: `[รหัส OTP: ${otpCode}] ยืนยันการเปลี่ยนอีเมล - KUNurse+Lab`,
       html: htmlContent,
     });
     return { success: true, data: result };

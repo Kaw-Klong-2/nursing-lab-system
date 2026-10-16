@@ -4,13 +4,13 @@ import AppLayout from '@/components/layout/AppLayout';
 import PwaRegister from '@/components/pwa/PwaRegister';
 
 export const metadata: Metadata = {
-  title: 'ระบบบริหารวัสดุ-ครุภัณฑ์และต้นทุนรายวิชา | ห้องปฏิบัติการพยาบาล',
-  description: 'Nursing Simulation Lab Inventory, Borrow-Return & Course Cost Management System',
+  title: 'KUNurse+Lab | ระบบบริหารจัดการห้องปฏิบัติการพยาบาล',
+  description: 'KUNurse+Lab - ระบบบริหารจัดการห้องปฏิบัติการพยาบาลและคลังพัสดุ คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Lab พยาบาล',
+    title: 'KUNurse+Lab',
   },
   icons: {
     icon: [

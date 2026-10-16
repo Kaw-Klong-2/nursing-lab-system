@@ -26,6 +26,9 @@ import {
   Check,
   RefreshCw,
   LogOut,
+  Info,
+  Layers,
+  Sparkles,
 } from 'lucide-react';
 import {
   VAPID_PUBLIC_KEY,
@@ -33,6 +36,7 @@ import {
   isPushNotificationSupported,
   getNotificationPermission,
 } from '@/lib/webpush-client';
+import { SYSTEM_INFO } from '@/lib/system-info';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -41,7 +45,7 @@ interface ProfileModalProps {
 
 export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const { currentUser, updateUser, setCurrentUser, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<'PROFILE' | 'PASSWORD' | 'NOTIFICATIONS'>('PROFILE');
+  const [activeTab, setActiveTab] = useState<'PROFILE' | 'PASSWORD' | 'NOTIFICATIONS' | 'ABOUT'>('PROFILE');
 
   // Profile form state
   const [formData, setFormData] = useState({
@@ -531,6 +535,22 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
           >
             <Bell className="w-4 h-4" />
             <span>การแจ้งเตือน</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('ABOUT');
+              setErrorMsg(null);
+              setSuccessMsg(null);
+            }}
+            className={`pb-3 px-3 text-xs font-bold transition border-b-2 cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
+              activeTab === 'ABOUT'
+                ? 'border-teal-600 text-teal-700 dark:text-teal-400'
+                : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+          >
+            <Info className="w-4 h-4" />
+            <span>เกี่ยวกับระบบ</span>
           </button>
         </div>
 
@@ -1047,6 +1067,95 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
               {/* Close Button */}
               <div className="flex items-center justify-end pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition cursor-pointer"
+                >
+                  ปิดหน้าต่าง
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: ABOUT SYSTEM & DEVELOPER CREDIT */}
+          {activeTab === 'ABOUT' && (
+            <div className="space-y-4 animate-fadeIn">
+              {/* Brand Banner Card */}
+              <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 text-white border border-teal-500/30 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 translate-x-4 -translate-y-4 w-32 h-32 bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
+                <div className="flex items-start justify-between relative z-10">
+                  <div className="space-y-1">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30 text-[10px] font-bold">
+                      <Sparkles className="w-3 h-3 text-amber-300" />
+                      <span>{SYSTEM_INFO.build}</span>
+                    </div>
+                    <h3 className="text-2xl font-black tracking-tight text-white flex items-center gap-0.5 pt-1">
+                      <span>{SYSTEM_INFO.brandPrefix}</span>
+                      <span className="text-teal-400 font-black text-2xl select-none">+</span>
+                      <span>{SYSTEM_INFO.brandSuffix}</span>
+                    </h3>
+                    <p className="text-xs text-teal-200 font-medium">
+                      {SYSTEM_INFO.thaiTitle}
+                    </p>
+                    <p className="text-[11px] text-slate-400 pt-0.5">
+                      {SYSTEM_INFO.institution}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      System Operational
+                    </span>
+                  </div>
+                </div>
+
+                {/* Developer Credit Signature Box */}
+                <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">System Architecture & Engineering:</span>
+                    <span className="font-mono font-bold text-teal-300 text-xs tracking-wide">
+                      Developed by KIy&#123;d6]K
+                    </span>
+                  </div>
+                  <div className="text-right font-mono text-[10px] text-slate-400">
+                    &copy; {SYSTEM_INFO.copyrightYear} All Rights Reserved
+                  </div>
+                </div>
+              </div>
+
+              {/* Technical Specifications */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                  <span>สถาปัตยกรรมและเทคโนโลยีที่ใช้ (Technology Stack)</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {SYSTEM_INFO.techStack.map((tech, idx) => (
+                    <div
+                      key={idx}
+                      className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center gap-2"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-teal-500 flex-shrink-0" />
+                      <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300">{tech}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* License Notice */}
+              <div className="p-3.5 rounded-xl bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200">
+                  <ShieldCheck className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                  <span>สัญญาอนุญาตซอฟต์แวร์ (Proprietary License)</span>
+                </div>
+                <p className="leading-relaxed text-[10px] text-slate-500 dark:text-slate-400">
+                  สงวนลิขสิทธิ์ &copy; {SYSTEM_INFO.copyrightYear} {SYSTEM_INFO.developerCredit} พัฒนาเพื่อการเรียนการสอนและการบริหารจัดการห้องปฏิบัติการสถานการณ์จำลองทางการพยาบาล คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์ ห้ามคัดลอก ดัดแปลง แจกจ่าย หรือทำซ้ำโดยไม่ได้รับอนุญาต
+                </p>
+              </div>
+
+              {/* Close Button */}
+              <div className="flex items-center justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={onClose}

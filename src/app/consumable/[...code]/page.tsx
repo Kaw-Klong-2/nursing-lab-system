@@ -269,11 +269,14 @@ export default function PublicConsumablePage() {
               <BriefcaseMedical className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-xs font-black text-slate-900 dark:text-slate-100 leading-tight">
-                คณะพยาบาลศาสตร์
+              <h1 className="text-xs font-black text-slate-900 dark:text-slate-100 leading-tight flex items-center gap-0.5">
+                <span>KUNurse</span>
+                <span className="text-teal-500 dark:text-teal-400 font-black">+</span>
+                <span>Lab</span>
+                <span className="text-[10px] text-slate-400 font-normal ml-1">&bull; คลังเวชภัณฑ์</span>
               </h1>
               <p className="text-[10px] font-bold text-teal-700 dark:text-teal-400 tracking-wider">
-                ระบบข้อมูลเวชภัณฑ์และคลังพัสดุ
+                คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์
               </p>
             </div>
           </div>
@@ -660,8 +663,9 @@ export default function PublicConsumablePage() {
         </div>
 
         {/* Footer info */}
-        <div className="text-center text-[10px] text-slate-400 dark:text-slate-500 py-3">
-          คณะพยาบาลศาสตร์ • ระบบบริหารจัดการห้องปฏิบัติการและครุภัณฑ์อัจฉริยะ
+        <div className="text-center text-[11px] text-slate-400 dark:text-slate-500 py-3 space-y-1 select-none">
+          <div>KUNurse+Lab | ระบบบริหารจัดการห้องปฏิบัติการพยาบาล คณะพยาบาลศาสตร์ มก.</div>
+          <div className="text-[10px] font-mono">&copy; 2026 Developed by KIy&#123;d6]K</div>
         </div>
       </main>
     </div>

@@ -57,7 +57,39 @@ export function setPushUserDisabled(disabled: boolean): void {
   } catch {}
 }
 
-export function getEffectivePushStatus(): 'ENABLED' | 'DISABLED' | 'BLOCKED' | 'UNSUPPORTED' {
+export type PushStatus = 'LOADING' | 'ENABLED' | 'DISABLED' | 'BLOCKED' | 'UNSUPPORTED';
+
+function wasPushSetupDone(): boolean {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return localStorage.getItem('push_prompt_setup_done') === 'true';
+    }
+  } catch {}
+  return false;
+}
+
+/**
+ * สถานะเริ่มต้นแบบ synchronous (ใช้ตอน render ครั้งแรก)
+ * หมายเหตุ: iOS PWA บางครั้งคืนค่า Notification.permission = 'default' หลังปัดแอปทิ้งแล้วเปิดใหม่
+ * ทั้งที่อนุญาตไว้แล้ว จึงคืน 'LOADING' แทน 'DISABLED' หากเคยตั้งค่าสำเร็จ เพื่อรอผลตรวจแบบ async
+ */
+export function getEffectivePushStatus(): PushStatus {
+  if (typeof window === 'undefined') return 'LOADING';
+  if (!isPushNotificationSupported()) return 'UNSUPPORTED';
+  const perm = getNotificationPermission();
+  if (perm === 'unsupported') return 'UNSUPPORTED';
+  if (perm === 'denied') return 'BLOCKED';
+  if (isPushUserDisabled()) return 'DISABLED';
+  if (perm === 'granted') return 'ENABLED';
+  return wasPushSetupDone() ? 'LOADING' : 'DISABLED';
+}
+
+/**
+ * ตรวจสถานะจริงแบบ async จากหลายแหล่ง:
+ * 1) Notification.permission  2) pushManager.getSubscription()
+ * 3) pushManager.permissionState()  4) navigator.permissions.query
+ */
+export async function detectPushStatus(): Promise<Exclude<PushStatus, 'LOADING'>> {
   if (typeof window === 'undefined') return 'DISABLED';
   if (!isPushNotificationSupported()) return 'UNSUPPORTED';
   const perm = getNotificationPermission();
@@ -65,6 +97,30 @@ export function getEffectivePushStatus(): 'ENABLED' | 'DISABLED' | 'BLOCKED' | '
   if (perm === 'denied') return 'BLOCKED';
   if (isPushUserDisabled()) return 'DISABLED';
   if (perm === 'granted') return 'ENABLED';
+
+  // perm === 'default' → อาจเป็นค่าเพี้ยนของ iOS PWA ตรวจสอบเพิ่มเติม
+  try {
+    const reg = await getServiceWorkerRegistrationWithTimeout(5000);
+    if (reg && 'pushManager' in reg) {
+      const sub = await reg.pushManager.getSubscription().catch(() => null);
+      if (sub) return 'ENABLED';
+      try {
+        const state = await (reg.pushManager as any).permissionState?.({ userVisibleOnly: true });
+        if (state === 'granted') return 'ENABLED';
+        if (state === 'denied') return 'BLOCKED';
+      } catch {}
+    }
+  } catch {}
+
+  try {
+    const anyNav = navigator as any;
+    if (anyNav.permissions?.query) {
+      const res = await anyNav.permissions.query({ name: 'notifications' });
+      if (res?.state === 'granted') return 'ENABLED';
+      if (res?.state === 'denied') return 'BLOCKED';
+    }
+  } catch {}
+
   return 'DISABLED';
 }
 
@@ -117,7 +173,7 @@ export async function syncPushSubscriptionToBackend(
   userId: string
 ): Promise<boolean> {
   if (!userId || typeof window === 'undefined') return false;
-  if (!isPushNotificationSupported() || getNotificationPermission() !== 'granted' || isPushUserDisabled()) {
+  if (!isPushNotificationSupported() || getNotificationPermission() === 'denied' || isPushUserDisabled()) {
     return false;
   }
 

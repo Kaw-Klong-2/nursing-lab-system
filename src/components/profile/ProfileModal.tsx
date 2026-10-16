@@ -36,6 +36,7 @@ import {
   isPushNotificationSupported,
   getNotificationPermission,
   getEffectivePushStatus,
+  detectPushStatus,
   getServiceWorkerRegistrationWithTimeout,
   syncPushSubscriptionToBackend,
   setPushUserDisabled,
@@ -311,7 +312,9 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
   const checkPushSubscription = async () => {
     if (typeof window === 'undefined') return;
-    const status = getEffectivePushStatus();
+    const initial = getEffectivePushStatus();
+    if (initial !== 'LOADING') setPushStatus(initial);
+    const status = await detectPushStatus();
     setPushStatus(status);
 
     if (status === 'ENABLED' && currentUser?.id) {

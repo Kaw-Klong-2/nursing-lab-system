@@ -27,6 +27,7 @@ import {
   isPushNotificationSupported,
   getNotificationPermission,
   getEffectivePushStatus,
+  detectPushStatus,
   getServiceWorkerRegistrationWithTimeout,
   syncPushSubscriptionToBackend,
   setPushUserDisabled,
@@ -114,19 +115,45 @@ export default function NotificationBell() {
   const [isTestingPush, setIsTestingPush] = useState(false);
   const [pushFeedback, setPushFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
+  const [pushDiag, setPushDiag] = useState<string>('');
+
   const checkPush = async () => {
     if (typeof window === 'undefined') return;
-    const status = getEffectivePushStatus();
+    const initial = getEffectivePushStatus();
+    if (initial !== 'LOADING') setPushStatus(initial);
+
+    const status = await detectPushStatus();
     setPushStatus(status);
+
+    // ข้อมูลวินิจฉัย (แสดงเมื่อสถานะไม่ใช่ ENABLED เพื่อช่วยตรวจปัญหา)
+    try {
+      const standalone =
+        (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+        (navigator as any).standalone === true;
+      const reg = await getServiceWorkerRegistrationWithTimeout(3000);
+      const sub = reg ? await reg.pushManager.getSubscription().catch(() => null) : null;
+      setPushDiag(
+        `perm=${getNotificationPermission()} · sw=${reg ? 'ok' : 'none'} · sub=${sub ? 'yes' : 'no'} · ${standalone ? 'app' : 'browser'}`
+      );
+    } catch {}
 
     if (status === 'ENABLED' && currentUser?.id) {
       await syncPushSubscriptionToBackend(currentUser.id);
     }
   };
 
-  // Sync push status and background subscription on component mount or user change
+  // Sync push status on mount / user change และเมื่อแอปกลับมาทำงาน (iOS resume)
   useEffect(() => {
     checkPush();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') checkPush();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('pageshow', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pageshow', onVisible);
+    };
   }, [currentUser?.id]);
 
   useEffect(() => {
@@ -476,6 +503,12 @@ export default function NotificationBell() {
                 )}
               </div>
             </div>
+
+            {pushStatus !== 'ENABLED' && pushDiag && (
+              <div className="mt-1 text-[10px] font-mono text-slate-400 dark:text-slate-500 truncate">
+                {pushDiag}
+              </div>
+            )}
 
             {pushFeedback && (
               <div

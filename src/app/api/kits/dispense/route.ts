@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { invalidateCache } from '@/lib/cache';
+import { logActivity } from '@/lib/activity-log';
 
 // POST: Instant Kit Preparation & Stock Dispensing for a Class Session
 // Supports: Open Pack Remainder & Bonus Remainder (เศษซองเปิด + แถมเศษเคลียร์ตู้)
@@ -183,12 +185,15 @@ export async function POST(req: Request) {
             }
           }
 
-          // Update stock lot in DB
+          // Update stock lot in DB (keep piecesRemaining in sync)
+          const lotPackSize = Number(lot.packSize) > 0 ? Number(lot.packSize) : ratio;
+          const newPiecesRemaining = Math.max(0, (currentWholePacks * lotPackSize) + currentOpenRemainder);
           await prisma.stockLot.update({
             where: { id: lot.id },
             data: {
               quantityRemaining: currentWholePacks,
               openPackRemainder: currentOpenRemainder,
+              piecesRemaining: newPiecesRemaining,
             },
           });
 
@@ -274,6 +279,18 @@ export async function POST(req: Request) {
         });
       }
     }
+
+    invalidateCache('items:');
+    invalidateCache('dashboard:');
+
+    await logActivity({
+      userId: userId || null,
+      action: 'DISPENSE',
+      entityType: 'REQUISITION',
+      entityId: kit.id,
+      entityTitle: `${prepReference} (${kit.name})`,
+      details: `จัดเตรียมชุดฝึกปฏิบัติการ "${kit.name}" จำนวน ${numSets} ชุด มูลค่ารวม ${totalValueDispensed.toFixed(2)} บาท`,
+    });
 
     return NextResponse.json({
       success: true,

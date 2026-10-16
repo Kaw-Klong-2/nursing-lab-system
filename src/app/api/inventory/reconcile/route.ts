@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
+import { logActivity } from '@/lib/activity-log';
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { records, assetAudits, countedBy, note } = body;
+    const { records, assetAudits, countedBy, userId, note } = body;
 
     const hasRecords = Array.isArray(records) && records.length > 0;
     const hasAssetAudits = Array.isArray(assetAudits) && assetAudits.length > 0;
@@ -20,8 +21,7 @@ export async function POST(req: Request) {
       select: { id: true, name: true },
     });
 
-    const creatorId = adminUser?.id || 'system';
-    const auditLogs: any[] = [];
+    const creatorId = userId || adminUser?.id || null;
     const updatedItems: any[] = [];
     const updatedAssets: any[] = [];
 
@@ -63,15 +63,22 @@ export async function POST(req: Request) {
         if (!item) continue;
 
         if (item.type === 'CONSUMABLE') {
+          const itemRatio = Number(item.conversionRatio) > 0 ? Number(item.conversionRatio) : 1;
           if (variance < 0) {
             // Shortage: reduce from earliest lots
             let neededDeduction = Math.abs(variance);
             for (const lot of item.stockLots) {
               if (neededDeduction <= 0) break;
               const deduct = Math.min(lot.quantityRemaining, neededDeduction);
+              const newQty = lot.quantityRemaining - deduct;
+              const pSize = Number(lot.packSize) > 0 ? Number(lot.packSize) : itemRatio;
+              const newPieces = Math.max(0, newQty * pSize + (lot.openPackRemainder || 0));
               await tx.stockLot.update({
                 where: { id: lot.id },
-                data: { quantityRemaining: lot.quantityRemaining - deduct },
+                data: {
+                  quantityRemaining: newQty,
+                  piecesRemaining: newPieces,
+                },
               });
               neededDeduction -= deduct;
             }
@@ -79,15 +86,24 @@ export async function POST(req: Request) {
             // Surplus: add to latest active lot or create an adjustment lot
             if (item.stockLots.length > 0) {
               const latestLot = item.stockLots[item.stockLots.length - 1];
+              const newQty = latestLot.quantityRemaining + variance;
+              const pSize = Number(latestLot.packSize) > 0 ? Number(latestLot.packSize) : itemRatio;
+              const newPieces = Math.max(0, newQty * pSize + (latestLot.openPackRemainder || 0));
               await tx.stockLot.update({
                 where: { id: latestLot.id },
-                data: { quantityRemaining: latestLot.quantityRemaining + variance },
+                data: {
+                  quantityRemaining: newQty,
+                  piecesRemaining: newPieces,
+                },
               });
             } else {
               await tx.stockLot.create({
                 data: {
                   itemId: item.id,
                   lotNumber: `ADJ-${Date.now().toString().slice(-6)}`,
+                  packSize: itemRatio,
+                  totalPieces: variance * itemRatio,
+                  piecesRemaining: variance * itemRatio,
                   quantityInitial: variance,
                   quantityRemaining: variance,
                   unitCost: 0,
@@ -123,6 +139,15 @@ export async function POST(req: Request) {
 
     invalidateCache('items:');
     invalidateCache('dashboard:');
+
+    await logActivity({
+      userId: creatorId,
+      userName: countedBy || adminUser?.name || undefined,
+      action: 'STOCK_ADJUST',
+      entityType: 'STOCK',
+      entityTitle: `ตรวจนับสต็อก (${updatedItems.length} วัสดุ / ${updatedAssets.length} ครุภัณฑ์)`,
+      details: `ปรับยอดจากการตรวจนับสต็อก: วัสดุ ${updatedItems.length} รายการ, ครุภัณฑ์ ${updatedAssets.length} รายการ${note ? ` | หมายเหตุ: ${note}` : ''}`,
+    });
 
     return NextResponse.json({
       success: true,

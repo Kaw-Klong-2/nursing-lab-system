@@ -240,12 +240,6 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           roles: ['ADMIN'],
         },
         {
-          label: 'ประวัติการทำรายการ (Audit Logs)',
-          href: '/audit-logs',
-          icon: History,
-          roles: ['ADMIN', 'OFFICER'],
-        },
-        {
           label: 'กำหนดภาคการศึกษา',
           href: '/settings/terms',
           icon: CalendarDays,

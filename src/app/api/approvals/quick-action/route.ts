@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { sendApprovalNotificationWithQrEmail } from '@/lib/email';
 import { invalidateCache } from '@/lib/cache';
 import { createNotification, notifyRoles } from '@/lib/notifications';
+import { logActivity } from '@/lib/activity-log';
 
 export async function GET(req: Request) {
   try {
@@ -58,17 +59,19 @@ export async function GET(req: Request) {
         });
       }
 
-      if (booking.status === 'APPROVED') {
+      if (booking.status !== 'PENDING') {
+        const isApproved = booking.status === 'APPROVED' || booking.status === 'COMPLETED';
         return renderResponseHtml({
-          success: true,
-          title: 'คำขอนี้ได้รับการอนุมัติแล้ว',
-          message: `คำขอจอง ${booking.bookingNumber} (${booking.skillTopic}) ได้รับการอนุมัติไปเรียบร้อยแล้ว`,
-          badge: 'อนุมัติแล้ว',
+          success: isApproved,
+          title: isApproved ? 'คำขอนี้ได้รับการอนุมัติแล้ว' : 'คำขอนี้ได้รับการดำเนินการแล้ว',
+          message: `คำขอจอง ${booking.bookingNumber} (${booking.skillTopic}) มีสถานะปัจจุบันคือ ${isApproved ? 'อนุมัติแล้ว' : 'ไม่อนุมัติ/ยกเลิกแล้ว'}`,
+          badge: isApproved ? 'อนุมัติแล้ว' : 'ดำเนินการแล้ว',
+          isDanger: !isApproved,
         });
       }
 
       if (action === 'APPROVE') {
-        const updated = await prisma.practiceBooking.update({
+        await prisma.practiceBooking.update({
           where: { id },
           data: {
             status: 'APPROVED',
@@ -118,6 +121,14 @@ export async function GET(req: Request) {
           entityId: booking.id,
         }).catch(() => {});
 
+        await logActivity({
+          action: 'APPROVE',
+          entityType: 'PRACTICE_BOOKING',
+          entityId: booking.id,
+          entityTitle: `${booking.bookingNumber} (${booking.skillTopic})`,
+          details: `อนุมัติคำขอจองห้องฝึกปฏิบัติการผ่านลิงก์อีเมล สำหรับ ${booking.user?.name || 'นิสิต'}`,
+        });
+
         return renderResponseHtml({
           success: true,
           title: 'อนุมัติคำขอจองสำเร็จเรียบร้อย! 🎉',
@@ -156,6 +167,14 @@ export async function GET(req: Request) {
           entityId: booking.id,
         }).catch(() => {});
 
+        await logActivity({
+          action: 'REJECT',
+          entityType: 'PRACTICE_BOOKING',
+          entityId: booking.id,
+          entityTitle: `${booking.bookingNumber} (${booking.skillTopic})`,
+          details: `ปฏิเสธคำขอจองห้องฝึกปฏิบัติการผ่านลิงก์อีเมล สำหรับ ${booking.user?.name || 'นิสิต'}`,
+        });
+
         return renderResponseHtml({
           success: true,
           title: 'บันทึกการไม่อนุมัติคำขอแล้ว',
@@ -177,6 +196,17 @@ export async function GET(req: Request) {
           success: false,
           title: 'ไม่พบคำขอยืม',
           message: 'ไม่พบคำขอยืมครุภัณฑ์นี้ในระบบ',
+        });
+      }
+
+      if (borrow.status !== 'PENDING') {
+        const isApproved = borrow.status === 'APPROVED' || borrow.status === 'BORROWED' || borrow.status === 'RETURNED_COMPLETE';
+        return renderResponseHtml({
+          success: isApproved,
+          title: isApproved ? 'คำขอนี้ได้รับการอนุมัติแล้ว' : 'คำขอนี้ได้รับการดำเนินการแล้ว',
+          message: `คำขอ ${borrow.requestNumber} ของ ${borrow.user?.name || 'ผู้ขอ'} มีสถานะปัจจุบันคือ ${isApproved ? 'อนุมัติแล้ว' : 'ไม่อนุมัติ/ยกเลิกแล้ว'}`,
+          badge: isApproved ? 'อนุมัติแล้ว' : 'ดำเนินการแล้ว',
+          isDanger: !isApproved,
         });
       }
 
@@ -230,6 +260,14 @@ export async function GET(req: Request) {
         invalidateCache('borrow:');
         invalidateCache('requisitions:');
         invalidateCache('dashboard:');
+
+        await logActivity({
+          action: 'APPROVE',
+          entityType: 'BORROW',
+          entityId: borrow.id,
+          entityTitle: borrow.requestNumber,
+          details: `อนุมัติคำขอยืมครุภัณฑ์ ${borrow.requestNumber} ผ่านลิงก์อีเมล สำหรับ ${borrow.user?.name || 'นิสิต'}`,
+        });
 
         return renderResponseHtml({
           success: true,
@@ -290,10 +328,142 @@ export async function GET(req: Request) {
         invalidateCache('requisitions:');
         invalidateCache('dashboard:');
 
+        await logActivity({
+          action: 'REJECT',
+          entityType: 'BORROW',
+          entityId: borrow.id,
+          entityTitle: borrow.requestNumber,
+          details: `ปฏิเสธคำขอยืมครุภัณฑ์ ${borrow.requestNumber} ผ่านลิงก์อีเมล สำหรับ ${borrow.user?.name || 'นิสิต'}`,
+        });
+
         return renderResponseHtml({
           success: true,
           title: 'บันทึกการไม่อนุมัติคำขอแล้ว',
           message: `คำขอ ${borrow.requestNumber} ได้รับการบันทึกสถานะเป็นไม่อนุมัติเรียบร้อยแล้ว`,
+          badge: 'ไม่อนุมัติ',
+          isDanger: true,
+        });
+      }
+    }
+
+    if (type === 'REQUISITION') {
+      const reqRecord = await prisma.requisitionRequest.findUnique({
+        where: { id },
+        include: { user: true },
+      });
+
+      if (!reqRecord) {
+        return renderResponseHtml({
+          success: false,
+          title: 'ไม่พบคำขอเบิกวัสดุ',
+          message: 'ไม่พบคำขอเบิกวัสดุนี้ในระบบ',
+        });
+      }
+
+      if (reqRecord.status !== 'PENDING') {
+        const isApproved = reqRecord.status === 'APPROVED' || reqRecord.status === 'DISPENSED';
+        return renderResponseHtml({
+          success: isApproved,
+          title: isApproved ? 'คำขอนี้ได้รับการอนุมัติแล้ว' : 'คำขอนี้ได้รับการดำเนินการแล้ว',
+          message: `คำขอเบิก ${reqRecord.requestNumber} ของ ${reqRecord.user?.name || 'ผู้ขอ'} มีสถานะปัจจุบันคือ ${isApproved ? 'อนุมัติแล้ว' : 'ไม่อนุมัติ/ยกเลิกแล้ว'}`,
+          badge: isApproved ? 'อนุมัติแล้ว' : 'ดำเนินการแล้ว',
+          isDanger: !isApproved,
+        });
+      }
+
+      if (action === 'APPROVE') {
+        await prisma.requisitionRequest.update({
+          where: { id },
+          data: {
+            status: 'APPROVED',
+            approvedAt: new Date(),
+          },
+        });
+
+        if (reqRecord.userId) {
+          createNotification({
+            userId: reqRecord.userId,
+            title: 'คำขอเบิกวัสดุได้รับการอนุมัติแล้ว 🎉',
+            message: `คำขอเบิก ${reqRecord.requestNumber} ได้รับการอนุมัติแล้ว เจ้าหน้าที่กำลังเตรียมจ่ายวัสดุให้ท่าน`,
+            type: 'STATUS_UPDATE',
+            linkUrl: '/requisition',
+            entityType: 'REQUISITION',
+            entityId: reqRecord.id,
+          }).catch(() => {});
+        }
+
+        notifyRoles(['OFFICER', 'ADMIN'], {
+          title: 'คำขอเบิกวัสดุได้รับการอนุมัติ ✅',
+          message: `คำขอเบิกเลขที่ ${reqRecord.requestNumber} (${reqRecord.user?.name || 'นิสิต'}) ได้รับการอนุมัติผ่านอีเมลเรียบร้อยแล้ว`,
+          type: 'STATUS_UPDATE',
+          linkUrl: '/approvals',
+          entityType: 'REQUISITION',
+          entityId: reqRecord.id,
+        }).catch(() => {});
+
+        invalidateCache('requisitions:');
+        invalidateCache('dashboard:');
+
+        await logActivity({
+          action: 'APPROVE',
+          entityType: 'REQUISITION',
+          entityId: reqRecord.id,
+          entityTitle: reqRecord.requestNumber,
+          details: `อนุมัติคำขอเบิกวัสดุ ${reqRecord.requestNumber} ผ่านลิงก์อีเมล สำหรับ ${reqRecord.user?.name || 'นิสิต'}`,
+        });
+
+        return renderResponseHtml({
+          success: true,
+          title: 'อนุมัติคำขอเบิกวัสดุสำเร็จ',
+          message: `คำขอเบิก ${reqRecord.requestNumber} ของ ${reqRecord.user?.name || 'ผู้ขอ'} ได้รับการอนุมัติแล้ว เจ้าหน้าที่ห้องแล็บจะเตรียมจ่ายวัสดุให้ตามรายการ`,
+          badge: 'อนุมัติแล้ว',
+        });
+      } else {
+        await prisma.requisitionRequest.update({
+          where: { id },
+          data: {
+            status: 'REJECTED',
+            rejectionReason: 'ไม่อนุมัติผ่านอีเมล',
+          },
+        });
+
+        if (reqRecord.userId) {
+          createNotification({
+            userId: reqRecord.userId,
+            title: 'คำขอเบิกวัสดุไม่ได้รับการอนุมัติ ❌',
+            message: `คำขอเบิก ${reqRecord.requestNumber} ไม่ได้รับการอนุมัติผ่านอีเมล`,
+            type: 'STATUS_UPDATE',
+            priority: 'HIGH',
+            linkUrl: '/requisition',
+            entityType: 'REQUISITION',
+            entityId: reqRecord.id,
+          }).catch(() => {});
+        }
+
+        notifyRoles(['OFFICER', 'ADMIN'], {
+          title: 'คำขอเบิกวัสดุถูกปฏิเสธ ❌',
+          message: `คำขอเบิกเลขที่ ${reqRecord.requestNumber} (${reqRecord.user?.name || 'นิสิต'}) ถูกปฏิเสธผ่านอีเมล`,
+          type: 'STATUS_UPDATE',
+          linkUrl: '/approvals',
+          entityType: 'REQUISITION',
+          entityId: reqRecord.id,
+        }).catch(() => {});
+
+        invalidateCache('requisitions:');
+        invalidateCache('dashboard:');
+
+        await logActivity({
+          action: 'REJECT',
+          entityType: 'REQUISITION',
+          entityId: reqRecord.id,
+          entityTitle: reqRecord.requestNumber,
+          details: `ปฏิเสธคำขอเบิกวัสดุ ${reqRecord.requestNumber} ผ่านลิงก์อีเมล สำหรับ ${reqRecord.user?.name || 'นิสิต'}`,
+        });
+
+        return renderResponseHtml({
+          success: true,
+          title: 'บันทึกการไม่อนุมัติคำขอเบิกแล้ว',
+          message: `คำขอเบิก ${reqRecord.requestNumber} ได้รับการบันทึกสถานะเป็นไม่อนุมัติเรียบร้อยแล้ว`,
           badge: 'ไม่อนุมัติ',
           isDanger: true,
         });
@@ -317,12 +487,14 @@ export async function GET(req: Request) {
         });
       }
 
-      if (roomBooking.status === 'APPROVED') {
+      if (roomBooking.status !== 'PENDING') {
+        const isApproved = roomBooking.status === 'APPROVED';
         return renderResponseHtml({
-          success: true,
-          title: 'คำขอนี้ได้รับการอนุมัติแล้ว',
-          message: `คำขอจองห้อง ${roomBooking.room?.name || ''} (${roomBooking.bookingNumber}) ได้รับการอนุมัติไปเรียบร้อยแล้ว`,
-          badge: 'อนุมัติแล้ว',
+          success: isApproved,
+          title: isApproved ? 'คำขอนี้ได้รับการอนุมัติแล้ว' : 'คำขอนี้ได้รับการดำเนินการแล้ว',
+          message: `คำขอจองห้อง ${roomBooking.room?.name || ''} (${roomBooking.bookingNumber}) มีสถานะปัจจุบันคือ ${isApproved ? 'อนุมัติแล้ว' : 'ไม่อนุมัติ/ยกเลิกแล้ว'}`,
+          badge: isApproved ? 'อนุมัติแล้ว' : 'ดำเนินการแล้ว',
+          isDanger: !isApproved,
         });
       }
 
@@ -444,6 +616,14 @@ export async function GET(req: Request) {
 
         invalidateCache('room:bookings:');
 
+        await logActivity({
+          action: 'APPROVE',
+          entityType: 'ROOM_BOOKING',
+          entityId: roomBooking.id,
+          entityTitle: `${roomBooking.bookingNumber} (${roomBooking.room?.name || ''})`,
+          details: `อนุมัติคำขอจองห้องปฏิบัติการ ${roomBooking.bookingNumber} ผ่านลิงก์อีเมล สำหรับ ${roomBooking.user?.name || 'ผู้ขอ'}`,
+        });
+
         return renderResponseHtml({
           success: true,
           title: 'อนุมัติการจองห้องปฏิบัติการสำเร็จ',
@@ -486,6 +666,14 @@ export async function GET(req: Request) {
         ).catch(() => {});
 
         invalidateCache('room:bookings:');
+
+        await logActivity({
+          action: 'REJECT',
+          entityType: 'ROOM_BOOKING',
+          entityId: roomBooking.id,
+          entityTitle: `${roomBooking.bookingNumber} (${roomBooking.room?.name || ''})`,
+          details: `ปฏิเสธคำขอจองห้องปฏิบัติการ ${roomBooking.bookingNumber} ผ่านลิงก์อีเมล สำหรับ ${roomBooking.user?.name || 'ผู้ขอ'}`,
+        });
 
         return renderResponseHtml({
           success: true,

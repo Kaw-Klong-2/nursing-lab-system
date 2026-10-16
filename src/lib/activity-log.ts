@@ -16,7 +16,8 @@ export type ActivityAction =
   | 'USER_CREATE'
   | 'USER_DELETE'
   | 'BOOKING_CREATE'
-  | 'BOOKING_CANCEL';
+  | 'BOOKING_CANCEL'
+  | 'EXPORT';
 
 export type ActivityEntityType =
   | 'BORROW'

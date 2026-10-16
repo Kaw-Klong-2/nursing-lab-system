@@ -172,8 +172,9 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         return;
       }
 
-      // Also update other profile fields (name, phone, department)
+      // Also update other profile fields (prefix, name, phone, department)
       await updateUser({
+        prefix: formData.prefix ? formData.prefix.trim() : null,
         name: formData.name,
         phone: formData.phone,
         department: formData.department,
@@ -182,6 +183,9 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
       if (data.user) {
         setCurrentUser(data.user);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('cached_current_user', JSON.stringify(data.user));
+        }
       }
 
       setSuccessMsg('ยืนยันและเปลี่ยนอีเมลสำเร็จแล้ว');

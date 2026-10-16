@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { invalidateCache } from '@/lib/cache';
+import { logActivity } from '@/lib/activity-log';
 
 // GET: Fetch all repack records and consumable items with active lots
 export async function GET(req: Request) {
@@ -308,6 +310,18 @@ export async function POST(req: Request) {
           orderBy: { packNumber: 'asc' },
         },
       },
+    });
+
+    invalidateCache('items:');
+    invalidateCache('dashboard:');
+
+    await logActivity({
+      userId: operatorId || null,
+      action: 'STOCK_IN',
+      entityType: 'STOCK',
+      entityId: record.id,
+      entityTitle: `${recordNumber} (${autoSubLot})`,
+      details: `แบ่งบรรจุเวชภัณฑ์จาก ${sourceLot.item.name} เข้าสู่ ${targetItem?.name || ''} จำนวน ${totalPacksProduced} ซอง`,
     });
 
     return NextResponse.json({

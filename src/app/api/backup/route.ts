@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logActivity } from '@/lib/activity-log';
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const download = searchParams.get('download') !== 'false';
+    const userId = searchParams.get('userId') || null;
 
     const [
       users,
@@ -129,6 +131,14 @@ export async function GET(req: Request) {
     };
 
     if (download) {
+      await logActivity({
+        userId,
+        action: 'EXPORT',
+        entityType: 'SYSTEM',
+        entityTitle: filename,
+        details: `ดาวน์โหลดไฟล์สำรองฐานข้อมูลระบบ (${filename})`,
+      });
+
       return new NextResponse(JSON.stringify(snapshotData, null, 2), {
         headers: {
           'Content-Type': 'application/json',

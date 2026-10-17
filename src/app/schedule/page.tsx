@@ -55,10 +55,23 @@ export default function SchedulePage() {
   const [pmAssetsList, setPmAssetsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [timeFilter, setTimeFilter] = useState<'ALL' | 'TODAY' | 'PENDING' | 'UPCOMING' | 'OVERDUE' | 'AUDIT' | 'PM'>('ALL');
+  const [timeFilter, setTimeFilter] = useState<'ALL' | 'TODAY' | 'PENDING' | 'BORROWED' | 'UPCOMING' | 'OVERDUE' | 'AUDIT' | 'PM'>('ALL');
   const [listLayout, setListLayout] = useState<'COMPACT' | 'CARDS'>('COMPACT');
   const [futureCollapsed, setFutureCollapsed] = useState(false);
   const [expandedSlotIds, setExpandedSlotIds] = useState<Record<string, boolean>>({});
+
+  const toLocalDateKey = (dateInput?: string | Date): string => {
+    if (!dateInput) return '';
+    if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput.trim())) {
+      return dateInput.trim();
+    }
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   // Calendar View States
   const [viewMode, setViewMode] = useState<'CALENDAR' | 'LIST'>('CALENDAR');
@@ -68,9 +81,9 @@ export default function SchedulePage() {
     return d;
   });
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    return new Date().toISOString().slice(0, 10);
+    return toLocalDateKey(new Date());
   });
-  const [dayTypeFilter, setDayTypeFilter] = useState<'ALL' | 'PICKUP' | 'RETURN' | 'PRACTICE' | 'AUDIT' | 'PM'>('ALL');
+  const [dayTypeFilter, setDayTypeFilter] = useState<'ALL' | 'PICKUP' | 'RETURN' | 'ROOM' | 'PRACTICE' | 'AUDIT' | 'PM'>('ALL');
 
   // Calendar Hover Tooltip State
   const [hoverPopover, setHoverPopover] = useState<{
@@ -97,7 +110,8 @@ export default function SchedulePage() {
       if (t.type === 'BORROW') {
         const itemCount = t.items?.length || 0;
         const firstItem = t.items?.[0]?.item?.name || '';
-        title = `ยืม: ${firstItem ? firstItem + (itemCount > 1 ? ` (+${itemCount - 1})` : '') : 'อุปกรณ์การพยาบาล'}`;
+        const actionPrefix = t.status === 'BORROWED' ? 'กำหนดคืน' : 'นัดรับยืม';
+        title = `${actionPrefix}: ${firstItem ? firstItem + (itemCount > 1 ? ` (+${itemCount - 1})` : '') : 'อุปกรณ์การพยาบาล'}`;
       } else if (t.type === 'REQUISITION') {
         const itemCount = t.items?.length || 0;
         const firstItem = t.items?.[0]?.item?.name || '';
@@ -163,7 +177,7 @@ export default function SchedulePage() {
   const handleTodayMonth = () => {
     const today = new Date();
     setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1));
-    setSelectedDate(today.toISOString().slice(0, 10));
+    setSelectedDate(toLocalDateKey(today));
   };
 
   const toggleSlotExpand = (slotKey: string) => {
@@ -272,41 +286,33 @@ export default function SchedulePage() {
   };
 
   const toInputDateFormat = (dateStr?: string) => {
-    if (!dateStr) return '';
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return '';
-      return d.toISOString().slice(0, 10);
-    } catch {
-      return '';
-    }
+    return toLocalDateKey(dateStr);
   };
+
+  const todayDateStr = toLocalDateKey(new Date());
+  const tomorrowDate = new Date();
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrowDateStr = toLocalDateKey(tomorrowDate);
 
   const isToday = (dateStr?: string) => {
     if (!dateStr) return false;
-    const d = new Date(dateStr);
-    const now = new Date();
-    return (
-      d.getDate() === now.getDate() &&
-      d.getMonth() === now.getMonth() &&
-      d.getFullYear() === now.getFullYear()
-    );
+    return toLocalDateKey(dateStr) === todayDateStr;
   };
 
   const isPast = (dateStr?: string) => {
     if (!dateStr) return false;
-    const d = new Date(dateStr);
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    return d < now;
+    const key = toLocalDateKey(dateStr);
+    return Boolean(key && key < todayDateStr);
   };
 
   // Combine borrow and requisition items into unified schedule tasks
   const combinedTasks = [
     ...borrowList.map((b) => {
-      const returnOverdue = b.status === 'BORROWED' && isPast(b.expectedReturnDate);
-      const pickupToday = isToday(b.borrowDate);
-      const returnToday = isToday(b.expectedReturnDate);
+      const isApprovedWaitingPickup = b.status === 'APPROVED';
+      const isBorrowedWaitingReturn = b.status === 'BORROWED';
+      const returnOverdue = isBorrowedWaitingReturn && isPast(b.expectedReturnDate);
+      const pickupToday = isApprovedWaitingPickup && isToday(b.borrowDate);
+      const returnToday = isBorrowedWaitingReturn && isToday(b.expectedReturnDate);
 
       return {
         id: b.id,
@@ -319,6 +325,7 @@ export default function SchedulePage() {
         purpose: b.purpose,
         pickupDate: b.borrowDate,
         returnDate: b.expectedReturnDate,
+        activeDate: isBorrowedWaitingReturn ? b.expectedReturnDate : b.borrowDate,
         items: b.items || [],
         isOverdue: returnOverdue,
         isPickupToday: pickupToday,
@@ -326,7 +333,7 @@ export default function SchedulePage() {
       };
     }),
     ...requisitionList.map((r) => {
-      const pickupToday = isToday(r.dateNeeded);
+      const pickupToday = r.status === 'APPROVED' && isToday(r.dateNeeded);
       return {
         id: r.id,
         type: 'REQUISITION' as const,
@@ -338,6 +345,7 @@ export default function SchedulePage() {
         purpose: r.purpose,
         pickupDate: r.dateNeeded,
         returnDate: undefined,
+        activeDate: r.dateNeeded,
         items: r.items || [],
         isOverdue: false,
         isPickupToday: pickupToday,
@@ -358,6 +366,7 @@ export default function SchedulePage() {
         roomName: p.slot?.room?.name || 'ห้องปฏิบัติการพยาบาล',
         roomCode: p.slot?.room?.code,
         pickupDate: p.slot?.date,
+        activeDate: p.slot?.date,
         timeSlot: p.slot ? `${p.slot.startTime} - ${p.slot.endTime} น.` : '-',
         maxCapacity: p.slot?.maxCapacity || 6,
         isPickupToday: isToday(p.slot?.date),
@@ -395,8 +404,9 @@ export default function SchedulePage() {
   // 1. Transform inspection campaigns/audits
   const inspectionPlanTasks = inspectionPlansList.map((plan) => {
     const planDate = plan.targetDate || plan.startDate || plan.createdAt;
-    const isTodayPlan = isToday(planDate);
-    const isOverdue = plan.status !== 'COMPLETED' && isPast(planDate);
+    const isCompleted = (plan.status || '').toUpperCase() === 'COMPLETED';
+    const isTodayPlan = !isCompleted && isToday(planDate);
+    const isOverdue = !isCompleted && isPast(planDate);
     return {
       id: plan.id,
       type: 'INSPECTION_PLAN' as const,
@@ -408,6 +418,7 @@ export default function SchedulePage() {
       purpose: plan.title,
       description: plan.description,
       pickupDate: planDate,
+      activeDate: planDate,
       returnDate: undefined,
       targetDate: plan.targetDate,
       startDate: plan.startDate,
@@ -426,17 +437,12 @@ export default function SchedulePage() {
   const pmDateGroups: Record<string, any[]> = {};
   pmAssetsList.forEach((asset) => {
     if (!asset.nextInspectionDue) return;
-    try {
-      const d = new Date(asset.nextInspectionDue);
-      if (isNaN(d.getTime())) return;
-      const dateKey = d.toISOString().slice(0, 10);
-      if (!pmDateGroups[dateKey]) {
-        pmDateGroups[dateKey] = [];
-      }
-      pmDateGroups[dateKey].push(asset);
-    } catch {
-      // ignore
+    const dateKey = toLocalDateKey(asset.nextInspectionDue);
+    if (!dateKey) return;
+    if (!pmDateGroups[dateKey]) {
+      pmDateGroups[dateKey] = [];
     }
+    pmDateGroups[dateKey].push(asset);
   });
 
   const pmDueGroupTasks = Object.entries(pmDateGroups).map(([dateKey, assets]) => {
@@ -449,6 +455,7 @@ export default function SchedulePage() {
       title: `ตรวจ PM ครุภัณฑ์ (${assets.length} รายการ)`,
       purpose: `กำหนดตรวจบำรุงรักษาเชิงป้องกัน (PM) (${assets.length} เครื่อง/ชิ้น)`,
       pickupDate: dateKey,
+      activeDate: dateKey,
       returnDate: undefined,
       assets,
       status: hasOverdue ? 'OVERDUE' : isDueToday ? 'DUE_SOON' : 'SCHEDULED',
@@ -472,6 +479,7 @@ export default function SchedulePage() {
         purpose: rb.title,
         usagePurpose: rb.purpose,
         pickupDate: rb.bookingDate,
+        activeDate: rb.bookingDate,
         returnDate: undefined,
         timeSlot: `${rb.startTime} - ${rb.endTime} น.`,
         roomName: rb.room?.name || 'ห้องปฏิบัติการ',
@@ -492,30 +500,47 @@ export default function SchedulePage() {
     ...pmDueGroupTasks,
   ];
 
-  // Operational Triage & Chronological Sorting for High-Volume Duty Management
-  const todayDateStr = new Date().toISOString().slice(0, 10);
-  const tomorrowDate = new Date();
-  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-  const tomorrowDateStr = tomorrowDate.toISOString().slice(0, 10);
+  // Active duty queue for List View & KPI Summary Cards:
+  // Exclude past room bookings, past practice sessions, and already-completed inspection plans
+  const activeQueueTasks = allDisplayTasks.filter((t: any) => {
+    if (t.type === 'ROOM_BOOKING' || t.type === 'PRACTICE_EVENT') {
+      const dKey = toLocalDateKey(t.pickupDate);
+      return Boolean(dKey && dKey >= todayDateStr);
+    }
+    if (t.type === 'INSPECTION_PLAN') {
+      return (t.status || '').toUpperCase() !== 'COMPLETED';
+    }
+    return true;
+  });
 
+  const getTaskActiveDateKey = (t: any): string => {
+    if (t.type === 'BORROW' && t.status === 'BORROWED') {
+      return toLocalDateKey(t.returnDate);
+    }
+    return toLocalDateKey(t.activeDate || t.pickupDate || t.returnDate);
+  };
+
+  // True "Past Pending Pickup": Only APPROVED Borrow or Requisition whose scheduled pickup date has already passed
   const isTaskPastPending = (t: any) => {
-    if (t.isOverdue || t.isPickupToday || t.isReturnToday) return false;
-    const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
-    const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
-    if (pDate === tomorrowDateStr || rDate === tomorrowDateStr) return false;
-    if ((pDate && pDate > tomorrowDateStr) || (rDate && rDate > tomorrowDateStr)) return false;
-    return (pDate && pDate < todayDateStr) || (rDate && rDate < todayDateStr) || (!pDate && !rDate);
+    if (t.type !== 'BORROW' && t.type !== 'REQUISITION') return false;
+    if (t.status !== 'APPROVED') return false;
+    const pDate = toLocalDateKey(t.pickupDate);
+    return Boolean(pDate && pDate < todayDateStr);
+  };
+
+  // All requests awaiting item dispense (for KPI Card #2 & PENDING filter tab)
+  const isTaskAwaitingDispense = (t: any) => {
+    return (t.type === 'BORROW' || t.type === 'REQUISITION') && t.status === 'APPROVED';
   };
 
   const isTaskUpcoming = (t: any) => {
-    if (t.isOverdue || t.isPickupToday || t.isReturnToday) return false;
-    const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
-    const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
-    return (pDate && pDate > todayDateStr) || (rDate && rDate > todayDateStr);
+    if (t.isOverdue || t.isPickupToday || t.isReturnToday || isTaskPastPending(t)) return false;
+    const activeKey = getTaskActiveDateKey(t);
+    return Boolean(activeKey && activeKey > todayDateStr);
   };
 
   // Apply filters for List View
-  const filteredTasks = allDisplayTasks.filter((task: any) => {
+  const filteredTasks = activeQueueTasks.filter((task: any) => {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       if (task.type === 'PRACTICE_EVENT') {
@@ -562,7 +587,10 @@ export default function SchedulePage() {
       return task.isPickupToday || task.isReturnToday;
     }
     if (timeFilter === 'PENDING') {
-      return isTaskPastPending(task);
+      return isTaskAwaitingDispense(task);
+    }
+    if (timeFilter === 'BORROWED') {
+      return task.type === 'BORROW' && task.status === 'BORROWED';
     }
     if (timeFilter === 'OVERDUE') {
       return task.isOverdue;
@@ -584,12 +612,11 @@ export default function SchedulePage() {
     if (t.isOverdue) return 0;
     // 1: Today shift
     if (t.isPickupToday || t.isReturnToday) return 1;
-    // 2: Past pending / backlog (scheduled date in the past but awaiting completion)
+    // 2: Past pending pickup (approved Borrow/Requisition whose pickup date has passed)
     if (isTaskPastPending(t)) return 2;
-    // 3: Tomorrow prep
-    const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
-    const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
-    if (pDate === tomorrowDateStr || rDate === tomorrowDateStr) return 3;
+    // 3: Tomorrow schedule
+    const activeKey = getTaskActiveDateKey(t);
+    if (activeKey === tomorrowDateStr) return 3;
     // 4: Future upcoming
     return 4;
   };
@@ -609,12 +636,8 @@ export default function SchedulePage() {
     const scoreB = getTaskTriageScore(b);
     if (scoreA !== scoreB) return scoreA - scoreB;
 
-    // Overdue: oldest date first (longest waiting overdue)
-    if (scoreA === 0) {
-      const dateA = a.returnDate || a.pickupDate || '';
-      const dateB = b.returnDate || b.pickupDate || '';
-      return dateA.localeCompare(dateB);
-    }
+    const dateA = getTaskActiveDateKey(a);
+    const dateB = getTaskActiveDateKey(b);
 
     // Today: chronological order by time of day
     if (scoreA === 1) {
@@ -623,37 +646,22 @@ export default function SchedulePage() {
       if (timeA !== timeB) return timeA - timeB;
     }
 
-    // Past Pending: oldest date first (longest pending backlog)
-    if (scoreA === 2) {
-      const dateA = a.pickupDate || a.returnDate || '';
-      const dateB = b.pickupDate || b.returnDate || '';
-      return dateA.localeCompare(dateB);
-    }
-
-    // Tomorrow or Future: date ascending
-    const dateA = a.pickupDate || a.returnDate || '';
-    const dateB = b.pickupDate || b.returnDate || '';
     return dateA.localeCompare(dateB);
   });
 
   // Timeline Sections for High-Volume Segmentation
   const overdueSectionTasks = sortedTasks.filter((t: any) => Boolean(t.isOverdue));
   const todaySectionTasks = sortedTasks.filter((t: any) => (t.isPickupToday || t.isReturnToday) && !t.isOverdue);
+  const pastPendingSectionTasks = sortedTasks.filter((t: any) => !t.isOverdue && !t.isPickupToday && !t.isReturnToday && isTaskPastPending(t));
   const tomorrowSectionTasks = sortedTasks.filter((t: any) => {
-    if (t.isOverdue || t.isPickupToday || t.isReturnToday) return false;
-    const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
-    const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
-    return pDate === tomorrowDateStr || rDate === tomorrowDateStr;
+    if (t.isOverdue || t.isPickupToday || t.isReturnToday || isTaskPastPending(t)) return false;
+    return getTaskActiveDateKey(t) === tomorrowDateStr;
   });
   const futureSectionTasks = sortedTasks.filter((t: any) => {
-    if (t.isOverdue || t.isPickupToday || t.isReturnToday) return false;
-    const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
-    const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
-    if (pDate === tomorrowDateStr || rDate === tomorrowDateStr) return false;
-    return (pDate && pDate > tomorrowDateStr) || (rDate && rDate > tomorrowDateStr);
+    if (t.isOverdue || t.isPickupToday || t.isReturnToday || isTaskPastPending(t)) return false;
+    const activeKey = getTaskActiveDateKey(t);
+    return Boolean(activeKey && activeKey > tomorrowDateStr);
   });
-  // Past Pending Section: Tasks whose scheduled date has passed but still awaiting completion/pickup (e.g. approved requisitions, past room bookings)
-  const pastPendingSectionTasks = sortedTasks.filter(isTaskPastPending);
 
   // Calendar calculations
   const thaiMonthDisplay = currentMonth.toLocaleDateString('th-TH', {
@@ -712,23 +720,42 @@ export default function SchedulePage() {
     });
   }
 
-  // Helper: tasks for any given date
+  // Helper: check if a task is an item pickup (APPROVED Borrow or Requisition) on dateStr
+  const isPickupOnDate = (t: any, dateStr: string) => {
+    if (t.type !== 'BORROW' && t.type !== 'REQUISITION') return false;
+    if (t.status !== 'APPROVED') return false;
+    return toLocalDateKey(t.pickupDate) === dateStr;
+  };
+
+  // Helper: check if a task is an item return (BORROW) on dateStr
+  const isReturnOnDate = (t: any, dateStr: string) => {
+    if (t.type !== 'BORROW') return false;
+    return toLocalDateKey(t.returnDate) === dateStr;
+  };
+
+  // Helper: tasks for any given date on the Calendar
   const getTasksForDate = (dateStr: string) => {
     return allDisplayTasks.filter((t: any) => {
-      const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
-      const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
-      return pDate === dateStr || rDate === dateStr;
+      if (t.type === 'BORROW') {
+        if (t.status === 'BORROWED') {
+          // Already picked up; only show on expectedReturnDate
+          return toLocalDateKey(t.returnDate) === dateStr;
+        }
+        // Still APPROVED (waiting for pickup): show on pickupDate and planned returnDate
+        return toLocalDateKey(t.pickupDate) === dateStr || toLocalDateKey(t.returnDate) === dateStr;
+      }
+      return toLocalDateKey(t.pickupDate) === dateStr;
     });
   };
 
   // Selected date tasks with sub-filter
   const selectedDateAllTasks = getTasksForDate(selectedDate);
   const selectedDateTasks = selectedDateAllTasks.filter((t: any) => {
-    const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
-    const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
+    const pDate = toLocalDateKey(t.pickupDate);
 
-    if (dayTypeFilter === 'PICKUP') return pDate === selectedDate && t.type !== 'PRACTICE_EVENT' && t.type !== 'INSPECTION_PLAN' && t.type !== 'MAINTENANCE_PM';
-    if (dayTypeFilter === 'RETURN') return rDate === selectedDate;
+    if (dayTypeFilter === 'PICKUP') return isPickupOnDate(t, selectedDate);
+    if (dayTypeFilter === 'RETURN') return isReturnOnDate(t, selectedDate);
+    if (dayTypeFilter === 'ROOM') return pDate === selectedDate && t.type === 'ROOM_BOOKING';
     if (dayTypeFilter === 'PRACTICE') return pDate === selectedDate && t.type === 'PRACTICE_EVENT';
     if (dayTypeFilter === 'AUDIT') return pDate === selectedDate && t.type === 'INSPECTION_PLAN';
     if (dayTypeFilter === 'PM') return pDate === selectedDate && t.type === 'MAINTENANCE_PM';
@@ -1451,7 +1478,9 @@ export default function SchedulePage() {
           {/* 1. Preparation & Pickup Date */}
           <div className="space-y-1">
             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
-              📦 วันที่ต้องเตรียมของ / ผู้รับมารับของ
+              {task.status === 'BORROWED'
+                ? '📦 วันที่รับของไปแล้ว'
+                : '📦 วันที่ต้องเตรียมของ / นัดรับของ'}
             </span>
             <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 text-sm">
               <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400" />
@@ -1461,11 +1490,16 @@ export default function SchedulePage() {
                   วันนี้!
                 </span>
               )}
+              {task.status === 'APPROVED' && isPast(task.pickupDate) && (
+                <span className="text-[10px] bg-amber-500 text-white font-bold px-2 py-0.2 rounded-full">
+                  เลยวันนัดรับ
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">
               {task.status === 'APPROVED'
-                ? 'เจ้าหน้าที่จัดเตรียมไว้ที่ห้องแล็บ'
-                : 'ผู้รับมารับของเรียบร้อย'}
+                ? 'เจ้าหน้าที่จัดเตรียมไว้เพื่อรอจ่ายของ'
+                : 'จ่ายของให้นิสิต/ผู้ยืมเรียบร้อยแล้ว'}
             </p>
           </div>
 
@@ -1487,11 +1521,18 @@ export default function SchedulePage() {
                 >
                   <Clock className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                   <span>{formatDate(task.returnDate)}</span>
+                  {task.isReturnToday && (
+                    <span className="text-[10px] bg-amber-500 text-white font-bold px-2 py-0.2 rounded-full">
+                      คืนวันนี้!
+                    </span>
+                  )}
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   {task.isOverdue
                     ? '⚠️ เกินกำหนดส่งคืน กรุณาโทรติดตาม'
-                    : 'นำมาส่งคืนเพื่อตรวจเช็คสภาพ'}
+                    : task.status === 'BORROWED'
+                    ? 'อยู่ระหว่างยืมใช้งาน (รอรับคืนตามกำหนด)'
+                    : 'กำหนดส่งคืนตามแผนหลังรับของ'}
                 </p>
               </>
             ) : (
@@ -1530,7 +1571,7 @@ export default function SchedulePage() {
         {/* Items List inside task */}
         <div className="bg-white dark:bg-slate-850 p-3 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
           <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block mb-1.5">
-            รายการของที่ต้องจัดเตรียม:
+            {task.status === 'BORROWED' ? 'รายการครุภัณฑ์ที่ต้องตรวจรับคืน:' : 'รายการของที่ต้องจัดเตรียม:'}
           </span>
           <div className="flex flex-wrap gap-2">
             {task.items.map((it: any) => (
@@ -1597,26 +1638,51 @@ export default function SchedulePage() {
       timeBadge = (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300 animate-pulse shrink-0">
           <AlertTriangle className="w-3 h-3 text-rose-600" />
-          <span>🚨 เกินกำหนด</span>
+          <span>🚨 เกินกำหนด ({formatDate(task.returnDate || task.pickupDate)})</span>
         </span>
       );
     } else if (task.isPickupToday || task.isReturnToday) {
       const timeStr = task.timeSlot
         ? task.timeSlot.split('-')[0].trim() + ' น.'
         : task.isReturnToday
-        ? 'คืน 16:30'
-        : 'จ่าย 09:00';
+        ? 'กำหนดคืน 16:30'
+        : task.type === 'INSPECTION_PLAN'
+        ? 'ตรวจสภาพ'
+        : task.type === 'MAINTENANCE_PM'
+        ? 'ตรวจ PM'
+        : 'รอจ่ายของ';
       timeBadge = (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300 shrink-0">
           <Clock className="w-3 h-3 text-amber-700" />
-          <span>⚡ วันนี้ {timeStr}</span>
+          <span>⚡ วันนี้ ({timeStr})</span>
+        </span>
+      );
+    } else if (isTaskPastPending(task)) {
+      timeBadge = (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300 shrink-0">
+          <Clock className="w-3 h-3 text-amber-700" />
+          <span>⏳ ค้างจ่าย ({formatDate(task.pickupDate)})</span>
+        </span>
+      );
+    } else if (task.type === 'BORROW' && task.status === 'BORROWED') {
+      timeBadge = (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 shrink-0">
+          <RefreshCw className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+          <span>คืน: {formatDate(task.returnDate)}</span>
+        </span>
+      );
+    } else if ((task.type === 'BORROW' || task.type === 'REQUISITION') && task.status === 'APPROVED') {
+      timeBadge = (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 shrink-0">
+          <Calendar className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+          <span>นัดรับ: {formatDate(task.pickupDate)}</span>
         </span>
       );
     } else {
       timeBadge = (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 shrink-0">
           <Calendar className="w-3 h-3 text-slate-400" />
-          <span>{formatDate(task.pickupDate || task.returnDate)}</span>
+          <span>{formatDate(task.activeDate || task.pickupDate || task.returnDate)}</span>
         </span>
       );
     }
@@ -1626,7 +1692,7 @@ export default function SchedulePage() {
     if (task.type === 'BORROW') {
       typeBadge = (
         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shrink-0">
-          📦 ยืมของ
+          {task.status === 'BORROWED' ? '🔄 รอรับคืน' : '📦 ยืมของ'}
         </span>
       );
     } else if (task.type === 'REQUISITION') {
@@ -1841,13 +1907,13 @@ export default function SchedulePage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
         <div 
           onClick={() => { setViewMode('LIST'); setTimeFilter('ALL'); }}
-          title="คลิกเพื่อดูคิวงานทั้งหมดในมุมมองรายการ"
+          title="คลิกเพื่อดูคิวงานที่ต้องดำเนินการทั้งหมดในมุมมองรายการ"
           className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-md transition"
         >
           <div>
             <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase">คิวงานทั้งหมด</span>
             <div className="text-xl font-black text-slate-800 dark:text-slate-100 mt-1">
-              {allDisplayTasks.length} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">งาน</span>
+              {activeQueueTasks.length} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">งาน</span>
             </div>
           </div>
           <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center">
@@ -1857,13 +1923,13 @@ export default function SchedulePage() {
 
         <div 
           onClick={() => { setViewMode('LIST'); setTimeFilter('PENDING'); }}
-          title="คลิกเพื่อดูรายการที่อนุมัติแล้วและรอจ่ายของ/ตัดสต็อก"
+          title="คลิกเพื่อดูรายการเบิก-ยืมที่อนุมัติแล้วและรอจ่ายของ/ตัดสต็อก"
           className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md transition"
         >
           <div>
             <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase">รอจ่ายของ</span>
             <div className="text-xl font-black text-blue-700 dark:text-blue-400 mt-1">
-              {allDisplayTasks.filter(isTaskPastPending).length || combinedTasks.filter((t) => t.status === 'APPROVED').length}{' '}
+              {combinedTasks.filter((t) => t.status === 'APPROVED').length}{' '}
               <span className="text-xs font-normal text-slate-500 dark:text-slate-400">รายการ</span>
             </div>
           </div>
@@ -1872,7 +1938,11 @@ export default function SchedulePage() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div
+          onClick={() => { setViewMode('LIST'); setTimeFilter('BORROWED'); }}
+          title="คลิกเพื่อดูรายการครุภัณฑ์ที่จ่ายออกไปแล้วและรอรับคืน"
+          className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-purple-300 dark:hover:border-purple-700 hover:shadow-md transition"
+        >
           <div>
             <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400 uppercase">กำลังยืม (รอคืน)</span>
             <div className="text-xl font-black text-purple-700 dark:text-purple-400 mt-1">
@@ -1906,7 +1976,7 @@ export default function SchedulePage() {
           <div>
             <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">คิวฝึกแล็บ</span>
             <div className="text-xl font-black text-indigo-700 dark:text-indigo-400 mt-1">
-              {practiceList.length}{' '}
+              {practiceList.filter((p: any) => !isPast(p.slot?.date)).length}{' '}
               <span className="text-xs font-normal text-slate-500 dark:text-slate-400">คน</span>
             </div>
           </div>
@@ -1923,7 +1993,7 @@ export default function SchedulePage() {
           <div>
             <span className="text-[11px] font-bold text-teal-600 dark:text-teal-400 uppercase">ตรวจสภาพ & PM</span>
             <div className="text-xl font-black text-teal-700 dark:text-teal-400 mt-1">
-              {inspectionPlansList.filter((p: any) => p.status !== 'COMPLETED').length}{' '}
+              {inspectionPlansList.filter((p: any) => (p.status || '').toUpperCase() !== 'COMPLETED').length}{' '}
               <span className="text-xs font-normal text-slate-500 dark:text-slate-400">แผน ({pmAssetsList.filter((a: any) => a.pmStatus === 'OVERDUE' || a.pmStatus === 'DUE_SOON').length} ชิ้น)</span>
             </div>
           </div>
@@ -2015,6 +2085,9 @@ export default function SchedulePage() {
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-bold">
                   🔄 กำหนดคืน
                 </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                  🏢 ใช้ห้อง
+                </span>
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-[10px] font-bold">
                   🏥 คิวแล็บ
                 </span>
@@ -2048,33 +2121,24 @@ export default function SchedulePage() {
             <div className="grid grid-cols-7 divide-x divide-y divide-slate-100 dark:divide-slate-800">
               {calendarCells.map((cell) => {
                 const dayTasks = getTasksForDate(cell.dateStr);
-                const pickups = dayTasks.filter((t: any) => {
-                  const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
-                  return pDate === cell.dateStr && t.type !== 'PRACTICE_EVENT' && t.type !== 'INSPECTION_PLAN' && t.type !== 'MAINTENANCE_PM';
-                });
-                const returns = dayTasks.filter((t: any) => {
-                  const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
-                  return rDate === cell.dateStr;
-                });
+                const pickups = dayTasks.filter((t: any) => isPickupOnDate(t, cell.dateStr));
+                const returns = dayTasks.filter((t: any) => isReturnOnDate(t, cell.dateStr));
                 const practices = dayTasks.filter((t: any) => {
-                  const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
-                  return pDate === cell.dateStr && t.type === 'PRACTICE_EVENT';
+                  return toLocalDateKey(t.pickupDate) === cell.dateStr && t.type === 'PRACTICE_EVENT';
                 });
                 const roomTasks = dayTasks.filter((t: any) => {
-                  const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
-                  return pDate === cell.dateStr && t.type === 'ROOM_BOOKING';
+                  return toLocalDateKey(t.pickupDate) === cell.dateStr && t.type === 'ROOM_BOOKING';
                 });
                 const auditTasks = dayTasks.filter((t: any) => {
-                  const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
-                  return pDate === cell.dateStr && t.type === 'INSPECTION_PLAN';
+                  return toLocalDateKey(t.pickupDate) === cell.dateStr && t.type === 'INSPECTION_PLAN';
                 });
                 const pmTasks = dayTasks.filter((t: any) => {
-                  const pDate = t.pickupDate ? new Date(t.pickupDate).toISOString().slice(0, 10) : '';
-                  return pDate === cell.dateStr && t.type === 'MAINTENANCE_PM';
+                  return toLocalDateKey(t.pickupDate) === cell.dateStr && t.type === 'MAINTENANCE_PM';
                 });
                 const overdues = dayTasks.filter((t: any) => {
-                  const rDate = t.returnDate ? new Date(t.returnDate).toISOString().slice(0, 10) : '';
-                  return (rDate === cell.dateStr && t.isOverdue) || (t.pickupDate?.slice(0, 10) === cell.dateStr && t.isOverdue);
+                  if (!t.isOverdue) return false;
+                  if (t.type === 'BORROW') return toLocalDateKey(t.returnDate) === cell.dateStr;
+                  return toLocalDateKey(t.pickupDate) === cell.dateStr;
                 });
 
                 const isSelected = selectedDate === cell.dateStr;
@@ -2206,11 +2270,12 @@ export default function SchedulePage() {
               <div className="flex flex-wrap items-center gap-1.5">
                 {[
                   { key: 'ALL', label: `ทั้งหมด (${selectedDateAllTasks.length})` },
-                  { key: 'PICKUP', label: `📦 จ่ายของ (${selectedDateAllTasks.filter((t: any) => t.pickupDate?.slice(0, 10) === selectedDate && t.type !== 'PRACTICE_EVENT' && t.type !== 'INSPECTION_PLAN' && t.type !== 'MAINTENANCE_PM').length})` },
-                  { key: 'RETURN', label: `🔄 กำหนดคืน (${selectedDateAllTasks.filter((t: any) => t.returnDate?.slice(0, 10) === selectedDate).length})` },
-                  { key: 'PRACTICE', label: `🏥 คิวแล็บ (${selectedDateAllTasks.filter((t: any) => t.pickupDate?.slice(0, 10) === selectedDate && t.type === 'PRACTICE_EVENT').length})` },
-                  { key: 'AUDIT', label: `🔍 ตรวจสภาพ (${selectedDateAllTasks.filter((t: any) => t.pickupDate?.slice(0, 10) === selectedDate && t.type === 'INSPECTION_PLAN').length})` },
-                  { key: 'PM', label: `🔧 ตรวจ PM (${selectedDateAllTasks.filter((t: any) => t.pickupDate?.slice(0, 10) === selectedDate && t.type === 'MAINTENANCE_PM').length})` },
+                  { key: 'PICKUP', label: `📦 จ่ายของ (${selectedDateAllTasks.filter((t: any) => isPickupOnDate(t, selectedDate)).length})` },
+                  { key: 'RETURN', label: `🔄 กำหนดคืน (${selectedDateAllTasks.filter((t: any) => isReturnOnDate(t, selectedDate)).length})` },
+                  { key: 'ROOM', label: `🏢 ใช้ห้อง (${selectedDateAllTasks.filter((t: any) => toLocalDateKey(t.pickupDate) === selectedDate && t.type === 'ROOM_BOOKING').length})` },
+                  { key: 'PRACTICE', label: `🏥 คิวแล็บ (${selectedDateAllTasks.filter((t: any) => toLocalDateKey(t.pickupDate) === selectedDate && t.type === 'PRACTICE_EVENT').length})` },
+                  { key: 'AUDIT', label: `🔍 ตรวจสภาพ (${selectedDateAllTasks.filter((t: any) => toLocalDateKey(t.pickupDate) === selectedDate && t.type === 'INSPECTION_PLAN').length})` },
+                  { key: 'PM', label: `🔧 ตรวจ PM (${selectedDateAllTasks.filter((t: any) => toLocalDateKey(t.pickupDate) === selectedDate && t.type === 'MAINTENANCE_PM').length})` },
                 ].map((chip) => (
                   <button
                     key={chip.key}
@@ -2232,7 +2297,7 @@ export default function SchedulePage() {
               <div className="p-10 text-center text-slate-400 dark:text-slate-500 text-xs space-y-2">
                 <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto opacity-80" />
                 <p className="font-bold text-slate-700 dark:text-slate-300">
-                  ไม่มีคิวงานที่ต้องจ่ายของ ส่งคืน ฝึกแล็บ หรือตรวจสภาพ/PM ในวันที่เลือก ({formatDate(selectedDate)})
+                  ไม่มีคิวงานในหมวดที่เลือกสำหรับวันที่ ({formatDate(selectedDate)})
                 </p>
                 <p>สามารถคลิกเลือกวันอื่นบนปฏิทิน หรือเปลี่ยนตัวกรองเพื่อดูรายการทั้งหมดได้</p>
               </div>
@@ -2253,13 +2318,14 @@ export default function SchedulePage() {
             {/* Quick Filter Tabs */}
             <div className="flex flex-wrap items-center gap-1.5">
               {[
-                { key: 'ALL', label: `ทั้งหมด (${allDisplayTasks.length})` },
-                { key: 'TODAY', label: `⚡ ต้องทำวันนี้ (${allDisplayTasks.filter((t: any) => t.isPickupToday || t.isReturnToday).length})` },
-                { key: 'PENDING', label: `⏳ ค้างจ่าย / รอจัดจ่าย (${allDisplayTasks.filter(isTaskPastPending).length})` },
-                { key: 'UPCOMING', label: `🗓️ ตามกำหนดการ (${allDisplayTasks.filter(isTaskUpcoming).length})` },
-                { key: 'OVERDUE', label: `🚨 เกินกำหนด (${allDisplayTasks.filter((t: any) => t.isOverdue).length})` },
-                { key: 'AUDIT', label: `🔍 ตรวจสภาพ (${allDisplayTasks.filter((t: any) => t.type === 'INSPECTION_PLAN').length})` },
-                { key: 'PM', label: `🔧 ตรวจ PM (${allDisplayTasks.filter((t: any) => t.type === 'MAINTENANCE_PM').length})` },
+                { key: 'ALL', label: `ทั้งหมด (${activeQueueTasks.length})` },
+                { key: 'TODAY', label: `⚡ ต้องทำวันนี้ (${activeQueueTasks.filter((t: any) => t.isPickupToday || t.isReturnToday).length})` },
+                { key: 'PENDING', label: `📦 รอจ่ายของ (${activeQueueTasks.filter(isTaskAwaitingDispense).length})` },
+                { key: 'BORROWED', label: `🔄 กำลังยืม/รอคืน (${activeQueueTasks.filter((t: any) => t.type === 'BORROW' && t.status === 'BORROWED').length})` },
+                { key: 'UPCOMING', label: `🗓️ ตามกำหนดการ (${activeQueueTasks.filter(isTaskUpcoming).length})` },
+                { key: 'OVERDUE', label: `🚨 เกินกำหนด (${activeQueueTasks.filter((t: any) => t.isOverdue).length})` },
+                { key: 'AUDIT', label: `🔍 ตรวจสภาพ (${activeQueueTasks.filter((t: any) => t.type === 'INSPECTION_PLAN').length})` },
+                { key: 'PM', label: `🔧 ตรวจ PM (${activeQueueTasks.filter((t: any) => t.type === 'MAINTENANCE_PM').length})` },
               ].map((tab) => (
                 <button
                   key={tab.key}
@@ -2397,10 +2463,10 @@ export default function SchedulePage() {
                     <div className="flex items-center justify-between bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 px-4 py-2.5 rounded-xl">
                       <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-black text-xs">
                         <Clock className="w-4 h-4 text-amber-600" />
-                        <span>⏳ รายการค้างจ่าย / อนุมัติแล้วรอจัดจ่าย ({pastPendingSectionTasks.length} รายการ)</span>
+                        <span>⏳ รายการค้างจ่าย / เลยวันนัดรับของแล้วแต่ยังไม่ได้จ่ายของ ({pastPendingSectionTasks.length} รายการ)</span>
                       </div>
                       <span className="text-[11px] text-amber-700 dark:text-amber-400 font-semibold">
-                        รายการที่ผ่านการอนุมัติแล้วและยังรอการจ่ายของหรือตัดสต็อก
+                        รายการเบิก-ยืมที่อนุมัติแล้วแต่ยังไม่ได้บันทึกจ่ายของหรือตัดสต็อก
                       </span>
                     </div>
                     {listLayout === 'COMPACT' ? (
@@ -2413,16 +2479,16 @@ export default function SchedulePage() {
                   </div>
                 )}
 
-                {/* 4. TOMORROW PREPARATION SECTION */}
+                {/* 4. TOMORROW PREPARATION & SCHEDULE SECTION */}
                 {tomorrowSectionTasks.length > 0 && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 px-4 py-2.5 rounded-xl">
                       <div className="flex items-center gap-2 text-blue-900 dark:text-blue-200 font-black text-xs">
                         <Package className="w-4 h-4 text-blue-600" />
-                        <span>📦 ต้องเตรียมล่วงหน้าสำหรับวันพรุ่งนี้ ({tomorrowSectionTasks.length} รายการ)</span>
+                        <span>📅 กำหนดการวันพรุ่งนี้ — เตรียมจ่ายของ / รับคืน / ตารางใช้ห้อง ({tomorrowSectionTasks.length} รายการ)</span>
                       </div>
                       <span className="text-[11px] text-blue-700 dark:text-blue-400 font-semibold">
-                        จัดเตรียมกล่อง Kit หรืออุปกรณ์ใส่ตะกร้าล่วงหน้า
+                        จัดเตรียมพัสดุล่วงหน้าและติดตามรายการครบกำหนดคืนวันพรุ่งนี้
                       </span>
                     </div>
                     {listLayout === 'COMPACT' ? (

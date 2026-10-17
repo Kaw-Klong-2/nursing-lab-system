@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar } from 'lucide-react';
+import { Calendar, X } from 'lucide-react';
 
 export interface CalendarHoverItem {
   id: string;
@@ -29,6 +29,9 @@ export interface CalendarHoverCardProps {
   dateStr: string;
   items: CalendarHoverItem[];
   emptyMessage?: string;
+  isPinned?: boolean;
+  onClose?: () => void;
+  onSelectItem?: (item: CalendarHoverItem) => void;
 }
 
 function formatThaiDateHeader(dateStr: string): string {
@@ -55,18 +58,49 @@ export default function CalendarHoverCard({
   dateStr,
   items,
   emptyMessage = 'ไม่มีรายการจอง',
+  isPinned = false,
+  onClose,
+  onSelectItem,
 }: CalendarHoverCardProps) {
+  useEffect(() => {
+    if (!isOpen || !isPinned || !onClose) return;
+
+    const handlePointerDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest('[data-calendar-popover="true"]')) return;
+      if (target.closest('[data-calendar-cell="true"]')) return;
+      onClose();
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown, { passive: true });
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, isPinned, onClose]);
+
   if (!isOpen || !anchorRect || typeof window === 'undefined') {
     return null;
   }
 
-  // Ultra-compact dimensions: no scrolling needed
-  const CARD_WIDTH = 280;
-  const visibleItems = items.slice(0, 3);
+  // Ultra-compact dimensions: expand slightly when pinned
+  const CARD_WIDTH = isPinned ? Math.min(310, window.innerWidth - 24) : 280;
+  const visibleItems = isPinned ? items : items.slice(0, 3);
   const remainingCount = items.length - visibleItems.length;
 
-  // Approximate height: Header (32px) + Each item (~48px) + Spacing
-  const estimatedHeight = 36 + visibleItems.length * 52 + (remainingCount > 0 ? 20 : 0);
+  // Approximate height: Header (36px) + Each item (~52px) + Spacing
+  const estimatedHeight = Math.min(
+    320,
+    40 + visibleItems.length * 54 + (remainingCount > 0 || isPinned ? 24 : 0)
+  );
 
   const windowW = window.innerWidth;
   const windowH = window.innerHeight;
@@ -93,6 +127,7 @@ export default function CalendarHoverCard({
 
   const content = (
     <div
+      data-calendar-popover="true"
       style={{
         position: 'fixed',
         left: `${left}px`,
@@ -100,26 +135,45 @@ export default function CalendarHoverCard({
         width: `${CARD_WIDTH}px`,
         zIndex: 9999,
       }}
-      className="pointer-events-none animate-in fade-in zoom-in-95 duration-100 rounded-xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-xl shadow-slate-950/15 dark:shadow-black/40 p-2 space-y-1.5 text-slate-800 dark:text-slate-100"
+      className={`${
+        isPinned
+          ? 'pointer-events-auto ring-2 ring-teal-500/80 shadow-2xl'
+          : 'pointer-events-none shadow-xl'
+      } animate-in fade-in zoom-in-95 duration-100 rounded-xl bg-white/98 dark:bg-slate-900/98 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-slate-950/15 dark:shadow-black/40 p-2.5 space-y-1.5 text-slate-800 dark:text-slate-100`}
     >
       {/* Compact Header */}
-      <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800 text-[11px]">
+      <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800 text-[11px]">
         <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200">
           <Calendar className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
           <span>{formatThaiDateHeader(dateStr)}</span>
         </div>
-        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200/50 dark:border-teal-800/50">
-          {items.length > 0 ? `${items.length} รายการ` : 'ว่าง'}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200/50 dark:border-teal-800/50">
+            {items.length > 0 ? `${items.length} รายการ` : 'ว่าง'}
+          </span>
+          {isPinned && onClose && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              className="p-0.5 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              title="ปิดหน้าต่าง"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Compact Items List (All visible, no scrollbar) */}
+      {/* Compact Items List */}
       {items.length === 0 ? (
         <div className="py-1.5 text-center text-[11px] text-slate-400 font-medium">
           {emptyMessage}
         </div>
       ) : (
-        <div className="space-y-1">
+        <div className={`space-y-1 ${isPinned && items.length > 4 ? 'max-h-[240px] overflow-y-auto pr-0.5' : ''}`}>
           {visibleItems.map((item, idx) => {
             const statusUpper = (item.status || '').toUpperCase();
             const isApproved = statusUpper === 'APPROVED';
@@ -133,7 +187,17 @@ export default function CalendarHoverCard({
             return (
               <div
                 key={item.id || idx}
-                className="bg-slate-50 dark:bg-slate-800/60 rounded-lg p-1.5 border border-slate-200/50 dark:border-slate-700/50 space-y-0.5"
+                onClick={(e) => {
+                  if (isPinned && onSelectItem) {
+                    e.stopPropagation();
+                    onSelectItem(item);
+                  }
+                }}
+                className={`bg-slate-50 dark:bg-slate-800/60 rounded-lg p-1.5 border border-slate-200/50 dark:border-slate-700/50 space-y-0.5 ${
+                  isPinned && onSelectItem
+                    ? 'cursor-pointer hover:border-teal-400 dark:hover:border-teal-500 hover:bg-teal-50/40 dark:hover:bg-teal-950/30 transition'
+                    : ''
+                }`}
               >
                 {/* Row 1: Room Pill + Time + Status */}
                 <div className="flex items-center justify-between text-[10px] leading-tight">
@@ -214,9 +278,14 @@ export default function CalendarHoverCard({
             );
           })}
 
-          {remainingCount > 0 && (
+          {!isPinned && remainingCount > 0 && (
             <div className="text-[9px] font-bold text-teal-600 dark:text-teal-400 text-center pt-0.5">
               + อีก {remainingCount} รายการ (คลิกเพื่อดูทั้งหมด)
+            </div>
+          )}
+          {isPinned && onSelectItem && (
+            <div className="text-[9px] font-semibold text-teal-600 dark:text-teal-400 text-center pt-0.5">
+              แตะที่รายการเพื่อดูรายละเอียดเพิ่มเติม
             </div>
           )}
         </div>
@@ -226,3 +295,4 @@ export default function CalendarHoverCard({
 
   return createPortal(content, document.body);
 }
+

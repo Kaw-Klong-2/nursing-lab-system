@@ -17,6 +17,21 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-17] แก้ไขปัญหา Popup ปฏิทินเด้งแล้วหายไปเมื่อคลิกหรือแตะวันที่ในปฏิทินรายเดือน (Click-to-Pin Calendar Popover Fix)
+- **หมวดหมู่**: UI & Calendar UX (`MasterRoomCalendar`, `CalendarHoverCard`, `Schedule`, `Rooms`)
+- **สิ่งที่ดำเนินการ**:
+  1. **วิเคราะห์สาเหตุหลัก (Root Causes)**:
+     - เดิมช่องวันที่ในปฏิทินทั้ง 3 หน้า (`MasterRoomCalendar.tsx`, `src/app/schedule/page.tsx`, `src/app/rooms/page.tsx`) ผูก `onMouseEnter` เพื่อเปิด `hoverPopover` แต่ผูก `onClick` ให้สั่ง `setHoverPopover(null)` ทันที รวมถึงผูก `window.addEventListener('scroll', () => setHoverPopover(null))` ทำให้เมื่อคลิกหรือแตะบนหน้าจอสัมผัส เหตุการณ์ `mouseenter` จะแสดง Popup เพียงเสี้ยววินาทีแล้วถูก `click` หรือการขยับความสูงของหน้าจอ (`scroll`) สั่งปิดทันที
+  2. **เพิ่มระบบปักหมุดค้างเมื่อคลิก (`isPinned` Click-to-Pin Mode)**:
+     - **`src/components/calendar/CalendarHoverCard.tsx`**: รองรับพร็อพ `isPinned`, `onClose`, และ `onSelectItem` เมื่ออยู่ในสถานะปักหมุด (`isPinned: true`) การ์ดจะเปิดรับการคลิก (`pointer-events-auto`), แสดงปุ่มกากบาทปิด (`✕`), แสดงรายการทั้งหมดพร้อมแถบเลื่อน (`overflow-y-auto`), รองรับการคลิกที่รายการใน Popup เพื่อเปิดหน้าต่างรายละเอียดกิจกรรมทันที, และปิดอัตโนมัติเมื่อคลิกพื้นที่ว่างด้านนอกหรือกดปุ่ม `Escape`
+     - **`src/components/calendar/MasterRoomCalendar.tsx`, `src/app/schedule/page.tsx`, `src/app/rooms/page.tsx`**: เปลี่ยนจาก `onMouseEnter`/`onMouseLeave` เป็น `onPointerEnter`/`onPointerLeave` ที่ทำงานเฉพาะเมาส์ (`e.pointerType === 'mouse'`) เมื่อยังไม่ได้ปักหมุด และเมื่อคลิก/แตะช่องวันที่ที่มีรายการ จะปักหมุด Popup ค้างไว้ (`isPinned: true`) โดยไม่ถูกสั่งปิดจากการเลื่อนหน้าจอหรือขยับเมาส์ออก
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/components/calendar/CalendarHoverCard.tsx`
+  - `src/components/calendar/MasterRoomCalendar.tsx`
+  - `src/app/schedule/page.tsx`
+  - `src/app/rooms/page.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ✅ ผ่าน 100% (Terminology Violations: 0, UTF-8 Mojibake: 0, TypeScript: 0 errors)
+
 ### [2026-10-17] ปรับปรุง Mobile Responsive UX และจัดระเบียบไฟล์เอกสารหน้า Root & Git Working Tree
 - **หมวดหมู่**: Mobile Responsive UX (`Navbar`, `Sidebar`, `Approvals`, `Schedule`, `Borrow`) / Project File Organization (`manual/`, `system_flow/`, `LIBRARY_CATALOG.md`)
 - **สิ่งที่ดำเนินการ**:

@@ -175,27 +175,25 @@ export default function MasterRoomCalendar({
   // Selected Activity Detail Modal
   const [activeActivityModal, setActiveActivityModal] = useState<CalendarActivity | null>(null);
 
-  // Calendar Hover Tooltip State
+  // Calendar Hover/Click Tooltip State
   const [hoverPopover, setHoverPopover] = useState<{
     isOpen: boolean;
+    isPinned?: boolean;
     anchorRect: DOMRect | null;
     dateStr: string;
     items: CalendarHoverItem[];
   } | null>(null);
 
   useEffect(() => {
-    const handleScroll = () => setHoverPopover(null);
+    const handleScroll = () => {
+      setHoverPopover((prev) => (prev?.isPinned ? prev : null));
+    };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const handleDayMouseEnter = (e: React.MouseEvent<HTMLElement>, dateStr: string, acts: CalendarActivity[]) => {
-    if (acts.length === 0) {
-      setHoverPopover(null);
-      return;
-    }
-    const rect = e.currentTarget.getBoundingClientRect();
-    const items: CalendarHoverItem[] = acts.map((act) => ({
+  const buildHoverItems = (acts: CalendarActivity[]): CalendarHoverItem[] =>
+    acts.map((act) => ({
       id: act.id,
       roomCode: act.roomCode,
       roomName: act.roomName,
@@ -209,16 +207,47 @@ export default function MasterRoomCalendar({
       type: act.sourceType,
     }));
 
+  const handleDayPointerEnter = (e: React.PointerEvent<HTMLElement>, dateStr: string, acts: CalendarActivity[]) => {
+    if (e.pointerType !== 'mouse') return;
+    if (hoverPopover?.isPinned) return;
+    if (acts.length === 0) {
+      setHoverPopover(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
     setHoverPopover({
       isOpen: true,
+      isPinned: false,
       anchorRect: rect,
       dateStr,
-      items,
+      items: buildHoverItems(acts),
     });
   };
 
-  const handleDayMouseLeave = () => {
-    setHoverPopover(null);
+  const handleDayPointerLeave = (e: React.PointerEvent<HTMLElement>) => {
+    if (e.pointerType !== 'mouse') return;
+    setHoverPopover((prev) => (prev?.isPinned ? prev : null));
+  };
+
+  const handleDayCellClick = (e: React.MouseEvent<HTMLElement>, dateStr: string, acts: CalendarActivity[]) => {
+    setSelectedDate(dateStr);
+    if (acts.length === 0) {
+      setHoverPopover(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoverPopover((prev) => {
+      if (prev?.isOpen && prev?.isPinned && prev?.dateStr === dateStr) {
+        return null;
+      }
+      return {
+        isOpen: true,
+        isPinned: true,
+        anchorRect: rect,
+        dateStr,
+        items: buildHoverItems(acts),
+      };
+    });
   };
 
   // Fetch Master Data
@@ -995,12 +1024,10 @@ export default function MasterRoomCalendar({
                 return (
                   <div
                     key={cell.dateStr}
-                    onClick={() => {
-                      setSelectedDate(cell.dateStr);
-                      setHoverPopover(null);
-                    }}
-                    onMouseEnter={(e) => handleDayMouseEnter(e, cell.dateStr, dayActivities)}
-                    onMouseLeave={handleDayMouseLeave}
+                    data-calendar-cell="true"
+                    onClick={(e) => handleDayCellClick(e, cell.dateStr, dayActivities)}
+                    onPointerEnter={(e) => handleDayPointerEnter(e, cell.dateStr, dayActivities)}
+                    onPointerLeave={handleDayPointerLeave}
                     className={`min-h-[105px] p-2 transition cursor-pointer flex flex-col justify-between ${
                       !cell.isCurrentMonth
                         ? 'bg-slate-50/40 dark:bg-slate-900/30 opacity-40'
@@ -1037,7 +1064,14 @@ export default function MasterRoomCalendar({
                         return (
                           <div
                             key={act.id}
-                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded truncate ${style.bg}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedDate(cell.dateStr);
+                              setHoverPopover(null);
+                              setActiveActivityModal(act);
+                            }}
+                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded truncate hover:opacity-90 transition ${style.bg}`}
+                            title="คลิกเพื่อดูรายละเอียดกิจกรรม"
                           >
                             {act.roomCode}: {act.title}
                           </div>
@@ -1058,13 +1092,22 @@ export default function MasterRoomCalendar({
               })}
             </div>
 
-            {/* Floating Calendar Hover Popover */}
+            {/* Floating Calendar Hover / Click Popover */}
             {hoverPopover && (
               <CalendarHoverCard
                 isOpen={hoverPopover.isOpen}
+                isPinned={hoverPopover.isPinned}
                 anchorRect={hoverPopover.anchorRect}
                 dateStr={hoverPopover.dateStr}
                 items={hoverPopover.items}
+                onClose={() => setHoverPopover(null)}
+                onSelectItem={(item) => {
+                  const found = activities.find((a) => a.id === item.id);
+                  if (found) {
+                    setHoverPopover(null);
+                    setActiveActivityModal(found);
+                  }
+                }}
               />
             )}
           </div>

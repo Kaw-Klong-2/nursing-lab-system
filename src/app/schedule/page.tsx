@@ -85,27 +85,25 @@ export default function SchedulePage() {
   });
   const [dayTypeFilter, setDayTypeFilter] = useState<'ALL' | 'PICKUP' | 'RETURN' | 'ROOM' | 'PRACTICE' | 'AUDIT' | 'PM'>('ALL');
 
-  // Calendar Hover Tooltip State
+  // Calendar Hover / Pin Tooltip State
   const [hoverPopover, setHoverPopover] = useState<{
     isOpen: boolean;
+    isPinned?: boolean;
     anchorRect: DOMRect | null;
     dateStr: string;
     items: CalendarHoverItem[];
   } | null>(null);
 
   useEffect(() => {
-    const handleScroll = () => setHoverPopover(null);
+    const handleScroll = () => {
+      setHoverPopover((prev) => (prev?.isPinned ? prev : null));
+    };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const handleCellMouseEnter = (e: React.MouseEvent<HTMLElement>, dateStr: string, dayTasks: any[]) => {
-    if (dayTasks.length === 0) {
-      setHoverPopover(null);
-      return;
-    }
-    const rect = e.currentTarget.getBoundingClientRect();
-    const items: CalendarHoverItem[] = dayTasks.map((t: any) => {
+  const buildHoverItemsForSchedule = (dayTasks: any[]): CalendarHoverItem[] => {
+    return dayTasks.map((t: any) => {
       let title = t.purpose || 'งานนัดหมาย';
       if (t.type === 'BORROW') {
         const itemCount = t.items?.length || 0;
@@ -153,17 +151,49 @@ export default function SchedulePage() {
         type: t.type === 'PRACTICE_EVENT' ? 'PRACTICE_SLOT' : t.type,
       };
     });
+  };
 
+  const handleCellPointerEnter = (e: React.PointerEvent<HTMLElement>, dateStr: string, dayTasks: any[]) => {
+    if (e.pointerType !== 'mouse') return;
+    if (hoverPopover?.isPinned) return;
+    if (dayTasks.length === 0) {
+      setHoverPopover(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
     setHoverPopover({
       isOpen: true,
+      isPinned: false,
       anchorRect: rect,
       dateStr,
-      items,
+      items: buildHoverItemsForSchedule(dayTasks),
     });
   };
 
-  const handleCellMouseLeave = () => {
-    setHoverPopover(null);
+  const handleCellPointerLeave = (e: React.PointerEvent<HTMLElement>) => {
+    if (e.pointerType !== 'mouse') return;
+    setHoverPopover((prev) => (prev?.isPinned ? prev : null));
+  };
+
+  const handleCellClick = (e: React.MouseEvent<HTMLElement>, dateStr: string, dayTasks: any[]) => {
+    setSelectedDate(dateStr);
+    if (dayTasks.length === 0) {
+      setHoverPopover(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoverPopover((prev) => {
+      if (prev?.isPinned && prev.dateStr === dateStr) {
+        return null;
+      }
+      return {
+        isOpen: true,
+        isPinned: true,
+        anchorRect: rect,
+        dateStr,
+        items: buildHoverItemsForSchedule(dayTasks),
+      };
+    });
   };
 
   const handlePrevMonth = () => {
@@ -2175,12 +2205,9 @@ export default function SchedulePage() {
                 return (
                   <div
                     key={cell.dateStr}
-                    onClick={() => {
-                      setSelectedDate(cell.dateStr);
-                      setHoverPopover(null);
-                    }}
-                    onMouseEnter={(e) => handleCellMouseEnter(e, cell.dateStr, dayTasks)}
-                    onMouseLeave={handleCellMouseLeave}
+                    onClick={(e) => handleCellClick(e, cell.dateStr, dayTasks)}
+                    onPointerEnter={(e) => handleCellPointerEnter(e, cell.dateStr, dayTasks)}
+                    onPointerLeave={handleCellPointerLeave}
                     className={`min-h-[78px] sm:min-h-[105px] p-1 sm:p-2 transition cursor-pointer flex flex-col justify-between ${
                       !cell.isCurrentMonth
                         ? 'bg-slate-50/40 dark:bg-slate-900/30 opacity-40'
@@ -2269,13 +2296,15 @@ export default function SchedulePage() {
               })}
             </div>
 
-            {/* Floating Calendar Hover Popover */}
+            {/* Floating Calendar Hover / Pin Popover */}
             {hoverPopover && (
               <CalendarHoverCard
                 isOpen={hoverPopover.isOpen}
+                isPinned={hoverPopover.isPinned}
                 anchorRect={hoverPopover.anchorRect}
                 dateStr={hoverPopover.dateStr}
                 items={hoverPopover.items}
+                onClose={() => setHoverPopover(null)}
               />
             )}
           </div>

@@ -247,6 +247,38 @@ export default function RoomsPage() {
   };
 
   const handleCellClick = (e: React.MouseEvent<HTMLElement>, dateStr: string, bookings: any[]) => {
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
+    if (isMobile) {
+      // Mobile UX: First tap selects the date. Second tap on the same date toggles the popup modal.
+      if (selectedDate !== dateStr) {
+        setSelectedDate(dateStr);
+        setHoverPopover(null);
+        return;
+      }
+
+      if (bookings.length === 0) {
+        setHoverPopover(null);
+        return;
+      }
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      setHoverPopover((prev) => {
+        if (prev?.isPinned && prev.dateStr === dateStr) {
+          return null;
+        }
+        return {
+          isOpen: true,
+          isPinned: true,
+          anchorRect: rect,
+          dateStr,
+          items: buildHoverItemsForRooms(bookings),
+        };
+      });
+      return;
+    }
+
+    // Desktop UX
     setSelectedDate(dateStr);
     if (bookings.length === 0) {
       setHoverPopover(null);

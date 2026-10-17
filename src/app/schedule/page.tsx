@@ -176,6 +176,38 @@ export default function SchedulePage() {
   };
 
   const handleCellClick = (e: React.MouseEvent<HTMLElement>, dateStr: string, dayTasks: any[]) => {
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
+    if (isMobile) {
+      // Mobile UX: First tap selects the date. Second tap on the same date toggles the popup modal.
+      if (selectedDate !== dateStr) {
+        setSelectedDate(dateStr);
+        setHoverPopover(null);
+        return;
+      }
+
+      if (dayTasks.length === 0) {
+        setHoverPopover(null);
+        return;
+      }
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      setHoverPopover((prev) => {
+        if (prev?.isPinned && prev.dateStr === dateStr) {
+          return null;
+        }
+        return {
+          isOpen: true,
+          isPinned: true,
+          anchorRect: rect,
+          dateStr,
+          items: buildHoverItemsForSchedule(dayTasks),
+        };
+      });
+      return;
+    }
+
+    // Desktop UX
     setSelectedDate(dateStr);
     if (dayTasks.length === 0) {
       setHoverPopover(null);

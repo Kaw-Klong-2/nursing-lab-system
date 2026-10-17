@@ -236,6 +236,40 @@ export default function MasterRoomCalendar({
   };
 
   const handleDayCellClick = (e: React.MouseEvent<HTMLElement>, dateStr: string, acts: CalendarActivity[]) => {
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
+    if (isMobile) {
+      // Mobile UX: First tap selects the date & scrolls detail panel into view.
+      // Second tap on the already selected date toggles the popup modal!
+      if (selectedDate !== dateStr) {
+        setSelectedDate(dateStr);
+        setHoverPopover(null);
+        return;
+      }
+
+      // Second tap on the same selected date:
+      if (acts.length === 0) {
+        setHoverPopover(null);
+        return;
+      }
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      setHoverPopover((prev) => {
+        if (prev?.isOpen && prev?.isPinned && prev?.dateStr === dateStr) {
+          return null; // Tap again closes it
+        }
+        return {
+          isOpen: true,
+          isPinned: true,
+          anchorRect: rect,
+          dateStr,
+          items: buildHoverItems(acts),
+        };
+      });
+      return;
+    }
+
+    // Desktop UX: Clicking opens/pins popover directly
     setSelectedDate(dateStr);
     if (acts.length === 0) {
       setHoverPopover(null);

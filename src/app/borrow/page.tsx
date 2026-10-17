@@ -2316,11 +2316,13 @@ export default function BorrowPage() {
       )}
 
       {/* Unified Request Modal (All-in-One: Borrow & Requisition) */}
-      <UnifiedRequestModal
-        isOpen={showUnifiedModal}
-        onClose={() => setShowUnifiedModal(false)}
-        onSuccess={fetchBorrowData}
-      />
+      {showUnifiedModal && (
+        <UnifiedRequestModal
+          isOpen={showUnifiedModal}
+          onClose={() => setShowUnifiedModal(false)}
+          onSuccess={fetchBorrowData}
+        />
+      )}
 
       {/* Edit Request Modal */}
       {editingRequest && (

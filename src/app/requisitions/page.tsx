@@ -1582,11 +1582,13 @@ export default function RequisitionsPage() {
       )}
 
       {/* Unified Request Modal (All-in-One: Borrow & Requisition) */}
-      <UnifiedRequestModal
-        isOpen={showUnifiedModal}
-        onClose={() => setShowUnifiedModal(false)}
-        onSuccess={fetchRequisitions}
-      />
+      {showUnifiedModal && (
+        <UnifiedRequestModal
+          isOpen={showUnifiedModal}
+          onClose={() => setShowUnifiedModal(false)}
+          onSuccess={fetchRequisitions}
+        />
+      )}
 
       {/* Edit Request Modal */}
       {editingRequest && (

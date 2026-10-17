@@ -250,31 +250,14 @@ export default function RoomsPage() {
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
     if (isMobile) {
-      // Mobile UX: First tap selects the date. Second tap on the same date toggles the popup modal.
-      if (selectedDate !== dateStr) {
-        setSelectedDate(dateStr);
-        setHoverPopover(null);
-        return;
-      }
-
-      if (bookings.length === 0) {
-        setHoverPopover(null);
-        return;
-      }
-
-      const rect = e.currentTarget.getBoundingClientRect();
-      setHoverPopover((prev) => {
-        if (prev?.isPinned && prev.dateStr === dateStr) {
-          return null;
+      setSelectedDate(dateStr);
+      setHoverPopover(null);
+      setTimeout(() => {
+        const detailEl = document.getElementById('rooms-selected-day-panel');
+        if (detailEl) {
+          detailEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
-        return {
-          isOpen: true,
-          isPinned: true,
-          anchorRect: rect,
-          dateStr,
-          items: buildHoverItemsForRooms(bookings),
-        };
-      });
+      }, 50);
       return;
     }
 
@@ -2147,7 +2130,10 @@ export default function RoomsPage() {
                 </div>
 
                 {/* Day Detail Panel */}
-                <div className="bg-slate-50/70 dark:bg-slate-850/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                <div
+                  id="rooms-selected-day-panel"
+                  className="bg-slate-50/70 dark:bg-slate-850/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 scroll-mt-20"
+                >
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-sm font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">

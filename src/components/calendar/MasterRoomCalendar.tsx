@@ -214,6 +214,7 @@ export default function MasterRoomCalendar({
     }));
 
   const handleDayPointerEnter = (e: React.PointerEvent<HTMLElement>, dateStr: string, acts: CalendarActivity[]) => {
+    // Only allow hover popover on genuine desktop mouse pointers
     if (e.pointerType !== 'mouse') return;
     if (hoverPopover?.isPinned) return;
     if (acts.length === 0) {
@@ -239,37 +240,22 @@ export default function MasterRoomCalendar({
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
     if (isMobile) {
-      // Mobile UX: First tap selects the date & scrolls detail panel into view.
-      // Second tap on the already selected date toggles the popup modal!
-      if (selectedDate !== dateStr) {
-        setSelectedDate(dateStr);
-        setHoverPopover(null);
-        return;
-      }
+      // On mobile devices, NEVER open a floating hover popover.
+      // Simply select the date and smoothly scroll down to the bottom detail panel!
+      setSelectedDate(dateStr);
+      setHoverPopover(null);
 
-      // Second tap on the same selected date:
-      if (acts.length === 0) {
-        setHoverPopover(null);
-        return;
-      }
-
-      const rect = e.currentTarget.getBoundingClientRect();
-      setHoverPopover((prev) => {
-        if (prev?.isOpen && prev?.isPinned && prev?.dateStr === dateStr) {
-          return null; // Tap again closes it
+      // Smooth scroll to the detail panel
+      setTimeout(() => {
+        const detailEl = document.getElementById('calendar-selected-day-panel');
+        if (detailEl) {
+          detailEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
-        return {
-          isOpen: true,
-          isPinned: true,
-          anchorRect: rect,
-          dateStr,
-          items: buildHoverItems(acts),
-        };
-      });
+      }, 50);
       return;
     }
 
-    // Desktop UX: Clicking opens/pins popover directly
+    // Desktop UX: Clicking pins or unpins the hover card
     setSelectedDate(dateStr);
     if (acts.length === 0) {
       setHoverPopover(null);
@@ -1275,7 +1261,10 @@ export default function MasterRoomCalendar({
               </div>
 
               {/* Bottom Day Detail Panel */}
-              <div className="bg-slate-50/80 dark:bg-slate-850/60 p-3.5 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+              <div
+                id="calendar-selected-day-panel"
+                className="bg-slate-50/80 dark:bg-slate-850/60 p-3.5 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 scroll-mt-20"
+              >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                   <div>
                     <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5 sm:gap-2">

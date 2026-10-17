@@ -179,31 +179,14 @@ export default function SchedulePage() {
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
     if (isMobile) {
-      // Mobile UX: First tap selects the date. Second tap on the same date toggles the popup modal.
-      if (selectedDate !== dateStr) {
-        setSelectedDate(dateStr);
-        setHoverPopover(null);
-        return;
-      }
-
-      if (dayTasks.length === 0) {
-        setHoverPopover(null);
-        return;
-      }
-
-      const rect = e.currentTarget.getBoundingClientRect();
-      setHoverPopover((prev) => {
-        if (prev?.isPinned && prev.dateStr === dateStr) {
-          return null;
+      setSelectedDate(dateStr);
+      setHoverPopover(null);
+      setTimeout(() => {
+        const detailEl = document.getElementById('schedule-selected-day-panel');
+        if (detailEl) {
+          detailEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
-        return {
-          isOpen: true,
-          isPinned: true,
-          anchorRect: rect,
-          dateStr,
-          items: buildHoverItemsForSchedule(dayTasks),
-        };
-      });
+      }, 50);
       return;
     }
 
@@ -2343,7 +2326,10 @@ export default function SchedulePage() {
           </div>
 
           {/* Selected Date Duty Detail Panel */}
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm space-y-4">
+          <div
+            id="schedule-selected-day-panel"
+            className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm space-y-4 scroll-mt-20"
+          >
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <div className="flex items-center gap-2">

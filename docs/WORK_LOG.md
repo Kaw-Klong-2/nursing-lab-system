@@ -17,6 +17,31 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-17] ตรวจสอบและจัดระเบียบมาตรฐานคำนำหน้าชื่อ (Prefix & Academic Title Standardization) ทั้งระบบ
+- **หมวดหมู่**: Database (`User`, `RequisitionRequest`) / User Utils / Schedule / Approvals / Borrow & Requisition / POS / Notifications & API
+- **สิ่งที่ดำเนินการ**:
+  1. **อัปเดตข้อมูลคำนำหน้าและตำแหน่งทางวิชาการในฐานข้อมูลจริง (100% ตรงตามทำเนียบคณะพยาบาลศาสตร์ ม.เกษตรศาสตร์)**:
+     - ปรับปรุงคณบดี (`saisamorn.c@ku.th`) เป็น `prefix: "รศ. พลตรีหญิง ดร."`, `name: "สายสมร เฉลยกิตติ"`
+     - ปรับปรุงคณาจารย์ที่มีตำแหน่งทางวิชาการและวุฒิปริญญาเอก (`รศ.ดร. จินพิชญ์ชา มะมม`, `ผศ.ดร. เพ็ญนภา แดงด้อมยุทธ์`, `ผศ.ดร. ทิพวัลย์ พาลี`, `ผศ. มนปภา กิตติโชติพาณิชย์`, `ดร. มยุรี วงค์ประเทศ`)
+     - ปรับปรุงคณาจารย์ (`TEACHER`) 7 ท่านที่เดิมเป็นคำนำหน้าสามัญ (`นาง`/`นางสาว`) ให้เป็น `"อาจารย์"` อย่างเป็นทางการ
+     - ปรับปรุง `REQ-20260913-001` จาก `"ณัฐกุล บำรุงราษฎร์"` เป็น `"นายณัฐกุล บำรุงราษฎร์ (แอดมิน)"` และคงสถานะรายการที่แอดมินกดรับทราบแทนอาจารย์ทุกรายการไว้ตามจริง
+  2. **ยกระดับไลบรารีกลาง (`src/lib/user-utils.ts`)**:
+     - เปลี่ยนคำนำหน้า `'นศ.พย.'` ใน `COMMON_USER_PREFIXES` เป็น `'นส.พย.'` (นิสิตพยาบาล) และเพิ่มรองรับยศทหาร/ตำแหน่งวิชาการผสม (`'รศ. พลตรีหญิง ดร.'`, `'อ.ดร.'`, `'อาจารย์ ดร.'`)
+     - ปรับปรุง `formatBaseUserName` และ `formatTeacherName` ให้จัดช่องว่างคำนำหน้าและป้องกันคำนำหน้าซ้อน (`อาจารย์ ผศ.ดร.`) อัตโนมัติ
+     - เพิ่มฟังก์ชัน `formatRequesterWithRole(user)` เพื่อระบุบทบาทผู้ยื่นคำขออย่างถูกต้อง (`นิสิต ...`, `อาจารย์ ...`, `เจ้าหน้าที่ ...`)
+  3. **การแสดงผลป้ายผู้รับทราบและชื่อบุคคลในทุกหน้า UI**:
+     - หน้าตารางงาน (`/schedule`): เปลี่ยนการแสดงป้าย `task.advisorName` มาใช้ `formatAcknowledgeDisplay` เพื่อแยกแสดงป้ายสีฟ้า (`แอดมินรับทราบ: นายณัฐกุล บำรุงราษฎร์`) เมื่อเจ้าหน้าที่รับทราบแทนอาจารย์ และป้ายสีม่วง (`🎓 ผศ.ดร. ...`) เมื่ออาจารย์รับทราบเอง
+     - อัปเดตการแสดงชื่อผู้อนุมัติ ผู้จ่ายของ ผู้ตรวจเช็ค และผู้ทำรายการใน `/approvals`, `/rooms`, `/borrow`, `/requisitions`, `/`, `/stock-in`, `/maintenance`, `/pos`, `PosReceiptModal`, และ `PracticeHoursSummary` ให้ผ่าน `formatUserName` / `formatTeacherName` ครบทุกจุด
+  4. **ระบบนำเข้าข้อมูลและข้อความแจ้งเตือน API**:
+     - ปรับปรุง `/api/users/bulk` ให้ตั้งค่าคำนำหน้าเริ่มต้นของ `TEACHER` เป็น `'อาจารย์'` อัตโนมัติเมื่อไฟล์ Excel ระบุเป็น `นาย`/`นาง`/`นางสาว` หรือเว้นว่าง และแปลง `นศ.พย.` เป็น `นส.พย.`
+     - ปรับปรุงข้อความแจ้งเตือนใน `/api/borrow`, `/api/requisitions`, `/api/requests/unified`, `/api/practice/bookings`, `/api/room-bookings`, `/api/room-bookings/batch`, และ `/api/notifications/push/test` ให้แสดงคำนำหน้าครบถ้วนและไม่เรียกอาจารย์หรือเจ้าหน้าที่ว่า `"นิสิต"`
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/lib/user-utils.ts`, `src/app/schedule/page.tsx`, `src/app/approvals/page.tsx`, `src/app/rooms/page.tsx`, `src/app/borrow/page.tsx`, `src/app/requisitions/page.tsx`
+  - `src/app/page.tsx`, `src/app/stock-in/page.tsx`, `src/app/maintenance/page.tsx`, `src/app/pos/page.tsx`
+  - `src/components/pos/PosReceiptModal.tsx`, `src/components/practice/PracticeHoursSummary.tsx`
+  - `src/app/api/users/bulk/route.ts`, `src/app/api/notifications/push/test/route.ts`, `src/app/api/borrow/route.ts`, `src/app/api/requisitions/route.ts`, `src/app/api/requests/unified/route.ts`, `src/app/api/practice/bookings/route.ts`, `src/app/api/room-bookings/route.ts`, `src/app/api/room-bookings/batch/route.ts`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ✅ ผ่าน 100% (Terminology Violations: 0, UTF-8 Mojibake: 0, TypeScript: 0 errors)
+
 ### [2026-10-17] ตรวจสอบและแก้ไขการแสดงผลหน่วยนับหลัก/หน่วยย่อย (Unit & Sub-Unit Audit) ทั้งระบบ
 - **หมวดหมู่**: Schedule / Approvals / Borrow & Requisition / Dashboard / Courses / Inventory / Reports / Practice Kits
 - **สิ่งที่ดำเนินการ**:

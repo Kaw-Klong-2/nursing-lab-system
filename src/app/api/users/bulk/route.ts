@@ -165,7 +165,7 @@ function extractUserFromRow(row: Record<string, any>) {
 
   // If no explicit prefix was in column, try detecting from name
   if (!prefix && name) {
-    const match = name.match(/^(ศ\.ดร\.|ศ\.|รศ\.ดร\.|รศ\.|ผศ\.ดร\.|ผศ\.|ดร\.|อ\.|อาจารย์|ว่าที่\s*ร\.ต\.หญิง|ว่าที่\s*ร\.ต\.|นศ\.พย\.|นาย|นางสาว|นาง)\s*(.*)$/);
+    const match = name.match(/^(ศ\.ดร\.|ศ\.|รศ\.ดร\.|รศ\.|ผศ\.ดร\.|ผศ\.|อ\.ดร\.|ดร\.|อ\.|อาจารย์|ว่าที่\s*ร\.ต\.หญิง|ว่าที่\s*ร\.ต\.|นส\.พย\.|นศ\.พย\.|นาย|นางสาว|นาง)\s*(.*)$/);
     if (match) {
       prefix = match[1].trim();
       name = match[2].trim() || name;
@@ -173,6 +173,10 @@ function extractUserFromRow(row: Record<string, any>) {
   } else if (prefix && name.startsWith(prefix)) {
     // Clean up if name already starts with prefix
     name = name.slice(prefix.length).trim() || name;
+  }
+
+  if (prefix === 'นศ.พย.') {
+    prefix = 'นส.พย.';
   }
 
   return {
@@ -238,7 +242,10 @@ export async function POST(req: Request) {
       }
       const department = u.department || 'คณะพยาบาลศาสตร์';
       const phone = u.phone || null;
-      const prefix = u.prefix || null;
+      let prefix = u.prefix || null;
+      if (role === 'TEACHER' && (!prefix || ['นาย', 'นาง', 'นางสาว'].includes(prefix))) {
+        prefix = 'อาจารย์';
+      }
 
       try {
         // Find existing user by email or studentId

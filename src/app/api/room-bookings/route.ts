@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
 import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
+import { formatUserName, formatRequesterWithRole } from '@/lib/user-utils';
 
 export async function GET(req: Request) {
   try {
@@ -302,6 +303,7 @@ export async function POST(req: Request) {
     invalidateCache('room:bookings:');
 
     // Notify room approvers according to scope, advisor, and student confirmation (awaited)
+    const requesterDisplay = formatRequesterWithRole(booking.user);
     await Promise.allSettled([
       // 1. Notify Room Approvers (หัวหน้าสำนักงาน, Admin, ผู้ดูแลห้อง)
       notifyRoles(
@@ -309,13 +311,13 @@ export async function POST(req: Request) {
         {
           templateId: 'ROOM_BOOKING_SUBMITTED',
           variables: {
-            studentName: booking.user?.name || 'นิสิต',
+            studentName: formatUserName(booking.user) || 'นิสิต',
             roomName: booking.room?.name || '',
             date: booking.bookingDate.toISOString().slice(0, 10),
             bookingNumber: booking.bookingNumber,
           },
           title: 'มีคำขอจองห้องปฏิบัติการใหม่ 🏢',
-          message: `${booking.user?.name || 'นิสิต'} ขอจองห้อง ${booking.room?.name || ''} (${booking.bookingNumber})`,
+          message: `${requesterDisplay} ขอจองห้อง ${booking.room?.name || ''} (${booking.bookingNumber})`,
           type: 'APPROVAL',
           linkUrl: '/approvals',
           entityType: 'ROOM',
@@ -329,7 +331,7 @@ export async function POST(req: Request) {
       advisorName
         ? notifyAdvisorByName(advisorName, {
             title: 'นิสิตระบุชื่ออาจารย์ในคำขอจองห้องปฏิบัติการ 👩‍🏫',
-            message: `${booking.user?.name || 'นิสิต'} ได้ขอจองห้อง ${booking.room?.name || ''} และระบุชื่อท่านเป็นอาจารย์ประจำวิชา`,
+            message: `${requesterDisplay} ได้ขอจองห้อง ${booking.room?.name || ''} และระบุชื่อท่านเป็นอาจารย์ประจำวิชา`,
             type: 'INSTRUCTOR_ACK',
             linkUrl: '/schedule',
             entityType: 'ROOM',

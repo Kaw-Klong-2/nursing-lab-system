@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendApprovalRequestEmail } from '@/lib/email';
 import { getCached, setCached, invalidateCache } from '@/lib/cache';
-import { formatUserName, formatTeacherName } from '@/lib/user-utils';
+import { formatUserName, formatTeacherName, formatRequesterWithRole } from '@/lib/user-utils';
 import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
 
 export async function GET(req: Request) {
@@ -241,16 +241,17 @@ export async function POST(req: Request) {
     }
 
     // In-app & Push notifications (awaited)
+    const requesterDisplay = formatRequesterWithRole(borrow.user);
     await Promise.allSettled([
       notifyRoles(['OFFICER', 'ADMIN', 'APPROVER'], {
         templateId: 'BORROW_REQUEST_SUBMITTED',
         variables: {
-          studentName: borrow.user?.name || 'นิสิต',
+          studentName: formatUserName(borrow.user) || 'นิสิต',
           requestNumber: borrow.requestNumber,
           itemSummary: borrow.purpose || `${items.length} รายการ`,
         },
         title: 'มีคำขอยืมครุภัณฑ์ใหม่ 📋',
-        message: `นิสิต ${borrow.user?.name || ''} ยื่นคำขอยืมเลขที่ ${borrow.requestNumber} (${borrow.purpose})`,
+        message: `${requesterDisplay} ยื่นคำขอยืมเลขที่ ${borrow.requestNumber} (${borrow.purpose})`,
         type: 'APPROVAL',
         linkUrl: '/approvals',
         entityType: 'BORROW',
@@ -261,7 +262,7 @@ export async function POST(req: Request) {
       finalAdvisorName
         ? notifyAdvisorByName(finalAdvisorName, {
             title: 'มีคำขอยืมครุภัณฑ์รอกดรับทราบ 👩‍🏫',
-            message: `นิสิต ${borrow.user?.name || ''} ยื่นคำขอยืมเลขที่ ${borrow.requestNumber} ในรายวิชา ${borrow.course?.name || ''} รออาจารย์รับทราบ`,
+            message: `${requesterDisplay} ยื่นคำขอยืมเลขที่ ${borrow.requestNumber} ในรายวิชา ${borrow.course?.name || ''} รออาจารย์รับทราบ`,
             type: 'REQUEST_SUBMITTED',
             priority: 'HIGH',
             linkUrl: '/approvals',

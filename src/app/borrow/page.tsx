@@ -843,7 +843,7 @@ export default function BorrowPage() {
                         {req.checkedOutAt ? (
                           <span className="text-teal-800 dark:text-teal-300 font-bold">
                             {new Date(req.checkedOutAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })} น.
-                            {req.officer?.name && <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-normal">จนท. ผู้จ่าย: {req.officer.name}</span>}
+                            {req.officer?.name && <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-normal">จนท. ผู้จ่าย: {formatUserName(req.officer)}</span>}
                           </span>
                         ) : (
                           <span className="text-slate-400 dark:text-slate-500">ยังไม่จ่ายอุปกรณ์</span>

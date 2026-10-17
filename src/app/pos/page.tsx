@@ -34,6 +34,7 @@ import {
 import PosReceiptModal from '@/components/pos/PosReceiptModal';
 import QrScannerModal from '@/components/qrcode/QrScannerModal';
 import { extractCleanCode } from '@/lib/scanner-utils';
+import { formatUserName } from '@/lib/user-utils';
 
 interface CartItem {
   id: string; // unique cart entry ID
@@ -218,7 +219,7 @@ export default function PosPage() {
 
       if (data.type === 'USER') {
         setSelectedUser(data.user);
-        setScanMessage({ type: 'success', text: `ยืนยันตัวตนผู้เบิก: ${data.user.name} (${data.user.studentId || data.user.role})` });
+        setScanMessage({ type: 'success', text: `ยืนยันตัวตนผู้เบิก: ${formatUserName(data.user)} (${data.user.studentId || data.user.role})` });
         return;
       }
 
@@ -1102,7 +1103,7 @@ export default function PosPage() {
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400">ผู้ยืม:</span>
                       <span className="font-bold text-slate-800 dark:text-slate-200">
-                        {scannedAssetInfo.activeBorrow.user.name} ({scannedAssetInfo.activeBorrow.user.studentId || 'นิสิต'})
+                        {formatUserName(scannedAssetInfo.activeBorrow.user)} ({scannedAssetInfo.activeBorrow.user.studentId || 'นิสิต'})
                       </span>
                     </div>
                     {scannedAssetInfo.activeBorrow.course && (

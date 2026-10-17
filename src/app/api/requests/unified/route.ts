@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { sendApprovalRequestEmail } from '@/lib/email';
 import { invalidateCache } from '@/lib/cache';
 import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
-import { stripAllPrefixes } from '@/lib/user-utils';
+import { stripAllPrefixes, formatUserName, formatRequesterWithRole } from '@/lib/user-utils';
 
 export async function POST(req: Request) {
   try {
@@ -368,9 +368,10 @@ export async function POST(req: Request) {
     // 5. Send combined approval request email to instructor/approver (asynchronous, outside transaction)
     const student = await prisma.user.findUnique({
       where: { id: userId },
-      select: { name: true, studentId: true, prefix: true },
+      select: { name: true, studentId: true, prefix: true, role: true },
     });
-    const studentDisplayName = student?.name || 'นิสิต';
+    const studentDisplayName = formatUserName(student) || 'นิสิต';
+    const requesterWithRole = formatRequesterWithRole(student);
 
     try {
       let approverEmail = '';
@@ -390,7 +391,7 @@ export async function POST(req: Request) {
         });
         if (advisorUser?.email) {
           approverEmail = advisorUser.email;
-          approverName = advisorUser.name;
+          approverName = formatUserName(advisorUser) || advisorUser.name;
         }
       }
 
@@ -400,7 +401,7 @@ export async function POST(req: Request) {
         });
         if (fallbackApprover?.email) {
           approverEmail = fallbackApprover.email;
-          approverName = fallbackApprover.name;
+          approverName = formatUserName(fallbackApprover) || fallbackApprover.name;
         }
       }
 
@@ -474,7 +475,7 @@ export async function POST(req: Request) {
               itemSummary: purpose || `${borrowSummaryList.length} รายการ`,
             },
             title: 'มีคำขอยืมครุภัณฑ์ใหม่ 📋',
-            message: `นิสิต ${studentDisplayName} ยื่นคำขอยืมเลขที่ ${result.createdBorrow.requestNumber} (${purpose})`,
+            message: `${requesterWithRole} ยื่นคำขอยืมเลขที่ ${result.createdBorrow.requestNumber} (${purpose})`,
             type: 'APPROVAL',
             linkUrl: '/approvals',
             entityType: 'BORROW',
@@ -489,7 +490,7 @@ export async function POST(req: Request) {
         notifPromises.push(
           notifyAdvisorByName(finalAdvisorName, {
             title: 'มีคำขอยืมครุภัณฑ์รอกดรับทราบ 👩‍🏫',
-            message: `นิสิต ${studentDisplayName} ยื่นคำขอยืมเลขที่ ${result.createdBorrow.requestNumber} ${courseInfo ? `ในรายวิชา ${courseInfo.name}` : ''} รออาจารย์รับทราบ`,
+            message: `${requesterWithRole} ยื่นคำขอยืมเลขที่ ${result.createdBorrow.requestNumber} ${courseInfo ? `ในรายวิชา ${courseInfo.name}` : ''} รออาจารย์รับทราบ`,
             type: 'REQUEST_SUBMITTED',
             priority: 'HIGH',
             linkUrl: '/approvals',
@@ -512,7 +513,7 @@ export async function POST(req: Request) {
               itemSummary: purpose || `${reqSummaryList.length} รายการ`,
             },
             title: 'มีคำขอเบิกพัสดุใหม่ 📋',
-            message: `นิสิต ${studentDisplayName} ยื่นคำขอเบิกเลขที่ ${result.createdRequisition.requestNumber} (${purpose})`,
+            message: `${requesterWithRole} ยื่นคำขอเบิกเลขที่ ${result.createdRequisition.requestNumber} (${purpose})`,
             type: 'APPROVAL',
             linkUrl: '/approvals',
             entityType: 'REQUISITION',
@@ -527,7 +528,7 @@ export async function POST(req: Request) {
         notifPromises.push(
           notifyAdvisorByName(finalAdvisorName, {
             title: 'มีคำขอเบิกพัสดุรอกดรับทราบ 👩‍🏫',
-            message: `นิสิต ${studentDisplayName} ยื่นคำขอเบิกเลขที่ ${result.createdRequisition.requestNumber} ${courseInfo ? `ในรายวิชา ${courseInfo.name}` : ''} รออาจารย์รับทราบ`,
+            message: `${requesterWithRole} ยื่นคำขอเบิกเลขที่ ${result.createdRequisition.requestNumber} ${courseInfo ? `ในรายวิชา ${courseInfo.name}` : ''} รออาจารย์รับทราบ`,
             type: 'REQUEST_SUBMITTED',
             priority: 'HIGH',
             linkUrl: '/approvals',

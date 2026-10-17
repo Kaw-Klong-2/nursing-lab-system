@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
+import { formatUserName } from '@/lib/user-utils';
 import {
   Wrench,
   CheckCircle2,
@@ -788,7 +789,7 @@ export default function MaintenanceDashboardPage() {
             ? 'ไม่ผ่าน (ส่งซ่อม)'
             : '-',
         'วันที่ตรวจ': item.checkedAt ? new Date(item.checkedAt).toLocaleDateString('th-TH') : '-',
-        'ผู้ตรวจเช็ก': item.checkedBy?.name || '-',
+        'ผู้ตรวจเช็ก': formatUserName(item.checkedBy) || '-',
         'หมายเหตุ / อาการ': item.notes || item.inspectionLog?.notes || '-',
         'รอบตรวจ PM ถัดไป': item.asset?.nextInspectionDue
           ? new Date(item.asset.nextInspectionDue).toLocaleDateString('th-TH')
@@ -3161,7 +3162,7 @@ export default function MaintenanceDashboardPage() {
                                   <div>
                                     <div>{new Date(item.checkedAt).toLocaleDateString('th-TH')}</div>
                                     <div className="text-[10px] text-slate-400">
-                                      โดย {item.checkedBy?.name || 'เจ้าหน้าที่'}
+                                      โดย {formatUserName(item.checkedBy) || 'เจ้าหน้าที่'}
                                     </div>
                                     {item.notes && <div className="text-[10px] text-teal-700 dark:text-teal-400 mt-0.5 truncate max-w-xs">{item.notes}</div>}
                                   </div>

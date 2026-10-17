@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCached, setCached, invalidateCache } from '@/lib/cache';
-import { formatTeacherName } from '@/lib/user-utils';
+import { formatUserName, formatTeacherName, formatRequesterWithRole } from '@/lib/user-utils';
 import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
 
 export async function GET(req: Request) {
@@ -259,16 +259,17 @@ export async function POST(req: Request) {
     });
 
     // In-app & Push notifications (awaited)
+    const requesterDisplay = formatRequesterWithRole(reqRecord.user);
     await Promise.allSettled([
       notifyRoles(['OFFICER', 'ADMIN', 'APPROVER'], {
         templateId: 'REQUISITION_REQUEST_SUBMITTED',
         variables: {
-          studentName: reqRecord.user?.name || 'นิสิต',
+          studentName: formatUserName(reqRecord.user) || 'นิสิต',
           requestNumber: reqRecord.requestNumber,
           itemSummary: reqRecord.purpose || `${items.length} รายการ`,
         },
         title: 'มีคำขอเบิกพัสดุใหม่ 📋',
-        message: `นิสิต ${reqRecord.user?.name || ''} ยื่นคำขอเบิกเลขที่ ${reqRecord.requestNumber} (${reqRecord.purpose})`,
+        message: `${requesterDisplay} ยื่นคำขอเบิกเลขที่ ${reqRecord.requestNumber} (${reqRecord.purpose})`,
         type: 'APPROVAL',
         linkUrl: '/approvals',
         entityType: 'REQUISITION',
@@ -279,7 +280,7 @@ export async function POST(req: Request) {
       advisorName
         ? notifyAdvisorByName(advisorName, {
             title: 'มีคำขอเบิกพัสดุรอกดรับทราบ 👩‍🏫',
-            message: `นิสิต ${reqRecord.user?.name || ''} ยื่นคำขอเบิกเลขที่ ${reqRecord.requestNumber} ในรายวิชา ${reqRecord.course?.name || ''} รออาจารย์รับทราบ`,
+            message: `${requesterDisplay} ยื่นคำขอเบิกเลขที่ ${reqRecord.requestNumber} ในรายวิชา ${reqRecord.course?.name || ''} รออาจารย์รับทราบ`,
             type: 'REQUEST_SUBMITTED',
             priority: 'HIGH',
             linkUrl: '/approvals',

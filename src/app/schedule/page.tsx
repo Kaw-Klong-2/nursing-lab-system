@@ -42,7 +42,7 @@ import {
   ListFilter
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
-import { formatUserName, formatTeacherName } from '@/lib/user-utils';
+import { formatUserName, formatTeacherName, formatAcknowledgeDisplay } from '@/lib/user-utils';
 import CalendarHoverCard, { CalendarHoverItem } from '@/components/calendar/CalendarHoverCard';
 
 export default function SchedulePage() {
@@ -892,7 +892,7 @@ export default function SchedulePage() {
             {task.createdBy && (
               <div className="text-xs text-slate-500 flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5 text-slate-400" />
-                <span className="font-bold text-slate-800 dark:text-slate-200">ผู้สร้างแผน: {task.createdBy.name}</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">ผู้สร้างแผน: {formatUserName(task.createdBy)}</span>
               </div>
             )}
           </div>
@@ -1556,12 +1556,20 @@ export default function SchedulePage() {
                 กิจกรรมฝึกทักษะทั่วไป (นอกรายวิชา)
               </div>
             )}
-            {task.advisorName && (
-              <div className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-md">
-                <GraduationCap className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                <span>{formatTeacherName(task.advisorName)}</span>
-              </div>
-            )}
+            {task.advisorName && (() => {
+              const ack = formatAcknowledgeDisplay(task.advisorName);
+              return ack.isStaff ? (
+                <div className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded-md">
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                  <span>แอดมินรับทราบ: {ack.name}</span>
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-md">
+                  <GraduationCap className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>{ack.name}</span>
+                </div>
+              );
+            })()}
             <div className="text-slate-600 dark:text-slate-400 line-clamp-2 text-xs">
               "{task.purpose}"
             </div>

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import BoxStickerModal from '@/components/qrcode/BoxStickerModal';
 import { useAuth } from '@/lib/auth-context';
+import { formatUserName } from '@/lib/user-utils';
 import {
   ArrowDownToLine,
   Boxes,
@@ -810,7 +811,7 @@ export default function StockInPage() {
                   <div className="flex items-center justify-between mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                     <span className="text-[10px] text-slate-400 dark:text-slate-500">
                       {new Date(tx.createdAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })}
-                      {tx.createdBy?.name ? ` โดย ${tx.createdBy.name}` : ''}
+                      {tx.createdBy?.name ? ` โดย ${formatUserName(tx.createdBy)}` : ''}
                     </span>
                     <span className="font-bold text-emerald-600 dark:text-emerald-400 text-xs">
                       ฿{(tx.totalCost ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

@@ -2948,7 +2948,7 @@ export default function RoomsPage() {
                         <div>
                           {b.approver && (
                             <span className="text-[11px] text-slate-400">
-                              ผู้อนุมัติ: {b.approver.name}
+                              ผู้อนุมัติ: {formatUserName(b.approver)}
                             </span>
                           )}
                         </div>

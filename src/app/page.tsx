@@ -450,7 +450,7 @@ export default function DashboardPage() {
                     <div>
                       <div className="text-xs font-bold text-slate-800 dark:text-slate-200">{tx.item?.name}</div>
                       <div className="text-[11px] text-slate-400 dark:text-slate-500">
-                        {tx.note || tx.referenceNumber} | โดย {tx.createdBy?.name}
+                        {tx.note || tx.referenceNumber} | โดย {formatUserName(tx.createdBy)}
                       </div>
                     </div>
                   </div>

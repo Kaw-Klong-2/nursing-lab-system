@@ -688,7 +688,7 @@ export default function RequisitionsPage() {
                     {req.dispensedAt && (
                       <div className="text-teal-700 dark:text-teal-400 font-bold">
                         ✓ <strong>จ่ายของจริง:</strong> {new Date(req.dispensedAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })} น.
-                        {req.officer?.name && <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-normal">จนท. ผู้จ่าย: {req.officer.name}</span>}
+                        {req.officer?.name && <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-normal">จนท. ผู้จ่าย: {formatUserName(req.officer)}</span>}
                       </div>
                     )}
                   </div>

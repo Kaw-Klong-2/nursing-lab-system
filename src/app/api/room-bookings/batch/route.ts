@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
-import { formatTeacherName } from '@/lib/user-utils';
+import { formatTeacherName, formatRequesterWithRole } from '@/lib/user-utils';
 import { createNotification, notifyRoles } from '@/lib/notifications';
 
 interface BatchSlotItem {
@@ -331,7 +331,7 @@ export async function POST(req: Request) {
         ['OFFICER', 'ADMIN', 'APPROVER'],
         {
           title: `มีคำขอจองห้องแบบกลุ่ม (${createdBookings.length} รายการ) 🏢`,
-          message: `${user.name || 'ผู้ใช้งาน'} ส่งคำขอจองห้อง ${uniqueRoomNames} (${dateSummary}) ชื่องาน: "${title.trim()}"`,
+          message: `${formatRequesterWithRole(user)} ส่งคำขอจองห้อง ${uniqueRoomNames} (${dateSummary}) ชื่องาน: "${title.trim()}"`,
           type: 'APPROVAL',
           priority: 'HIGH',
           linkUrl: `/approvals?batchId=${batchGroupId}&type=ROOM`,

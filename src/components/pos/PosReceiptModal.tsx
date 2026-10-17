@@ -14,6 +14,7 @@ import {
   ArrowDownToLine,
   RefreshCw,
 } from 'lucide-react';
+import { formatUserName } from '@/lib/user-utils';
 
 interface PosReceiptModalProps {
   receipt: {
@@ -21,7 +22,9 @@ interface PosReceiptModalProps {
     checkoutAt: string;
     user: {
       id: string;
+      prefix?: string | null;
       name: string;
+      role?: string | null;
       studentId?: string | null;
     };
     course?: {
@@ -157,7 +160,7 @@ export default function PosReceiptModal({ receipt, onClose }: PosReceiptModalPro
           <div style="font-size: 10.5px;">
             <div>เลขที่: <b>${receipt.receiptNumber}</b></div>
             <div>วัน-เวลา: ${formattedDate} น.</div>
-            <div>ผู้เบิก: <b>${receipt.user.name}</b> ${receipt.user.studentId ? `(${receipt.user.studentId})` : ''}</div>
+            <div>ผู้เบิก: <b>${formatUserName(receipt.user)}</b> ${receipt.user.studentId ? `(${receipt.user.studentId})` : ''}</div>
             ${receipt.course ? `<div>วิชา: <b>[${receipt.course.code}] ${receipt.course.name}</b></div>` : ''}
             <div>วัตถุประสงค์: ${receipt.purpose}</div>
           </div>
@@ -250,7 +253,7 @@ export default function PosReceiptModal({ receipt, onClose }: PosReceiptModalPro
             <div className="flex items-center justify-between">
               <span className="text-slate-500">ผู้เบิก:</span>
               <span className="font-bold text-slate-900 dark:text-slate-100">
-                {receipt.user.name} {receipt.user.studentId ? `(${receipt.user.studentId})` : ''}
+                {formatUserName(receipt.user)} {receipt.user.studentId ? `(${receipt.user.studentId})` : ''}
               </span>
             </div>
             {receipt.course && (

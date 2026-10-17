@@ -4,6 +4,7 @@ export const COMMON_USER_PREFIXES = [
   'นางสาว',
   'อ.',
   'อาจารย์',
+  'อ.ดร.',
   'ดร.',
   'ผศ.',
   'ผศ.ดร.',
@@ -11,14 +12,16 @@ export const COMMON_USER_PREFIXES = [
   'รศ.ดร.',
   'ศ.',
   'ศ.ดร.',
+  'รศ. พลตรีหญิง ดร.',
   'รศ. พลตรีหญิง',
   'พลตรีหญิง',
   'ว่าที่ ร.ต.',
   'ว่าที่ ร.ต.หญิง',
-  'นศ.พย.',
+  'นส.พย.',
 ];
 
 export const ACADEMIC_PREFIXES = [
+  'รศ. พลตรีหญิง ดร.',
   'รศ. พลตรีหญิง',
   'พลตรีหญิง',
   'ศ.ดร.',
@@ -27,6 +30,8 @@ export const ACADEMIC_PREFIXES = [
   'รศ.',
   'ผศ.ดร.',
   'ผศ.',
+  'อาจารย์ ดร.',
+  'อ.ดร.',
   'ดร.',
   'อาจารย์',
   'อ.',
@@ -38,7 +43,7 @@ export const ACADEMIC_PREFIXES = [
   'แพทย์หญิง',
 ];
 
-export const PERSONAL_PREFIXES = ['นางสาว', 'นาง', 'นาย'];
+export const PERSONAL_PREFIXES = ['นางสาว', 'นาง', 'นาย', 'นส.พย.', 'นศ.พย.'];
 
 /**
  * Strips all personal and academic prefixes from a name string to extract the raw name
@@ -145,7 +150,7 @@ export function formatBaseUserName(prefix?: string | null, name?: string | null)
     }
   }
 
-  if (PERSONAL_PREFIXES.includes(p)) {
+  if (p === 'นาย' || p === 'นาง' || p === 'นางสาว' || p === 'อาจารย์') {
     return `${p}${n}`;
   }
 
@@ -195,6 +200,22 @@ export function formatUserName(
   }
 
   return '';
+}
+
+/**
+ * Formats a requester's display name with role context for notifications and logs:
+ * - For students (role === 'USER'): "นิสิต นาย..." or "นิสิต นางสาว..."
+ * - For faculty/staff/executives: their properly prefixed name without "นิสิต "
+ */
+export function formatRequesterWithRole(
+  user?: { prefix?: string | null; name?: string | null; role?: string | null; email?: string | null; department?: string | null } | null
+): string {
+  if (!user) return 'ผู้ใช้งาน';
+  const formatted = formatUserName(user) || user.name || 'ผู้ใช้งาน';
+  if (user.role === 'USER') {
+    return formatted.startsWith('นิสิต') ? formatted : `นิสิต ${formatted}`;
+  }
+  return formatted;
 }
 
 /**
@@ -251,7 +272,7 @@ export function formatTeacherName(
     const cleanName = stripAllPrefixes(rawName);
     // Special case for military/honorific + doctoral degree (e.g. 'รศ. พลตรีหญิง' + 'ดร.สายสมร')
     if (rawName.startsWith('ดร.') && !rawPrefix.includes('ดร.')) {
-      return `${rawPrefix} ${rawName}`.trim();
+      return `${rawPrefix} ดร. ${cleanName}`.trim();
     }
     return `${rawPrefix} ${cleanName}`.trim();
   }
@@ -259,7 +280,8 @@ export function formatTeacherName(
   // 4. Check if rawName itself starts with an academic rank (e.g. ผศ.ดร. ชญาภรณ์ or ดร.สายสมร)
   for (const rank of ACADEMIC_PREFIXES) {
     if (rank !== 'อาจารย์' && rank !== 'อ.' && rawName.startsWith(rank)) {
-      return rawName;
+      const afterRank = stripAllPrefixes(rawName.slice(rank.length).trim());
+      return afterRank ? `${rank} ${afterRank}`.trim() : rawName;
     }
   }
 
@@ -353,7 +375,7 @@ export function formatAcknowledgeDisplay(advisorName?: string | null): {
 
 /**
  * Returns the Thai display name for a given user role.
- * Strictly adheres to terminology policy: "นิสิต" (never "นักศึกษา").
+ * Strictly adheres to terminology policy: always use "นิสิต" for students.
  */
 export function getRoleLabel(role?: string | null): string {
   switch (role) {

@@ -28,7 +28,7 @@ import {
   ArrowUpDown,
   QrCode
 } from 'lucide-react';
-import { formatUserName } from '@/lib/user-utils';
+import { formatUserName, formatTeacherName } from '@/lib/user-utils';
 import { formatTermName, getAcademicTermByDate, AcademicTermInfo } from '@/lib/academicTerm';
 
 interface PracticeHoursSummaryProps {
@@ -286,7 +286,7 @@ export default function PracticeHoursSummary({
             ช่วงเวลา: r.slot ? `${r.slot.startTime} - ${r.slot.endTime}` : '-',
             ห้องปฏิบัติการ: r.slot?.room?.name || r.slot?.room?.code || '-',
             หัตถการ: r.skillTopic || '-',
-            อาจารย์ที่ปรึกษา: r.advisorName || '-',
+            อาจารย์ที่ปรึกษา: r.advisorName ? formatTeacherName(r.advisorName) : '-',
             เวลาเช็คอิน: r.checkInTime ? new Date(r.checkInTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-',
             เวลาเช็คเอาท์: r.checkOutTime ? new Date(r.checkOutTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-',
             'เวลาฝึกจริง (นาที)': r.actualMinutes || 0,
@@ -315,7 +315,7 @@ export default function PracticeHoursSummary({
   // Export Student Personal Logbook (For Students)
   const handleExportStudentLogbook = () => {
     try {
-      const studentName = currentUser?.name || 'นิสิต';
+      const studentName = formatUserName(currentUser) || currentUser?.name || 'นิสิต';
       const studentId = currentUser?.studentId || '-';
       const rows = studentBookings.map((b, idx) => {
         const sessionDate = b.slot?.date || b.createdAt;
@@ -330,7 +330,7 @@ export default function PracticeHoursSummary({
           ช่วงเวลา: b.slot ? `${b.slot.startTime} - ${b.slot.endTime}` : '-',
           ห้องปฏิบัติการ: b.slot?.room?.name || b.slot?.room?.code || '-',
           หัตถการ: b.skillTopic || '-',
-          อาจารย์ที่ปรึกษา: b.advisorName || '-',
+          อาจารย์ที่ปรึกษา: b.advisorName ? formatTeacherName(b.advisorName) : '-',
           เวลาเช็คอิน: b.checkInTime ? new Date(b.checkInTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-',
           เวลาเช็คเอาท์: b.checkOutTime ? new Date(b.checkOutTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-',
           'เวลาฝึกจริง (นาที)': b.actualMinutes || 0,
@@ -552,7 +552,7 @@ export default function PracticeHoursSummary({
                             )}
                           </td>
                           <td className="py-3.5 px-4 whitespace-nowrap text-slate-600 dark:text-slate-400">
-                            {b.advisorName || '-'}
+                            {b.advisorName ? formatTeacherName(b.advisorName) : '-'}
                           </td>
                           <td className="py-3.5 px-4 text-center whitespace-nowrap">
                             {b.status === 'COMPLETED' ? (
@@ -950,7 +950,7 @@ export default function PracticeHoursSummary({
                         </td>
                         <td className="py-2.5 px-3">
                           <span className="font-bold">{r.skillTopic || '-'}</span>
-                          {r.advisorName && <div className="text-[10px] text-slate-400">อาจารย์: {r.advisorName}</div>}
+                          {r.advisorName && <div className="text-[10px] text-slate-400">อาจารย์: {formatTeacherName(r.advisorName)}</div>}
                         </td>
                         <td className="py-2.5 px-3 text-center font-mono text-[11px] text-slate-500 whitespace-nowrap">
                           {inTime} - {outTime}

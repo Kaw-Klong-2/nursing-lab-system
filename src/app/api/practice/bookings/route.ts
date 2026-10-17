@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
 import { sendApprovalRequestEmail } from '@/lib/email';
-import { formatUserName, formatTeacherName } from '@/lib/user-utils';
+import { formatUserName, formatTeacherName, formatRequesterWithRole } from '@/lib/user-utils';
 import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
 
 export async function GET(req: Request) {
@@ -310,20 +310,21 @@ export async function POST(req: Request) {
     }
 
     // In-app & Push notifications (awaited)
+    const requesterDisplay = formatRequesterWithRole(booking.user);
     await Promise.allSettled([
       notifyRoles(
         ['OFFICER', 'ADMIN', 'APPROVER'],
         {
           templateId: 'PRACTICE_BOOKING_SUBMITTED',
           variables: {
-            studentName: booking.user?.name || 'นิสิต',
+            studentName: formatUserName(booking.user) || 'นิสิต',
             roomName: slot.room?.name || 'ห้องปฏิบัติการ',
             date: booking.slot?.date?.toISOString().slice(0, 10) || '',
             timeSlot: `${booking.slot?.startTime || ''} - ${booking.slot?.endTime || ''}`,
             bookingNumber: booking.bookingNumber,
           },
           title: 'มีคำขอจองห้องฝึกปฏิบัติการใหม่ 🏢',
-          message: `นิสิต ${booking.user?.name || ''} ยื่นคำขอจองเลขที่ ${booking.bookingNumber} (${booking.skillTopic})`,
+          message: `${requesterDisplay} ยื่นคำขอจองเลขที่ ${booking.bookingNumber} (${booking.skillTopic})`,
           type: 'APPROVAL',
           linkUrl: '/practice/bookings',
           entityType: 'PRACTICE',
@@ -336,7 +337,7 @@ export async function POST(req: Request) {
       finalAdvisorName
         ? notifyAdvisorByName(finalAdvisorName, {
             title: 'มีคำขอจองห้องฝึกปฏิบัติการรอกดรับทราบ 👩‍🏫',
-            message: `นิสิต ${booking.user?.name || ''} ยื่นคำขอจอง ${booking.bookingNumber} (${booking.skillTopic}) รออาจารย์รับทราบ`,
+            message: `${requesterDisplay} ยื่นคำขอจอง ${booking.bookingNumber} (${booking.skillTopic}) รออาจารย์รับทราบ`,
             type: 'REQUEST_SUBMITTED',
             priority: 'HIGH',
             linkUrl: '/approvals',

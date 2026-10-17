@@ -2931,7 +2931,7 @@ export default function ApprovalsPage() {
                       </span>
                       {b.approver?.name && (
                         <span className="text-slate-500 font-medium">
-                          ผู้อนุมัติ: <strong className="text-slate-700">{b.approver.name}</strong>
+                          ผู้อนุมัติ: <strong className="text-slate-700">{formatUserName(b.approver)}</strong>
                         </span>
                       )}
                     </div>
@@ -3341,7 +3341,7 @@ export default function ApprovalsPage() {
                       <div className="flex items-center gap-3">
                         {rm.approver?.name && (
                           <span className="text-slate-500 dark:text-slate-400 font-medium">
-                            ผู้อนุมัติ: <strong className="text-slate-700 dark:text-slate-200">{rm.approver.name}</strong>
+                            ผู้อนุมัติ: <strong className="text-slate-700 dark:text-slate-200">{formatUserName(rm.approver)}</strong>
                           </span>
                         )}
                         {(isAdmin || isOfficer) && (

@@ -81,7 +81,10 @@ export async function GET(req: Request) {
       }),
       prisma.stockLot.findMany({
         where: {
-          quantityRemaining: { gt: 0 },
+          OR: [
+            { quantityRemaining: { gt: 0 } },
+            { openPackRemainder: { gt: 0 } },
+          ],
           expiryDate: {
             not: null,
             lte: ninetyDaysLater,

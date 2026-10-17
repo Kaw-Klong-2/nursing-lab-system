@@ -90,8 +90,14 @@ export default function ConsumableDetailModal({
 
   // Total item values
   const totalPhysicalStock = lots.reduce((sum, l) => sum + (l.quantityRemaining || 0), 0);
-  const totalItemValue = lots.reduce((sum, l) => sum + ((l.quantityRemaining || 0) * (l.unitCost || 0)), 0);
   const ratio = Number(item.conversionRatio) > 0 ? Number(item.conversionRatio) : 1;
+  const totalItemValue = lots.reduce((sum, l) => {
+    const pSize = Number(l.packSize) > 0 ? Number(l.packSize) : ratio;
+    const openVal = pSize > 1 && (l.openPackRemainder || 0) > 0
+      ? ((l.openPackRemainder || 0) / pSize) * (l.unitCost || 0)
+      : 0;
+    return sum + ((l.quantityRemaining || 0) * (l.unitCost || 0)) + openVal;
+  }, 0);
   const imageUrl = formatImageUrl(item.imageUrl);
 
   return (

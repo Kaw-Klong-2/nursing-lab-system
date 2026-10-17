@@ -53,7 +53,10 @@ export async function GET(req: Request) {
 
         const effectiveAvailableUnits =
           kitItem.item.type === 'CONSUMABLE' && ratio > 1
-            ? currentAvailableStock * ratio + openPackRemainder
+            ? kitItem.item.stockLots.reduce((sum, lot) => {
+                const pSize = Number(lot.packSize) > 0 ? Number(lot.packSize) : ratio;
+                return sum + lot.quantityRemaining * pSize + (lot.openPackRemainder || 0);
+              }, 0)
             : currentAvailableStock;
 
         const possibleSets = Math.floor(effectiveAvailableUnits / kitItem.quantity);

@@ -72,19 +72,22 @@ export async function POST(req: Request) {
             });
 
             if (box && box.status !== 'DISPENSED') {
+              const wasInStock = box.status === 'IN_STOCK';
               await tx.stockLotBox.update({
                 where: { id: box.id },
-                data: { status: 'DISPENSED' },
+                data: { status: 'DISPENSED', depletedAt: new Date() },
               });
 
               const pSize = Number(box.lot.packSize) > 0 ? Number(box.lot.packSize) : 1;
-              const newLotQty = Math.max(0, box.lot.quantityRemaining - 1);
-              const newLotPieces = Math.max(0, (box.lot.piecesRemaining || box.lot.quantityRemaining * pSize) - pSize);
+              const newLotQty = wasInStock ? Math.max(0, box.lot.quantityRemaining - 1) : box.lot.quantityRemaining;
+              const newOpenRem = wasInStock ? (box.lot.openPackRemainder || 0) : 0;
+              const newLotPieces = Math.max(0, newLotQty * pSize + newOpenRem);
 
               await tx.stockLot.update({
                 where: { id: box.lotId },
                 data: {
                   quantityRemaining: newLotQty,
+                  openPackRemainder: newOpenRem,
                   piecesRemaining: newLotPieces,
                 },
               });
@@ -97,7 +100,7 @@ export async function POST(req: Request) {
                   itemId: box.lot.itemId,
                   lotId: box.lotId,
                   type: 'OUT_REQUISITION',
-                  quantity: 1,
+                  quantity: -1,
                   unitCost: cost,
                   totalCost: cost,
                   courseId: courseId || null,
@@ -113,6 +116,8 @@ export async function POST(req: Request) {
                   itemId: box.lot.itemId,
                   quantityRequested: 1,
                   quantityDispensed: 1,
+                  requestedUnit: item.unit || box.lot.packageUnit || 'กล่อง',
+                  isSubUnit: false,
                   unitCost: cost,
                   totalCost: cost,
                 },
@@ -158,7 +163,7 @@ export async function POST(req: Request) {
                   data: {
                     itemId: targetItemId,
                     type: 'OUT_REQUISITION',
-                    quantity: 1,
+                    quantity: -1,
                     unitCost: cost,
                     totalCost: cost,
                     courseId: courseId || null,
@@ -174,6 +179,8 @@ export async function POST(req: Request) {
                     itemId: targetItemId,
                     quantityRequested: 1,
                     quantityDispensed: 1,
+                    requestedUnit: 'ซอง',
+                    isSubUnit: false,
                     unitCost: cost,
                     totalCost: cost,
                   },
@@ -212,7 +219,7 @@ export async function POST(req: Request) {
               itemTotalCost += costThisLot;
               const pSize = Number(lot.packSize) > 0 ? Number(lot.packSize) : 1;
               const newQty = Math.max(0, lot.quantityRemaining - deduct);
-              const newPieces = Math.max(0, newQty * pSize);
+              const newPieces = Math.max(0, newQty * pSize + (lot.openPackRemainder || 0));
 
               await tx.stockLot.update({
                 where: { id: lot.id },
@@ -222,11 +229,11 @@ export async function POST(req: Request) {
                 },
               });
 
-              // อัปเดตกล่องในล็อตนี้ตามลำดับ
+              // อัปเดตกล่องในล็อตนี้ตามลำดับ (เฉพาะกล่องที่ยังไม่ถูกเปิดใช้)
               const boxesToDispense = await tx.stockLotBox.findMany({
                 where: {
                   lotId: lot.id,
-                  status: { in: ['IN_STOCK', 'IN_USE'] },
+                  status: 'IN_STOCK',
                 },
                 orderBy: { boxNumberInLot: 'asc' },
                 take: deduct,
@@ -235,7 +242,7 @@ export async function POST(req: Request) {
               if (boxesToDispense.length > 0) {
                 await tx.stockLotBox.updateMany({
                   where: { id: { in: boxesToDispense.map((b) => b.id) } },
-                  data: { status: 'DISPENSED' },
+                  data: { status: 'DISPENSED', depletedAt: new Date() },
                 });
               }
 
@@ -244,7 +251,7 @@ export async function POST(req: Request) {
                   itemId: item.id,
                   lotId: lot.id,
                   type: 'OUT_REQUISITION',
-                  quantity: deduct,
+                  quantity: -deduct,
                   unitCost: lot.unitCost,
                   totalCost: costThisLot,
                   courseId: courseId || null,
@@ -265,6 +272,8 @@ export async function POST(req: Request) {
                 itemId: item.id,
                 quantityRequested: requestedQty,
                 quantityDispensed: requestedQty,
+                requestedUnit: item.unit || 'ชิ้น',
+                isSubUnit: false,
                 unitCost: itemTotalCost / (requestedQty || 1),
                 totalCost: itemTotalCost,
               },

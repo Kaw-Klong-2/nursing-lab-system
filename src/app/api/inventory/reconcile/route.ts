@@ -6,12 +6,13 @@ import { logActivity } from '@/lib/activity-log';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { records, assetAudits, countedBy, userId, note } = body;
+    const { records, assetAudits, adjustments, countedBy, userId, note } = body;
 
     const hasRecords = Array.isArray(records) && records.length > 0;
     const hasAssetAudits = Array.isArray(assetAudits) && assetAudits.length > 0;
+    const hasAdjustments = Array.isArray(adjustments) && adjustments.length > 0;
 
-    if (!hasRecords && !hasAssetAudits) {
+    if (!hasRecords && !hasAssetAudits && !hasAdjustments) {
       return NextResponse.json({ error: 'กรุณาระบุรายการวัสดุหรือครุภัณฑ์ที่ต้องการตรวจนับ' }, { status: 400 });
     }
 
@@ -24,9 +25,75 @@ export async function POST(req: Request) {
     const creatorId = userId || adminUser?.id || null;
     const updatedItems: any[] = [];
     const updatedAssets: any[] = [];
+    const adjustedLots: any[] = [];
 
     // Process reconciliation in transaction
     await prisma.$transaction(async (tx) => {
+      // 0. Process Per-Lot Cycle Count Adjustments (from /inventory Cycle Count Modal)
+      if (hasAdjustments) {
+        for (const adj of adjustments) {
+          const { lotId, physicalCount, reason } = adj;
+          if (!lotId || typeof physicalCount !== 'number') continue;
+
+          const lot = await tx.stockLot.findUnique({
+            where: { id: lotId },
+            include: { item: true, boxes: { orderBy: { boxNumberInLot: 'asc' } } },
+          });
+          if (!lot) continue;
+
+          const newQty = Math.max(0, Math.floor(physicalCount));
+          const variance = newQty - lot.quantityRemaining;
+          if (variance === 0) continue;
+
+          const itemRatio = Number(lot.item?.conversionRatio) > 0 ? Number(lot.item?.conversionRatio) : 1;
+          const pSize = Number(lot.packSize) > 0 ? Number(lot.packSize) : itemRatio;
+          const newPieces = Math.max(0, newQty * pSize + (lot.openPackRemainder || 0));
+
+          await tx.stockLot.update({
+            where: { id: lot.id },
+            data: {
+              quantityRemaining: newQty,
+              piecesRemaining: newPieces,
+            },
+          });
+
+          // Synchronize StockLotBox if boxes exist and variance < 0
+          if (variance < 0 && lot.boxes && lot.boxes.length > 0) {
+            const boxesToDeplete = lot.boxes
+              .filter((b) => b.status === 'IN_STOCK')
+              .slice(0, Math.abs(variance));
+            if (boxesToDeplete.length > 0) {
+              await tx.stockLotBox.updateMany({
+                where: { id: { in: boxesToDeplete.map((b) => b.id) } },
+                data: { status: 'DISPENSED', depletedAt: new Date() },
+              });
+            }
+          }
+
+          await tx.stockTransaction.create({
+            data: {
+              itemId: lot.itemId,
+              lotId: lot.id,
+              type: 'ADJUSTMENT',
+              quantity: variance,
+              unitCost: lot.unitCost || 0,
+              totalCost: Math.abs(variance) * (lot.unitCost || 0),
+              createdById: creatorId,
+              note: `[ตรวจนับสต็อก Lot ${lot.lotNumber}] นับได้ ${newQty} (เดิม ${lot.quantityRemaining}, ผลต่าง ${variance > 0 ? '+' : ''}${variance}) | สาเหตุ: ${reason || 'ตรวจนับสต็อกประจำงวด'}`,
+            },
+          });
+
+          adjustedLots.push({
+            lotId: lot.id,
+            lotNumber: lot.lotNumber,
+            itemName: lot.item?.name,
+            previousCount: lot.quantityRemaining,
+            physicalCount: newQty,
+            variance,
+          });
+        }
+      }
+
       // 1. Process Equipment Asset Audits
       if (hasAssetAudits) {
         for (const a of assetAudits) {
@@ -145,16 +212,17 @@ export async function POST(req: Request) {
       userName: countedBy || adminUser?.name || undefined,
       action: 'STOCK_ADJUST',
       entityType: 'STOCK',
-      entityTitle: `ตรวจนับสต็อก (${updatedItems.length} วัสดุ / ${updatedAssets.length} ครุภัณฑ์)`,
-      details: `ปรับยอดจากการตรวจนับสต็อก: วัสดุ ${updatedItems.length} รายการ, ครุภัณฑ์ ${updatedAssets.length} รายการ${note ? ` | หมายเหตุ: ${note}` : ''}`,
+      entityTitle: `ตรวจนับสต็อก (${updatedItems.length + adjustedLots.length} วัสดุ / ${updatedAssets.length} ครุภัณฑ์)`,
+      details: `ปรับยอดจากการตรวจนับสต็อก: วัสดุ ${updatedItems.length + adjustedLots.length} รายการ, ครุภัณฑ์ ${updatedAssets.length} รายการ${note ? ` | หมายเหตุ: ${note}` : ''}`,
     });
 
     return NextResponse.json({
       success: true,
-      message: `บันทึกผลการตรวจนับสำเร็จ (กระทบยอดวัสดุ ${updatedItems.length} รายการ, ตรวจสอบครุภัณฑ์ ${updatedAssets.length} รายการ)`,
+      message: `บันทึกผลการตรวจนับสำเร็จ (กระทบยอดวัสดุ ${updatedItems.length + adjustedLots.length} รายการ, ตรวจสอบครุภัณฑ์ ${updatedAssets.length} รายการ)`,
       reconciledAt: new Date().toISOString(),
       updatedItems,
       updatedAssets,
+      adjustedLots,
     });
   } catch (error: any) {
     console.error('Reconciliation error:', error);

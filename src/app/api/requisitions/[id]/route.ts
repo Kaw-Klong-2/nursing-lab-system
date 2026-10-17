@@ -354,11 +354,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
               },
             });
 
-            // Update individual StockLotBoxes in sequential order (1..N)
+            // Update individual StockLotBoxes in sequential order (1..N) — sealed boxes only
             const availableBoxes = await prisma.stockLotBox.findMany({
               where: {
                 lotId: lot.id,
-                status: { in: ['IN_STOCK', 'IN_USE'] },
+                status: 'IN_STOCK',
               },
               orderBy: { boxNumberInLot: 'asc' },
               take: deductFromThisLot,
@@ -367,7 +367,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             if (availableBoxes.length > 0) {
               await prisma.stockLotBox.updateMany({
                 where: { id: { in: availableBoxes.map((b) => b.id) } },
-                data: { status: 'DISPENSED' },
+                data: { status: 'DISPENSED', depletedAt: new Date() },
               });
             }
 
@@ -419,84 +419,84 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           // ==========================================
           // remainingToDeduct is in sub-units (e.g. 10 or 100 or 110 pieces)
           let piecesNeeded = remainingToDeduct;
-          const wholePacksNeeded = ratio > 1 ? Math.floor(piecesNeeded / ratio) : 0;
-          let wholePacksRemainingToDeduct = wholePacksNeeded;
 
-          // Step 1 (Option A Priority): If >= ratio, prioritize dispensing whole sealed packs first!
-          if (wholePacksRemainingToDeduct > 0) {
-            for (const lot of availableLots) {
-              if (wholePacksRemainingToDeduct <= 0) break;
-              if (lot.quantityRemaining <= 0) continue;
+          // Step 1 (Option A Priority): If piecesNeeded >= lotPackSize, prioritize dispensing whole sealed packs first!
+          for (const lot of availableLots) {
+            if (piecesNeeded <= 0) break;
+            if (lot.quantityRemaining <= 0) continue;
 
-              const deductPacks = Math.min(lot.quantityRemaining, wholePacksRemainingToDeduct);
-              const costForPacks = deductPacks * lot.unitCost;
-              const newQty = lot.quantityRemaining - deductPacks;
-              const openRem = lot.openPackRemainder || 0;
-              const lotPackSize = Number(lot.packSize) > 0 ? Number(lot.packSize) : ratio;
-              const newPieces = Math.max(0, (newQty * lotPackSize) + openRem);
+            const lotPackSize = Number(lot.packSize) > 0 ? Number(lot.packSize) : ratio;
+            if (lotPackSize <= 1 || piecesNeeded < lotPackSize) continue;
 
-              lot.quantityRemaining = newQty;
+            const maxWholePacksForNeeded = Math.floor(piecesNeeded / lotPackSize);
+            const deductPacks = Math.min(lot.quantityRemaining, maxWholePacksForNeeded);
+            if (deductPacks <= 0) continue;
 
-              await prisma.stockLot.update({
-                where: { id: lot.id },
-                data: {
-                  quantityRemaining: newQty,
-                  piecesRemaining: newPieces,
-                },
+            const costForPacks = deductPacks * lot.unitCost;
+            const newQty = lot.quantityRemaining - deductPacks;
+            const openRem = lot.openPackRemainder || 0;
+            const newPieces = Math.max(0, (newQty * lotPackSize) + openRem);
+
+            lot.quantityRemaining = newQty;
+
+            await prisma.stockLot.update({
+              where: { id: lot.id },
+              data: {
+                quantityRemaining: newQty,
+                piecesRemaining: newPieces,
+              },
+            });
+
+            // Update StockLotBox (sealed boxes only)
+            const availableBoxes = await prisma.stockLotBox.findMany({
+              where: { lotId: lot.id, status: 'IN_STOCK' },
+              orderBy: { boxNumberInLot: 'asc' },
+              take: deductPacks,
+            });
+            if (availableBoxes.length > 0) {
+              await prisma.stockLotBox.updateMany({
+                where: { id: { in: availableBoxes.map((b) => b.id) } },
+                data: { status: 'DISPENSED', depletedAt: new Date() },
               });
-
-              // Update StockLotBox
-              const availableBoxes = await prisma.stockLotBox.findMany({
-                where: { lotId: lot.id, status: { in: ['IN_STOCK', 'IN_USE'] } },
-                orderBy: { boxNumberInLot: 'asc' },
-                take: deductPacks,
-              });
-              if (availableBoxes.length > 0) {
-                await prisma.stockLotBox.updateMany({
-                  where: { id: { in: availableBoxes.map((b) => b.id) } },
-                  data: { status: 'DISPENSED' },
-                });
-              }
-
-              // Repack items
-              const availablePacks = await prisma.repackPackItem.findMany({
-                where: { repackRecord: { subLotNumber: lot.lotNumber }, status: 'AVAILABLE' },
-                orderBy: { packNumber: 'asc' },
-                take: deductPacks,
-              });
-              if (availablePacks.length > 0) {
-                await prisma.repackPackItem.updateMany({
-                  where: { id: { in: availablePacks.map((p) => p.id) } },
-                  data: {
-                    status: 'DISPENSED',
-                    dispensedTo: requisition.user ? `${requisition.user.name} (${requisition.requestNumber})` : requisition.requestNumber,
-                    dispensedAt: new Date(),
-                  },
-                });
-              }
-
-              // Stock transaction
-              await prisma.stockTransaction.create({
-                data: {
-                  itemId: reqItem.itemId,
-                  lotId: lot.id,
-                  type: 'OUT_REQUISITION',
-                  quantity: -deductPacks,
-                  unitCost: lot.unitCost,
-                  totalCost: costForPacks,
-                  courseId: requisition.courseId,
-                  referenceNumber: requisition.requestNumber,
-                  createdById: userId,
-                  note: dispenseNote
-                    ? `จ่ายแพ็คเต็ม (Option A: เบิกย่อย ${deductPacks * lotPackSize} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'}) ตามคำขอ ${requisition.requestNumber} | ${String(dispenseNote).trim()}`
-                    : `จ่ายแพ็คเต็ม (Option A: เบิกย่อย ${deductPacks * lotPackSize} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'}) ตามคำขอ ${requisition.requestNumber}`,
-                },
-              });
-
-              itemTotalCost += costForPacks;
-              wholePacksRemainingToDeduct -= deductPacks;
-              piecesNeeded -= deductPacks * lotPackSize;
             }
+
+            // Repack items
+            const availablePacks = await prisma.repackPackItem.findMany({
+              where: { repackRecord: { subLotNumber: lot.lotNumber }, status: 'AVAILABLE' },
+              orderBy: { packNumber: 'asc' },
+              take: deductPacks,
+            });
+            if (availablePacks.length > 0) {
+              await prisma.repackPackItem.updateMany({
+                where: { id: { in: availablePacks.map((p) => p.id) } },
+                data: {
+                  status: 'DISPENSED',
+                  dispensedTo: requisition.user ? `${requisition.user.name} (${requisition.requestNumber})` : requisition.requestNumber,
+                  dispensedAt: new Date(),
+                },
+              });
+            }
+
+            // Stock transaction
+            await prisma.stockTransaction.create({
+              data: {
+                itemId: reqItem.itemId,
+                lotId: lot.id,
+                type: 'OUT_REQUISITION',
+                quantity: -deductPacks,
+                unitCost: lot.unitCost,
+                totalCost: costForPacks,
+                courseId: requisition.courseId,
+                referenceNumber: requisition.requestNumber,
+                createdById: userId,
+                note: dispenseNote
+                  ? `จ่ายแพ็คเต็ม (Option A: เบิกย่อย ${deductPacks * lotPackSize} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'}) ตามคำขอ ${requisition.requestNumber} | ${String(dispenseNote).trim()}`
+                  : `จ่ายแพ็คเต็ม (Option A: เบิกย่อย ${deductPacks * lotPackSize} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'}) ตามคำขอ ${requisition.requestNumber}`,
+              },
+            });
+
+            itemTotalCost += costForPacks;
+            piecesNeeded -= deductPacks * lotPackSize;
           }
 
           // Step 2: Fulfill remaining fractional pieces (or any remaining pieces if whole packs ran out)
@@ -524,12 +524,26 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                 },
               });
 
+              // If the opened pack is now completely empty, mark the IN_USE box as DISPENSED
+              if (newOpen === 0) {
+                const inUseBox = await prisma.stockLotBox.findFirst({
+                  where: { lotId: lot.id, status: 'IN_USE' },
+                  orderBy: { boxNumberInLot: 'asc' },
+                });
+                if (inUseBox) {
+                  await prisma.stockLotBox.update({
+                    where: { id: inUseBox.id },
+                    data: { status: 'DISPENSED', depletedAt: new Date() },
+                  });
+                }
+              }
+
               await prisma.stockTransaction.create({
                 data: {
                   itemId: reqItem.itemId,
                   lotId: lot.id,
                   type: 'OUT_REQUISITION',
-                  quantity: -(takeFromOpen / lotPackSize),
+                  quantity: 0,
                   unitCost: lot.unitCost,
                   totalCost: costForLoose,
                   courseId: requisition.courseId,
@@ -545,7 +559,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
               piecesNeeded -= takeFromOpen;
             }
 
-            // Step 2B: If still need pieces, open 1 new whole pack and keep leftover in openPackRemainder
+            // Step 2B: If still need pieces, open new whole pack(s) and keep leftover in openPackRemainder
             if (piecesNeeded > 0) {
               for (const lot of availableLots) {
                 if (piecesNeeded <= 0) break;
@@ -574,16 +588,28 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                   },
                 });
 
-                // Update StockLotBox for opened pack
+                // Update StockLotBox for opened pack(s)
                 const availableBoxes = await prisma.stockLotBox.findMany({
-                  where: { lotId: lot.id, status: { in: ['IN_STOCK'] } },
+                  where: { lotId: lot.id, status: 'IN_STOCK' },
                   orderBy: { boxNumberInLot: 'asc' },
                   take: packsToOpen,
                 });
                 if (availableBoxes.length > 0) {
-                  await prisma.stockLotBox.updateMany({
-                    where: { id: { in: availableBoxes.map((b) => b.id) } },
-                    data: { status: leftoverPieces > 0 ? 'IN_USE' : 'DISPENSED' },
+                  if (packsToOpen > 1) {
+                    const fullyUsedBoxes = availableBoxes.slice(0, -1);
+                    await prisma.stockLotBox.updateMany({
+                      where: { id: { in: fullyUsedBoxes.map((b) => b.id) } },
+                      data: { status: 'DISPENSED', openedAt: new Date(), depletedAt: new Date() },
+                    });
+                  }
+                  const lastBox = availableBoxes[availableBoxes.length - 1];
+                  await prisma.stockLotBox.update({
+                    where: { id: lastBox.id },
+                    data: {
+                      status: leftoverPieces > 0 ? 'IN_USE' : 'DISPENSED',
+                      openedAt: new Date(),
+                      ...(leftoverPieces === 0 ? { depletedAt: new Date() } : {}),
+                    },
                   });
                 }
 
@@ -595,7 +621,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                     itemId: reqItem.itemId,
                     lotId: lot.id,
                     type: 'OUT_REQUISITION',
-                    quantity: -(piecesToDeduct / lotPackSize),
+                    quantity: Math.round(-(piecesToDeduct / lotPackSize)),
                     unitCost: lot.unitCost,
                     totalCost: costForDispensedPieces,
                     courseId: requisition.courseId,

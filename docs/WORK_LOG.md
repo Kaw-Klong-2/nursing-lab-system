@@ -17,6 +17,27 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-17] ตรวจสอบความถูกต้องของฐานข้อมูลและซ่อมแซมตรรกะการตัดสต็อก/กระทบยอด (Database Integrity & Stock Reconciliation Audit)
+- **หมวดหมู่**: Database Integrity / StockLot & StockLotBox / Requisition Dispense / POS Checkout / Cycle Count Reconcile / Reports & Valuation
+- **สิ่งที่ดำเนินการ**:
+  1. **ซ่อมแซมข้อมูลจริงในฐานข้อมูล (Live PostgreSQL Repair)**:
+     - เติมค่า `requestedUnit` ให้ `RequisitionItem` ย้อนหลังทั้งหมด 18 รายการ (จาก 5 ใบเบิกเก่า) ที่เดิมเป็น `null` ให้ตรงตามหน่วยเบิกจริง 100%
+     - ซ่อมแซมสถานะกล่อง `StockLotBox` (`CON-GU-001-2569-B002`) ของ `CON-GU-001` (`Lot 111`) จาก `IN_STOCK` เป็น `IN_USE` เพื่อให้จำนวนกล่องที่ยังไม่เปิด (`8 กล่อง`) และกล่องที่กำลังเปิดใช้ (`1 กล่อง`, เหลือเศษ 10 แผ่น) ตรงกับ `quantityRemaining` และ `openPackRemainder` 100%
+     - ปรับชื่ออาจารย์ในตาราง `Course` (`01980221` -> `"อาจารย์ นิภาดา ธารีเพียร"`) และ `RoomBooking` (`ROOM-25691013-001` -> `"อาจารย์ จิฬาวัจน์ เลิกนอก"`) ให้ตรงกับตาราง `User`
+  2. **แก้ไขตรรกะการตัดสต็อกและเปลี่ยนสถานะกล่อง (`src/app/api/requisitions/[id]/route.ts`)**:
+     - เมื่อเบิกแบบแพ็คเต็ม (Whole Pack) ให้ดึงกล่องจากสถานะ `'IN_STOCK'` เท่านั้น ป้องกันการดึงกล่องที่เปิดใช้ค้างอยู่ (`'IN_USE'`) ไปตัดเป็นแพ็คเต็ม
+     - คำนวณจำนวนแพ็คเต็มในโหมดเบิกหน่วยย่อยตาม `lot.packSize` ของแต่ละล็อตจริง (รองรับกรณีล็อตนำเข้ามี `packSize` ต่างจาก `item.conversionRatio` เช่น `CS-EBD-2IN`, `CS-EBD-4IN`, `CS-EBD-6IN`, `CS-FEED-BAG`)
+     - เมื่อหยิบเศษจากแพ็คที่เปิดค้างอยู่ (`openPackRemainder`) จนหมดพอดี (`newOpen === 0`) ให้อัปเดตกล่อง `'IN_USE'` เป็น `'DISPENSED'` อัตโนมัติ และหากเปิดแพ็คใหม่หลายแพ็คพร้อมกัน ให้ตั้งค่าแพ็คสุดท้ายที่มีเศษเหลือเป็น `'IN_USE'` และแพ็คที่ใช้หมดเต็มจำนวนเป็น `'DISPENSED'`
+  3. **ซ่อมแซมระบบตรวจนับสต็อกรายล็อต (`src/app/api/inventory/reconcile/route.ts`) และจุดบริการด่วน POS (`src/app/api/pos/checkout/route.ts`)**:
+     - เพิ่มการรองรับ `adjustments` (การตรวจนับสต็อกรายล็อตจากหน้าต่าง Cycle Count ใน `/inventory`) พร้อมปรับสถานะ `StockLotBox` และคำนวณ `piecesRemaining` รวม `openPackRemainder` อัตโนมัติ
+     - แก้ไข `/api/pos/checkout` ให้คงค่า `openPackRemainder` เมื่อตัดแพ็คเต็ม, บันทึก `StockTransaction.quantity` เป็นค่าติดลบ (`-deduct`) ตามมาตรฐานเดียวกับใบเบิกปกติ, และระบุ `requestedUnit` ลง `RequisitionItem` ทุกครั้ง
+  4. **ปรับปรุงการคำนวณมูลค่าคงคลังและล็อตที่เปิดใช้แล้ว (`src/app/api/reports/route.ts`, `src/app/api/dashboard/route.ts`, `src/components/inventory/ConsumableDetailModal.tsx`, `src/app/api/kits/route.ts`)**:
+     - รวมมูลค่าตามสัดส่วนของเศษในแพ็คที่เปิดใช้ (`(openPackRemainder / packSize) * unitCost`) และแสดงล็อตที่ `quantityRemaining === 0` แต่ยังมี `openPackRemainder > 0` (เช่น `CS-FEED-BAG` Lot 9999 ที่เหลือ 90 ใบ) ในรายงานและระบบแจ้งเตือนวันหมดอายุ
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/app/api/requisitions/[id]/route.ts`, `src/app/api/inventory/reconcile/route.ts`, `src/app/api/pos/checkout/route.ts`
+  - `src/app/api/reports/route.ts`, `src/app/api/dashboard/route.ts`, `src/app/api/kits/route.ts`, `src/components/inventory/ConsumableDetailModal.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ✅ ผ่าน 100% (Terminology Violations: 0, UTF-8 Mojibake: 0, TypeScript: 0 errors, DB Anomalies: 0)
+
 ### [2026-10-17] ตรวจสอบและจัดระเบียบมาตรฐานคำนำหน้าชื่อ (Prefix & Academic Title Standardization) ทั้งระบบ
 - **หมวดหมู่**: Database (`User`, `RequisitionRequest`) / User Utils / Schedule / Approvals / Borrow & Requisition / POS / Notifications & API
 - **สิ่งที่ดำเนินการ**:

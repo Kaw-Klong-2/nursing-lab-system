@@ -97,23 +97,25 @@ export default function CalendarHoverCard({
   }
 
   const isMobileViewport = window.innerWidth < 640;
-  // Ultra-compact dimensions: expand slightly when pinned or on mobile
-  const CARD_WIDTH = isPinned
-    ? Math.min(isMobileViewport ? 340 : 320, window.innerWidth - 20)
+  // Ultra-compact dimensions on desktop; full bottom-sheet on mobile
+  const CARD_WIDTH = isMobileViewport
+    ? window.innerWidth
+    : isPinned
+    ? 320
     : 280;
   const visibleItems = isPinned ? items : items.slice(0, 3);
   const remainingCount = items.length - visibleItems.length;
 
   // Approximate height: Header (36px) + Each item (~54px) + Spacing
   const estimatedHeight = Math.min(
-    320,
+    360,
     44 + visibleItems.length * 54 + (remainingCount > 0 || isPinned ? 28 : 0)
   );
 
   const windowW = window.innerWidth;
   const windowH = window.innerHeight;
 
-  // Horizontal calculation: center over anchor, clamp to viewport edges
+  // Desktop positioning: clamp near anchor cell
   let left = anchorRect.left + anchorRect.width / 2 - CARD_WIDTH / 2;
   if (left + CARD_WIDTH > windowW - 12) {
     left = windowW - CARD_WIDTH - 12;
@@ -122,7 +124,6 @@ export default function CalendarHoverCard({
     left = 12;
   }
 
-  // Vertical calculation: prefer placing directly below, flip above if near bottom
   let top = anchorRect.bottom + 6;
   const willOverflowBottom = top + estimatedHeight > windowH - 12;
   const canFitTop = anchorRect.top - estimatedHeight - 6 > 12;
@@ -133,7 +134,149 @@ export default function CalendarHoverCard({
     top = Math.max(12, windowH - estimatedHeight - 12);
   }
 
-  const content = (
+  const content = isMobileViewport ? (
+    // Mobile Bottom Sheet Presentation (< 640px)
+    <div className="fixed inset-0 z-[9999] flex flex-col justify-end bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div
+        data-calendar-popover="true"
+        className="w-full max-h-[80vh] overflow-y-auto bg-white dark:bg-slate-900 rounded-t-3xl border-t border-slate-200 dark:border-slate-800 p-4 space-y-3 shadow-2xl animate-in slide-in-from-bottom duration-250 pb-8"
+      >
+        <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mb-1"></div>
+
+        {/* Mobile Header */}
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2 font-black text-sm text-slate-900 dark:text-slate-100">
+            <Calendar className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+            <span>กิจกรรมวันที่ {formatThaiDateHeader(dateStr)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200/50 dark:border-teal-800/50">
+              {items.length > 0 ? `${items.length} รายการ` : 'ว่าง'}
+            </span>
+            {onClose && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClose();
+                }}
+                className="p-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800"
+                title="ปิดหน้าต่าง"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Items List */}
+        {items.length === 0 ? (
+          <div className="py-6 text-center text-xs text-slate-400 font-medium">
+            {emptyMessage}
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+            {items.map((item, idx) => {
+              const statusUpper = (item.status || '').toUpperCase();
+              const isApproved = statusUpper === 'APPROVED';
+              const isPending = statusUpper === 'PENDING';
+              const isRejected = statusUpper === 'REJECTED';
+              const isInProgress = statusUpper === 'IN_PROGRESS';
+              const isScheduled = statusUpper === 'SCHEDULED';
+              const isCompleted = statusUpper === 'COMPLETED';
+              const isOverdue = statusUpper === 'OVERDUE';
+
+              return (
+                <div
+                  key={item.id || idx}
+                  onClick={(e) => {
+                    if (onSelectItem) {
+                      e.stopPropagation();
+                      onSelectItem(item);
+                    }
+                  }}
+                  className="bg-slate-50 dark:bg-slate-800/70 rounded-2xl p-3 border border-slate-200/70 dark:border-slate-700/70 space-y-1.5 cursor-pointer active:scale-[0.99] transition"
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5 font-mono font-bold text-teal-800 dark:text-teal-300">
+                      {item.roomCode && (
+                        <span className="bg-teal-100 dark:bg-teal-900/80 px-2 py-0.5 rounded text-[10px] font-black border border-teal-200 dark:border-teal-800">
+                          {item.roomCode}
+                        </span>
+                      )}
+                      {item.startTime && item.endTime && (
+                        <span className="text-slate-700 dark:text-slate-300 text-xs font-semibold">
+                          {item.startTime} - {item.endTime} น.
+                        </span>
+                      )}
+                    </div>
+
+                    {isApproved && (
+                      <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-200">
+                        ● อนุมัติ
+                      </span>
+                    )}
+                    {isPending && (
+                      <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 px-2 py-0.5 rounded-full border border-amber-200 animate-pulse">
+                        ● รออนุมัติ
+                      </span>
+                    )}
+                    {isRejected && (
+                      <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950 px-2 py-0.5 rounded-full border border-rose-200">
+                        ● ไม่อนุมัติ
+                      </span>
+                    )}
+                    {isInProgress && (
+                      <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 px-2 py-0.5 rounded-full border border-amber-200">
+                        ● กำลังตรวจ
+                      </span>
+                    )}
+                    {isScheduled && (
+                      <span className="text-[10px] font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded-full border border-blue-200">
+                        ● นัดหมาย
+                      </span>
+                    )}
+                    {isCompleted && (
+                      <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-200">
+                        ● เสร็จสิ้น
+                      </span>
+                    )}
+                    {isOverdue && (
+                      <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950 px-2 py-0.5 rounded-full border border-rose-200 animate-pulse">
+                        ● เกินกำหนด
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-snug">
+                    {item.title}
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                    <span className="truncate">
+                      {item.userName ? item.userName : (item.courseCode ? `[${item.courseCode}] ${item.courseName || ''}` : item.roomName || '')}
+                    </span>
+                    {Boolean(item.participants && item.participants > 0) && (
+                      <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0 ml-1">
+                        {item.participants} คน
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {onSelectItem && items.length > 0 && (
+          <div className="text-center text-[11px] font-bold text-teal-600 dark:text-teal-400 pt-1">
+            แตะที่รายการเพื่อดูรายละเอียดกิจกรรมแบบเต็ม
+          </div>
+        )}
+      </div>
+    </div>
+  ) : (
+    // Desktop Floating Popover (>= 640px)
     <div
       data-calendar-popover="true"
       style={{

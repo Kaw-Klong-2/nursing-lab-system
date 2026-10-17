@@ -27,12 +27,20 @@ export async function GET(req: Request) {
     let expiringSoonLotsCount = 0;
 
     const consumableRows = consumableItems.map((item) => {
+      const ratio = Number(item.conversionRatio) > 0 ? Number(item.conversionRatio) : 1;
       const remainingQty = item.stockLots.reduce((sum, lot) => sum + lot.quantityRemaining, 0);
+      const totalPieces = item.stockLots.reduce((sum, lot) => {
+        const pSize = Number(lot.packSize) > 0 ? Number(lot.packSize) : ratio;
+        return sum + (lot.quantityRemaining * pSize) + (lot.openPackRemainder || 0);
+      }, 0);
       const totalCost = item.stockLots.reduce(
         (sum, lot) => sum + lot.quantityRemaining * lot.unitCost,
         0
       );
-      const isLowStock = remainingQty <= item.minStockAlert;
+      const isAlertInSubUnit = ratio > 1 && item.minStockAlert >= ratio;
+      const isLowStock = isAlertInSubUnit
+        ? totalPieces <= item.minStockAlert
+        : remainingQty <= item.minStockAlert;
       if (isLowStock) lowStockConsumableCount++;
 
       totalConsumableStock += remainingQty;
@@ -57,9 +65,13 @@ export async function GET(req: Request) {
         name: item.name,
         category: item.category?.name || 'ทั่วไป',
         unit: item.unit,
+        usageUnit: item.usageUnit,
+        conversionRatio: ratio,
+        minAlertUnit: isAlertInSubUnit ? (item.usageUnit || item.unit) : item.unit,
         location: item.location || 'ห้องปฏิบัติการพยาบาล',
         minStockAlert: item.minStockAlert,
         currentStock: remainingQty,
+        totalPieces,
         totalValuation: totalCost,
         isLowStock,
         lots: activeLots,
@@ -182,15 +194,19 @@ export async function GET(req: Request) {
         const avgLotCost = lots.length > 0
           ? lots.reduce((acc, l) => acc + l.unitCost, 0) / lots.length
           : 0;
-        const subtotal = pki.quantity * avgLotCost;
+        const ratio = pki.item.type === 'CONSUMABLE' && Number(pki.item.conversionRatio) > 1
+          ? Number(pki.item.conversionRatio)
+          : 1;
+        const effectiveUnitCost = ratio > 1 ? avgLotCost / ratio : avgLotCost;
+        const subtotal = pki.quantity * effectiveUnitCost;
         unitCost += subtotal;
         return {
           itemId: pki.item.id,
           itemName: pki.item.name,
           itemCode: pki.item.code,
           quantity: pki.quantity,
-          unit: pki.item.unit,
-          avgUnitCost: avgLotCost,
+          unit: ratio > 1 ? (pki.item.usageUnit || pki.item.unit) : pki.item.unit,
+          avgUnitCost: effectiveUnitCost,
           subtotal,
         };
       });

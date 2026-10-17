@@ -609,10 +609,10 @@ export default function PracticeKitsPage() {
 
                             <div className="flex items-center gap-2 text-right">
                               <span className="text-slate-700 dark:text-slate-200 font-bold font-mono text-[11px]">
-                                x {c.quantityPerKit} {c.unit}
+                                x {c.quantityPerKit} {(c.conversionRatio || 1) > 1 ? (c.usageUnit || c.unit) : c.unit}
                               </span>
                               <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
-                                ({c.currentStock})
+                                ({c.currentStock} {c.unit})
                               </span>
                             </div>
                           </div>
@@ -936,8 +936,12 @@ export default function PracticeKitsPage() {
 
                 <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
                   {prepareTargetKit.components?.map((c: any) => {
+                    const ratio = Number(c.conversionRatio) > 1 ? Number(c.conversionRatio) : 1;
                     const totalNeeded = c.quantityPerKit * (Number(prepareForm.setsToPrepare) || 0);
-                    const isEnough = c.currentStock >= totalNeeded;
+                    const effectiveAvailable = c.type === 'CONSUMABLE' && ratio > 1
+                      ? (c.currentStock * ratio) + (c.openPackRemainder || 0)
+                      : c.currentStock;
+                    const isEnough = effectiveAvailable >= totalNeeded;
                     const isRepack = c.code?.startsWith('RP-') || c.name?.includes('ซองละ');
 
                     return (
@@ -964,11 +968,11 @@ export default function PracticeKitsPage() {
 
                         <div className="flex items-center gap-2.5 font-mono text-[10px]">
                           <span className="text-slate-700 font-bold">
-                            ใช้ {totalNeeded} {c.unit}
+                            ใช้ {totalNeeded} {ratio > 1 ? (c.usageUnit || c.unit) : c.unit}
                           </span>
                           {c.openPackRemainder > 0 && (
                             <span className="text-purple-700 font-bold bg-purple-50 px-1 py-0.5 rounded border border-purple-200">
-                              เศษเปิด {c.openPackRemainder}
+                              เศษเปิด {c.openPackRemainder} {c.usageUnit || c.unit}
                             </span>
                           )}
                           <span
@@ -1330,10 +1334,10 @@ export default function PracticeKitsPage() {
                             )}
                           </td>
                           <td className="p-2 border border-slate-300 text-center font-mono">
-                            {item.qtyPerSet} {item.unit}
+                            {item.qtyPerSet} {item.isRepackWithPieces ? (item.usageUnit || item.unit) : item.unit}
                           </td>
                           <td className="p-2 border border-slate-300 text-center font-mono">
-                            <div className="font-bold text-slate-900">{item.totalQtyRequested || item.totalQtyDispensed} {item.unit}</div>
+                            <div className="font-bold text-slate-900">{item.totalQtyRequested || item.totalQtyDispensed} {item.isRepackWithPieces ? (item.usageUnit || item.unit) : item.unit}</div>
                             {item.piecesTakenFromOpenPack > 0 && (
                               <div className="text-[10px] text-purple-700 font-sans font-medium">
                                 • จากเศษซองเปิด {item.piecesTakenFromOpenPack} {item.usageUnit}

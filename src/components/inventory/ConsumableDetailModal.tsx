@@ -175,7 +175,7 @@ export default function ConsumableDetailModal({
                 </div>
                 {item.isLowStock && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 mt-1">
-                    <AlertTriangle className="w-3 h-3" /> ต่ำกว่าเกณฑ์ ({item.minStockAlert} {item.unit})
+                    <AlertTriangle className="w-3 h-3" /> ต่ำกว่าเกณฑ์ ({item.minStockAlert} {ratio > 1 && item.minStockAlert >= ratio ? (item.usageUnit || item.unit) : item.unit})
                   </span>
                 )}
               </div>

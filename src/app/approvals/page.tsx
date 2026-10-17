@@ -681,7 +681,7 @@ export default function ApprovalsPage() {
 
   const mapRequisitionToUnified = (r: any): UnifiedApprovalItem => {
     const dateNeeded = r.dateNeeded || r.createdAt;
-    const itemsList = (r.items || []).map((it: any) => `${it.item?.name || 'วัสดุ'} (${it.quantityRequested || 1} ${it.item?.unit || 'ชิ้น'})`);
+    const itemsList = (r.items || []).map((it: any) => `${it.item?.name || 'วัสดุ'} (${it.quantityRequested || 1} ${it.requestedUnit || (it.isSubUnit ? it.item?.usageUnit : it.item?.unit) || it.item?.unit || 'ชิ้น'})`);
     const summary = itemsList.length > 0 ? itemsList.join(', ') : 'วัสดุตามรายการ';
     const dateNeededDate = new Date(dateNeeded).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
 
@@ -1226,7 +1226,7 @@ export default function ApprovalsPage() {
                 {(raw.requisitionRequest.items || []).map((it: any) => (
                   <div key={it.id} className="p-2 rounded-lg bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 flex items-center justify-between text-xs font-semibold">
                     <span>• {it.item?.name}</span>
-                    <span className="text-indigo-900 dark:text-indigo-300">{it.quantityRequested} {it.item?.unit || 'ชิ้น'} (~฿{it.totalCost?.toFixed(2)})</span>
+                    <span className="text-indigo-900 dark:text-indigo-300">{it.quantityRequested} {it.requestedUnit || (it.isSubUnit ? it.item?.usageUnit : it.item?.unit) || it.item?.unit || 'ชิ้น'} (~฿{it.totalCost?.toFixed(2)})</span>
                   </div>
                 ))}
               </div>
@@ -1258,7 +1258,7 @@ export default function ApprovalsPage() {
               {(raw.items || []).map((it: any) => (
                 <div key={it.id} className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-between text-xs font-semibold">
                   <span>• {it.item?.name}</span>
-                  <span className="text-slate-900 dark:text-slate-100">{it.quantityRequested} {it.item?.unit} (~฿{it.totalCost?.toFixed(2)})</span>
+                  <span className="text-slate-900 dark:text-slate-100">{it.quantityRequested} {it.requestedUnit || (it.isSubUnit ? it.item?.usageUnit : it.item?.unit) || it.item?.unit} (~฿{it.totalCost?.toFixed(2)})</span>
                 </div>
               ))}
             </div>
@@ -2351,7 +2351,7 @@ export default function ApprovalsPage() {
                           {req.requisitionRequest.items?.map((rIt: any) => (
                             <div key={rIt.id} className="text-xs font-semibold text-teal-900 flex items-center justify-between">
                               <span>• {rIt.item?.name}</span>
-                              <span className="font-bold text-teal-700">{rIt.quantityRequested} {rIt.item?.unit}</span>
+                              <span className="font-bold text-teal-700">{rIt.quantityRequested} {rIt.requestedUnit || (rIt.isSubUnit ? rIt.item?.usageUnit : rIt.item?.unit) || rIt.item?.unit}</span>
                             </div>
                           ))}
                         </div>
@@ -2599,7 +2599,7 @@ export default function ApprovalsPage() {
                           >
                             <span>• {it.item?.name}</span>
                             <span>
-                              {it.quantityRequested} {it.item?.unit} (~฿{it.totalCost.toFixed(2)})
+                              {it.quantityRequested} {it.requestedUnit || (it.isSubUnit ? it.item?.usageUnit : it.item?.unit) || it.item?.unit} (~฿{it.totalCost.toFixed(2)})
                             </span>
                           </div>
                         ))}

@@ -53,7 +53,7 @@ export async function GET(req: Request) {
           include: {
             user: { select: { id: true, name: true, prefix: true } },
             items: {
-              include: { item: { select: { id: true, code: true, name: true, unit: true } } },
+              include: { item: { select: { id: true, code: true, name: true, unit: true, usageUnit: true, conversionRatio: true } } },
             },
           },
           orderBy: { createdAt: 'desc' },
@@ -64,7 +64,8 @@ export async function GET(req: Request) {
             itemId: true,
             quantity: true,
             totalCost: true,
-            item: { select: { code: true, name: true, unit: true } },
+            note: true,
+            item: { select: { code: true, name: true, unit: true, usageUnit: true, conversionRatio: true } },
           },
         },
       },
@@ -72,38 +73,87 @@ export async function GET(req: Request) {
     });
 
     const detailedCourses = courses.map((course) => {
-      // Aggregate items used
-      const itemUsageMap: Record<
+      // Aggregate items used (supporting both whole-pack and sub-unit dispenses)
+      const itemUsageAccumulator: Record<
         string,
         {
           code: string;
           name: string;
-          unit: string;
-          totalQuantity: number;
+          mainUnit: string;
+          usageUnit: string;
+          ratio: number;
+          wholePacks: number;
+          subPieces: number;
+          subUnitLabel: string;
           totalCost: number;
         }
       > = {};
 
       course.stockTransactions.forEach((tx) => {
         const key = tx.itemId;
-        const qty = Math.abs(tx.quantity);
         const cost = Math.abs(tx.totalCost);
+        const ratio = Number(tx.item.conversionRatio) > 1 ? Number(tx.item.conversionRatio) : 1;
 
-        if (!itemUsageMap[key]) {
-          itemUsageMap[key] = {
+        if (!itemUsageAccumulator[key]) {
+          itemUsageAccumulator[key] = {
             code: tx.item.code,
             name: tx.item.name,
-            unit: tx.item.unit,
-            totalQuantity: 0,
+            mainUnit: tx.item.unit,
+            usageUnit: tx.item.usageUnit || tx.item.unit,
+            ratio,
+            wholePacks: 0,
+            subPieces: 0,
+            subUnitLabel: tx.item.usageUnit || tx.item.unit,
             totalCost: 0,
           };
         }
 
-        itemUsageMap[key].totalQuantity += qty;
-        itemUsageMap[key].totalCost += cost;
+        const noteStr = tx.note || '';
+        const looseMatch = noteStr.match(/(?:จ่ายจากเศษแพ็คเปิด|→\s*จ่าย|ดึงจากเศษซองเปิด)\s+(\d+)\s+([^\s(|)]+)/);
+        const optAMatch = noteStr.match(/เบิกย่อย\s+(\d+)\s+([^\s)|]+)/);
+
+        if (looseMatch) {
+          itemUsageAccumulator[key].subPieces += Number(looseMatch[1]) || 0;
+          itemUsageAccumulator[key].subUnitLabel = looseMatch[2] || itemUsageAccumulator[key].usageUnit;
+        } else if (optAMatch) {
+          itemUsageAccumulator[key].subPieces += Number(optAMatch[1]) || 0;
+          itemUsageAccumulator[key].subUnitLabel = optAMatch[2] || itemUsageAccumulator[key].usageUnit;
+        } else {
+          itemUsageAccumulator[key].wholePacks += Math.abs(tx.quantity);
+        }
+
+        itemUsageAccumulator[key].totalCost += cost;
       });
 
-      const itemsUsed = Object.values(itemUsageMap).sort((a, b) => b.totalCost - a.totalCost);
+      const itemsUsed = Object.values(itemUsageAccumulator)
+        .map((acc) => {
+          if (acc.subPieces > 0 && acc.wholePacks === 0) {
+            return {
+              code: acc.code,
+              name: acc.name,
+              unit: acc.subUnitLabel,
+              totalQuantity: acc.subPieces,
+              totalCost: acc.totalCost,
+            };
+          }
+          if (acc.subPieces > 0 && acc.wholePacks > 0 && acc.ratio > 1) {
+            return {
+              code: acc.code,
+              name: acc.name,
+              unit: acc.subUnitLabel,
+              totalQuantity: acc.wholePacks * acc.ratio + acc.subPieces,
+              totalCost: acc.totalCost,
+            };
+          }
+          return {
+            code: acc.code,
+            name: acc.name,
+            unit: acc.mainUnit,
+            totalQuantity: acc.wholePacks,
+            totalCost: acc.totalCost,
+          };
+        })
+        .sort((a, b) => b.totalCost - a.totalCost);
       const totalExpense = itemsUsed.reduce((sum, it) => sum + it.totalCost, 0);
       const remainingBudget = course.allocatedBudget - totalExpense;
 

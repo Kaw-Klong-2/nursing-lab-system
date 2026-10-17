@@ -1582,7 +1582,7 @@ export default function SchedulePage() {
                 <Package className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
                 <span>{it.item?.name}</span>
                 <span className="text-slate-500 dark:text-slate-400 font-normal">
-                  ({it.quantity || it.quantityRequested} {it.item?.unit})
+                  ({it.quantity || it.quantityRequested} {it.requestedUnit || (it.isSubUnit ? it.item?.usageUnit : it.item?.unit) || it.item?.unit})
                 </span>
                 {it.asset && (
                   <span className="text-[10px] font-mono text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 px-1 py-0.2 rounded border border-teal-200 dark:border-teal-800">

@@ -138,15 +138,21 @@ export async function GET(req: Request) {
 
     const lowStockItems = consumables
       .map((item) => {
+        const ratio = Number(item.conversionRatio) > 0 ? Number(item.conversionRatio) : 1;
         const currentStock = item.stockLots.reduce((sum, lot) => sum + lot.quantityRemaining, 0);
+        const totalPieces = item.stockLots.reduce((sum, lot) => {
+          const pSize = Number(lot.packSize) > 0 ? Number(lot.packSize) : ratio;
+          return sum + (lot.quantityRemaining * pSize) + (lot.openPackRemainder || 0);
+        }, 0);
+        const isAlertInSubUnit = ratio > 1 && item.minStockAlert >= ratio;
         return {
           id: item.id,
           code: item.code,
           name: item.name,
-          unit: item.unit,
+          unit: isAlertInSubUnit ? (item.usageUnit || item.unit) : item.unit,
           minStockAlert: item.minStockAlert,
-          currentStock,
-          isLowStock: currentStock <= item.minStockAlert,
+          currentStock: isAlertInSubUnit ? totalPieces : currentStock,
+          isLowStock: isAlertInSubUnit ? totalPieces <= item.minStockAlert : currentStock <= item.minStockAlert,
         };
       })
       .filter((item) => item.isLowStock);

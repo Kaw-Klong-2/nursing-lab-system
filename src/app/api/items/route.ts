@@ -248,7 +248,7 @@ export async function GET(req: Request) {
         }
 
         const isLowStock =
-          item.type === 'CONSUMABLE' && ratio > 1 && item.minStockAlert > ratio
+          item.type === 'CONSUMABLE' && ratio > 1 && item.minStockAlert >= ratio
             ? totalPiecesRemaining <= item.minStockAlert
             : availableStock <= item.minStockAlert;
 
@@ -366,7 +366,7 @@ export async function GET(req: Request) {
       }
 
       const isLowStock =
-        item.type === 'CONSUMABLE' && ratio > 1 && item.minStockAlert > ratio
+        item.type === 'CONSUMABLE' && ratio > 1 && item.minStockAlert >= ratio
           ? totalPiecesRemaining <= item.minStockAlert
           : availableStock <= item.minStockAlert;
 

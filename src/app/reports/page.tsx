@@ -884,7 +884,7 @@ export default function ReportsPage() {
                         </td>
 
                         <td className="py-3 px-4 text-center font-mono text-slate-500 dark:text-slate-400">
-                          {item.minStockAlert} {item.unit}
+                          {item.minStockAlert} {item.minAlertUnit || item.unit}
                         </td>
 
                         <td className="py-3 px-4 text-right font-medium text-slate-900 dark:text-slate-100">

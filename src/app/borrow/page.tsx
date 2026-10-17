@@ -939,7 +939,7 @@ export default function BorrowPage() {
                             )}
                           </span>
                           <span className="font-bold text-teal-700">
-                            จำนวน {rItem.quantityRequested} {rItem.requestedUnit || rItem.item?.unit}
+                            จำนวน {rItem.quantityRequested} {rItem.requestedUnit || (rItem.isSubUnit ? rItem.item?.usageUnit : rItem.item?.unit) || rItem.item?.unit}
                           </span>
                         </div>
                       ))}
@@ -1032,7 +1032,7 @@ export default function BorrowPage() {
                               quantity: it.quantityRequested,
                               allowed: true,
                               isSubUnit: it.isSubUnit,
-                              requestedUnit: it.requestedUnit || it.item?.unit || matchCons?.unit || 'หน่วย',
+                              requestedUnit: it.requestedUnit || (it.isSubUnit ? (it.item?.usageUnit || matchCons?.usageUnit) : (it.item?.unit || matchCons?.unit)) || it.item?.unit || matchCons?.unit || 'หน่วย',
                               conversionRatio: it.item?.conversionRatio || matchCons?.conversionRatio || 1,
                               usageUnit: it.item?.usageUnit || matchCons?.usageUnit,
                               currentStock: it.item?.currentStock ?? matchCons?.currentStock ?? 0,

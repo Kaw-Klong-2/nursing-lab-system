@@ -35,6 +35,7 @@ export async function GET(req: Request) {
       let maxAvailable = Infinity;
 
       const components = kit.items.map((kitItem) => {
+        const ratio = Number(kitItem.item.conversionRatio) > 1 ? Number(kitItem.item.conversionRatio) : 1;
         let currentAvailableStock = 0;
         if (kitItem.item.type === 'EQUIPMENT') {
           currentAvailableStock = kitItem.item.assets.length;
@@ -45,15 +46,20 @@ export async function GET(req: Request) {
           );
         }
 
-        const possibleSets = Math.floor(currentAvailableStock / kitItem.quantity);
-        if (possibleSets < maxAvailable) {
-          maxAvailable = possibleSets;
-        }
-
         const openPackRemainder =
           kitItem.item.type === 'CONSUMABLE'
             ? kitItem.item.stockLots.reduce((sum, lot) => sum + (lot.openPackRemainder || 0), 0)
             : 0;
+
+        const effectiveAvailableUnits =
+          kitItem.item.type === 'CONSUMABLE' && ratio > 1
+            ? currentAvailableStock * ratio + openPackRemainder
+            : currentAvailableStock;
+
+        const possibleSets = Math.floor(effectiveAvailableUnits / kitItem.quantity);
+        if (possibleSets < maxAvailable) {
+          maxAvailable = possibleSets;
+        }
 
         return {
           id: kitItem.id,
@@ -63,12 +69,12 @@ export async function GET(req: Request) {
           type: kitItem.item.type,
           unit: kitItem.item.unit,
           usageUnit: kitItem.item.usageUnit,
-          conversionRatio: kitItem.item.conversionRatio || 1,
+          conversionRatio: ratio,
           category: kitItem.item.category.name,
           quantityPerKit: kitItem.quantity,
           currentStock: currentAvailableStock,
           openPackRemainder,
-          isSufficient: currentAvailableStock >= kitItem.quantity || openPackRemainder >= kitItem.quantity,
+          isSufficient: effectiveAvailableUnits >= kitItem.quantity,
         };
       });
 

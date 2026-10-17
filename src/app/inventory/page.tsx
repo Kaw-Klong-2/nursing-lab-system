@@ -1740,7 +1740,7 @@ export default function InventoryPage() {
                               )}
                               {item.isLowStock && (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 font-bold text-[10px] border border-rose-200 dark:border-rose-900/60 mt-0.5">
-                                  <AlertTriangle className="w-2.5 h-2.5" /> ต่ำกว่าเกณฑ์ ({item.minStockAlert} {item.conversionRatio > 1 && item.minStockAlert > item.conversionRatio ? (item.usageUnit || item.unit) : item.unit})
+                                  <AlertTriangle className="w-2.5 h-2.5" /> ต่ำกว่าเกณฑ์ ({item.minStockAlert} {item.conversionRatio > 1 && item.minStockAlert >= item.conversionRatio ? (item.usageUnit || item.unit) : item.unit})
                                 </span>
                               )}
                             </div>

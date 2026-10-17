@@ -456,7 +456,19 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-right">
                     <div className="text-xs font-bold text-slate-900 dark:text-white">
-                      {tx.quantity > 0 ? `+${tx.quantity}` : tx.quantity} {tx.item?.unit}
+                      {(() => {
+                        if (tx.type !== 'IN' && tx.note) {
+                          const subMatch = tx.note.match(/(?:จ่ายจากเศษแพ็คเปิด|→\s*จ่าย|ดึงจากเศษซองเปิด)\s+(\d+)\s+([^\s(|)]+)/);
+                          if (subMatch) {
+                            return `-${subMatch[1]} ${subMatch[2]}`;
+                          }
+                          const optAMatch = tx.note.match(/เบิกย่อย\s+(\d+)\s+([^\s)|]+)/);
+                          if (optAMatch) {
+                            return `-${optAMatch[1]} ${optAMatch[2]}`;
+                          }
+                        }
+                        return `${tx.quantity > 0 ? `+${tx.quantity}` : tx.quantity} ${tx.item?.unit}`;
+                      })()}
                     </div>
                     <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
                       ฿{Math.abs(tx.totalCost).toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท

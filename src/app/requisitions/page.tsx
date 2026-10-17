@@ -463,7 +463,7 @@ export default function RequisitionsPage() {
             ชื่อวัสดุสิ้นเปลือง: it.item?.name || 'ไม่ระบุชื่อ',
             หมวดหมู่: it.item?.category || '-',
             จำนวนที่ขอเบิก: qty,
-            หน่วยนับ: it.requestedUnit || it.item?.unit || 'หน่วย',
+            หน่วยนับ: it.requestedUnit || (it.isSubUnit ? it.item?.usageUnit : it.item?.unit) || it.item?.unit || 'หน่วย',
             ราคาต่อหน่วย_บาท: unitCost,
             มูลค่ารวม_บาท: totalItemCost,
             สถานะคำขอ:
@@ -719,11 +719,11 @@ export default function RequisitionsPage() {
                           )}
                         </td>
                         <td className="py-2 text-center text-slate-600">
-                          {it.quantityRequested} {it.requestedUnit || it.item?.unit}
+                          {it.quantityRequested} {it.requestedUnit || (it.isSubUnit ? it.item?.usageUnit : it.item?.unit) || it.item?.unit}
                         </td>
                         <td className="py-2 text-center font-bold text-emerald-700">
                           {it.quantityDispensed > 0
-                            ? `${it.quantityDispensed} ${it.requestedUnit || it.item?.unit}`
+                            ? `${it.quantityDispensed} ${it.requestedUnit || (it.isSubUnit ? it.item?.usageUnit : it.item?.unit) || it.item?.unit}`
                             : '-'}
                         </td>
                         <td className="py-2 text-right text-slate-500">
@@ -820,7 +820,7 @@ export default function RequisitionsPage() {
                             quantity: it.quantityRequested,
                             allowed: true,
                             isSubUnit: it.isSubUnit,
-                            requestedUnit: it.requestedUnit || it.item?.unit || 'หน่วย',
+                            requestedUnit: it.requestedUnit || (it.isSubUnit ? (it.item?.usageUnit ?? matchC?.usageUnit) : it.item?.unit) || it.item?.unit || 'หน่วย',
                             conversionRatio: it.item?.conversionRatio ?? matchC?.conversionRatio ?? 1,
                             usageUnit: it.item?.usageUnit ?? matchC?.usageUnit,
                             currentStock: it.item?.currentStock ?? matchC?.currentStock ?? 0,

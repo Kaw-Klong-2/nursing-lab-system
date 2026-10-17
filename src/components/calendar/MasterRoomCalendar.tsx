@@ -660,23 +660,23 @@ export default function MasterRoomCalendar({
       )}
 
       {/* 2. CONTROLS, VIEW SWITCHER & FILTERS BAR */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 p-3.5 sm:p-5 shadow-sm space-y-3.5 sm:space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
           {/* Left: Date / Month Navigator */}
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
             {viewMode === 'TIMELINE' ? (
-              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={handlePrevDay}
-                  className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-xl text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                  className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-xl text-slate-700 dark:text-slate-300 transition cursor-pointer shrink-0"
                   title="วันก่อนหน้า"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
 
-                <div className="px-3 py-0.5 text-center min-w-[210px]">
-                  <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100 block">
+                <div className="px-2 sm:px-3 py-0.5 text-center min-w-0 sm:min-w-[210px] flex-1">
+                  <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100 block truncate">
                     {formatThaiDisplayDate(selectedDate)}
                   </span>
                   <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold">
@@ -687,25 +687,25 @@ export default function MasterRoomCalendar({
                 <button
                   type="button"
                   onClick={handleNextDay}
-                  className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-xl text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                  className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-xl text-slate-700 dark:text-slate-300 transition cursor-pointer shrink-0"
                   title="วันถัดไป"
                 >
                   <ChevronRight className="w-5 h-5" />
                 </button>
               </div>
             ) : (
-              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))}
-                  className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-xl text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                  className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-xl text-slate-700 dark:text-slate-300 transition cursor-pointer shrink-0"
                   title="เดือนก่อนหน้า"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
 
-                <div className="px-4 py-0.5 text-center min-w-[170px]">
-                  <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100 block">
+                <div className="px-2 sm:px-4 py-0.5 text-center min-w-0 sm:min-w-[170px] flex-1">
+                  <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100 block truncate">
                     {currentMonth.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })}
                   </span>
                   <span className="text-[10px] text-slate-500 dark:text-slate-400">
@@ -716,7 +716,7 @@ export default function MasterRoomCalendar({
                 <button
                   type="button"
                   onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))}
-                  className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-xl text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                  className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-xl text-slate-700 dark:text-slate-300 transition cursor-pointer shrink-0"
                   title="เดือนถัดไป"
                 >
                   <ChevronRight className="w-5 h-5" />
@@ -724,79 +724,84 @@ export default function MasterRoomCalendar({
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={handleToday}
-              className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-2xl text-xs font-bold transition cursor-pointer border border-slate-200 dark:border-slate-700"
-            >
-              วันนี้
-            </button>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={handleToday}
+                className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-2xl text-xs font-bold transition cursor-pointer border border-slate-200 dark:border-slate-700 shrink-0"
+              >
+                วันนี้
+              </button>
 
-            {/* Quick Date Picker */}
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => {
-                if (e.target.value) {
-                  setSelectedDate(e.target.value);
-                  const d = new Date(e.target.value);
-                  if (d.getMonth() !== currentMonth.getMonth() || d.getFullYear() !== currentMonth.getFullYear()) {
-                    setCurrentMonth(new Date(d.getFullYear(), d.getMonth(), 1));
+              {/* Quick Date Picker */}
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSelectedDate(e.target.value);
+                    const d = new Date(e.target.value);
+                    if (d.getMonth() !== currentMonth.getMonth() || d.getFullYear() !== currentMonth.getFullYear()) {
+                      setCurrentMonth(new Date(d.getFullYear(), d.getMonth(), 1));
+                    }
                   }
-                }
-              }}
-              className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-teal-500/20"
-            />
+                }}
+                className="flex-1 sm:flex-initial bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-teal-500/20"
+              />
+            </div>
           </div>
 
           {/* Right: 3 Master View Switcher Buttons */}
-          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs font-bold">
+          <div className="grid grid-cols-3 sm:flex items-center bg-slate-100 dark:bg-slate-800 p-1 sm:p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 text-[11px] sm:text-xs font-bold w-full lg:w-auto">
             <button
               type="button"
               onClick={() => setViewMode('TIMELINE')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition cursor-pointer ${
+              className={`flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3.5 py-2 rounded-xl transition cursor-pointer ${
                 viewMode === 'TIMELINE'
                   ? 'bg-teal-600 text-white shadow-md shadow-teal-600/30 font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:white'
               }`}
             >
-              <Clock className="w-4 h-4" />
-              <span>📊 ไทม์ไลน์รายวัน (Timeline)</span>
+              <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+              <span className="sm:hidden truncate">ไทม์ไลน์</span>
+              <span className="hidden sm:inline">📊 ไทม์ไลน์รายวัน (Timeline)</span>
             </button>
 
             <button
               type="button"
               onClick={() => setViewMode('MONTH')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition cursor-pointer ${
+              className={`flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3.5 py-2 rounded-xl transition cursor-pointer ${
                 viewMode === 'MONTH'
                   ? 'bg-teal-600 text-white shadow-md shadow-teal-600/30 font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:white'
               }`}
             >
-              <Calendar className="w-4 h-4" />
-              <span>📅 ปฏิทินรายเดือน</span>
+              <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+              <span className="sm:hidden truncate">รายเดือน</span>
+              <span className="hidden sm:inline">📅 ปฏิทินรายเดือน</span>
             </button>
 
             <button
               type="button"
               onClick={() => setViewMode('LIST')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition cursor-pointer ${
+              className={`flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3.5 py-2 rounded-xl transition cursor-pointer ${
                 viewMode === 'LIST'
                   ? 'bg-teal-600 text-white shadow-md shadow-teal-600/30 font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:white'
               }`}
             >
-              <LayoutGrid className="w-4 h-4" />
-              <span>📋 ตารางรายการ</span>
+              <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+              <span className="sm:hidden truncate">รายการ</span>
+              <span className="hidden sm:inline">📋 ตารางรายการ</span>
             </button>
           </div>
         </div>
 
         {/* Filters & Category Pills */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
           {/* Category Chips */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-            <span className="text-slate-400 font-bold mr-1 flex items-center gap-1">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+            <span className="text-slate-400 font-bold mr-1 flex items-center gap-1 shrink-0">
               <SlidersHorizontal className="w-3.5 h-3.5" /> หมวดห้อง:
             </span>
             {[
@@ -809,7 +814,7 @@ export default function MasterRoomCalendar({
                 key={cat.id}
                 type="button"
                 onClick={() => setSelectedCategory(cat.id as RoomCategory)}
-                className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer whitespace-nowrap border ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-bold transition cursor-pointer whitespace-nowrap border shrink-0 ${
                   selectedCategory === cat.id
                     ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
                     : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750'
@@ -822,21 +827,21 @@ export default function MasterRoomCalendar({
           </div>
 
           {/* Activity Color Legend */}
-          <div className="flex items-center gap-3 text-[11px] text-slate-600 dark:text-slate-400 flex-wrap">
+          <div className="flex items-center gap-2.5 sm:gap-3 text-[10px] sm:text-[11px] text-slate-600 dark:text-slate-400 flex-wrap">
             <span className="flex items-center gap-1 font-medium">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span> การสอนบรรยาย/แล็บ
+              <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-blue-500"></span> การสอนบรรยาย/แล็บ
             </span>
             <span className="flex items-center gap-1 font-medium">
-              <span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span> สอบประเมิน OSCE
+              <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-purple-500"></span> สอบประเมิน OSCE
             </span>
             <span className="flex items-center gap-1 font-medium">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> รอบซ้อมทักษะนิสิต
+              <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-emerald-500"></span> รอบซ้อมทักษะนิสิต
             </span>
             <span className="flex items-center gap-1 font-medium">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> อบรม/กิจกรรม
+              <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-amber-500"></span> อบรม/กิจกรรม
             </span>
             <span className="flex items-center gap-1 font-medium">
-              <span className="w-2.5 h-2.5 rounded-full bg-slate-500"></span> อื่นๆ
+              <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-slate-500"></span> อื่นๆ
             </span>
           </div>
         </div>
@@ -846,19 +851,19 @@ export default function MasterRoomCalendar({
       {/* VIEW 1: DAILY TIMELINE GRID (THE MASTER GANTT VIEW)             */}
       {/* ============================================================== */}
       {viewMode === 'TIMELINE' && (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-          <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-850/60">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+          <div className="p-3.5 sm:p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 bg-slate-50/70 dark:bg-slate-850/60">
+            <div className="flex items-center gap-2 min-w-0">
+              <Clock className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
                 ตารางการใช้ห้องประจำวัน: {formatThaiDisplayDate(selectedDate)}
               </h3>
-              <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-2.5 py-0.5 rounded-full font-bold border border-emerald-200 dark:border-emerald-800">
+              <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-2 sm:px-2.5 py-0.5 rounded-full font-bold border border-emerald-200 dark:border-emerald-800 shrink-0">
                 {dailyActivities.length} กิจกรรม
               </span>
             </div>
 
-            <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">
+            <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline shrink-0">
               ช่วงเวลา 08:00 – 18:00 น. (คลิกที่กิจกรรมเพื่อดูรายละเอียด หรือคลิกช่องว่างเพื่อจอง)
             </span>
           </div>
@@ -995,7 +1000,7 @@ export default function MasterRoomCalendar({
       {/* VIEW 2: MONTHLY MASTER CALENDAR GRID                            */}
       {/* ============================================================== */}
       {viewMode === 'MONTH' && (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm space-y-4 p-5">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm space-y-3 sm:space-y-4 p-2.5 sm:p-5">
           {loading ? (
             <div className="py-24 flex items-center justify-center">
               <LoadingSpinner
@@ -1005,168 +1010,198 @@ export default function MasterRoomCalendar({
             </div>
           ) : (
             <>
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-            <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80 text-center text-xs font-black text-slate-700 dark:text-slate-300 py-2.5">
-              <div className="text-rose-500">อา.</div>
-              <div>จ.</div>
-              <div>อ.</div>
-              <div>พ.</div>
-              <div>พฤ.</div>
-              <div>ศ.</div>
-              <div className="text-teal-600">ส.</div>
-            </div>
+              <div className="rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80 text-center text-[11px] sm:text-xs font-black text-slate-700 dark:text-slate-300 py-2 sm:py-2.5">
+                  <div className="text-rose-500">อา.</div>
+                  <div>จ.</div>
+                  <div>อ.</div>
+                  <div>พ.</div>
+                  <div>พฤ.</div>
+                  <div>ศ.</div>
+                  <div className="text-teal-600">ส.</div>
+                </div>
 
-            <div className="grid grid-cols-7 divide-x divide-y divide-slate-100 dark:divide-slate-800">
-              {calendarCells.map((cell) => {
-                const dayActivities = filteredActivities.filter((act) => act.dateStr === cell.dateStr);
-                const isSelected = selectedDate === cell.dateStr;
+                <div className="grid grid-cols-7 divide-x divide-y divide-slate-100 dark:divide-slate-800">
+                  {calendarCells.map((cell) => {
+                    const dayActivities = filteredActivities.filter((act) => act.dateStr === cell.dateStr);
+                    const isSelected = selectedDate === cell.dateStr;
 
-                return (
-                  <div
-                    key={cell.dateStr}
-                    data-calendar-cell="true"
-                    onClick={(e) => handleDayCellClick(e, cell.dateStr, dayActivities)}
-                    onPointerEnter={(e) => handleDayPointerEnter(e, cell.dateStr, dayActivities)}
-                    onPointerLeave={handleDayPointerLeave}
-                    className={`min-h-[105px] p-2 transition cursor-pointer flex flex-col justify-between ${
-                      !cell.isCurrentMonth
-                        ? 'bg-slate-50/40 dark:bg-slate-900/30 opacity-40'
-                        : isSelected
-                        ? 'bg-teal-50/80 dark:bg-teal-950/40 ring-2 ring-teal-500 z-10'
-                        : cell.isToday
-                        ? 'bg-amber-50/40 dark:bg-amber-950/20 hover:bg-amber-100/40'
-                        : 'bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-850'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span
-                        className={`text-xs font-bold rounded-lg w-6 h-6 flex items-center justify-center ${
-                          cell.isToday
-                            ? 'bg-teal-600 text-white font-black shadow-sm'
+                    return (
+                      <div
+                        key={cell.dateStr}
+                        data-calendar-cell="true"
+                        onClick={(e) => handleDayCellClick(e, cell.dateStr, dayActivities)}
+                        onPointerEnter={(e) => handleDayPointerEnter(e, cell.dateStr, dayActivities)}
+                        onPointerLeave={handleDayPointerLeave}
+                        className={`min-h-[64px] sm:min-h-[105px] p-1 sm:p-2 transition cursor-pointer flex flex-col justify-between overflow-hidden ${
+                          !cell.isCurrentMonth
+                            ? 'bg-slate-50/40 dark:bg-slate-900/30 opacity-40'
                             : isSelected
-                            ? 'bg-teal-100 dark:bg-teal-900 text-teal-900 dark:text-teal-100 font-black'
-                            : 'text-slate-700 dark:text-slate-300'
+                            ? 'bg-teal-50/80 dark:bg-teal-950/40 ring-2 ring-inset ring-teal-500 z-10'
+                            : cell.isToday
+                            ? 'bg-amber-50/40 dark:bg-amber-950/20 hover:bg-amber-100/40'
+                            : 'bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-850'
                         }`}
                       >
-                        {cell.dayNumber}
-                      </span>
-
-                      {dayActivities.length > 0 && (
-                        <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950 px-1.5 py-0.2 rounded-full">
-                          {dayActivities.length} กิจกรรม
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="space-y-1 my-1">
-                      {dayActivities.slice(0, 2).map((act) => {
-                        const style = getActivityStyle(act.activityType, act.status);
-                        return (
-                          <div
-                            key={act.id}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedDate(cell.dateStr);
-                              setHoverPopover(null);
-                              setActiveActivityModal(act);
-                            }}
-                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded truncate hover:opacity-90 transition ${style.bg}`}
-                            title="คลิกเพื่อดูรายละเอียดกิจกรรม"
+                        <div className="flex items-center justify-between gap-0.5">
+                          <span
+                            className={`text-[11px] sm:text-xs font-bold rounded-md sm:rounded-lg w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center shrink-0 ${
+                              cell.isToday
+                                ? 'bg-teal-600 text-white font-black shadow-sm'
+                                : isSelected
+                                ? 'bg-teal-100 dark:bg-teal-900 text-teal-900 dark:text-teal-100 font-black'
+                                : 'text-slate-700 dark:text-slate-300'
+                            }`}
                           >
-                            {act.roomCode}: {act.title}
-                          </div>
-                        );
-                      })}
-                      {dayActivities.length > 2 && (
-                        <div className="text-[9px] font-bold text-slate-500 pl-1">
-                          +{dayActivities.length - 2} กิจกรรมเพิ่มเติม
+                            {cell.dayNumber}
+                          </span>
+
+                          {dayActivities.length > 0 && (
+                            <>
+                              {/* Compact numeric count pill on mobile */}
+                              <span className="sm:hidden text-[9px] font-black text-teal-700 dark:text-teal-300 bg-teal-100/90 dark:bg-teal-950 px-1 py-0.2 rounded-full leading-none">
+                                {dayActivities.length}
+                              </span>
+                              {/* Full badge on desktop */}
+                              <span className="hidden sm:inline text-[10px] font-bold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950 px-1.5 py-0.2 rounded-full">
+                                {dayActivities.length} กิจกรรม
+                              </span>
+                            </>
+                          )}
                         </div>
-                      )}
-                    </div>
 
-                    <div className="h-1">
-                      {isSelected && <div className="w-full h-1 bg-teal-500 rounded-full"></div>}
-                    </div>
+                        {/* Mobile View: Crisp colored room chips / dots */}
+                        {dayActivities.length > 0 && (
+                          <div className="sm:hidden flex flex-col gap-0.5 my-0.5 min-w-0">
+                            {dayActivities.slice(0, 2).map((act) => {
+                              const style = getActivityStyle(act.activityType, act.status);
+                              return (
+                                <div
+                                  key={act.id}
+                                  className={`text-[8px] font-bold px-1 py-0.2 rounded truncate leading-tight ${style.bg}`}
+                                >
+                                  {act.roomCode}
+                                </div>
+                              );
+                            })}
+                            {dayActivities.length > 2 && (
+                              <div className="text-[8px] font-black text-teal-600 dark:text-teal-400 text-center leading-none">
+                                +{dayActivities.length - 2}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Desktop View: Full activity badges */}
+                        <div className="hidden sm:block space-y-1 my-1 min-w-0">
+                          {dayActivities.slice(0, 2).map((act) => {
+                            const style = getActivityStyle(act.activityType, act.status);
+                            return (
+                              <div
+                                key={act.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedDate(cell.dateStr);
+                                  setHoverPopover(null);
+                                  setActiveActivityModal(act);
+                                }}
+                                className={`text-[9px] font-bold px-1.5 py-0.5 rounded truncate hover:opacity-90 transition ${style.bg}`}
+                                title="คลิกเพื่อดูรายละเอียดกิจกรรม"
+                              >
+                                {act.roomCode}: {act.title}
+                              </div>
+                            );
+                          })}
+                          {dayActivities.length > 2 && (
+                            <div className="text-[9px] font-bold text-slate-500 pl-1">
+                              +{dayActivities.length - 2} กิจกรรมเพิ่มเติม
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="h-0.5 sm:h-1">
+                          {isSelected && <div className="w-full h-0.5 sm:h-1 bg-teal-500 rounded-full"></div>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Floating Calendar Hover / Click Popover */}
+                {hoverPopover && (
+                  <CalendarHoverCard
+                    isOpen={hoverPopover.isOpen}
+                    isPinned={hoverPopover.isPinned}
+                    anchorRect={hoverPopover.anchorRect}
+                    dateStr={hoverPopover.dateStr}
+                    items={hoverPopover.items}
+                    onClose={() => setHoverPopover(null)}
+                    onSelectItem={(item) => {
+                      const found = activities.find((a) => a.id === item.id);
+                      if (found) {
+                        setHoverPopover(null);
+                        setActiveActivityModal(found);
+                      }
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Bottom Day Detail Panel */}
+              <div className="bg-slate-50/80 dark:bg-slate-850/60 p-3.5 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5 sm:gap-2">
+                      <Calendar className="w-4 h-4 text-teal-600 shrink-0" />
+                      <span className="truncate">กิจกรรมวันที่: {formatThaiDisplayDate(selectedDate)}</span>
+                    </h4>
+                    <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
+                      พบ {dailyActivities.length} กิจกรรมในวันนี้
+                    </p>
                   </div>
-                );
-              })}
-            </div>
 
-            {/* Floating Calendar Hover / Click Popover */}
-            {hoverPopover && (
-              <CalendarHoverCard
-                isOpen={hoverPopover.isOpen}
-                isPinned={hoverPopover.isPinned}
-                anchorRect={hoverPopover.anchorRect}
-                dateStr={hoverPopover.dateStr}
-                items={hoverPopover.items}
-                onClose={() => setHoverPopover(null)}
-                onSelectItem={(item) => {
-                  const found = activities.find((a) => a.id === item.id);
-                  if (found) {
-                    setHoverPopover(null);
-                    setActiveActivityModal(found);
-                  }
-                }}
-              />
-            )}
-          </div>
-
-          {/* Bottom Day Detail Panel */}
-          <div className="bg-slate-50/80 dark:bg-slate-850/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="text-sm font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-teal-600" />
-                  <span>กิจกรรมวันที่: {formatThaiDisplayDate(selectedDate)}</span>
-                </h4>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  พบ {dailyActivities.length} กิจกรรมในวันนี้
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setViewMode('TIMELINE')}
-                className="px-3.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
-              >
-                <span>เปิดดูไทม์ไลน์วันนี้นี้ ➔</span>
-              </button>
-            </div>
-
-            {dailyActivities.length === 0 ? (
-              <div className="p-6 text-center text-slate-400 text-xs">
-                ไม่มีกิจกรรมการใช้ห้องในวันนี้ ทุกห้องเปิดว่างพร้อมรับการจอง
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                {dailyActivities.map((act) => (
-                  <div
-                    key={act.id}
-                    onClick={() => setActiveActivityModal(act)}
-                    className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer hover:border-teal-500 transition space-y-1.5"
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('TIMELINE')}
+                    className="w-full sm:w-auto justify-center px-3.5 py-2 sm:py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded">
-                        {act.roomCode} ({act.roomName})
-                      </span>
-                      <span className="text-[10px] font-mono text-slate-500 font-bold">
-                        {act.startTime} - {act.endTime} น.
-                      </span>
-                    </div>
-                    <h5 className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
-                      {act.title}
-                    </h5>
-                    <div className="text-[11px] text-slate-500 flex items-center justify-between">
-                      <span>{act.userOrAdvisorName}</span>
-                      <span>{act.attendeesCount} คน</span>
-                    </div>
+                    <span>เปิดดูไทม์ไลน์วันนี้ ➔</span>
+                  </button>
+                </div>
+
+                {dailyActivities.length === 0 ? (
+                  <div className="p-6 text-center text-slate-400 text-xs">
+                    ไม่มีกิจกรรมการใช้ห้องในวันนี้ ทุกห้องเปิดว่างพร้อมรับการจอง
                   </div>
-                ))}
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    {dailyActivities.map((act) => (
+                      <div
+                        key={act.id}
+                        onClick={() => setActiveActivityModal(act)}
+                        className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer hover:border-teal-500 transition space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-[10px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950 px-2 py-0.5 rounded truncate">
+                            {act.roomCode} ({act.roomName})
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-500 font-bold shrink-0">
+                            {act.startTime} - {act.endTime} น.
+                          </span>
+                        </div>
+                        <h5 className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                          {act.title}
+                        </h5>
+                        <div className="text-[11px] text-slate-500 flex items-center justify-between gap-2">
+                          <span className="truncate">{act.userOrAdvisorName}</span>
+                          <span className="shrink-0">{act.attendeesCount} คน</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-          </>
+            </>
           )}
         </div>
       )}

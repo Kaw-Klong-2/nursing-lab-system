@@ -17,17 +17,20 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
-### [2026-10-17] แก้ไขปัญหา Popup ปฏิทินเด้งแล้วหายไปเมื่อคลิกหรือแตะวันที่ในปฏิทินรายเดือน (Click-to-Pin Calendar Popover Fix)
-- **หมวดหมู่**: UI & Calendar UX (`MasterRoomCalendar`, `CalendarHoverCard`, `Schedule`, `Rooms`)
+### [2026-10-18] ปรับปรุงหน้าตาปฏิทินภาพรวมบนมือถือ (Mobile Calendar UI Polish) และแก้ไขปัญหา Popup ปฏิทินเด้งหายเมื่อแตะบนจอมือถือ
+- **หมวดหมู่**: Mobile Calendar UX (`MasterRoomCalendar`, `CalendarHoverCard`, `DashboardPage`, `Schedule`, `Rooms`)
 - **สิ่งที่ดำเนินการ**:
-  1. **วิเคราะห์สาเหตุหลัก (Root Causes)**:
-     - เดิมช่องวันที่ในปฏิทินทั้ง 3 หน้า (`MasterRoomCalendar.tsx`, `src/app/schedule/page.tsx`, `src/app/rooms/page.tsx`) ผูก `onMouseEnter` เพื่อเปิด `hoverPopover` แต่ผูก `onClick` ให้สั่ง `setHoverPopover(null)` ทันที รวมถึงผูก `window.addEventListener('scroll', () => setHoverPopover(null))` ทำให้เมื่อคลิกหรือแตะบนหน้าจอสัมผัส เหตุการณ์ `mouseenter` จะแสดง Popup เพียงเสี้ยววินาทีแล้วถูก `click` หรือการขยับความสูงของหน้าจอ (`scroll`) สั่งปิดทันที
-  2. **เพิ่มระบบปักหมุดค้างเมื่อคลิก (`isPinned` Click-to-Pin Mode)**:
-     - **`src/components/calendar/CalendarHoverCard.tsx`**: รองรับพร็อพ `isPinned`, `onClose`, และ `onSelectItem` เมื่ออยู่ในสถานะปักหมุด (`isPinned: true`) การ์ดจะเปิดรับการคลิก (`pointer-events-auto`), แสดงปุ่มกากบาทปิด (`✕`), แสดงรายการทั้งหมดพร้อมแถบเลื่อน (`overflow-y-auto`), รองรับการคลิกที่รายการใน Popup เพื่อเปิดหน้าต่างรายละเอียดกิจกรรมทันที, และปิดอัตโนมัติเมื่อคลิกพื้นที่ว่างด้านนอกหรือกดปุ่ม `Escape`
-     - **`src/components/calendar/MasterRoomCalendar.tsx`, `src/app/schedule/page.tsx`, `src/app/rooms/page.tsx`**: เปลี่ยนจาก `onMouseEnter`/`onMouseLeave` เป็น `onPointerEnter`/`onPointerLeave` ที่ทำงานเฉพาะเมาส์ (`e.pointerType === 'mouse'`) เมื่อยังไม่ได้ปักหมุด และเมื่อคลิก/แตะช่องวันที่ที่มีรายการ จะปักหมุด Popup ค้างไว้ (`isPinned: true`) โดยไม่ถูกสั่งปิดจากการเลื่อนหน้าจอหรือขยับเมาส์ออก
+  1. **แก้ไขปัญหาแตะวันในมือถือแล้ว Popup เด้งหายทันที (`CalendarHoverCard` & Calendar Cells)**:
+     - ป้องกันเหตุการณ์ `mouseenter` + `click` / `scroll` สั่งปิดตัวเองเมื่อแตะบนหน้าจอมือถือ ด้วยการปักหมุดค้างไว้ (`isPinned: true`)
+     - เพิ่มตัวกรองกัน Ghost Touch/Click (`Date.now() - openedAt < 250ms`) และ `data-calendar-cell="true"` ครบทุกหน้าปฏิทิน (`MasterRoomCalendar.tsx`, `src/app/schedule/page.tsx`, `src/app/rooms/page.tsx`) เพื่อไม่ให้เหตุการณ์สัมผัสจังหวะเดียวกับการเปิดสั่งปิด Popup เอง
+  2. **ปรับโฉมหน้าตาปฏิทินภาพรวม (`MasterRoomCalendar.tsx` & `src/app/page.tsx`) ให้เรียบร้อยสวยงามบนมือถือ**:
+     - **หน้าภาพรวม (`src/app/page.tsx`)**: ปรับปุ่มลัดด้านบนเป็น Grid 2 คอลัมน์ขนาดพอดีจอ และปรับแท็บสลับหน้าหลัก (`ปฏิทินการใช้ห้อง` | `สถิติคลัง & งบประมาณ` / `รายการยืมของฉัน`) เป็น 2 คอลัมน์ข้อความกระชับบนมือถือ
+     - **แถบควบคุมและปุ่มสลับมุมมอง (`MasterRoomCalendar.tsx`)**: จัดเรียงแถบเลื่อนวันที่/เดือนให้เต็มความกว้างอย่างสมดุล และปรับปุ่มสลับมุมมอง 3 โหมด (`ไทม์ไลน์` | `รายเดือน` | `รายการ`) เป็น Grid 3 คอลัมน์ขนาดเท่ากัน ไม่เบียดตกบรรทัด
+     - **ตารางปฏิทินรายเดือนบนมือถือ**: ปรับขนาดช่องวันที่ (`min-h-[64px] p-1`), เปลี่ยนป้าย `"X กิจกรรม"` ที่เคยเบียดเลขวันที่ให้เป็น Badge ตัวเลขกลมกะทัดรัด (`{dayActivities.length}`) และแสดงป้ายรหัสห้องสี (`LAB-01`, `SIM` ฯลฯ) แทนข้อความยาวที่ถูกตัดแหว่ง พร้อมรองรับการแตะเพื่อเปิด Popup รายละเอียดครบถ้วน
 - **ไฟล์สำคัญที่แก้ไข**:
-  - `src/components/calendar/CalendarHoverCard.tsx`
+  - `src/app/page.tsx`
   - `src/components/calendar/MasterRoomCalendar.tsx`
+  - `src/components/calendar/CalendarHoverCard.tsx`
   - `src/app/schedule/page.tsx`
   - `src/app/rooms/page.tsx`
 - **ผลตรวจมาตรฐานบรรณารักษ์**: ✅ ผ่าน 100% (Terminology Violations: 0, UTF-8 Mojibake: 0, TypeScript: 0 errors)

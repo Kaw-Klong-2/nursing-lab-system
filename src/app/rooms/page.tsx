@@ -2040,22 +2040,23 @@ export default function RoomsPage() {
                       return (
                         <div
                           key={cell.dateStr}
+                          data-calendar-cell="true"
                           onClick={(e) => handleCellClick(e, cell.dateStr, dayBookings)}
                           onPointerEnter={(e) => handleCellPointerEnter(e, cell.dateStr, dayBookings)}
                           onPointerLeave={handleCellPointerLeave}
-                          className={`min-h-[95px] p-2 transition cursor-pointer flex flex-col justify-between ${
+                          className={`min-h-[68px] sm:min-h-[95px] p-1 sm:p-2 transition cursor-pointer flex flex-col justify-between overflow-hidden ${
                             !cell.isCurrentMonth
                               ? 'bg-slate-50/40 dark:bg-slate-900/30 opacity-40'
                               : isSelected
-                              ? 'bg-teal-50/70 dark:bg-teal-950/40 ring-2 ring-teal-500 z-10'
+                              ? 'bg-teal-50/70 dark:bg-teal-950/40 ring-2 ring-inset ring-teal-500 z-10'
                               : cell.isToday
                               ? 'bg-amber-50/40 dark:bg-amber-950/20 hover:bg-amber-100/40'
                               : 'bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-850'
                           }`}
                         >
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between gap-0.5">
                             <span
-                              className={`text-xs font-bold rounded-lg w-6 h-6 flex items-center justify-center ${
+                              className={`text-[11px] sm:text-xs font-bold rounded-md sm:rounded-lg w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center shrink-0 ${
                                 cell.isToday
                                   ? 'bg-teal-600 text-white font-black shadow-sm'
                                   : isSelected
@@ -2067,28 +2068,33 @@ export default function RoomsPage() {
                             </span>
 
                             {dayBookings.length > 0 && (
-                              <span className="text-[10px] font-bold text-slate-400">
-                                {dayBookings.length} คิว
-                              </span>
+                              <>
+                                <span className="sm:hidden text-[9px] font-black text-teal-700 dark:text-teal-300 bg-teal-100/90 dark:bg-teal-950 px-1 py-0.2 rounded-full leading-none">
+                                  {dayBookings.length}
+                                </span>
+                                <span className="hidden sm:inline text-[10px] font-bold text-slate-400">
+                                  {dayBookings.length} คิว
+                                </span>
+                              </>
                             )}
                           </div>
 
                           {/* Day Badges */}
-                          <div className="space-y-1 my-1">
+                          <div className="space-y-0.5 sm:space-y-1 my-0.5 sm:my-1">
                             {approved.length > 0 && (
-                              <div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 truncate">
-                                🟢 อนุมัติ {approved.length} รายการ
+                              <div className="text-[9px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 truncate">
+                                🟢 <span className="hidden sm:inline">อนุมัติ </span>{approved.length}<span className="hidden sm:inline"> รายการ</span>
                               </div>
                             )}
                             {pending.length > 0 && (
-                              <div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 truncate">
-                                ⏳ รออนุมัติ {pending.length} รายการ
+                              <div className="text-[9px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 truncate">
+                                ⏳ <span className="hidden sm:inline">รออนุมัติ </span>{pending.length}<span className="hidden sm:inline"> รายการ</span>
                               </div>
                             )}
                           </div>
 
-                          <div className="h-1">
-                            {isSelected && <div className="w-full h-1 bg-teal-500 rounded-full"></div>}
+                          <div className="h-0.5 sm:h-1">
+                            {isSelected && <div className="w-full h-0.5 sm:h-1 bg-teal-500 rounded-full"></div>}
                           </div>
                         </div>
                       );

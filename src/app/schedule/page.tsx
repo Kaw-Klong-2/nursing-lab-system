@@ -2205,6 +2205,7 @@ export default function SchedulePage() {
                 return (
                   <div
                     key={cell.dateStr}
+                    data-calendar-cell="true"
                     onClick={(e) => handleCellClick(e, cell.dateStr, dayTasks)}
                     onPointerEnter={(e) => handleCellPointerEnter(e, cell.dateStr, dayTasks)}
                     onPointerLeave={handleCellPointerLeave}

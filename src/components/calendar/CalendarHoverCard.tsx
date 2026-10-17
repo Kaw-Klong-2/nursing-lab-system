@@ -65,7 +65,12 @@ export default function CalendarHoverCard({
   useEffect(() => {
     if (!isOpen || !isPinned || !onClose) return;
 
+    const openedAt = Date.now();
+
     const handlePointerDown = (e: MouseEvent | TouchEvent) => {
+      // Ignore synthetic / ghost events fired within 250ms of opening on mobile touch
+      if (Date.now() - openedAt < 250) return;
+
       const target = e.target as HTMLElement | null;
       if (!target) return;
       if (target.closest('[data-calendar-popover="true"]')) return;
@@ -85,21 +90,24 @@ export default function CalendarHoverCard({
       document.removeEventListener('touchstart', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, isPinned, onClose]);
+  }, [isOpen, isPinned, dateStr, onClose]);
 
   if (!isOpen || !anchorRect || typeof window === 'undefined') {
     return null;
   }
 
-  // Ultra-compact dimensions: expand slightly when pinned
-  const CARD_WIDTH = isPinned ? Math.min(310, window.innerWidth - 24) : 280;
+  const isMobileViewport = window.innerWidth < 640;
+  // Ultra-compact dimensions: expand slightly when pinned or on mobile
+  const CARD_WIDTH = isPinned
+    ? Math.min(isMobileViewport ? 340 : 320, window.innerWidth - 20)
+    : 280;
   const visibleItems = isPinned ? items : items.slice(0, 3);
   const remainingCount = items.length - visibleItems.length;
 
-  // Approximate height: Header (36px) + Each item (~52px) + Spacing
+  // Approximate height: Header (36px) + Each item (~54px) + Spacing
   const estimatedHeight = Math.min(
     320,
-    40 + visibleItems.length * 54 + (remainingCount > 0 || isPinned ? 24 : 0)
+    44 + visibleItems.length * 54 + (remainingCount > 0 || isPinned ? 28 : 0)
   );
 
   const windowW = window.innerWidth;

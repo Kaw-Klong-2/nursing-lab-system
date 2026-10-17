@@ -15,4 +15,10 @@
 5. **Terminology Policy: Strictly use "นิสิต" (Never use "นักศึกษา")**:
    - Always and strictly refer to students as **"นิสิต"** across all UI labels, messages, placeholder texts, code comments, notifications, user manuals, documentation, responses, and generated content.
    - **Never** use the word **"นักศึกษา"** under any circumstances.
-
+6. **Mandatory Project Librarian Protocol (`librarian` — Pre-Work & Post-Work)**:
+   - **Pre-Work Consultation (ถามบรรณารักษ์ก่อนแก้ไขงานทุกครั้งแบบประหยัดโทเคน)**:
+     - **Standard / Targeted Tasks**: Before editing files, run `node scripts/librarian-audit.mjs --search <keyword>` or inspect `d:\LAB-system\LIBRARY_CATALOG.md` and `d:\LAB-system\docs\WORK_LOG.md` to locate exact UI pages, API routes, Prisma models, and canonical manuals without blind file scanning.
+     - **Complex / Cross-Module Tasks**: Invoke the `librarian` sub-agent (`invoke_subagent` with `TypeName: "librarian"`, `Model: "flash"`) to perform a multi-file impact briefing and return a concise (<15 lines) file/schema/manual map before making changes.
+   - **Post-Work Audit & Archiving (ตรวจรับและจดบันทึกหลังแก้ไขเสร็จทุกครั้ง)**:
+     - Run `npm run librarian:audit` after completing changes to verify 100% terminology compliance ("นิสิต") and UTF-8 integrity.
+     - Record a concise entry at the top of `d:\LAB-system\docs\WORK_LOG.md` summarizing the date, module, changes made, and touched files. Update `d:\LAB-system\LIBRARY_CATALOG.md` whenever new pages, APIs, Prisma models, skills, or manuals are added.

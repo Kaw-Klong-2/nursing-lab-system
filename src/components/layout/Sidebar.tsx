@@ -430,7 +430,10 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
             <Shield className="w-3.5 h-3.5" />
             <span>สิทธิ์การใช้งานปัจจุบัน:</span>
           </div>
-          <div className="text-xs font-bold text-white">
+          <div
+            className="text-xs font-bold text-white break-words leading-snug"
+            title={formatUserName(currentUser) || 'ผู้ใช้งาน'}
+          >
             {formatUserName(currentUser) || 'ผู้ใช้งาน'}
           </div>
           <div className="text-[10px] text-slate-400 space-y-0.5">

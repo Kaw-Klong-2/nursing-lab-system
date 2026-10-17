@@ -17,6 +17,24 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-17] ปรับปรุง Mobile Responsive UX และจัดระเบียบไฟล์เอกสารหน้า Root & Git Working Tree
+- **หมวดหมู่**: Mobile Responsive UX (`Navbar`, `Sidebar`, `Approvals`, `Schedule`, `Borrow`) / Project File Organization (`manual/`, `system_flow/`, `LIBRARY_CATALOG.md`)
+- **สิ่งที่ดำเนินการ**:
+  1. **ปรับปรุงประสบการณ์ใช้งานบนสมาร์ทโฟน (Mobile Responsive UX)**:
+     - **`src/components/layout/Navbar.tsx` & `src/components/layout/Sidebar.tsx`**: เปิดให้แสดงปุ่มด่วน `สแกน QR` และ `แก้ไขบัญชี` แบบไอคอนกะทัดรัดบนจอมือถือ (เดิมถูกซ่อนด้วย `hidden md:inline-flex` / `hidden sm:inline-flex`) และเพิ่มการตัดคำ (`truncate` / `break-words`) พร้อม `title` สำหรับชื่ออาจารย์ที่มีคำนำหน้ายาว (เช่น `รศ. พลตรีหญิง ดร. สายสมร เฉลยกิตติ`)
+     - **`src/app/approvals/page.tsx`**: ตั้งค่าเริ่มต้นมุมมองรายการเป็น `'CARDS'` (การ์ดเต็ม) อัตโนมัติเมื่อเปิดบนจอมือถือ (`window.innerWidth < 768`), ปรับแถบแท็บหมวดหมู่คำขอ 5 ปุ่มและแถบสถานะให้เลื่อนซ้าย-ขวาได้ลื่นไหลไม่ล้นขอบจอ (`overflow-x-auto no-scrollbar`), และปรับขนาดแถบลอยอนุมัติหลายรายการ (`Floating Sticky Batch Action Bar`) ให้พอดีกับหน้าจอมือถือ
+     - **`src/app/schedule/page.tsx`**: ปรับกริดการ์ดสรุปด้านบนเป็น 2 คอลัมน์บนมือถือ (`grid-cols-2 sm:grid-cols-3 lg:grid-cols-6`), ปรับหัวตารางวันในปฏิทินรายเดือนให้แสดงชื่อวันแบบย่อ (`อา. - ส.`) บนจอมือถือเพื่อไม่ให้คำว่า `"พฤหัสบดี"` ล้นช่อง, และปรับป้ายงานในช่องวันที่ให้กระชับบนจอแคบ
+     - **`src/app/borrow/page.tsx`**: ปรับแถบสลับโหมดหลัก (`รายการยืม-เบิกทั่วไป` | `จัดสรรประจำรายวิชาตลอดภาคการศึกษา`) ให้รองรับการเลื่อนแนวนอนบนจอมือถือโดยไม่ตัดบรรทัดซ้อนทับกัน
+  2. **จัดระเบียบไฟล์เอกสารใน Root Directory (10 ไฟล์) และอัปเดตทะเบียนคลังความรู้**:
+     - ย้ายไฟล์คู่มือการใช้งาน 7 ไฟล์ (`USER_MANUAL.md`, `Nursing_Lab_System_User_Manual*.docx`, `คู่มือการใช้งานระบบห้องปฏิบัติการพยาบาล*.docx`) เข้าโฟลเดอร์ `manual/`
+     - ย้ายไฟล์สถาปัตยกรรมและพรีวิว 3 ไฟล์ (`NSS_Lab_System_Flow_Architecture.docx`, `preview_executive_dashboard.html`, `preview_new_features.html`) เข้าโฟลเดอร์ `system_flow/`
+     - อัปเดต `LIBRARY_CATALOG.md` หมวดที่ 5 ให้สะท้อนโครงสร้างไฟล์ที่สะอาดเรียบร้อย 100%
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/components/layout/Navbar.tsx`, `src/components/layout/Sidebar.tsx`
+  - `src/app/approvals/page.tsx`, `src/app/schedule/page.tsx`, `src/app/borrow/page.tsx`
+  - `LIBRARY_CATALOG.md`, `docs/WORK_LOG.md`, `manual/*`, `system_flow/*`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ✅ ผ่าน 100% (Terminology Violations: 0, UTF-8 Mojibake: 0, Loose Root Docs: 0, TypeScript: 0 errors)
+
 ### [2026-10-17] ตรวจสอบความถูกต้องของฐานข้อมูลและซ่อมแซมตรรกะการตัดสต็อก/กระทบยอด (Database Integrity & Stock Reconciliation Audit)
 - **หมวดหมู่**: Database Integrity / StockLot & StockLotBox / Requisition Dispense / POS Checkout / Cycle Count Reconcile / Reports & Valuation
 - **สิ่งที่ดำเนินการ**:

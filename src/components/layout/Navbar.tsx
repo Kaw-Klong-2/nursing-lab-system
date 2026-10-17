@@ -134,7 +134,7 @@ export default function Navbar({ onToggleMobileMenu, isMobileMenuOpen }: NavbarP
         {/* Quick QR Scanner Button */}
         <button
           onClick={() => setIsScannerOpen(true)}
-          className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/70 hover:bg-teal-100 dark:hover:bg-teal-900/80 text-teal-700 dark:text-teal-300 text-xs font-bold transition border border-teal-200 dark:border-teal-800 shadow-sm cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/70 hover:bg-teal-100 dark:hover:bg-teal-900/80 text-teal-700 dark:text-teal-300 text-xs font-bold transition border border-teal-200 dark:border-teal-800 shadow-sm cursor-pointer flex-shrink-0"
           title="เปิดกล้องสแกน QR Code เพื่อดูข้อมูลครุภัณฑ์ทันที"
         >
           <Camera className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
@@ -149,10 +149,15 @@ export default function Navbar({ onToggleMobileMenu, isMobileMenuOpen }: NavbarP
 
         {/* Current User Info, Profile Edit & Logout Button */}
         {currentUser ? (
-          <div className="flex items-center gap-1.5 sm:gap-3 pl-1 sm:pl-2 sm:border-l border-slate-200 dark:border-slate-800 flex-shrink-0">
-            <div className="hidden lg:block text-right">
-              <div className="text-xs font-bold text-slate-800 dark:text-slate-100">{formatUserName(currentUser)}</div>
-              <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[150px]">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 pl-1 sm:pl-2 sm:border-l border-slate-200 dark:border-slate-800 flex-shrink-0">
+            <div className="hidden lg:block text-right max-w-[190px]">
+              <div
+                className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate"
+                title={formatUserName(currentUser)}
+              >
+                {formatUserName(currentUser)}
+              </div>
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
                 {currentUser.department || currentUser.email}
               </div>
             </div>
@@ -162,19 +167,19 @@ export default function Navbar({ onToggleMobileMenu, isMobileMenuOpen }: NavbarP
             <button
               onClick={() => setIsProfileOpen(true)}
               title="แก้ไขข้อมูลส่วนตัว"
-              className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/70 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/80 text-xs font-bold transition cursor-pointer"
+              className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/70 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/80 text-xs font-bold transition cursor-pointer flex-shrink-0"
             >
               <UserCog className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-              <span>แก้ไขบัญชี</span>
+              <span className="hidden sm:inline">แก้ไขบัญชี</span>
             </button>
 
             <button
               onClick={() => logout()}
               title="ออกจากระบบ"
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/80 text-xs font-bold transition cursor-pointer flex-shrink-0 shadow-sm"
+              className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/80 text-xs font-bold transition cursor-pointer flex-shrink-0 shadow-sm"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>ออก</span>
+              <span className="hidden xs:inline sm:inline">ออก</span>
             </button>
           </div>
         ) : (

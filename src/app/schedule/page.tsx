@@ -1912,11 +1912,11 @@ export default function SchedulePage() {
       </div>
 
       {/* Summary Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
         <div 
           onClick={() => { setViewMode('LIST'); setTimeFilter('ALL'); }}
           title="คลิกเพื่อดูคิวงานที่ต้องดำเนินการทั้งหมดในมุมมองรายการ"
-          className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-md transition"
+          className="bg-white dark:bg-slate-900 p-3 sm:p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-md transition"
         >
           <div>
             <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase">คิวงานทั้งหมด</span>
@@ -1924,7 +1924,7 @@ export default function SchedulePage() {
               {activeQueueTasks.length} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">งาน</span>
             </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
             <Boxes className="w-5 h-5" />
           </div>
         </div>
@@ -1932,7 +1932,7 @@ export default function SchedulePage() {
         <div 
           onClick={() => { setViewMode('LIST'); setTimeFilter('PENDING'); }}
           title="คลิกเพื่อดูรายการเบิก-ยืมที่อนุมัติแล้วและรอจ่ายของ/ตัดสต็อก"
-          className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md transition"
+          className="bg-white dark:bg-slate-900 p-3 sm:p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md transition"
         >
           <div>
             <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase">รอจ่ายของ</span>
@@ -1941,7 +1941,7 @@ export default function SchedulePage() {
               <span className="text-xs font-normal text-slate-500 dark:text-slate-400">รายการ</span>
             </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
             <Clock className="w-5 h-5" />
           </div>
         </div>
@@ -1949,7 +1949,7 @@ export default function SchedulePage() {
         <div
           onClick={() => { setViewMode('LIST'); setTimeFilter('BORROWED'); }}
           title="คลิกเพื่อดูรายการครุภัณฑ์ที่จ่ายออกไปแล้วและรอรับคืน"
-          className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-purple-300 dark:hover:border-purple-700 hover:shadow-md transition"
+          className="bg-white dark:bg-slate-900 p-3 sm:p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-purple-300 dark:hover:border-purple-700 hover:shadow-md transition"
         >
           <div>
             <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400 uppercase">กำลังยืม (รอคืน)</span>
@@ -1958,7 +1958,7 @@ export default function SchedulePage() {
               <span className="text-xs font-normal text-slate-500 dark:text-slate-400">รายการ</span>
             </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
             <RefreshCw className="w-5 h-5" />
           </div>
         </div>
@@ -1966,7 +1966,7 @@ export default function SchedulePage() {
         <div 
           onClick={() => { setViewMode('LIST'); setTimeFilter('OVERDUE'); }}
           title="คลิกเพื่อดูรายการเกินกำหนดคืน"
-          className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-rose-300 dark:hover:border-rose-700 hover:shadow-md transition"
+          className="bg-white dark:bg-slate-900 p-3 sm:p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-rose-300 dark:hover:border-rose-700 hover:shadow-md transition"
         >
           <div>
             <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 uppercase">เกินกำหนดคืน</span>
@@ -1975,12 +1975,12 @@ export default function SchedulePage() {
               <span className="text-xs font-normal text-slate-500 dark:text-slate-400">รายการ</span>
             </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
             <AlertTriangle className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="bg-white dark:bg-slate-900 p-3 sm:p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">คิวฝึกแล็บ</span>
             <div className="text-xl font-black text-indigo-700 dark:text-indigo-400 mt-1">
@@ -1988,7 +1988,7 @@ export default function SchedulePage() {
               <span className="text-xs font-normal text-slate-500 dark:text-slate-400">คน</span>
             </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
             <Sparkles className="w-5 h-5" />
           </div>
         </div>
@@ -1996,7 +1996,7 @@ export default function SchedulePage() {
         <div 
           onClick={() => { setViewMode('LIST'); setTimeFilter('PM'); }}
           title="คลิกเพื่อดูรายการตรวจสภาพ & PM"
-          className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-md transition"
+          className="bg-white dark:bg-slate-900 p-3 sm:p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-md transition"
         >
           <div>
             <span className="text-[11px] font-bold text-teal-600 dark:text-teal-400 uppercase">ตรวจสภาพ & PM</span>
@@ -2005,7 +2005,7 @@ export default function SchedulePage() {
               <span className="text-xs font-normal text-slate-500 dark:text-slate-400">แผน ({pmAssetsList.filter((a: any) => a.pmStatus === 'OVERDUE' || a.pmStatus === 'DUE_SOON').length} ชิ้น)</span>
             </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
             <CalendarCheck className="w-5 h-5" />
           </div>
         </div>
@@ -2052,28 +2052,28 @@ export default function SchedulePage() {
         </div>
 
         {/* View Switcher Buttons */}
-        <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold self-start sm:self-auto">
+        <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold w-full sm:w-auto">
           <button
             onClick={() => setViewMode('CALENDAR')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
+            className={`flex-1 sm:flex-initial justify-center flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer whitespace-nowrap ${
               viewMode === 'CALENDAR'
                 ? 'bg-teal-600 text-white shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
             }`}
           >
-            <Calendar className="w-4 h-4" />
-            <span>📅 ปฏิทินรายเดือน (Calendar View)</span>
+            <Calendar className="w-4 h-4 shrink-0" />
+            <span>📅 ปฏิทินรายเดือน</span>
           </button>
           <button
             onClick={() => setViewMode('LIST')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
+            className={`flex-1 sm:flex-initial justify-center flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer whitespace-nowrap ${
               viewMode === 'LIST'
                 ? 'bg-teal-600 text-white shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
             }`}
           >
-            <LayoutGrid className="w-4 h-4" />
-            <span>📋 มุมมองรายการ (List View)</span>
+            <LayoutGrid className="w-4 h-4 shrink-0" />
+            <span>📋 มุมมองรายการ</span>
           </button>
         </div>
       </div>
@@ -2115,14 +2115,35 @@ export default function SchedulePage() {
             </div>
 
             {/* Days Header */}
-            <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80 text-center text-xs font-black text-slate-700 dark:text-slate-300 py-3">
-              <div className="text-rose-500">อาทิตย์</div>
-              <div>จันทร์</div>
-              <div>อังคาร</div>
-              <div>พุธ</div>
-              <div>พฤหัสบดี</div>
-              <div>ศุกร์</div>
-              <div className="text-teal-600">เสาร์</div>
+            <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80 text-center text-[11px] sm:text-xs font-black text-slate-700 dark:text-slate-300 py-2.5 sm:py-3">
+              <div className="text-rose-500">
+                <span className="sm:hidden">อา.</span>
+                <span className="hidden sm:inline">อาทิตย์</span>
+              </div>
+              <div>
+                <span className="sm:hidden">จ.</span>
+                <span className="hidden sm:inline">จันทร์</span>
+              </div>
+              <div>
+                <span className="sm:hidden">อ.</span>
+                <span className="hidden sm:inline">อังคาร</span>
+              </div>
+              <div>
+                <span className="sm:hidden">พ.</span>
+                <span className="hidden sm:inline">พุธ</span>
+              </div>
+              <div>
+                <span className="sm:hidden">พฤ.</span>
+                <span className="hidden sm:inline">พฤหัสบดี</span>
+              </div>
+              <div>
+                <span className="sm:hidden">ศ.</span>
+                <span className="hidden sm:inline">ศุกร์</span>
+              </div>
+              <div className="text-teal-600">
+                <span className="sm:hidden">ส.</span>
+                <span className="hidden sm:inline">เสาร์</span>
+              </div>
             </div>
 
             {/* 42 Calendar Cells */}
@@ -2160,7 +2181,7 @@ export default function SchedulePage() {
                     }}
                     onMouseEnter={(e) => handleCellMouseEnter(e, cell.dateStr, dayTasks)}
                     onMouseLeave={handleCellMouseLeave}
-                    className={`min-h-[105px] p-2 transition cursor-pointer flex flex-col justify-between ${
+                    className={`min-h-[78px] sm:min-h-[105px] p-1 sm:p-2 transition cursor-pointer flex flex-col justify-between ${
                       !cell.isCurrentMonth
                         ? 'bg-slate-50/40 dark:bg-slate-900/30 opacity-40'
                         : isSelected
@@ -2173,7 +2194,7 @@ export default function SchedulePage() {
                     {/* Date Number */}
                     <div className="flex items-center justify-between">
                       <span
-                        className={`text-xs font-bold rounded-lg w-6 h-6 flex items-center justify-center ${
+                        className={`text-[11px] sm:text-xs font-bold rounded-lg w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center ${
                           cell.isToday
                             ? 'bg-teal-600 text-white font-black shadow-sm'
                             : isSelected
@@ -2185,53 +2206,53 @@ export default function SchedulePage() {
                       </span>
 
                       {dayTasks.length > 0 && (
-                        <span className="text-[10px] font-bold text-slate-400">
+                        <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 hidden sm:inline">
                           {dayTasks.length} งาน
                         </span>
                       )}
                     </div>
 
                     {/* Task Badges Stack */}
-                    <div className="space-y-1 my-1">
+                    <div className="space-y-0.5 sm:space-y-1 my-1">
                       {pickups.length > 0 && (
-                        <div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 truncate flex items-center gap-1">
-                          <span>📦 จ่าย</span>
+                        <div className="text-[9px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 truncate flex items-center gap-0.5 sm:gap-1">
+                          <span>📦<span className="hidden sm:inline"> จ่าย</span></span>
                           <span className="ml-auto font-black">{pickups.length}</span>
                         </div>
                       )}
                       {returns.length > 0 && (
-                        <div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 truncate flex items-center gap-1">
-                          <span>🔄 คืน</span>
+                        <div className="text-[9px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 truncate flex items-center gap-0.5 sm:gap-1">
+                          <span>🔄<span className="hidden sm:inline"> คืน</span></span>
                           <span className="ml-auto font-black">{returns.length}</span>
                         </div>
                       )}
                       {practices.length > 0 && (
-                        <div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 truncate flex items-center gap-1">
-                          <span>🏥 แล็บ</span>
+                        <div className="text-[9px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 truncate flex items-center gap-0.5 sm:gap-1">
+                          <span>🏥<span className="hidden sm:inline"> แล็บ</span></span>
                           <span className="ml-auto font-black">{practices.length}</span>
                         </div>
                       )}
                       {roomTasks.length > 0 && (
-                        <div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 truncate flex items-center gap-1">
-                          <span>🏢 ใช้ห้อง</span>
+                        <div className="text-[9px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 truncate flex items-center gap-0.5 sm:gap-1">
+                          <span>🏢<span className="hidden sm:inline"> ใช้ห้อง</span></span>
                           <span className="ml-auto font-black">{roomTasks.length}</span>
                         </div>
                       )}
                       {auditTasks.length > 0 && (
-                        <div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 truncate flex items-center gap-1">
-                          <span>🔍 ตรวจสภาพ</span>
+                        <div className="text-[9px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 truncate flex items-center gap-0.5 sm:gap-1">
+                          <span>🔍<span className="hidden sm:inline"> ตรวจสภาพ</span></span>
                           <span className="ml-auto font-black">{auditTasks.length}</span>
                         </div>
                       )}
                       {pmTasks.length > 0 && (
-                        <div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 truncate flex items-center gap-1">
-                          <span>🔧 ตรวจ PM</span>
+                        <div className="text-[9px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 truncate flex items-center gap-0.5 sm:gap-1">
+                          <span>🔧<span className="hidden sm:inline"> ตรวจ PM</span></span>
                           <span className="ml-auto font-black">{pmTasks.length}</span>
                         </div>
                       )}
                       {overdues.length > 0 && (
-                        <div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 truncate flex items-center gap-1 animate-pulse">
-                          <span>🚨 เกิน</span>
+                        <div className="text-[9px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 truncate flex items-center gap-0.5 sm:gap-1 animate-pulse">
+                          <span>🚨<span className="hidden sm:inline"> เกิน</span></span>
                           <span className="ml-auto font-black">{overdues.length}</span>
                         </div>
                       )}

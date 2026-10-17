@@ -17,6 +17,24 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-18] อัปเกรดระบบสัมผัสปฏิทินบนมือถือแบบ Clean Tap และย้ายคลังโค้ดขึ้น GitHub สู่ Kaw-Klong-2
+- **หมวดหมู่**: Mobile Calendar UX & CI/CD Deployment Pipeline (`MasterRoomCalendar`, `CalendarHoverCard`, `Schedule`, `Rooms`)
+- **สิ่งที่ดำเนินการ**:
+  1. **ปรับปรุงระบบสัมผัสปฏิทินบนหน้าจอมือถือให้เสถียร 100%**:
+     - ยกเลิกการแสดง Popup ลอยแบบ Hover บนอุปกรณ์สัมผัส (Touch Device) โดยสิ้นเชิง เพื่อป้องกันปัญหา Popup แวบแล้วหาย
+     - เปลี่ยนเป็นการแตะช่องวันที่ (Single Tap) เพื่อเลือกวันและทำการ Smooth Scroll ลงไปยังแผงสรุปรายละเอียดประจำวันด้านล่างโดยตรง (`#calendar-selected-day-panel`, `#schedule-selected-day-panel`, `#rooms-selected-day-panel`) ใช้งานง่าย สะอาดตา และไม่บังช่องตาราง
+     - บนหน้าจอคอมพิวเตอร์ทั่วไป (Desktop) ยังคงใช้งาน Hover Popover ได้ตามปกติสมบูรณ์
+  2. **ย้ายคลังโค้ดขึ้น GitHub บัญชีใหม่ (`Kaw-Klong-2/nursing-lab-system`)**:
+     - อัปเดต Git Remote มายัง `https://github.com/Kaw-Klong-2/nursing-lab-system.git` เพื่อแก้ปัญหา Third-party integration flag
+     - ทำการ Push โค้ดทั้งหมดพร้อมประวัติการทำงานขึ้นสู่ Branch `main` อย่างสมบูรณ์
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/components/calendar/MasterRoomCalendar.tsx`
+  - `src/components/calendar/CalendarHoverCard.tsx`
+  - `src/app/schedule/page.tsx`
+  - `src/app/rooms/page.tsx`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ✅ ผ่าน 100% (คำว่า "นิสิต" ถูกต้องทั้งหมด, UTF-8 สมบูรณ์)
+
 ### [2026-10-18] ปรับปรุงหน้าตาปฏิทินภาพรวมบนมือถือ (Mobile Calendar UI Polish) และแก้ไขปัญหา Popup ปฏิทินเด้งหายเมื่อแตะบนจอมือถือ
 - **หมวดหมู่**: Mobile Calendar UX (`MasterRoomCalendar`, `CalendarHoverCard`, `DashboardPage`, `Schedule`, `Rooms`)
 - **สิ่งที่ดำเนินการ**:

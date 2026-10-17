@@ -4,6 +4,7 @@ import { invalidateCache } from '@/lib/cache';
 import { createNotification } from '@/lib/notifications';
 import { canUserApprove } from '@/lib/approval-scope';
 import { logActivity } from '@/lib/activity-log';
+import { formatAcknowledgeDisplay } from '@/lib/user-utils';
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -75,11 +76,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         }).catch((e) => console.error('Failed to sync linked borrow acknowledge:', e));
       }
 
-      // Notify student
+      // Notify student with proper role transparency (Teacher vs Admin/Staff)
+      const ackDisplay = formatAcknowledgeDisplay(body.advisorName || requisition.advisorName);
+      const notifTitle = ackDisplay.isStaff ? 'แอดมิน/เจ้าหน้าที่รับทราบคำขอเบิกแล้ว' : 'อาจารย์รับทราบคำขอเบิกแล้ว';
+      const notifMessage = `${ackDisplay.name} ได้กดรับทราบคำขอเบิกเลขที่ ${requisition.requestNumber} แล้ว`;
+
       createNotification({
         userId: requisition.userId,
-        title: 'อาจารย์รับทราบคำขอเบิกแล้ว',
-        message: `อาจารย์ ${body.advisorName || requisition.advisorName || 'ผู้สอน'} ได้กดรับทราบคำขอเบิกเลขที่ ${requisition.requestNumber} แล้ว`,
+        title: notifTitle,
+        message: notifMessage,
         type: 'INSTRUCTOR_ACK',
         linkUrl: '/requisitions',
         entityType: 'REQUISITION',

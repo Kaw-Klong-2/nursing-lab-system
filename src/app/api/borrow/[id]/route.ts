@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
-import { formatUserName } from '@/lib/user-utils';
+import { formatUserName, formatAcknowledgeDisplay } from '@/lib/user-utils';
 import { createNotification } from '@/lib/notifications';
 import { canUserApprove } from '@/lib/approval-scope';
 import { logActivity } from '@/lib/activity-log';
@@ -77,11 +77,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         }).catch((e) => console.error('Failed to sync linked requisition acknowledge:', e));
       }
 
-      // Notify student
+      // Notify student with proper role transparency (Teacher vs Admin/Staff)
+      const ackDisplay = formatAcknowledgeDisplay(body.advisorName || borrow.advisorName);
+      const notifTitle = ackDisplay.isStaff ? 'แอดมิน/เจ้าหน้าที่รับทราบคำขอยืมแล้ว' : 'อาจารย์รับทราบคำขอยืมแล้ว';
+      const notifMessage = `${ackDisplay.name} ได้กดรับทราบคำขอยืมเลขที่ ${borrow.requestNumber} แล้ว`;
+
       createNotification({
         userId: borrow.userId,
-        title: 'อาจารย์รับทราบคำขอยืมแล้ว',
-        message: `อาจารย์ ${body.advisorName || borrow.advisorName || 'ผู้สอน'} ได้กดรับทราบคำขอยืมเลขที่ ${borrow.requestNumber} แล้ว`,
+        title: notifTitle,
+        message: notifMessage,
         type: 'INSTRUCTOR_ACK',
         linkUrl: '/borrow',
         entityType: 'BORROW',

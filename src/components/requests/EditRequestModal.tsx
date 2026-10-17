@@ -168,7 +168,7 @@ export default function EditRequestModal({
           fetch('/api/items?type=EQUIPMENT&compact=true'),
           fetch('/api/items?type=CONSUMABLE&compact=true'),
           fetch('/api/courses?compact=true'),
-          fetch('/api/users?role=APPROVER'),
+          fetch('/api/users?role=INSTRUCTOR'),
         ]);
 
         if (eqRes.ok) {

@@ -64,9 +64,28 @@ export default function UnifiedRequestModal({ isOpen, onClose, onSuccess }: Unif
     { itemId: '', quantity: '', isSubUnit: false, requestedUnit: '' },
   ]);
 
-  // Load dropdown resources on mount
+  const resetForm = () => {
+    setCourseId('');
+    setAdvisorName('');
+    setIsEditingAdvisor(false);
+    setPurpose('');
+    setUseTarget('SIMULATION');
+    setBorrowDate('');
+    setExpectedReturnDate('');
+    setBorrowItems([{ itemId: '', quantity: '' }]);
+    setRequisitionItems([{ itemId: '', quantity: '', isSubUnit: false, requestedUnit: '' }]);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  // Load dropdown resources on mount and reset form for fresh entry
   useEffect(() => {
     if (!isOpen) return;
+
+    resetForm();
 
     const fetchData = async () => {
       setLoadingItems(true);
@@ -75,7 +94,7 @@ export default function UnifiedRequestModal({ isOpen, onClose, onSuccess }: Unif
           fetch('/api/items?type=EQUIPMENT&compact=true'),
           fetch('/api/items?type=CONSUMABLE&compact=true'),
           fetch('/api/courses?compact=true'),
-          fetch('/api/users?role=APPROVER'),
+          fetch('/api/users?role=INSTRUCTOR'),
         ]);
 
         if (eqRes.ok) {
@@ -93,8 +112,6 @@ export default function UnifiedRequestModal({ isOpen, onClose, onSuccess }: Unif
     };
 
     fetchData();
-
-
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -244,6 +261,7 @@ export default function UnifiedRequestModal({ isOpen, onClose, onSuccess }: Unif
       if (res.ok) {
         const data = await res.json();
         alert('🎉 ' + (data.message || 'บันทึกคำขอแบบรวมเรียบร้อยแล้ว'));
+        resetForm();
         onSuccess();
         onClose();
       } else {
@@ -282,7 +300,7 @@ export default function UnifiedRequestModal({ isOpen, onClose, onSuccess }: Unif
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -906,7 +924,7 @@ export default function UnifiedRequestModal({ isOpen, onClose, onSuccess }: Unif
             <button
               type="button"
               disabled={submitting}
-              onClick={onClose}
+              onClick={handleClose}
               className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 transition cursor-pointer text-center"
             >
               ยกเลิก

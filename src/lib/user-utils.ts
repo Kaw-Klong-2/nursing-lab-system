@@ -96,8 +96,10 @@ export function isStaffUser(
       s.includes('เจ้าหน้าที่') ||
       s.includes('ผู้ดูแลระบบ') ||
       s.includes('นักวิทยาศาสตร์') ||
+      s.includes('นักวิชาการ') ||
       s.includes('ณัฐกุล') ||
-      s.includes('ปรเมศวร์')
+      s.includes('ปรเมศวร์') ||
+      s.includes('วราชัย')
     );
   }
   const role = user.role || '';
@@ -106,12 +108,16 @@ export function isStaffUser(
   return (
     role === 'ADMIN' ||
     role === 'OFFICER' ||
+    role === 'APPROVER' ||
+    role === 'USER' ||
     name.includes('แอดมิน') ||
     name.includes('เจ้าหน้าที่') ||
     name.includes('ผู้ดูแลระบบ') ||
     name.includes('นักวิทยาศาสตร์') ||
+    name.includes('นักวิชาการ') ||
     name.includes('ณัฐกุล') ||
     name.includes('ปรเมศวร์') ||
+    name.includes('วราชัย') ||
     email.includes('admin') ||
     email.includes('officer')
   );
@@ -217,7 +223,19 @@ export function formatTeacherName(
 
   // 1. If explicit staff/admin and has no academic title, return base user name (NEVER force อาจารย์ and NEVER recurse)
   if (isStaffUser(teacher)) {
-    return formatBaseUserName(rawPrefix, rawName);
+    const cleanStaffName = rawName.replace(/^(อาจารย์|อ\.)\s*/, '').trim();
+    return formatBaseUserName(rawPrefix, cleanStaffName);
+  }
+
+  // 1.1 If object has role and role is NOT TEACHER, check for academic rank; otherwise return clean base name
+  if (typeof teacher === 'object' && teacher !== null && teacher.role && teacher.role !== 'TEACHER') {
+    const hasAcademicRank = ACADEMIC_PREFIXES.some(
+      (r) => r !== 'อาจารย์' && r !== 'อ.' && ((rawPrefix || '').startsWith(r) || (rawName || '').startsWith(r))
+    );
+    if (!hasAcademicRank) {
+      const cleanNonTeacherName = rawName.replace(/^(อาจารย์|อ\.)\s*/, '').trim();
+      return formatBaseUserName(rawPrefix, cleanNonTeacherName);
+    }
   }
 
   // 2. Clean stacked "อาจารย์ นางสาว", "อาจารย์ นาย", "อาจารย์ ผศ."
@@ -307,10 +325,11 @@ export function formatAcknowledgeDisplay(advisorName?: string | null): {
   const isStaff =
     str.includes('แอดมิน') ||
     str.includes('เจ้าหน้าที่') ||
-    str.includes('ผู้ดูแลระบบ');
+    str.includes('ผู้ดูแลระบบ') ||
+    isStaffUser(str);
 
   if (isStaff) {
-    const clean = str.replace(/^อาจารย์\s*/, '');
+    const clean = str.replace(/^(อาจารย์|อ\.)\s*/, '').trim();
     const formattedName = clean.includes('แอดมิน') ? clean : `${clean} (แอดมิน)`;
     return {
       label: 'แอดมินรับทราบแล้ว',

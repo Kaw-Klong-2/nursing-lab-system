@@ -123,7 +123,7 @@ export default function NewAllocationModal({
       }
     } catch {}
 
-    fetch('/api/users?role=APPROVER')
+    fetch('/api/users?role=INSTRUCTOR')
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         if (Array.isArray(data)) {

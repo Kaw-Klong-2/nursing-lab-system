@@ -597,7 +597,7 @@ export default function NotificationBell() {
 
       {/* Floating In-App Toast Popup (เด้งเตือนสดบนหน้าจอ) */}
       {activeToast && (
-        <div className="fixed bottom-5 right-5 z-[99999] max-w-sm w-[calc(100vw-2.5rem)] md:w-96 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-2 border-teal-500/50 dark:border-teal-400/40 rounded-2xl shadow-2xl p-4 transition-all transform animate-in slide-in-from-bottom-5 duration-300">
+        <div className="fixed bottom-24 md:bottom-6 right-3 md:right-6 z-[99999] max-w-sm w-[calc(100vw-1.5rem)] md:w-96 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-2 border-teal-500/50 dark:border-teal-400/40 rounded-2xl shadow-2xl p-4 transition-all transform animate-in slide-in-from-bottom-5 duration-300">
           <div className="flex items-start gap-3">
             <div className="p-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 shrink-0 relative">
               <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full animate-ping" />

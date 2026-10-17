@@ -81,7 +81,7 @@ export default function PwaInstallPrompt() {
   }
 
   return (
-    <div className="fixed bottom-4 left-3 right-3 sm:left-auto sm:right-4 sm:max-w-sm z-50 animate-bounce-short print:hidden">
+    <div className="fixed bottom-20 left-3 right-3 sm:left-auto sm:right-4 sm:max-w-sm sm:bottom-4 z-50 animate-bounce-short print:hidden">
       <div className="bg-slate-900/95 backdrop-blur-xl border border-teal-500/40 text-white p-4 rounded-2xl shadow-2xl shadow-teal-950/50 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-3">

@@ -72,6 +72,18 @@ export default function BorrowPage() {
     selectedItems: [{ itemId: '', quantity: '' }],
   });
 
+  const resetNewBorrowForm = () => {
+    setNewRequest({
+      courseId: '',
+      advisorName: '',
+      purpose: '',
+      borrowDate: '',
+      expectedReturnDate: '',
+      selectedItems: [{ itemId: '', quantity: '' }],
+    });
+    setIsEditingAdvisor(false);
+  };
+
   // Action Modals (Checkout & Return)
   const [activeBorrowForAction, setActiveBorrowForAction] = useState<any | null>(null);
   const [actionType, setActionType] = useState<'CHECKOUT' | 'RETURN' | null>(null);
@@ -167,7 +179,7 @@ export default function BorrowPage() {
         fetch('/api/items?type=EQUIPMENT&compact=true'),
         fetch('/api/items?type=CONSUMABLE&compact=true'),
         fetch('/api/courses?compact=true'),
-        fetch('/api/users?role=APPROVER'),
+        fetch('/api/users?role=INSTRUCTOR'),
       ]);
 
       if (borrowRes.ok) {
@@ -202,19 +214,8 @@ export default function BorrowPage() {
       if (usersRes.ok) {
         const uData = await usersRes.json();
         if (Array.isArray(uData)) {
-          // Filter teachers/approvers or instructors
-          const teacherList = uData.filter(
-            (u: any) =>
-              u.role === 'APPROVER' ||
-              u.email?.includes('teacher') ||
-              u.email?.includes('approver') ||
-              u.name?.startsWith('อ.') ||
-              u.name?.startsWith('ผศ.') ||
-              u.name?.startsWith('รศ.')
-          );
-          const finalTeachers = teacherList.length > 0 ? teacherList : uData;
-          setInstructors(finalTeachers);
-          try { sessionStorage.setItem('cached_borrow_instructors', JSON.stringify(finalTeachers)); } catch {}
+          setInstructors(uData);
+          try { sessionStorage.setItem('cached_borrow_instructors', JSON.stringify(uData)); } catch {}
         }
       }
       setLastUpdated(new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
@@ -341,15 +342,8 @@ export default function BorrowPage() {
       });
 
       if (res.ok) {
+        resetNewBorrowForm();
         setShowNewModal(false);
-        setNewRequest({
-          courseId: '',
-          advisorName: '',
-          purpose: '',
-          borrowDate: '',
-          expectedReturnDate: '',
-          selectedItems: [{ itemId: '', quantity: '' }],
-        });
         fetchBorrowData();
       } else {
         const err = await res.json();
@@ -545,7 +539,10 @@ export default function BorrowPage() {
                 <span>ยื่นคำขอเบิก-ยืมพัสดุ (One-Stop)</span>
               </button>
               <button
-                onClick={() => setShowNewModal(true)}
+                onClick={() => {
+                  resetNewBorrowForm();
+                  setShowNewModal(true);
+                }}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-200 text-xs font-medium transition cursor-pointer shadow-sm"
                 title="ยื่นคำขอแบบเดิมเฉพาะครุภัณฑ์"
               >
@@ -1325,7 +1322,10 @@ export default function BorrowPage() {
                 ยื่นคำขอยืมครุภัณฑ์ทางการพยาบาล
               </h3>
               <button
-                onClick={() => setShowNewModal(false)}
+                onClick={() => {
+                  resetNewBorrowForm();
+                  setShowNewModal(false);
+                }}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold"
               >
                 ✕
@@ -1699,7 +1699,10 @@ export default function BorrowPage() {
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setShowNewModal(false)}
+                  onClick={() => {
+                    resetNewBorrowForm();
+                    setShowNewModal(false);
+                  }}
                   className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition"
                 >
                   ยกเลิก

@@ -27,6 +27,7 @@
   2. **ย้ายคลังโค้ดขึ้น GitHub บัญชีใหม่ (`Kaw-Klong-2/nursing-lab-system`)**:
      - อัปเดต Git Remote มายัง `https://github.com/Kaw-Klong-2/nursing-lab-system.git` เพื่อแก้ปัญหา Third-party integration flag
      - ทำการ Push โค้ดทั้งหมดพร้อมประวัติการทำงานขึ้นสู่ Branch `main` อย่างสมบูรณ์
+     - ทริกเกอร์การ Deploy อัตโนมัติบน Vercel Production สำเร็จเรียบร้อย
 - **ไฟล์สำคัญที่แก้ไข**:
   - `src/components/calendar/MasterRoomCalendar.tsx`
   - `src/components/calendar/CalendarHoverCard.tsx`

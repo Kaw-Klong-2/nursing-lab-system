@@ -273,35 +273,74 @@ export default function MasterRoomCalendar({
     });
   };
 
-  // Fetch Master Data
+  // Client-side SWR Cache for Calendar Data (Stale-While-Revalidate)
+  const cacheRef = useRef<Map<string, { bookings: any[]; slots: any[]; timestamp: number }>>(new Map());
+  const roomsCacheRef = useRef<any[] | null>(null);
+
+  // Fetch Master Data with SWR (Stale-While-Revalidate)
   const fetchData = async (manual = false) => {
-    if (manual) {
-      setIsRefreshing(true);
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth() + 1;
+    const cacheKey = `${year}-${month}`;
+
+    const cached = cacheRef.current.get(cacheKey);
+
+    // If cached data exists and not a manual refresh, display cached data INSTANTLY (0ms)
+    if (cached && !manual) {
+      setRoomBookings(cached.bookings);
+      setPracticeSlots(cached.slots);
+      if (roomsCacheRef.current && roomsCacheRef.current.length > 0) {
+        setRooms(roomsCacheRef.current);
+      }
+      setLoading(false);
+      setIsRefreshing(true); // subtle background sync indicator
     } else {
-      setLoading(true);
+      if (manual) {
+        setIsRefreshing(true);
+      } else {
+        setLoading(true);
+      }
     }
+
     try {
-      const year = currentMonth.getFullYear();
-      const month = currentMonth.getMonth() + 1;
+      const fetchRoomsPromise = (roomsCacheRef.current && roomsCacheRef.current.length > 0 && !manual)
+        ? Promise.resolve(null)
+        : fetch('/api/practice/rooms?includeInactive=false');
 
       const [roomsRes, bookingsRes, slotsRes] = await Promise.all([
-        fetch('/api/practice/rooms?includeInactive=false'),
+        fetchRoomsPromise,
         fetch(`/api/room-bookings?year=${year}&month=${month}`),
         fetch(`/api/practice/slots?year=${year}&month=${month}`),
       ]);
 
-      if (roomsRes.ok) {
+      if (roomsRes && roomsRes.ok) {
         const rData = await roomsRes.json();
-        setRooms(Array.isArray(rData) ? rData : []);
+        if (Array.isArray(rData)) {
+          roomsCacheRef.current = rData;
+          setRooms(rData);
+        }
       }
+
+      let newBookings: any[] = [];
+      let newSlots: any[] = [];
+
       if (bookingsRes.ok) {
         const bData = await bookingsRes.json();
-        setRoomBookings(Array.isArray(bData) ? bData : []);
+        newBookings = Array.isArray(bData) ? bData : [];
+        setRoomBookings(newBookings);
       }
       if (slotsRes.ok) {
         const sData = await slotsRes.json();
-        setPracticeSlots(Array.isArray(sData) ? sData : []);
+        newSlots = Array.isArray(sData) ? sData : [];
+        setPracticeSlots(newSlots);
       }
+
+      // Update client cache
+      cacheRef.current.set(cacheKey, {
+        bookings: newBookings,
+        slots: newSlots,
+        timestamp: Date.now(),
+      });
 
       setLastUpdated(new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err) {
@@ -356,8 +395,11 @@ export default function MasterRoomCalendar({
       });
     });
 
-    // 2. Process PracticeSlots (Student Self-practice slots - both open & closed)
+    // 2. Process PracticeSlots (Student Self-practice slots - only show open practice slots)
     practiceSlots.forEach((s: any) => {
+      // Do NOT show slots that are closed / not open
+      if (!s.isOpen) return;
+
       const sDateStr = typeof s.date === 'string'
         ? s.date.slice(0, 10)
         : s.date
@@ -368,10 +410,8 @@ export default function MasterRoomCalendar({
       const bookedCount = Array.isArray(s.bookings)
         ? s.bookings.filter((bk: any) => ['APPROVED', 'CHECKED_IN', 'PENDING'].includes(bk.status)).length
         : 0;
-      const isClosed = !s.isOpen;
-      const prefix = isClosed ? '[ปิดรอบ] ' : '';
       const baseTitle = s.availableSkills ? `รอบฝึกทักษะ: ${s.availableSkills}` : 'รอบฝึกปฏิบัติการอิสระของนิสิต';
-      const title = `${prefix}${baseTitle}`;
+      const title = baseTitle;
 
       list.push({
         id: `ps-${s.id}`,
@@ -386,15 +426,11 @@ export default function MasterRoomCalendar({
         dateStr: sDateStr,
         startTime: s.startTime || '13:00',
         endTime: s.endTime || '16:00',
-        purpose: isClosed
-          ? (s.closeReason?.trim() ? `ปิดรอบชั่วคราว: ${s.closeReason.trim()}` : 'ปิดรอบชั่วคราว')
-          : 'การฝึกทักษะหัตถการของนิสิต',
+        purpose: 'การฝึกทักษะหัตถการของนิสิต',
         activityType: 'PRACTICE',
-        userOrAdvisorName: isClosed
-          ? (s.closeReason?.trim() ? `ปิดรับจองชั่วคราว (${s.closeReason.trim()})` : 'ปิดรับจองชั่วคราว')
-          : `นิสิตจองแล้ว ${bookedCount}/${s.maxCapacity} คน`,
+        userOrAdvisorName: `นิสิตจองแล้ว ${bookedCount}/${s.maxCapacity} คน`,
         attendeesCount: bookedCount,
-        status: isClosed ? 'CLOSED' : 'APPROVED',
+        status: 'APPROVED',
         notes: s.closeReason || '',
         rawItem: s,
       });
@@ -1336,7 +1372,7 @@ export default function MasterRoomCalendar({
                         {act.title}
                       </td>
                       <td className="p-3.5">{act.userOrAdvisorName || '-'}</td>
-                      <td className="p-3.5 text-center font-bold">{act.attendeesCount || 1} คน</td>
+                      <td className="p-3.5 text-center font-bold">{act.attendeesCount ?? 0} คน</td>
                       <td className="p-3.5 text-center">
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
@@ -1423,7 +1459,7 @@ export default function MasterRoomCalendar({
 
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4 text-slate-500 flex-shrink-0" />
-                  <span>จำนวนผู้เข้าร่วม: <strong>{activeActivityModal.attendeesCount || 1} คน</strong></span>
+                  <span>จำนวนผู้เข้าร่วม: <strong>{activeActivityModal.attendeesCount ?? 0} คน</strong></span>
                 </div>
 
                 {activeActivityModal.equipmentNeeded && (

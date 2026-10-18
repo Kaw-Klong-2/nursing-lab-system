@@ -17,6 +17,21 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-18] แก้ไขปัญหา Prisma Client บน Cloudflare Workers ([unenv] fs.readdir is not implemented yet!)
+- **หมวดหมู่**: Cloudflare Workers Runtime & Prisma Driver Adapter (`prisma/schema.prisma`, `next.config.mjs`, `src/lib/prisma.ts`)
+- **สิ่งที่ดำเนินการ**:
+  1. **เพิ่ม `previewFeatures = ["driverAdapters"]` ใน `prisma/schema.prisma`**: ป้องกันไม่ให้ Prisma Client พยายามค้นหา Binary Query Engine ผ่าน Filesystem (`fs.readdir`)
+  2. **กำหนด `serverExternalPackages` ใน `next.config.mjs`**: ระบุ `@prisma/client`, `.prisma/client`, `@prisma/adapter-pg`, `pg` ให้ Next.js ไม่นำไป bundle ปนกับ Node runtime เพื่อให้ OpenNext สามารถแพตช์สำหรับ Cloudflare Workers (`workerd`) ได้อย่างสมบูรณ์
+  3. **เพิ่ม `initOpenNextCloudflareForDev()` ใน `next.config.mjs`**: เชื่อมโยง Cloudflare bindings และ environment variables เข้ากับ runtime
+  4. **ปรับปรุง `src/lib/prisma.ts` เป็น Lazy Proxy Pattern**: ดึง connection string จาก `process.env.DATABASE_URL` หรือ `getCloudflareContext().env` เมื่อเริ่มมีการเรียกใช้งาน query จริง พร้อมเชื่อมต่อผ่าน `PrismaPg` adapter เสมอ
+  5. **ทดสอบ Build สำเร็จ 100% ทั้ง 2 ฝั่ง**: ผ่านทั้ง `npm run build` (Vercel) และ `npm run build:cf` (Cloudflare Workers)
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `prisma/schema.prisma`
+  - `next.config.mjs`
+  - `src/lib/prisma.ts`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `node scripts/librarian-audit.mjs` ผ่าน 100% (คำศัพท์ "นิสิต" ครบถ้วน ไม่มี Mojibake)
+
 ### [2026-10-18] ติดตั้งระบบ Dual-Deployment รองรับการใช้งานควบคู่ทั้ง Vercel และ Cloudflare Pages
 - **หมวดหมู่**: Cloud Infrastructure & Dual CI/CD Pipeline (`package.json`, `src/lib/prisma.ts`, `wrangler.jsonc`, `open-next.config.ts`)
 - **สิ่งที่ดำเนินการ**:

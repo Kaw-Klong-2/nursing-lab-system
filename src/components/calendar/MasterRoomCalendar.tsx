@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Clock,
   Building2,
@@ -146,6 +146,9 @@ export default function MasterRoomCalendar({
 }: MasterRoomCalendarProps) {
   // Navigation & View Modes (Default to TIMELINE master schedule for all screen sizes)
   const [viewMode, setViewMode] = useState<'TIMELINE' | 'MONTH' | 'LIST'>('TIMELINE');
+
+  // Touch Drag Tracking (To distinguish between scrolling/swiping and clicking on mobile)
+  const touchDragRef = useRef<{ x: number; y: number; moved: boolean }>({ x: 0, y: 0, moved: false });
 
   // Dates
   const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -890,17 +893,17 @@ export default function MasterRoomCalendar({
           </div>
 
           {/* Master Timeline Gantt Grid (Responsive with Horizontal Scroll & Sticky Room Header) */}
-          <div className="overflow-x-auto touch-pan-x scrollbar-thin">
+          <div className="overflow-x-auto overscroll-x-contain select-none scrollbar-thin">
             <div className="min-w-[880px] sm:min-w-[950px] divide-y divide-slate-100 dark:divide-slate-800">
               {/* Hours Ruler Header */}
               <div className="grid grid-cols-12 bg-slate-100/80 dark:bg-slate-800/80 text-[11px] font-bold text-slate-600 dark:text-slate-400 py-2.5">
-                <div className="col-span-2 pl-3 sm:pl-4 pr-2 text-left font-black text-slate-800 dark:text-slate-200 sticky left-0 z-20 bg-slate-100 dark:bg-slate-800 border-r border-slate-200/60 dark:border-slate-700/60 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
+                <div className="col-span-2 pl-3 sm:pl-4 pr-2 text-left font-black text-slate-800 dark:text-slate-200 sticky left-0 z-20 bg-slate-100 dark:bg-slate-800 border-r border-slate-200/60 dark:border-slate-700/60 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)] select-none">
                   ห้องปฏิบัติการ ({filteredRooms.length})
                 </div>
                 {Array.from({ length: TOTAL_HOURS }).map((_, idx) => {
                   const h = TIMELINE_START_HOUR + idx;
                   return (
-                    <div key={h} className="text-center font-mono border-l border-slate-200/60 dark:border-slate-700/60">
+                    <div key={h} className="text-center font-mono border-l border-slate-200/60 dark:border-slate-700/60 select-none">
                       {String(h).padStart(2, '0')}:00
                     </div>
                   );
@@ -926,14 +929,28 @@ export default function MasterRoomCalendar({
                   return (
                     <div
                       key={room.id}
-                      className="grid grid-cols-12 items-center min-h-[72px] hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition relative group"
+                      className="grid grid-cols-12 items-center min-h-[72px] hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition relative group select-none"
                     >
                       {/* Room Info Cell (Sticky left for smooth horizontal scrolling) */}
-                      <div className="col-span-2 pl-3 sm:pl-4 pr-2 py-2.5 sticky left-0 z-20 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-850 transition border-r border-slate-200/60 dark:border-slate-800/60 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
-                        <div className="flex items-center gap-1.5 flex-wrap">
+                      <div className="col-span-2 pl-3 sm:pl-4 pr-2 py-2.5 sticky left-0 z-20 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-850 transition border-r border-slate-200/60 dark:border-slate-800/60 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)] select-none">
+                        <div className="flex items-center justify-between gap-1 flex-wrap">
                           <span className="font-mono text-xs font-black text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 px-2 py-0.5 rounded">
                             {room.code}
                           </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onOpenBookingModal) {
+                                onOpenBookingModal({ roomId: room.id, date: selectedDate });
+                              } else {
+                                window.location.href = `/rooms?action=book&roomId=${room.id}&date=${selectedDate}`;
+                              }
+                            }}
+                            className="text-[10px] font-bold text-teal-600 dark:text-teal-400 hover:text-teal-700 bg-teal-50 dark:bg-teal-950/80 px-1.5 py-0.5 rounded border border-teal-200/80 dark:border-teal-800/80 sm:hidden cursor-pointer shrink-0"
+                            title="จองห้องนี้"
+                          >
+                            + จอง
+                          </button>
                         </div>
                         <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 mt-1 truncate" title={room.name}>
                           {room.name}
@@ -954,7 +971,7 @@ export default function MasterRoomCalendar({
                           ))}
                         </div>
 
-                        {/* Interactive Click-to-book on Empty Background */}
+                        {/* Interactive Click-to-book on Empty Background (Desktop mouse only) */}
                         <div
                           onClick={() => {
                             if (onOpenBookingModal) {
@@ -963,7 +980,7 @@ export default function MasterRoomCalendar({
                               window.location.href = `/rooms?action=book&roomId=${room.id}&date=${selectedDate}`;
                             }
                           }}
-                          className="absolute inset-0 z-0 cursor-pointer flex items-center justify-center opacity-0 group-hover:opacity-100 transition bg-teal-500/5"
+                          className="hidden md:flex absolute inset-0 z-0 cursor-pointer items-center justify-center opacity-0 group-hover:opacity-100 transition bg-teal-500/5 pointer-events-none md:pointer-events-auto"
                           title={`คลิกเพื่อจอง ${room.name} ในวันนี้`}
                         >
                           {roomActs.length === 0 && (
@@ -982,12 +999,30 @@ export default function MasterRoomCalendar({
                             return (
                               <div
                                 key={act.id}
+                                onTouchStart={(e) => {
+                                  touchDragRef.current = {
+                                    x: e.touches[0].clientX,
+                                    y: e.touches[0].clientY,
+                                    moved: false,
+                                  };
+                                }}
+                                onTouchMove={(e) => {
+                                  const dx = Math.abs(e.touches[0].clientX - touchDragRef.current.x);
+                                  const dy = Math.abs(e.touches[0].clientY - touchDragRef.current.y);
+                                  if (dx > 8 || dy > 8) {
+                                    touchDragRef.current.moved = true;
+                                  }
+                                }}
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  if (touchDragRef.current.moved) {
+                                    touchDragRef.current.moved = false;
+                                    return;
+                                  }
                                   setActiveActivityModal(act);
                                 }}
                                 style={{ left, width }}
-                                className={`absolute inset-y-0 p-2 rounded-xl border shadow-sm transition cursor-pointer pointer-events-auto flex flex-col justify-center overflow-hidden hover:scale-[1.01] hover:z-20 ${style.bg}`}
+                                className={`absolute inset-y-0 p-2 rounded-xl border shadow-sm transition cursor-pointer pointer-events-auto flex flex-col justify-center overflow-hidden hover:scale-[1.01] hover:z-20 select-none ${style.bg}`}
                                 title={`${act.title} (${act.startTime} - ${act.endTime} น.)`}
                               >
                                 <div className="flex items-center justify-between gap-1 text-[11px] font-bold truncate">

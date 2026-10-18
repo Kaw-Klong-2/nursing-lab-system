@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
-    "build:cf": "prisma generate && opennextjs-cloudflare",
+    "build:cf": "prisma generate && opennextjs-cloudflare build",
     "preview:cf": "wrangler pages dev .open-next/assets",
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "next lint",

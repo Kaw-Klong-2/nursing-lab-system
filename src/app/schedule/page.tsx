@@ -50,6 +50,7 @@ export default function SchedulePage() {
   const [borrowList, setBorrowList] = useState<any[]>([]);
   const [requisitionList, setRequisitionList] = useState<any[]>([]);
   const [practiceList, setPracticeList] = useState<any[]>([]);
+  const [practiceSlotList, setPracticeSlotList] = useState<any[]>([]);
   const [roomBookingList, setRoomBookingList] = useState<any[]>([]);
   const [inspectionPlansList, setInspectionPlansList] = useState<any[]>([]);
   const [pmAssetsList, setPmAssetsList] = useState<any[]>([]);
@@ -142,11 +143,11 @@ export default function SchedulePage() {
         title,
         startTime,
         endTime,
-        status: t.status,
+        status: t.status || (t.type === 'PRACTICE_EVENT' ? (t.isOpen === false ? 'CLOSED' : 'OPEN') : undefined),
         userName: t.user ? formatUserName(t.user) : t.createdBy?.name,
         courseCode: t.course?.code,
         courseName: t.course?.name,
-        participants: t.attendeesCount || t.maxCapacity,
+        participants: t.type === 'PRACTICE_EVENT' ? (t.students?.length ?? 0) : (t.attendeesCount || t.maxCapacity),
         equipmentNeeded: t.equipmentNeeded,
         type: t.type === 'PRACTICE_EVENT' ? 'PRACTICE_SLOT' : t.type,
       };
@@ -243,10 +244,11 @@ export default function SchedulePage() {
 
   const fetchScheduleData = async () => {
     try {
-      const [bRes, rRes, pRes, rmRes, ipRes, pmRes] = await Promise.all([
+      const [bRes, rRes, pRes, sRes, rmRes, ipRes, pmRes] = await Promise.all([
         fetch('/api/borrow'),
         fetch('/api/requisitions'),
         fetch('/api/practice/bookings'),
+        fetch('/api/practice/slots?all=true'),
         fetch('/api/room-bookings?status=APPROVED'),
         fetch('/api/maintenance/plans'),
         fetch('/api/maintenance/assets'),
@@ -270,6 +272,10 @@ export default function SchedulePage() {
           ? pData.filter((p: any) => ['APPROVED', 'CHECKED_IN'].includes(p.status))
           : [];
         setPracticeList(relevantPractices);
+      }
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        setPracticeSlotList(Array.isArray(sData) ? sData : []);
       }
       if (rmRes.ok) {
         const rmData = await rmRes.json();
@@ -401,6 +407,31 @@ export default function SchedulePage() {
 
   // Group practiceList by Slot (Event)
   const practiceSlotGroups: Record<string, any> = {};
+
+  // 1. Initialize from all practice slots
+  practiceSlotList.forEach((slot: any) => {
+    const sId = slot.id;
+    practiceSlotGroups[sId] = {
+      id: sId,
+      type: 'PRACTICE_EVENT' as const,
+      slot: slot,
+      isOpen: slot.isOpen,
+      roomName: slot.room?.name || 'ห้องปฏิบัติการพยาบาล',
+      roomCode: slot.room?.code,
+      pickupDate: slot.date,
+      activeDate: slot.date,
+      timeSlot: `${slot.startTime} - ${slot.endTime} น.`,
+      maxCapacity: slot.maxCapacity || 6,
+      isPickupToday: isToday(slot.date),
+      isReturnToday: false,
+      isOverdue: false,
+      students: [],
+      kitsSummary: {} as Record<string, { name: string; count: number }>,
+      additionalItems: [] as string[],
+    };
+  });
+
+  // 2. Attach student bookings
   practiceList.forEach((p) => {
     const sId = p.slotId || (p.slot ? p.slot.id : `unknown-${p.id}`);
     if (!practiceSlotGroups[sId]) {
@@ -408,6 +439,7 @@ export default function SchedulePage() {
         id: sId,
         type: 'PRACTICE_EVENT' as const,
         slot: p.slot,
+        isOpen: p.slot?.isOpen ?? true,
         roomName: p.slot?.room?.name || 'ห้องปฏิบัติการพยาบาล',
         roomCode: p.slot?.room?.code,
         pickupDate: p.slot?.date,
@@ -1240,6 +1272,15 @@ export default function SchedulePage() {
                     <Sparkles className="w-3 h-3 text-indigo-300" />
                     <span>รอบฝึกปฏิบัติการ (Practice Session Event)</span>
                   </span>
+                  {task.isOpen === false ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-400/30">
+                      🔒 ปิดรับจอง
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                      🟢 เปิดรับจอง
+                    </span>
+                  )}
                   {task.isPickupToday && (
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white shadow-sm animate-pulse">
                       ⚡ เข้าฝึกวันนี้!
@@ -1331,96 +1372,106 @@ export default function SchedulePage() {
                 <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
                   รายชื่อนิสิตในรอบเวลานี้ ({task.students.length} คน):
                 </span>
-                {task.students.map((studentBooking: any) => {
-                  const isApproved = studentBooking.status === 'APPROVED';
-                  const isCheckedIn = studentBooking.status === 'CHECKED_IN';
-                  const isCompleted = studentBooking.status === 'COMPLETED';
-                  const isPending = studentBooking.status === 'PENDING';
+                {task.students.length === 0 ? (
+                  <div className="text-center py-6 px-4 bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 text-xs flex flex-col items-center justify-center gap-1.5">
+                    <Users className="w-6 h-6 text-slate-300 dark:text-slate-600 mb-1" />
+                    <span className="font-medium">ยังไม่มีนิสิตลงทะเบียนจองรอบนี้</span>
+                    <span className="text-[11px] text-slate-400">
+                      (ความจุรอบ {task.maxCapacity} คน • {task.isOpen === false ? '🔒 ปิดรับจอง' : '🟢 เปิดรับจองปกติ'})
+                    </span>
+                  </div>
+                ) : (
+                  task.students.map((studentBooking: any) => {
+                    const isApproved = studentBooking.status === 'APPROVED';
+                    const isCheckedIn = studentBooking.status === 'CHECKED_IN';
+                    const isCompleted = studentBooking.status === 'COMPLETED';
+                    const isPending = studentBooking.status === 'PENDING';
 
-                  return (
-                    <div
-                      key={studentBooking.id}
-                      className="bg-white dark:bg-slate-800/90 rounded-2xl p-3.5 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 flex-shrink-0 mt-0.5">
-                          <User className="w-4 h-4" />
+                    return (
+                      <div
+                        key={studentBooking.id}
+                        className="bg-white dark:bg-slate-800/90 rounded-2xl p-3.5 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 flex-shrink-0 mt-0.5">
+                            <User className="w-4 h-4" />
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                                {formatUserName(studentBooking.user)}
+                              </span>
+                              {studentBooking.user?.studentId && (
+                                <span className="font-mono text-[10px] text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 px-1.5 py-0.2 rounded border border-teal-200 dark:border-teal-800">
+                                  {studentBooking.user.studentId}
+                                </span>
+                              )}
+                              <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                                ({studentBooking.bookingNumber})
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-3 text-slate-600">
+                              <div>
+                                <span className="text-slate-400 font-semibold">หัตถการ: </span>
+                                <strong className="text-slate-800 dark:text-slate-200">{studentBooking.skillTopic}</strong>
+                              </div>
+                              {studentBooking.course ? (
+                                <span className="text-[11px] text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded border border-teal-100 dark:border-teal-800">
+                                  [{studentBooking.course.code}] {studentBooking.course.name}
+                                </span>
+                              ) : (
+                                <span className="text-[11px] text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">
+                                  ฝึกอิสระ/OSCE
+                                </span>
+                              )}
+                              {studentBooking.advisorName && (
+                                <span className="text-[11px] text-indigo-700 dark:text-indigo-300 font-medium flex items-center gap-1">
+                                  <GraduationCap className="w-3.5 h-3.5 text-indigo-500" />
+                                  <span>{formatTeacherName(studentBooking.advisorName)}</span>
+                                </span>
+                              )}
+                            </div>
+
+                            {studentBooking.additionalEquipment && (
+                              <div className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block font-medium">
+                                ขอเพิ่ม: {studentBooking.additionalEquipment}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                              {formatUserName(studentBooking.user)}
-                            </span>
-                            {studentBooking.user?.studentId && (
-                              <span className="font-mono text-[10px] text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 px-1.5 py-0.2 rounded border border-teal-200 dark:border-teal-800">
-                                {studentBooking.user.studentId}
-                              </span>
-                            )}
-                            <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
-                              ({studentBooking.bookingNumber})
-                            </span>
-                          </div>
 
-                          <div className="flex flex-wrap items-center gap-3 text-slate-600">
-                            <div>
-                              <span className="text-slate-400 font-semibold">หัตถการ: </span>
-                              <strong className="text-slate-800 dark:text-slate-200">{studentBooking.skillTopic}</strong>
-                            </div>
-                            {studentBooking.course ? (
-                              <span className="text-[11px] text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded border border-teal-100 dark:border-teal-800">
-                                [{studentBooking.course.code}] {studentBooking.course.name}
-                              </span>
-                            ) : (
-                              <span className="text-[11px] text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">
-                                ฝึกอิสระ/OSCE
-                              </span>
-                            )}
-                            {studentBooking.advisorName && (
-                              <span className="text-[11px] text-indigo-700 dark:text-indigo-300 font-medium flex items-center gap-1">
-                                <GraduationCap className="w-3.5 h-3.5 text-indigo-500" />
-                                <span>{formatTeacherName(studentBooking.advisorName)}</span>
-                              </span>
-                            )}
-                          </div>
-
-                          {studentBooking.additionalEquipment && (
-                            <div className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block font-medium">
-                              ขอเพิ่ม: {studentBooking.additionalEquipment}
-                            </div>
+                        {/* Status Badge per student */}
+                        <div className="flex items-center gap-2 self-end sm:self-center">
+                          {isApproved && (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-teal-600" />
+                              <span>อนุมัติแล้ว (รอเข้าแล็บ)</span>
+                            </span>
+                          )}
+                          {isCheckedIn && (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1 animate-pulse">
+                              <Sparkles className="w-3 h-3 text-indigo-600" />
+                              <span>กำลังฝึกในห้องแล็บ</span>
+                            </span>
+                          )}
+                          {isCompleted && (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>ฝึกเสร็จสิ้น</span>
+                            </span>
+                          )}
+                          {isPending && (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              <span>รออนุมัติ</span>
+                            </span>
                           )}
                         </div>
                       </div>
-
-                      {/* Status Badge per student */}
-                      <div className="flex items-center gap-2 self-end sm:self-center">
-                        {isApproved && (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200 flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-teal-600" />
-                            <span>อนุมัติแล้ว (รอเข้าแล็บ)</span>
-                          </span>
-                        )}
-                        {isCheckedIn && (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1 animate-pulse">
-                            <Sparkles className="w-3 h-3 text-indigo-600" />
-                            <span>กำลังฝึกในห้องแล็บ</span>
-                          </span>
-                        )}
-                        {isCompleted && (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            <span>ฝึกเสร็จสิ้น</span>
-                          </span>
-                        )}
-                        {isPending && (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-amber-600" />
-                            <span>รออนุมัติ</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
 
               {/* Event Card Footer */}
@@ -1819,7 +1870,7 @@ export default function SchedulePage() {
       );
     } else if (task.type === 'PRACTICE_EVENT') {
       detailTitle = `รอบฝึกปฏิบัติการ (${task.students?.length || 0}/${task.maxCapacity || 6} คน)`;
-      detailSub = `รอบเวลา: ${task.timeSlot}`;
+      detailSub = `รอบเวลา: ${task.timeSlot}${task.isOpen === false ? ' • 🔒 ปิดรับจอง' : ''}`;
       actionBtn = (
         <Link
           href="/practice"

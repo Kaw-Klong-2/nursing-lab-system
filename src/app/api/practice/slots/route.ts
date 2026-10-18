@@ -26,8 +26,11 @@ export async function GET(req: Request) {
     const endDateParam = searchParams.get('endDate');
     const monthParam = searchParams.get('month'); // 1-12
     const yearParam = searchParams.get('year'); // e.g. 2026
+    const allParam = searchParams.get('all');
 
-    if (dateParam) {
+    if (allParam === 'true') {
+      // Return all slots without date restriction
+    } else if (dateParam) {
       const cleanStr = dateParam.slice(0, 10);
       const [y, m, d] = cleanStr.split('-').map(Number);
       const startOfDay = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));

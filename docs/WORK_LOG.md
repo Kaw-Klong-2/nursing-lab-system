@@ -17,6 +17,29 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-18] ติดตั้งระบบ Dual-Deployment รองรับการใช้งานควบคู่ทั้ง Vercel และ Cloudflare Pages
+- **หมวดหมู่**: Cloud Infrastructure & Dual CI/CD Pipeline (`package.json`, `src/lib/prisma.ts`, `wrangler.jsonc`, `open-next.config.ts`)
+- **สิ่งที่ดำเนินการ**:
+  1. **ปรับปรุงการเชื่อมต่อฐานข้อมูล Prisma ให้รองรับ Driver Adapter (`PrismaPg`)**:
+     - อัปเกรด `src/lib/prisma.ts` โดยเชื่อมต่อผ่าน `pg` Pool และ `@prisma/adapter-pg`
+     - รองรับการทำงานแบบ Hybrid 100%: ทั้งบน Node.js ปกติ (Vercel, Local dev) และบน Edge Worker Runtime (Cloudflare Pages)
+  2. **ติดตั้งและกำหนดค่า Cloudflare Pages OpenNext Adapter**:
+     - ติดตั้ง `@opennextjs/cloudflare`, `wrangler`, `@prisma/adapter-pg`, `pg`, `@types/pg`
+     - สร้างไฟล์ `wrangler.jsonc` กำหนดค่า `nodejs_compat` และโฟลเดอร์ build output
+     - สร้างไฟล์ `open-next.config.ts` สำหรับคอมไพล์ Next.js 15 App Router
+     - เพิ่ม build script `build:cf` และ `preview:cf` ใน `package.json`
+  3. **ทดสอบความเข้ากันได้แบบคู่ขนาน (Dual-Build Verification)**:
+     - ทดสอบ `npm run build` (คำสั่งของ Vercel) ผ่านฉลุย 100% ครบทั้ง 82 routes
+     - ทดสอบ `tsc --noEmit` ผ่าน 0 errors
+- **ไฟล์สำคัญที่แก้ไข/สร้างใหม่**:
+  - `package.json`
+  - `src/lib/prisma.ts`
+  - `wrangler.jsonc` (NEW)
+  - `open-next.config.ts` (NEW)
+  - `.gitignore`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ✅ ผ่าน 100% (คำว่า "นิสิต" ถูกต้องทั้งหมด, UTF-8 สมบูรณ์)
+
 ### [2026-10-18] อัปเกรดระบบสัมผัสปฏิทินบนมือถือแบบ Clean Tap และย้ายคลังโค้ดขึ้น GitHub สู่ Kaw-Klong-2
 - **หมวดหมู่**: Mobile Calendar UX & CI/CD Deployment Pipeline (`MasterRoomCalendar`, `CalendarHoverCard`, `Schedule`, `Rooms`)
 - **สิ่งที่ดำเนินการ**:

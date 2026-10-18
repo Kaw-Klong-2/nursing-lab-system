@@ -40,3 +40,6 @@ next-env.d.ts
 # office temporary files
 ~$*
 
+# cloudflare
+.open-next
+.wrangler

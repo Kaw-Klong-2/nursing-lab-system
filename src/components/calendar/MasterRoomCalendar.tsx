@@ -144,14 +144,8 @@ export default function MasterRoomCalendar({
   className = '',
   hideHeaderBanner = false,
 }: MasterRoomCalendarProps) {
-  // Navigation & View Modes (Default to MONTH on mobile screens for optimal readability)
+  // Navigation & View Modes (Default to TIMELINE master schedule for all screen sizes)
   const [viewMode, setViewMode] = useState<'TIMELINE' | 'MONTH' | 'LIST'>('TIMELINE');
-
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      setViewMode('MONTH');
-    }
-  }, []);
 
   // Dates
   const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -889,103 +883,18 @@ export default function MasterRoomCalendar({
               </span>
             </div>
 
-            <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline shrink-0">
-              ช่วงเวลา 08:00 – 18:00 น. (คลิกที่กิจกรรมเพื่อดูรายละเอียด หรือคลิกช่องว่างเพื่อจอง)
+            <span className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 shrink-0">
+              <span className="hidden sm:inline">ช่วงเวลา 08:00 – 18:00 น. (คลิกที่กิจกรรมเพื่อดูรายละเอียด หรือคลิกช่องว่างเพื่อจอง)</span>
+              <span className="sm:hidden font-medium text-teal-600 dark:text-teal-400">↔ เลื่อนดูเวลา 08:00–18:00 น.</span>
             </span>
           </div>
 
-          {/* Mobile Daily Room Cards (< md) */}
-          <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
-            {loading ? (
-              <div className="py-16 flex items-center justify-center bg-slate-50/50 dark:bg-slate-900/50">
-                <LoadingSpinner
-                  message="กำลังโหลดตารางการใช้ห้องปฏิบัติการ..."
-                  submessage="กำลังดึงข้อมูลรอบเวลาและกิจกรรม"
-                />
-              </div>
-            ) : filteredRooms.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-xs">
-                ไม่พบห้องปฏิบัติการในหมวดหมู่นี้
-              </div>
-            ) : (
-              filteredRooms.map((room) => {
-                const roomActs = dailyActivities.filter((act) => act.roomId === room.id);
-                return (
-                  <div key={room.id} className="p-3.5 space-y-2.5 bg-white dark:bg-slate-900">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-mono text-[11px] font-black text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 px-2 py-0.5 rounded">
-                            {room.code}
-                          </span>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                            {room.location ? `${room.location} • ` : ''}{room.capacity || 10} ที่นั่ง
-                          </span>
-                        </div>
-                        <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 mt-1 break-words">
-                          {room.name}
-                        </h4>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (onOpenBookingModal) {
-                            onOpenBookingModal({ roomId: room.id, date: selectedDate });
-                          } else {
-                            window.location.href = `/rooms?action=book&roomId=${room.id}&date=${selectedDate}`;
-                          }
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-[10px] font-bold shrink-0 cursor-pointer"
-                      >
-                        + จองห้องนี้
-                      </button>
-                    </div>
-
-                    {roomActs.length === 0 ? (
-                      <div className="text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/50 rounded-xl px-3 py-2 flex items-center justify-between">
-                        <span>✨ ห้องว่างตลอดทั้งวัน (08:00 – 18:00 น.)</span>
-                      </div>
-                    ) : (
-                      <div className="space-y-1.5">
-                        {roomActs.map((act) => {
-                          const style = getActivityStyle(act.activityType, act.status);
-                          return (
-                            <div
-                              key={act.id}
-                              onClick={() => setActiveActivityModal(act)}
-                              className={`p-2.5 rounded-xl border shadow-sm cursor-pointer transition space-y-1 ${style.bg}`}
-                            >
-                              <div className="flex items-center justify-between gap-2 text-xs font-bold">
-                                <span className="truncate flex items-center gap-1">
-                                  <span>{style.icon}</span>
-                                  <span className="truncate">{act.title}</span>
-                                </span>
-                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/25 shrink-0">
-                                  {act.startTime}-{act.endTime} น.
-                                </span>
-                              </div>
-                              <div className="text-[10px] opacity-90 flex items-center justify-between gap-2">
-                                <span className="truncate">{act.userOrAdvisorName || '-'}</span>
-                                {act.attendeesCount && <span className="shrink-0">{act.attendeesCount} คน</span>}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* Desktop Timeline Gantt Grid (>= md) */}
-          <div className="hidden md:block overflow-x-auto">
-            <div className="min-w-[950px] divide-y divide-slate-100 dark:divide-slate-800">
+          {/* Master Timeline Gantt Grid (Responsive with Horizontal Scroll & Sticky Room Header) */}
+          <div className="overflow-x-auto touch-pan-x scrollbar-thin">
+            <div className="min-w-[880px] sm:min-w-[950px] divide-y divide-slate-100 dark:divide-slate-800">
               {/* Hours Ruler Header */}
               <div className="grid grid-cols-12 bg-slate-100/80 dark:bg-slate-800/80 text-[11px] font-bold text-slate-600 dark:text-slate-400 py-2.5">
-                <div className="col-span-2 pl-4 text-left font-black text-slate-800 dark:text-slate-200">
+                <div className="col-span-2 pl-3 sm:pl-4 pr-2 text-left font-black text-slate-800 dark:text-slate-200 sticky left-0 z-20 bg-slate-100 dark:bg-slate-800 border-r border-slate-200/60 dark:border-slate-700/60 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
                   ห้องปฏิบัติการ ({filteredRooms.length})
                 </div>
                 {Array.from({ length: TOTAL_HOURS }).map((_, idx) => {
@@ -1019,8 +928,8 @@ export default function MasterRoomCalendar({
                       key={room.id}
                       className="grid grid-cols-12 items-center min-h-[72px] hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition relative group"
                     >
-                      {/* Room Info Cell */}
-                      <div className="col-span-2 pl-4 pr-2 py-2.5">
+                      {/* Room Info Cell (Sticky left for smooth horizontal scrolling) */}
+                      <div className="col-span-2 pl-3 sm:pl-4 pr-2 py-2.5 sticky left-0 z-20 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-850 transition border-r border-slate-200/60 dark:border-slate-800/60 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-mono text-xs font-black text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 px-2 py-0.5 rounded">
                             {room.code}

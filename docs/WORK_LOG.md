@@ -17,6 +17,19 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-18] คืนค่าหน้าไทม์ไลน์การใช้ห้องประจำวัน (Master Gantt Timeline) เป็นค่าเริ่มต้นบนหน้าภาพรวม
+- **หมวดหมู่**: UI / Calendar & Dashboard Overview (`src/components/calendar/MasterRoomCalendar.tsx`)
+- **สิ่งที่ดำเนินการ**:
+  1. **คืนค่ามุมมองไทม์ไลน์ตารางเวลา (TIMELINE View)**: ยกเลิก `useEffect` ที่เคยบังคับสลับเป็น `MONTH` อัตโนมัติเมื่อหน้าจอแคบกว่า 768px ทำให้ผู้ใช้ทั้งบนเดสก์ท็อปและมือถือเห็นตารางเวลาการใช้ห้องประจำวัน (ห้องปฏิบัติการ vs ช่วงเวลา 08:00 – 18:00 น.) เป็นค่าเริ่มต้นทันทีที่เข้าหน้าภาพรวม
+  2. **นำบล็อกการ์ดแนวตั้งบนมือถือออก และใช้ตาราง Gantt แบบ Responsive**: ให้แสดงตารางเวลาแบบเดียวกับเดสก์ท็อป พร้อมเปิดใช้งาน `overflow-x-auto touch-pan-x` เลื่อนซ้าย-ขวาได้อย่างลื่นไหล
+  3. **ตรึงคอลัมน์ชื่อห้องด้านซ้าย (Sticky Room Header)**: กำหนดให้คอลัมน์ชื่อห้องและรหัสห้อง `sticky left-0` พร้อมเงาและขอบแบ่งชัดเจน ทำให้เมื่อเลื่อนดูช่วงเวลาบนมือถือ ชื่อห้องจะไม่เลื่อนหลุดหายไป
+  4. **เพิ่มข้อความแนะนำการเลื่อนบนจอมือถือ**: แสดง `↔ เลื่อนดูเวลา 08:00–18:00 น.` ในแถบหัวตาราง
+  5. **ตรวจสอบมาตรฐานคำศัพท์และระบบ Build**: ตรวจสอบคำว่า "นิสิต" ผ่าน 100% และ Build ผ่านสมบูรณ์ทั้ง `npm run build` และ `npm run build:cf`
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/components/calendar/MasterRoomCalendar.tsx`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100% (คำศัพท์ "นิสิต" ครบถ้วน ไม่มี Mojibake)
+
 ### [2026-10-18] แก้ไขปัญหา Prisma Client บน Cloudflare Workers ([unenv] fs.readdir is not implemented yet!)
 - **หมวดหมู่**: Cloudflare Workers Runtime & Prisma Driver Adapter (`prisma/schema.prisma`, `next.config.mjs`, `src/lib/prisma.ts`)
 - **สิ่งที่ดำเนินการ**:

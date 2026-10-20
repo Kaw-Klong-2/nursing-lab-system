@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
 import { formatTeacherName, formatRequesterWithRole } from '@/lib/user-utils';
 import { createNotification, notifyRoles } from '@/lib/notifications';
+import { getBangkokParts, getBangkokStartOfDay } from '@/lib/date-time-utils';
 
 interface BatchSlotItem {
   roomId: string;
@@ -252,13 +253,14 @@ export async function POST(req: Request) {
 
     // 8. Generate bookings in database
     const now = new Date();
-    const thaiYear = now.getFullYear() + 543;
-    const datePrefix = `${thaiYear}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+    const bkk = getBangkokParts(now);
+    const thaiYear = bkk.year + 543;
+    const datePrefix = `${thaiYear}${String(bkk.month).padStart(2, '0')}${String(bkk.day).padStart(2, '0')}`;
 
     let todayCount = await prisma.roomBooking.count({
       where: {
         createdAt: {
-          gte: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0),
+          gte: getBangkokStartOfDay(now),
         },
       },
     });

@@ -5,6 +5,7 @@ import { createNotification } from '@/lib/notifications';
 import { canUserApprove } from '@/lib/approval-scope';
 import { logActivity } from '@/lib/activity-log';
 import { formatAcknowledgeDisplay } from '@/lib/user-utils';
+import { parseBangkokDateTime } from '@/lib/date-time-utils';
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -234,7 +235,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (action === 'UPDATE_DATES') {
       const { dateNeeded } = body;
       const dataToUpdate: any = {};
-      if (dateNeeded) dataToUpdate.dateNeeded = new Date(dateNeeded);
+      if (dateNeeded) dataToUpdate.dateNeeded = parseBangkokDateTime(dateNeeded);
 
       const updated = await prisma.requisitionRequest.update({
         where: { id },

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
 import { createNotification, notifyAdvisorByName, notifyRoles } from '@/lib/notifications';
 import { logActivity } from '@/lib/activity-log';
+import { parseBangkokDateTime } from '@/lib/date-time-utils';
 
 export async function PUT(req: Request) {
   try {
@@ -333,7 +334,7 @@ export async function PUT(req: Request) {
               advisorName: finalAdvisorName,
               purpose: purpose || requisitionRecord.purpose,
               useTarget,
-              dateNeeded: dateNeeded ? new Date(dateNeeded) : requisitionRecord.dateNeeded,
+              dateNeeded: dateNeeded ? parseBangkokDateTime(dateNeeded) : requisitionRecord.dateNeeded,
               status: 'PENDING',
               approverId: null,
               approvedAt: null,
@@ -367,8 +368,8 @@ export async function PUT(req: Request) {
               advisorName: finalAdvisorName,
               purpose: purpose || borrowRecord.purpose,
               useTarget,
-              borrowDate: borrowDate ? new Date(borrowDate) : borrowRecord.borrowDate,
-              expectedReturnDate: expectedReturnDate ? new Date(expectedReturnDate) : borrowRecord.expectedReturnDate,
+              borrowDate: borrowDate ? parseBangkokDateTime(borrowDate) : borrowRecord.borrowDate,
+              expectedReturnDate: expectedReturnDate ? parseBangkokDateTime(expectedReturnDate) : borrowRecord.expectedReturnDate,
               status: 'PENDING',
               approverId: null,
               approvedAt: null,

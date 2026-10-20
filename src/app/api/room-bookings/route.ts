@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
 import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
 import { formatUserName, formatRequesterWithRole } from '@/lib/user-utils';
+import { getBangkokParts, getBangkokStartOfDay } from '@/lib/date-time-utils';
 
 export async function GET(req: Request) {
   try {
@@ -253,13 +254,14 @@ export async function POST(req: Request) {
 
     // 4. Generate unique Booking Number e.g. "ROOM-25690911-001"
     const now = new Date();
-    const thaiYear = now.getFullYear() + 543;
-    const datePart = `${thaiYear}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+    const bkk = getBangkokParts(now);
+    const thaiYear = bkk.year + 543;
+    const datePart = `${thaiYear}${String(bkk.month).padStart(2, '0')}${String(bkk.day).padStart(2, '0')}`;
 
     const todayCount = await prisma.roomBooking.count({
       where: {
         createdAt: {
-          gte: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0),
+          gte: getBangkokStartOfDay(now),
         },
       },
     });

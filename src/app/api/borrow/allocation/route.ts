@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
+import { parseBangkokDateTime } from '@/lib/date-time-utils';
 
 // GET: ดึงรายการจัดสรรประจำรายวิชาทั้งหมด
 export async function GET(req: Request) {
@@ -95,8 +96,8 @@ export async function POST(req: Request) {
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const requestNumber = `ALC-${course.code}-${dateStr}-${randomSuffix}`;
 
-    const startDate = borrowDate ? new Date(borrowDate) : new Date();
-    const endDate = expectedReturnDate ? new Date(expectedReturnDate) : new Date(Date.now() + 120 * 24 * 60 * 60 * 1000); // 4 เดือน
+    const startDate = borrowDate ? parseBangkokDateTime(borrowDate) : new Date();
+    const endDate = expectedReturnDate ? parseBangkokDateTime(expectedReturnDate) : new Date(Date.now() + 120 * 24 * 60 * 60 * 1000); // 4 เดือน
 
     const result = await prisma.$transaction(async (tx) => {
       // 1. สร้าง BorrowRequest แบบ COURSE_ALLOCATION

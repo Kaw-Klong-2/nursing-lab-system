@@ -17,30 +17,41 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
-### [2026-10-20] ตรวจสอบและแก้ไขระบบวัน เวลา และ Timezone ทั้งหมดในระบบ (Comprehensive Time & Timezone Audit)
-- **หมวดหมู่**: Core Infrastructure / Timezone Standardization (`src/lib/date-time-utils.ts`, Practice Bookings, POS, Cron, Borrow)
+### [2026-10-20] ตรวจสอบและแก้ไขระบบวัน เวลา และ Timezone ทั้งหมดในระบบ (Comprehensive Time & Timezone Audit & Fix)
+- **หมวดหมู่**: Core Infrastructure / Timezone Standardization (`src/lib/date-time-utils.ts`, Practice Bookings, POS, Cron, Borrow, Room Bookings, Requisitions)
 - **สิ่งที่ดำเนินการ**:
-  1. **ค้นพบและแก้ไขจุดคลาดเคลื่อนเวลา 7 ชั่วโมง (UTC vs Asia/Bangkok)**:
-     - ในสภาพแวดล้อม Production Cloud (เช่น Vercel) ระบบ Node.js ทำงานในเขตเวลา `UTC` ขณะที่ประเทศไทยคือ `UTC+7`
-     - **จุดเสี่ยง 1 (Practice Check-in Time)**: เดิมใช้ `.setHours(hours, minutes)` ซึ่งบนเซิร์ฟเวอร์ UTC ทำให้เวลาเริ่มรอบฝึกถูกเลื่อนไป 7 ชั่วโมง ส่งผลให้นิสิตเช็คอินล่วงหน้าไม่ได้และระบบแจ้งเตือนว่ายังไม่ถึงเวลาเช็คอิน (ต้องรอ 400+ นาที) ได้รับการแก้ไขให้ใช้ `combineSlotDateAndBangkokTime` คำนวณตรงเป๊ะทุกสภาพแวดล้อม
-     - **จุดเสี่ยง 2 (Advance Booking Window)**: การคำนวณ `maxFutureDate` เดิมใช้ `now.getDate() + maxAdvanceDays` และ `.setHours(23, 59, 59)` แก้ไขให้ใช้ `getBangkokEndOfDay` เพื่อไม่ให้รอบวันตัดผิดเวลา
-     - **จุดเสี่ยง 3 (POS Checkout Return Time)**: การยืมด่วนหน้าร้านเดิมตั้ง `endOfDay.setHours(17, 30)` ซึ่งบน UTC จะกลายเป็นเวลา 00:30 น. ของวันถัดไป ได้รับการแก้ไขให้คำนวณ 17:30 น. ตามเวลาประเทศไทย (10:30 UTC) อย่างแม่นยำ
-     - **จุดเสี่ยง 4 (Automated Cron Reminders)**: แก้ไขการตัดรอบวัน `startOfToday` และ `endOfToday` ในระบบเตือนคืนครุภัณฑ์ล่วงหน้าให้ยึดตามปฏิทินไทย
-     - **จุดเสี่ยง 5 (Datetime-local Parsing ใน Borrow/Unified Requests)**: แก้ไขให้ฟังก์ชัน `parseBangkokDateTime` แปลงข้อความจาก `<input type="datetime-local" />` (เช่น `2026-10-20T16:30`) ให้เป็น UTC ที่มี offset +07:00 เสมอ
-  2. **สร้างไลบรารีกลาง [`src/lib/date-time-utils.ts`](file:///d:/LAB-system/src/lib/date-time-utils.ts)**:
-     - ฟังก์ชัน `getBangkokParts`, `getBangkokStartOfDay`, `getBangkokEndOfDay`, `parseBangkokDateTime`, `combineSlotDateAndBangkokTime`, และ `formatBangkokDateTime`
-  3. **การตรวจสอบคุณภาพตามมาตรฐานบรรณารักษ์**:
+  1. **สืบสวนสาเหตุเชิงลึกกรณี BRW-20261017-002 แสดงเวลานัดรับและกำหนดคืน 19:00 น.**:
+     - ตรวจสอบ Record ในฐานข้อมูลพบ `borrowDate: 2026-10-19T12:00:00.000Z` และ `expectedReturnDate: 2026-10-28T12:00:00.000Z`
+     - **สาเหตุแท้จริง**: นิสิตเลือกเวลา `12:00 น.` (เที่ยงวัน) บนเบราว์เซอร์ ซึ่งส่งค่า `"2026-10-19T12:00"` มาที่ API จากนั้นโค้ดเดิมใช้ `new Date(borrowDate)` บนสภาพแวดล้อม Node.js ที่ไม่มี Offset ทำให้ Node ตีความ 12:00 เป็น UTC (`12:00Z`) เมื่อระบบดึงข้อมูลกลับมาแสดงผลบนเครื่องไคลเอนต์ในประเทศไทย (UTC+7) เวลาจึงถูกบวกไป 7 ชั่วโมง กลายเป็น `19:00 น.`
+     - **การแก้ไขในฐานข้อมูล**: ปรับแก้ Record `BRW-20261017-002` และ `REQ-20261017-012` ให้เก็บค่า UTC ที่แท้จริงคือ `05:00:00.000Z` ทำให้หน้า UI แสดงผลตรงกับความเป็นจริงที่ `12:00 น.`
+  2. **สร้างไลบรารีสถาปัตยกรรมเวลาสากล [`src/lib/date-time-utils.ts`](file:///d:/LAB-system/src/lib/date-time-utils.ts)**:
+     - รวมฟังก์ชันปลอดภัยต่อทุกสภาพแวดล้อม: `getBangkokParts`, `getBangkokStartOfDay`, `getBangkokEndOfDay`, `parseBangkokDateTime`, `combineSlotDateAndBangkokTime`, และ `formatBangkokDateTime`
+  3. **กวาดล้างและแก้ไขจุดเปราะบาง Timezone ครบทุกจุดใน 7 ซับซิสเต็ม**:
+     - **ระบบคำขอยืม-คืนครุภัณฑ์ (`/api/borrow`, `/api/requests/unified`, `/api/requests/edit`)**: ใช้ `parseBangkokDateTime` แปลงค่าจาก `<input type="datetime-local">` ให้เป็น UTC+7 เสมอ ป้องกันการเลื่อน 7 ชั่วโมง
+     - **ระบบเบิกวัสดุสิ้นเปลือง (`/api/requisitions`, `/api/requisitions/[id]`)**: ใช้ `parseBangkokDateTime` สำหรับ `dateNeeded`
+     - **ระบบจองห้องปฏิบัติการ (`/api/room-bookings`, `/api/room-bookings/batch`)**: ใช้ `getBangkokParts` และ `getBangkokStartOfDay` ในการนับ Sequence เลขที่จองประจำวันและสร้างรหัสจอง ป้องกันการนับวันถอยหลังช่วงเที่ยงคืนถึง 06:59 น.
+     - **ระบบจัดสรรและยืมต่อเนื่อง (`/api/borrow/allocation`)**: ใช้ `parseBangkokDateTime` คุม `startDate` และ `endDate`
+     - **ระบบเช็คอินฝึกปฏิบัติการ (`/api/practice/bookings/[id]`, `/api/practice/bookings`)**: ใช้ `combineSlotDateAndBangkokTime` และ `getBangkokEndOfDay` แก้ปัญหาบล็อกการเช็คอินล่วงหน้าของนิสิต
+     - **ระบบ POS หน้าร้าน (`/api/pos/checkout`)**: ปรับเวลาคืน 17:30 น. เป็นเวลาไทย (10:30 UTC) อย่างแม่นยำ
+     - **ระบบแจ้งเตือนอัตโนมัติ (`/api/cron/reminders`)**: คำนวณช่วงเวลา D-Day, D-1 และ Overdue ด้วยเวลาไทย
+  4. **การตรวจสอบคุณภาพตามมาตรฐานบรรณารักษ์**:
      - ตรวจสอบคำว่า "นิสิต" ผ่าน 100% (`npm run librarian:audit`)
-     - ตรวจสอบ TypeScript ผ่าน (`npx tsc --noEmit`)
+     - ตรวจสอบ TypeScript ผ่าน 100% (`npx tsc --noEmit`)
      - Build ระบบผ่านสมบูรณ์ 100% (`npm run build`)
 - **ไฟล์สำคัญที่แก้ไข/สร้างขึ้น**:
   - `src/lib/date-time-utils.ts` (ใหม่)
+  - `src/app/api/borrow/route.ts`
+  - `src/app/api/requests/unified/route.ts`
+  - `src/app/api/requests/edit/route.ts`
+  - `src/app/api/requisitions/route.ts`
+  - `src/app/api/requisitions/[id]/route.ts`
+  - `src/app/api/room-bookings/route.ts`
+  - `src/app/api/room-bookings/batch/route.ts`
+  - `src/app/api/borrow/allocation/route.ts`
   - `src/app/api/practice/bookings/[id]/route.ts`
   - `src/app/api/practice/bookings/route.ts`
   - `src/app/api/pos/checkout/route.ts`
   - `src/app/api/cron/reminders/route.ts`
-  - `src/app/api/borrow/route.ts`
-  - `src/app/api/requests/unified/route.ts`
   - `LIBRARY_CATALOG.md`
   - `docs/WORK_LOG.md`
 

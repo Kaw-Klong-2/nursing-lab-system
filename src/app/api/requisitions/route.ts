@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getCached, setCached, invalidateCache } from '@/lib/cache';
 import { formatUserName, formatTeacherName, formatRequesterWithRole } from '@/lib/user-utils';
 import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
+import { parseBangkokDateTime } from '@/lib/date-time-utils';
 
 export async function GET(req: Request) {
   try {
@@ -244,7 +245,7 @@ export async function POST(req: Request) {
         courseId,
         advisorName,
         purpose,
-        dateNeeded: new Date(dateNeeded),
+        dateNeeded: parseBangkokDateTime(dateNeeded),
         status: 'PENDING',
         totalCost: estimatedTotalCost,
         items: {

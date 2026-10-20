@@ -28,6 +28,7 @@ import {
   MapPin,
   Info,
   FileText,
+  Bell,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import UnifiedRequestModal from '@/components/requests/UnifiedRequestModal';
@@ -111,6 +112,39 @@ export default function RequisitionsPage() {
   const [dispenseNote, setDispenseNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
+  const [isRunningDailyReminder, setIsRunningDailyReminder] = useState(false);
+
+  const handleRunDailyReminders = async () => {
+    if (!currentUser?.id) return;
+    if (!confirm('ยืนยันให้ระบบตรวจสอบตารางจ่ายของและส่งการแจ้งเตือนสรุปประจำวัน (รอบเช้า 09:00)?')) return;
+    setIsRunningDailyReminder(true);
+    try {
+      const res = await fetch('/api/cron/reminders?type=morning', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        let msg = `ตรวจรอบวันสำเร็จ:\n📦 รายการรอจ่ายของวันนี้: ${data.todayDispenseCount || 0} รายการ`;
+        if (data.todayRoomCount !== undefined) {
+          msg += `\n🏫 ตารางใช้ห้องวันนี้: ${data.todayRoomCount} รายการ`;
+        }
+        msg += `\n\nสถานะการแจ้งเตือน:\n- สรุปตารางจ่ายพัสดุ: ${data.dispenseDigestSent ? '✅ ส่งแจ้งเตือนแล้ว' : 'ℹ️ เคยส่งแล้วในรอบ 18 ชม.'}`;
+        msg += `\n- สรุปตารางห้องแล็บ: ${data.roomDigestSent ? '✅ ส่งแจ้งเตือนแล้ว' : 'ℹ️ เคยส่งแล้วในรอบ 18 ชม.'}`;
+        alert(msg);
+        fetchRequisitions();
+      } else {
+        alert(data.error || 'เกิดข้อผิดพลาดในการตรวจสอบและส่งแจ้งเตือน');
+      }
+    } catch {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+    } finally {
+      setIsRunningDailyReminder(false);
+    }
+  };
 
   const fetchRequisitions = async () => {
     try {
@@ -578,6 +612,20 @@ export default function RequisitionsPage() {
             <FileSpreadsheet className="w-4 h-4" />
             <span>ส่งออก Excel</span>
           </button>
+
+          {/* Trigger Daily Reminders Button for Officer & Admin */}
+          {(isOfficer || isAdmin) && (
+            <button
+              type="button"
+              onClick={handleRunDailyReminders}
+              disabled={isRunningDailyReminder}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 text-xs font-bold transition cursor-pointer shadow-sm disabled:opacity-60"
+              title="ตรวจสอบตารางจ่ายของและส่งแจ้งเตือนสรุปประจำวัน (รอบเช้า 09:00)"
+            >
+              <Bell className={`w-3.5 h-3.5 text-amber-600 dark:text-amber-400 ${isRunningDailyReminder ? 'animate-bounce' : ''}`} />
+              <span>{isRunningDailyReminder ? 'กำลังประมวลผล...' : 'ตรวจตารางจ่ายของรอบวัน (09:00)'}</span>
+            </button>
+          )}
         </div>
       </div>
 

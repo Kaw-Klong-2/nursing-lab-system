@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
-import { createNotification } from '@/lib/notifications';
+import { createNotification, notifyRoles } from '@/lib/notifications';
 import { canUserApprove } from '@/lib/approval-scope';
 import { logActivity } from '@/lib/activity-log';
 import { formatAcknowledgeDisplay } from '@/lib/user-utils';
@@ -147,6 +147,20 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         title: 'คำขอเบิกพัสดุได้รับการอนุมัติแล้ว 🎉',
         message: `คำขอเบิกเลขที่ ${requisition.requestNumber} ได้รับการอนุมัติแล้ว กรุณาติดต่อรับพัสดุที่ห้องแล็บ`,
         type: 'APPROVAL',
+        priority: 'HIGH',
+        linkUrl: '/requisitions',
+        entityType: 'REQUISITION',
+        entityId: requisition.id,
+      }).catch(() => {});
+
+      // Notify OFFICER & ADMIN about approved requisition waiting to be dispensed
+      const dateNeededText = requisition.dateNeeded
+        ? new Date(requisition.dateNeeded).toLocaleDateString('th-TH')
+        : 'ตามกำหนดการ';
+      notifyRoles(['OFFICER', 'ADMIN'], {
+        title: '📦 มีรายการเบิกอนุมัติแล้ว รอจัดเตรียม/จ่ายของ',
+        message: `คำขอเบิกเลขที่ ${requisition.requestNumber} (${requisition.course?.code ? `วิชา ${requisition.course.code}` : requisition.purpose || 'เบิกวัสดุ'}) ได้รับอนุมัติแล้ว มีกำหนดใช้: ${dateNeededText}`,
+        type: 'STATUS_UPDATE',
         priority: 'HIGH',
         linkUrl: '/requisitions',
         entityType: 'REQUISITION',

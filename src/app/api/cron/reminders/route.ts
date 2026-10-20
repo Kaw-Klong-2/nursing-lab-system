@@ -62,6 +62,10 @@ async function processReminders(type: string = 'all') {
   let dDayAlertsSent = 0;
   let d1AlertsSent = 0;
   let staffDigestSent = false;
+  let dispenseDigestSent = false;
+  let roomDigestSent = false;
+  let todayDispenseCount = 0;
+  let todayRoomCount = 0;
 
   const shouldRunMorning = type === 'morning' || type === 'all';
   const shouldRunEvening = type === 'evening' || type === 'all';
@@ -176,6 +180,97 @@ async function processReminders(type: string = 'all') {
         });
 
         staffDigestSent = true;
+      }
+    }
+
+    // ==========================================
+    // 1.1 ตรวจสอบรายการที่ต้องจ่ายออกประจำวัน (Scheduled Dispense Digest - รอบเช้า)
+    // ==========================================
+    const [todayRequisitions, todayBorrowsToPickup] = await Promise.all([
+      prisma.requisitionRequest.findMany({
+        where: {
+          status: 'APPROVED',
+          dateNeeded: {
+            lte: endOfToday,
+          },
+        },
+        include: {
+          course: { select: { code: true } },
+        },
+      }),
+      prisma.borrowRequest.findMany({
+        where: {
+          status: 'APPROVED',
+          borrowDate: {
+            lte: endOfToday,
+          },
+        },
+      }),
+    ]);
+
+    todayDispenseCount = todayRequisitions.length + todayBorrowsToPickup.length;
+
+    if (todayDispenseCount > 0) {
+      const recentDispenseDigest = await prisma.notification.findFirst({
+        where: {
+          type: 'STATUS_UPDATE',
+          title: { contains: 'สรุปตารางจ่ายพัสดุและอุปกรณ์ประจำวัน' },
+          createdAt: { gte: eighteenHoursAgo },
+        },
+      });
+
+      if (!recentDispenseDigest) {
+        await notifyRoles(['OFFICER', 'ADMIN'], {
+          title: '📦 สรุปตารางจ่ายพัสดุและอุปกรณ์ประจำวัน',
+          message: `วันนี้มีรายการที่ต้องจ่ายออกรวม ${todayDispenseCount} รายการ (ใบเบิกวัสดุ ${todayRequisitions.length} รายการ, นัดรับครุภัณฑ์ ${todayBorrowsToPickup.length} รายการ) กรุณาตรวจสอบและจัดเตรียมพัสดุที่ห้องแล็บ`,
+          type: 'STATUS_UPDATE',
+          priority: 'HIGH',
+          linkUrl: todayRequisitions.length > 0 ? '/requisitions' : '/borrow',
+          entityType: todayRequisitions.length > 0 ? 'REQUISITION' : 'BORROW',
+        });
+        dispenseDigestSent = true;
+      }
+    }
+
+    // ==========================================
+    // 1.2 ตรวจสอบตารางการใช้ห้องปฏิบัติการประจำวัน (Daily Room Usage Digest - รอบเช้า)
+    // ==========================================
+    const todayRoomBookings = await prisma.roomBooking.findMany({
+      where: {
+        status: 'APPROVED',
+        bookingDate: {
+          gte: startOfToday,
+          lte: endOfToday,
+        },
+      },
+      include: {
+        room: { select: { name: true } },
+      },
+      orderBy: { startTime: 'asc' },
+    });
+
+    todayRoomCount = todayRoomBookings.length;
+
+    if (todayRoomCount > 0) {
+      const recentRoomDigest = await prisma.notification.findFirst({
+        where: {
+          type: 'STATUS_UPDATE',
+          title: { contains: 'สรุปตารางการใช้ห้องปฏิบัติการประจำวัน' },
+          createdAt: { gte: eighteenHoursAgo },
+        },
+      });
+
+      if (!recentRoomDigest) {
+        const roomNames = Array.from(new Set(todayRoomBookings.map((b) => b.room?.name).filter(Boolean))).join(', ');
+        await notifyRoles(['OFFICER', 'ADMIN'], {
+          title: '🏫 สรุปตารางการใช้ห้องปฏิบัติการประจำวัน',
+          message: `วันนี้มีตารางการใช้ห้องที่ได้รับอนุมัติรวม ${todayRoomCount} รายการ (${roomNames}) กรุณาตรวจสอบและจัดเตรียมเปิดห้องใช้งาน`,
+          type: 'STATUS_UPDATE',
+          priority: 'NORMAL',
+          linkUrl: '/schedule',
+          entityType: 'ROOM',
+        });
+        roomDigestSent = true;
       }
     }
 
@@ -308,6 +403,10 @@ async function processReminders(type: string = 'all') {
     dDayAlertsSent,
     d1AlertsSent,
     staffDigestSent,
+    dispenseDigestSent,
+    todayDispenseCount,
+    roomDigestSent,
+    todayRoomCount,
   };
 }
 

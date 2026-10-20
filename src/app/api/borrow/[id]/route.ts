@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
 import { formatUserName, formatAcknowledgeDisplay } from '@/lib/user-utils';
-import { createNotification } from '@/lib/notifications';
+import { createNotification, notifyRoles } from '@/lib/notifications';
 import { canUserApprove } from '@/lib/approval-scope';
 import { logActivity } from '@/lib/activity-log';
 
@@ -156,6 +156,20 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         title: 'คำขอยืมได้รับการอนุมัติแล้ว 🎉',
         message: `คำขอยืมเลขที่ ${borrow.requestNumber} ได้รับการอนุมัติแล้ว กรุณาติดต่อรับอุปกรณ์ที่ห้องแล็บ`,
         type: 'APPROVAL',
+        priority: 'HIGH',
+        linkUrl: '/borrow',
+        entityType: 'BORROW',
+        entityId: borrow.id,
+      }).catch(() => {});
+
+      // Notify OFFICER & ADMIN about approved borrow request ready for pickup
+      const borrowDateText = borrow.borrowDate
+        ? new Date(borrow.borrowDate).toLocaleDateString('th-TH')
+        : 'ตามกำหนดการ';
+      notifyRoles(['OFFICER', 'ADMIN'], {
+        title: '📦 มีรายการยืมอนุมัติแล้ว รอนัดรับ/จ่ายของ',
+        message: `คำขอยืมเลขที่ ${borrow.requestNumber} ได้รับการอนุมัติแล้ว มีกำหนดนัดรับ: ${borrowDateText}`,
+        type: 'STATUS_UPDATE',
         priority: 'HIGH',
         linkUrl: '/borrow',
         entityType: 'BORROW',

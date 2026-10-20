@@ -164,7 +164,13 @@ export default function BorrowPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        const msg = `ตรวจรอบวันสำเร็จ: ส่งเตือนนิสิต ${data.overdueAlertsSent + data.dDayAlertsSent} รายการ (พบรายการค้างส่ง ${data.overdueCount} รายการ)`;
+        let msg = `ตรวจรอบวันสำเร็จ: ส่งเตือนนิสิต ${data.overdueAlertsSent + data.dDayAlertsSent} รายการ (พบรายการค้างส่ง ${data.overdueCount} รายการ)`;
+        if (data.todayDispenseCount !== undefined) {
+          msg += `\n📦 รายการรอจ่ายของวันนี้: ${data.todayDispenseCount} รายการ ${data.dispenseDigestSent ? '(ส่งแจ้งเตือนแล้ว)' : ''}`;
+        }
+        if (data.todayRoomCount !== undefined) {
+          msg += `\n🏫 ตารางใช้ห้องวันนี้: ${data.todayRoomCount} รายการ ${data.roomDigestSent ? '(ส่งแจ้งเตือนแล้ว)' : ''}`;
+        }
         alert(msg);
         fetchBorrowData(true);
       } else {

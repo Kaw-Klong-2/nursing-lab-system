@@ -17,6 +17,33 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-20] ระบบแจ้งเตือนตารางจ่ายพัสดุและตารางการใช้ห้องปฏิบัติการอัตโนมัติสำหรับเจ้าหน้าที่และแอดมิน (Automated Dispense & Room Schedule Notifications)
+- **หมวดหมู่**: Notifications / Workflow Automation / Admin Multi-Role Operations (`src/app/api/requisitions/[id]/route.ts`, `src/app/api/borrow/[id]/route.ts`, `src/app/api/cron/reminders/route.ts`, `src/app/requisitions/page.tsx`, `src/app/borrow/page.tsx`)
+- **สิ่งที่ดำเนินการ**:
+  1. **แจ้งเตือนแบบทันทีเมื่อคำขอได้รับอนุมัติ (Real-time Approval Notification to Officers & Admins)**:
+     - ใน `/api/requisitions/[id]` เมื่อมีการกดอนุมัติคำขอเบิก (`action === 'APPROVE'`) ระบบจะส่งการแจ้งเตือนระดับ HIGH ไปยังผู้ใช้ทุกคนที่มีบทบาท `OFFICER` และ `ADMIN` ทันที พร้อมระบุกำหนดวันที่ต้องใช้พัสดุ เพื่อให้เตรียมจัดของไว้ล่วงหน้า
+     - ใน `/api/borrow/[id]` เมื่อมีการกดอนุมัติคำขอยืม (`action === 'APPROVE'`) ระบบจะส่งการแจ้งเตือนระดับ HIGH ไปยัง `OFFICER` และ `ADMIN` ทันที พร้อมระบุเวลานัดรับอุปกรณ์ เพื่อเตรียมตรวจเช็คและจัดวางของที่เคาน์เตอร์
+  2. **สรุปตารางจ่ายพัสดุและตารางห้องรอบเช้าอัตโนมัติ (Morning Daily Digest at 09:00 AM)**:
+     - ปรับปรุง `/api/cron/reminders` (รอบเช้า) ให้กวาดตรวจรายการที่อนุมัติแล้วและมีกำหนดจ่ายออกในวันนี้หรือค้างจ่าย (`dateNeeded <= endOfToday` สำหรับใบเบิก และ `borrowDate <= endOfToday` สำหรับขอยืม) สรุปยอดรวมส่ง Web Push & กระดิ่งแจ้งเตือนให้เจ้าหน้าที่และแอดมินเข้ามาเช็ค
+     - เพิ่มการตรวจเช็คตารางการใช้ห้องปฏิบัติการประจำวัน (`RoomBooking` ที่ `status === 'APPROVED'` ในช่วงวันนี้) และส่งแจ้งเตือนสรุปรายชื่อห้องแล็บและจำนวนรอบการใช้ห้องให้เจ้าหน้าที่/แอดมินเตรียมเปิดห้องและดูแลความพร้อม
+     - มีระบบตัดยอดแจ้งเตือนซ้ำ (De-duplication 18 ชม.) เพื่อไม่ให้รบกวนผู้ใช้บ่อยเกินจำเป็น
+  3. **เพิ่มปุ่มตรวจตารางจ่ายของรอบวันแบบ On-Demand บนหน้า UI**:
+     - เพิ่มปุ่ม `"ตรวจตารางจ่ายของรอบวัน (09:00)"` ในหน้า `/requisitions` (สำหรับเจ้าหน้าที่และแอดมิน) ถัดจากปุ่มส่งออก Excel
+     - ปรับปรุงข้อความแจ้งผลลัพธ์ของปุ่มตรวจรอบวันในหน้า `/borrow` ให้แสดงจำนวนรายการรอจ่ายและตารางห้องควบคู่ไปด้วย
+  4. **เคารพคำสั่งไม่แตะต้อง Schema ฐานข้อมูล**:
+     - ทำงานผ่านโมเดล `Notification`, `PushSubscription` และ `notifyRoles(['OFFICER', 'ADMIN'])` ที่มีอยู่เดิม 100% โดยไม่มีการแก้ไข `prisma/schema.prisma` หรือกระทบสิทธิ์ผู้ใช้เดิม
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/app/api/requisitions/[id]/route.ts`
+  - `src/app/api/borrow/[id]/route.ts`
+  - `src/app/api/cron/reminders/route.ts`
+  - `src/app/requisitions/page.tsx`
+  - `src/app/borrow/page.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**:
+  - ตรวจสอบคำว่า "นิสิต" ผ่าน 100% (`npm run librarian:audit`)
+  - ตรวจสอบ TypeScript ผ่าน 100% (`cmd /c npx tsc --noEmit`)
+  - Build ระบบสำเร็จ 100% (`cmd /c npm run build`)
+
+
 ### [2026-10-20] ตรวจสอบและแก้ไขระบบวัน เวลา และ Timezone ทั้งหมดในระบบ (Comprehensive Time & Timezone Audit & Fix)
 - **หมวดหมู่**: Core Infrastructure / Timezone Standardization (`src/lib/date-time-utils.ts`, Practice Bookings, POS, Cron, Borrow, Room Bookings, Requisitions)
 - **สิ่งที่ดำเนินการ**:

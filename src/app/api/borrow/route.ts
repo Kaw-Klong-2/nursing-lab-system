@@ -4,6 +4,7 @@ import { sendApprovalRequestEmail } from '@/lib/email';
 import { getCached, setCached, invalidateCache } from '@/lib/cache';
 import { formatUserName, formatTeacherName, formatRequesterWithRole } from '@/lib/user-utils';
 import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
+import { parseBangkokDateTime } from '@/lib/date-time-utils';
 
 export async function GET(req: Request) {
   try {
@@ -167,8 +168,8 @@ export async function POST(req: Request) {
         courseId: courseId || null,
         advisorName: finalAdvisorName,
         purpose,
-        borrowDate: new Date(borrowDate),
-        expectedReturnDate: new Date(expectedReturnDate),
+        borrowDate: parseBangkokDateTime(borrowDate),
+        expectedReturnDate: parseBangkokDateTime(expectedReturnDate),
         status: 'PENDING',
         items: {
           create: items.map((it: any) => ({

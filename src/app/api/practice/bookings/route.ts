@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { sendApprovalRequestEmail } from '@/lib/email';
 import { formatUserName, formatTeacherName, formatRequesterWithRole } from '@/lib/user-utils';
 import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
+import { combineSlotDateAndBangkokTime, getBangkokEndOfDay } from '@/lib/date-time-utils';
 
 export async function GET(req: Request) {
   try {
@@ -85,15 +86,11 @@ export async function POST(req: Request) {
 
     // 2. Validate advance booking window
     const now = new Date();
-    const slotDate = new Date(slot.date);
-    const [startH, startM] = slot.startTime.split(':').map(Number);
-    const slotStartDateTime = new Date(slotDate);
-    slotStartDateTime.setHours(startH || 0, startM || 0, 0, 0);
+    const slotStartDateTime = combineSlotDateAndBangkokTime(slot.date, slot.startTime);
 
     const maxAdvanceDays = config?.maxAdvanceDays || 7;
-    const maxFutureDate = new Date();
-    maxFutureDate.setDate(now.getDate() + maxAdvanceDays);
-    maxFutureDate.setHours(23, 59, 59, 999);
+    const futureDateTarget = new Date(now.getTime() + maxAdvanceDays * 24 * 60 * 60 * 1000);
+    const maxFutureDate = getBangkokEndOfDay(futureDateTarget);
 
     if (slotStartDateTime > maxFutureDate) {
       return NextResponse.json(

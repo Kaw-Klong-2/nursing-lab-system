@@ -17,6 +17,33 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-20] ตรวจสอบและแก้ไขระบบวัน เวลา และ Timezone ทั้งหมดในระบบ (Comprehensive Time & Timezone Audit)
+- **หมวดหมู่**: Core Infrastructure / Timezone Standardization (`src/lib/date-time-utils.ts`, Practice Bookings, POS, Cron, Borrow)
+- **สิ่งที่ดำเนินการ**:
+  1. **ค้นพบและแก้ไขจุดคลาดเคลื่อนเวลา 7 ชั่วโมง (UTC vs Asia/Bangkok)**:
+     - ในสภาพแวดล้อม Production Cloud (เช่น Vercel) ระบบ Node.js ทำงานในเขตเวลา `UTC` ขณะที่ประเทศไทยคือ `UTC+7`
+     - **จุดเสี่ยง 1 (Practice Check-in Time)**: เดิมใช้ `.setHours(hours, minutes)` ซึ่งบนเซิร์ฟเวอร์ UTC ทำให้เวลาเริ่มรอบฝึกถูกเลื่อนไป 7 ชั่วโมง ส่งผลให้นิสิตเช็คอินล่วงหน้าไม่ได้และระบบแจ้งเตือนว่ายังไม่ถึงเวลาเช็คอิน (ต้องรอ 400+ นาที) ได้รับการแก้ไขให้ใช้ `combineSlotDateAndBangkokTime` คำนวณตรงเป๊ะทุกสภาพแวดล้อม
+     - **จุดเสี่ยง 2 (Advance Booking Window)**: การคำนวณ `maxFutureDate` เดิมใช้ `now.getDate() + maxAdvanceDays` และ `.setHours(23, 59, 59)` แก้ไขให้ใช้ `getBangkokEndOfDay` เพื่อไม่ให้รอบวันตัดผิดเวลา
+     - **จุดเสี่ยง 3 (POS Checkout Return Time)**: การยืมด่วนหน้าร้านเดิมตั้ง `endOfDay.setHours(17, 30)` ซึ่งบน UTC จะกลายเป็นเวลา 00:30 น. ของวันถัดไป ได้รับการแก้ไขให้คำนวณ 17:30 น. ตามเวลาประเทศไทย (10:30 UTC) อย่างแม่นยำ
+     - **จุดเสี่ยง 4 (Automated Cron Reminders)**: แก้ไขการตัดรอบวัน `startOfToday` และ `endOfToday` ในระบบเตือนคืนครุภัณฑ์ล่วงหน้าให้ยึดตามปฏิทินไทย
+     - **จุดเสี่ยง 5 (Datetime-local Parsing ใน Borrow/Unified Requests)**: แก้ไขให้ฟังก์ชัน `parseBangkokDateTime` แปลงข้อความจาก `<input type="datetime-local" />` (เช่น `2026-10-20T16:30`) ให้เป็น UTC ที่มี offset +07:00 เสมอ
+  2. **สร้างไลบรารีกลาง [`src/lib/date-time-utils.ts`](file:///d:/LAB-system/src/lib/date-time-utils.ts)**:
+     - ฟังก์ชัน `getBangkokParts`, `getBangkokStartOfDay`, `getBangkokEndOfDay`, `parseBangkokDateTime`, `combineSlotDateAndBangkokTime`, และ `formatBangkokDateTime`
+  3. **การตรวจสอบคุณภาพตามมาตรฐานบรรณารักษ์**:
+     - ตรวจสอบคำว่า "นิสิต" ผ่าน 100% (`npm run librarian:audit`)
+     - ตรวจสอบ TypeScript ผ่าน (`npx tsc --noEmit`)
+     - Build ระบบผ่านสมบูรณ์ 100% (`npm run build`)
+- **ไฟล์สำคัญที่แก้ไข/สร้างขึ้น**:
+  - `src/lib/date-time-utils.ts` (ใหม่)
+  - `src/app/api/practice/bookings/[id]/route.ts`
+  - `src/app/api/practice/bookings/route.ts`
+  - `src/app/api/pos/checkout/route.ts`
+  - `src/app/api/cron/reminders/route.ts`
+  - `src/app/api/borrow/route.ts`
+  - `src/app/api/requests/unified/route.ts`
+  - `LIBRARY_CATALOG.md`
+  - `docs/WORK_LOG.md`
+
 ### [2026-10-20] พัฒนาระบบเตือนคืนครุภัณฑ์ล่วงหน้าอัตโนมัติ (Automated Equipment Return Reminder)
 - **หมวดหมู่**: API / Scheduled Jobs / Background Workers & UI (`/api/cron/reminders`, `vercel.json`, `/borrow`)
 - **สิ่งที่ดำเนินการ**:

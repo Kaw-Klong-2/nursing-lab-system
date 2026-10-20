@@ -4,6 +4,7 @@ import { sendApprovalNotificationWithQrEmail } from '@/lib/email';
 import { createNotification } from '@/lib/notifications';
 import { canUserApprove } from '@/lib/approval-scope';
 import { logActivity } from '@/lib/activity-log';
+import { combineSlotDateAndBangkokTime } from '@/lib/date-time-utils';
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -207,10 +208,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       const checkInEarlyMinutes = config?.checkInEarlyMinutes ?? 30;
 
       if (booking.slot?.date && booking.slot?.startTime) {
-        const slotDate = new Date(booking.slot.date);
-        const [hours, minutes] = booking.slot.startTime.split(':').map(Number);
-        const slotStartDateTime = new Date(slotDate);
-        slotStartDateTime.setHours(hours, minutes, 0, 0);
+        const slotStartDateTime = combineSlotDateAndBangkokTime(booking.slot.date, booking.slot.startTime);
 
         const now = new Date();
         const earliestCheckIn = new Date(slotStartDateTime.getTime() - checkInEarlyMinutes * 60 * 1000);

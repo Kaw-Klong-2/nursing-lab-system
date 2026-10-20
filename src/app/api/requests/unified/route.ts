@@ -4,6 +4,7 @@ import { sendApprovalRequestEmail } from '@/lib/email';
 import { invalidateCache } from '@/lib/cache';
 import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
 import { stripAllPrefixes, formatUserName, formatRequesterWithRole } from '@/lib/user-utils';
+import { parseBangkokDateTime } from '@/lib/date-time-utils';
 
 export async function POST(req: Request) {
   try {
@@ -289,10 +290,10 @@ export async function POST(req: Request) {
 
     const reqNumber = `REQ-${todayStr}-${String(reqCount + 1).padStart(3, '0')}`;
     const brwNumber = `BRW-${todayStr}-${String(brwCount + 1).padStart(3, '0')}`;
-    const dateNeededVal = borrowDate ? new Date(borrowDate) : new Date();
-    const bDateVal = borrowDate ? new Date(borrowDate) : new Date();
+    const dateNeededVal = borrowDate ? parseBangkokDateTime(borrowDate) : new Date();
+    const bDateVal = borrowDate ? parseBangkokDateTime(borrowDate) : new Date();
     const retDateVal = expectedReturnDate
-      ? new Date(expectedReturnDate)
+      ? parseBangkokDateTime(expectedReturnDate)
       : new Date(Date.now() + 8 * 3600 * 1000); // default 8 hrs later
 
     // 4. Ultra-fast database transaction with extended timeout (30s) and minimal insert payload

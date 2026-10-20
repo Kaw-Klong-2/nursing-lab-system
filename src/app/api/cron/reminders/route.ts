@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { notifyRoles, createNotification } from '@/lib/notifications';
 import { formatUserName } from '@/lib/user-utils';
+import { getBangkokStartOfDay, getBangkokEndOfDay } from '@/lib/date-time-utils';
 
 /**
  * ตรวจสอบความปลอดภัยของคำขอ Cron หรือสิทธิ์ของผู้เรียกใช้
@@ -49,12 +50,13 @@ async function processReminders(type: string = 'all') {
   const now = new Date();
   const eighteenHoursAgo = new Date(now.getTime() - 18 * 60 * 60 * 1000);
 
-  // คำนวณช่วงเวลาวันนี้และวันพรุ่งนี้
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  // คำนวณช่วงเวลาวันนี้และวันพรุ่งนี้ตามเขตเวลาประเทศไทย (Asia/Bangkok, UTC+7)
+  const startOfToday = getBangkokStartOfDay(now);
+  const endOfToday = getBangkokEndOfDay(now);
 
-  const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
-  const endOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 23, 59, 59, 999);
+  const tomorrowTarget = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const startOfTomorrow = getBangkokStartOfDay(tomorrowTarget);
+  const endOfTomorrow = getBangkokEndOfDay(tomorrowTarget);
 
   let overdueAlertsSent = 0;
   let dDayAlertsSent = 0;

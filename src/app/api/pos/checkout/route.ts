@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
 import { logActivity } from '@/lib/activity-log';
+import { getBangkokParts, BANGKOK_TZ_OFFSET_MS } from '@/lib/date-time-utils';
 
 export async function POST(req: Request) {
   try {
@@ -293,8 +294,8 @@ export async function POST(req: Request) {
       // 2. จัดการฝั่งครุภัณฑ์ / เครื่องมือคงทน (Equipment Borrow)
       if (assetItems.length > 0) {
         const today = new Date();
-        const endOfDay = new Date(today);
-        endOfDay.setHours(17, 30, 0, 0); // คืนตอนเลิกเรียนประจำวันเป็นค่าเริ่มต้น
+        const { year, month, day } = getBangkokParts(today);
+        const endOfDay = new Date(Date.UTC(year, month, day, 17, 30, 0, 0) - BANGKOK_TZ_OFFSET_MS); // 17:30 น. เวลาประเทศไทยเป็นค่าเริ่มต้น
 
         const borrow = await tx.borrowRequest.create({
           data: {

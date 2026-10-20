@@ -17,6 +17,35 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-20] ระบบตรวจสอบสถานะออนไลน์ กิจกรรมล่าสุด และชุดกราฟสรุปการใช้งานรายวันสำหรับแอดมิน (Admin User Presence, Remote Force Logout & Daily Usage Analytics)
+- **หมวดหมู่**: Security / Session Monitoring / Visual Analytics / Admin Operations (`src/lib/user-presence.ts`, `src/app/api/auth/heartbeat/route.ts`, `src/app/api/users/active-sessions/route.ts`, `src/app/api/users/analytics/route.ts`, `src/app/api/users/force-logout/route.ts`, `src/components/users/DailyUsageCharts.tsx`, `src/app/users/page.tsx`)
+- **สิ่งที่ดำเนินการ**:
+  1. **สถาปัตยกรรม Presence & Session Engine ไร้การแก้ Schema (Zero Schema Change)**:
+     - สร้าง [`src/lib/user-presence.ts`](file:///d:/LAB-system/src/lib/user-presence.ts) จัดการ In-Memory Presence Map, ตรวจจับอุปกรณ์ (Desktop/Mobile), และระบบบัญชีดำ Force Logout
+     - เชื่อมโยง Login Logging ใน `/api/auth/login`, `/api/auth/google/callback`, และ `/api/auth/portal-handoff` บันทึกลง `ActivityLog` พร้อมวิเคราะห์ Device Type
+     - สร้าง endpoint [`/api/auth/heartbeat`](file:///d:/LAB-system/src/app/api/auth/heartbeat/route.ts) ให้หน้าเว็บส่งสัญญาณ Pulse ทุก 2 นาที เพื่อตรวจจับคนออนไลน์และรับสัญญาณ Force Logout
+  2. **ระบบความปลอดภัยเข้มงวดเฉพาะผู้ดูแลระบบ (Admin-Only Strict Guard)**:
+     - ฟังก์ชันดูคนออนไลน์, สถิติการใช้งาน, และชุดกราฟทั้งหมด ถูกจำกัดไว้ที่หน้า [`/users`](file:///d:/LAB-system/src/app/users/page.tsx) ซึ่งอนุญาตเฉพาะ `ADMIN` เท่านั้น (เจ้าหน้าที่, อาจารย์, และนิสิต ไม่เห็นเมนูและไม่สามารถเข้าถึงได้ 100%)
+     - API endpoints หลังบ้าน (`/api/users/active-sessions`, `/api/users/analytics`, `/api/users/force-logout`) ตรวจสอบสิทธิ์ `role === 'ADMIN'` หากไม่ใช่จะตอบกลับ `403 Forbidden` ทันที
+  3. **ฟีเจอร์ด้านการติดตามและควบคุมในหน้าจอแอดมิน**:
+     - **แถบ KPI ด้านบน**: รายงานยอดผู้ใช้ออนไลน์สด (🟢 Online Now), ยอดเข้าใช้งานวันนี้รวม, และสัดส่วนแยกตาม Desktop/Mobile
+     - **คอลัมน์ "สถานะ & ใช้งานล่าสุด" ในตารางรายชื่อ**:
+       - จุดไฟสถานะ: 🟢 ออนไลน์ (พร้อมเอฟเฟกต์กระพริบ) / ⚪ ออฟไลน์ (ไม่มีสถานะพักหน้าจอตามคำสั่ง)
+       - ไอคอนระบุประเภทอุปกรณ์: 💻 คอมพิวเตอร์ หรือ 📱 สมาร์ทโฟน
+       - เวลาใช้งานล่าสุด และชื่อกิจกรรมล่าสุด (เช่น "วันนี้ 14:15 น. (เข้าสู่ระบบ)", "อนุมัติคำขอยืม")
+     - **ปุ่มสั่งออกจากระบบระยะไกล (🚪 Force Logout)**: สำหรับผู้ใช้ที่ออนไลน์อยู่ แอดมินสามารถกดเตะเครื่องที่เปิดทิ้งไว้ที่คอมส่วนกลางหน้าห้องแล็บออกจากระบบได้ทันที
+     - **ปุ่มตัวกรองด่วน**: `[🟢 ออนไลน์อยู่ตอนนี้]` เพื่อคัดกรองเฉพาะคนที่กำลังเปิดระบบอยู่ได้ในคลิกเดียว
+  4. **ชุดกราฟสรุปรายวัน Recharts (Daily Usage Analytics)**:
+     - สร้างคอมโพเนนต์ [`DailyUsageCharts.tsx`](file:///d:/LAB-system/src/components/users/DailyUsageCharts.tsx) แบบพับเก็บ/เปิดดูได้ด้วยปุ่ม `[📊 กราฟสรุปรายวัน]`
+     - **กราฟที่ 1 (Bar Chart)**: จำแนกประเภทรายการที่เข้ามาทำ (เข้าสู่ระบบ, ขอเบิก, ขอยืม, จองห้อง, ฝึกทักษะ, อนุมัติ, จ่ายของ, ตรวจรับคืน)
+     - **กราฟที่ 2 (Area Chart)**: ไทม์ไลน์ความหนาแน่นรายชั่วโมง (08:00 - 18:00 น.) แสดงช่วงพีคของวัน
+     - **กราฟที่ 3 (Donut Chart)**: สัดส่วนผู้เข้าใช้งานจริงแยกตามบทบาท (นิสิต / อาจารย์ / เจ้าหน้าที่ / แอดมิน)
+     - รองรับตัวกรองช่วงเวลา: `[วันนี้]` `[เมื่อวาน]` `[7 วันล่าสุด]` `[30 วันล่าสุด]`
+- **ผลตรวจมาตรฐานบรรณารักษ์**:
+  - ตรวจสอบคำว่า "นิสิต" ผ่าน 100% (`npm run librarian:audit`)
+  - ตรวจสอบ TypeScript ผ่าน 100% (`cmd /c npx tsc --noEmit`)
+  - Build ระบบผ่านสมบูรณ์ 100% (`cmd /c npm run build`)
+
 ### [2026-10-20] ระบบแจ้งเตือนตารางจ่ายพัสดุและตารางการใช้ห้องปฏิบัติการอัตโนมัติสำหรับเจ้าหน้าที่และแอดมิน (Automated Dispense & Room Schedule Notifications)
 - **หมวดหมู่**: Notifications / Workflow Automation / Admin Multi-Role Operations (`src/app/api/requisitions/[id]/route.ts`, `src/app/api/borrow/[id]/route.ts`, `src/app/api/cron/reminders/route.ts`, `src/app/requisitions/page.tsx`, `src/app/borrow/page.tsx`)
 - **สิ่งที่ดำเนินการ**:

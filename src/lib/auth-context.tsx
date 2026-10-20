@@ -101,14 +101,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = (reason?: string | React.MouseEvent | unknown) => {
+    if (currentUser?.id) {
+      try {
+        fetch('/api/auth/heartbeat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: currentUser.id, isLogout: true }),
+        }).catch(() => {});
+      } catch (e) {}
+    }
     setCurrentUser(null);
     clearSessionStorage();
     if (typeof reason === 'string' && reason === 'timeout') {
       router.push('/login?reason=timeout');
+    } else if (typeof reason === 'string' && reason.includes('ถูกสั่งให้ออกจากระบบ')) {
+      alert(reason);
+      router.push('/login?reason=forced');
     } else {
       router.push('/login');
     }
   };
+
+  // Heartbeat pulse every 2 minutes while active to maintain presence and detect force logout
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const sendPulse = async () => {
+      try {
+        const lastLoginTimeStr = localStorage.getItem('session_last_active');
+        const res = await fetch('/api/auth/heartbeat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.id,
+          },
+          body: JSON.stringify({
+            userId: currentUser.id,
+            loginTime: lastLoginTimeStr ? parseInt(lastLoginTimeStr, 10) : undefined,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.forceLogout) {
+            logout('เซสชันของคุณถูกสั่งให้ออกจากระบบโดยผู้ดูแลระบบ เพื่อความปลอดภัย');
+          }
+        }
+      } catch (e) {
+        // silent fail
+      }
+    };
+
+    sendPulse();
+    const interval = setInterval(sendPulse, 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [currentUser?.id]);
 
   const extendSession = () => {
     if (typeof window !== 'undefined' && currentUser) {

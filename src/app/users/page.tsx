@@ -34,11 +34,20 @@ import {
   Sparkles,
   Lock,
   Briefcase,
+  Smartphone,
+  Monitor,
+  BarChart3,
+  LogOut,
+  ChevronDown,
+  ChevronUp,
+  Radio,
+  Clock,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { TableLoadingRow } from '@/components/common/LoadingSpinner';
 import { COMMON_USER_PREFIXES, formatUserName, getUserBadges } from '@/lib/user-utils';
 import { formatApprovalScopeBadge, ApprovalScopeType } from '@/lib/approval-scope';
+import DailyUsageCharts from '@/components/users/DailyUsageCharts';
 
 export default function UsersPage() {
   const { availableUsers, isAdmin, currentUser } = useAuth();
@@ -127,6 +136,25 @@ export default function UsersPage() {
   const [showBatchDeactivateModal, setShowBatchDeactivateModal] = useState<boolean>(false);
   const [batchSubmitting, setBatchSubmitting] = useState<boolean>(false);
 
+  // Presence & Active Session Monitoring State
+  const [activeSessionsData, setActiveSessionsData] = useState<{
+    summary?: {
+      onlineCount: number;
+      activeTodayCount: number;
+      desktopOnlineCount: number;
+      mobileOnlineCount: number;
+      activeTodayByRole: Record<string, number>;
+    };
+    onlineUserIds: string[];
+    lastActivityMap: Record<string, { lastActiveAt: string; action: string; details?: string | null; device?: string; ipAddress?: string | null }>;
+  }>({
+    onlineUserIds: [],
+    lastActivityMap: {},
+  });
+  const [showAnalyticsCharts, setShowAnalyticsCharts] = useState(false);
+  const [forceLoggingOutId, setForceLoggingOutId] = useState<string | null>(null);
+  const [onlineOnlyFilter, setOnlineOnlyFilter] = useState(false);
+
   const fetchUsers = async () => {
     try {
       const res = await fetch('/api/users?status=all');
@@ -141,9 +169,63 @@ export default function UsersPage() {
     }
   };
 
+  const fetchActiveSessions = async () => {
+    if (!currentUser?.id || !isAdmin) return;
+    try {
+      const res = await fetch('/api/users/active-sessions', {
+        headers: { 'x-user-id': currentUser.id },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setActiveSessionsData({
+          summary: data.summary,
+          onlineUserIds: data.onlineUserIds || [],
+          lastActivityMap: data.lastActivityMap || {},
+        });
+      }
+    } catch (e) {
+      console.error('Failed to load active sessions:', e);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
-  }, []);
+    if (isAdmin && currentUser?.id) {
+      fetchActiveSessions();
+      const interval = setInterval(fetchActiveSessions, 30 * 1000); // refresh every 30s
+      return () => clearInterval(interval);
+    }
+  }, [isAdmin, currentUser?.id]);
+
+  const handleForceLogout = async (targetUser: any) => {
+    if (!currentUser?.id) return;
+    const targetName = formatUserName(targetUser);
+    if (!confirm(`ยืนยันสั่งให้คุณ "${targetName}" ออกจากระบบทันที? (ระบบจะตัด Session จากเครื่องผู้ใช้)`)) {
+      return;
+    }
+    setForceLoggingOutId(targetUser.id);
+    try {
+      const res = await fetch('/api/users/force-logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({ targetUserId: targetUser.id }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert(data.message || 'สั่งให้ออกจากระบบเรียบร้อยแล้ว');
+        fetchActiveSessions();
+      } else {
+        alert(data.error || 'เกิดข้อผิดพลาดในการสั่งให้ออกจากระบบ');
+      }
+    } catch (e) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+    } finally {
+      setForceLoggingOutId(null);
+    }
+  };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -484,7 +566,26 @@ export default function UsersPage() {
     USER: users.filter((u) => u.role === 'USER').length,
   };
 
+  const formatLastActiveDisplay = (isoString?: string) => {
+    if (!isoString) return 'ยังไม่มีประวัติ';
+    try {
+      const d = new Date(isoString);
+      const now = new Date();
+      const isToday = d.toDateString() === now.toDateString();
+      const timeStr = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+      if (isToday) return `วันนี้ ${timeStr} น.`;
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      if (d.toDateString() === yesterday.toDateString()) return `เมื่อวาน ${timeStr} น.`;
+      return `${d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} ${timeStr} น.`;
+    } catch {
+      return 'ยังไม่มีประวัติ';
+    }
+  };
+
   const filteredUsers = users.filter((u) => {
+    if (onlineOnlyFilter && !activeSessionsData.onlineUserIds.includes(u.id)) {
+      return false;
+    }
     if (selectedTab !== 'ALL') {
       if (selectedTab === 'EXECUTIVE') {
         if (!u.isExecutive && u.role !== 'EXECUTIVE') return false;
@@ -538,6 +639,17 @@ export default function UsersPage() {
 
         <div className="flex items-center gap-2.5">
           <button
+            type="button"
+            onClick={() => setShowAnalyticsCharts(!showAnalyticsCharts)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900/60 text-teal-900 dark:text-teal-200 text-xs font-bold transition cursor-pointer shadow-sm"
+            title="ดูกราฟสรุปผู้เข้าใช้งานและกิจกรรมรายวัน"
+          >
+            <BarChart3 className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+            <span>{showAnalyticsCharts ? 'ซ่อนกราฟสรุปรายวัน' : '📊 กราฟสรุปรายวัน (Analytics)'}</span>
+            {showAnalyticsCharts ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+
+          <button
             onClick={() => {
               setShowBulkModal(true);
               setBulkFile(null);
@@ -559,6 +671,61 @@ export default function UsersPage() {
           </button>
         </div>
       </div>
+
+      {/* Live Presence & Today's Usage Overview Bar (Admin Only) */}
+      <div className="bg-gradient-to-r from-teal-900 via-slate-900 to-indigo-950 p-4 rounded-3xl text-white shadow-md border border-teal-800/40">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="relative flex items-center justify-center p-2 rounded-2xl bg-white/10">
+              <span className="flex h-3 w-3 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+              </span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-black tracking-wide flex items-center gap-1.5 text-white">
+                  <span>ผู้ใช้งานออนไลน์ขณะนี้:</span>
+                  <span className="text-emerald-400 text-base font-black">
+                    {activeSessionsData.summary?.onlineCount ?? activeSessionsData.onlineUserIds.length}
+                  </span>
+                  <span className="text-xs text-slate-300 font-medium">คน</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setOnlineOnlyFilter(!onlineOnlyFilter)}
+                  className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full transition cursor-pointer border ${
+                    onlineOnlyFilter
+                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-extrabold shadow-sm'
+                      : 'bg-white/10 hover:bg-white/20 text-emerald-300 border-emerald-500/40'
+                  }`}
+                >
+                  {onlineOnlyFilter ? '✓ กำลังกรองเฉพาะคนออนไลน์' : 'คลิกเพื่อกรองเฉพาะคนออนไลน์'}
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                มีผู้เข้าใช้งานวันนี้รวม {activeSessionsData.summary?.activeTodayCount || 0} คน (คอมพิวเตอร์ {activeSessionsData.summary?.desktopOnlineCount || 0} เครื่อง, สมาร์ทโฟน {activeSessionsData.summary?.mobileOnlineCount || 0} เครื่อง)
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start md:self-auto text-xs font-semibold text-slate-300">
+            <span className="inline-flex items-center gap-1 bg-white/10 px-2.5 py-1 rounded-xl">
+              <Monitor className="w-3.5 h-3.5 text-sky-400" />
+              <span>Desktop: {activeSessionsData.summary?.desktopOnlineCount || 0}</span>
+            </span>
+            <span className="inline-flex items-center gap-1 bg-white/10 px-2.5 py-1 rounded-xl">
+              <Smartphone className="w-3.5 h-3.5 text-purple-400" />
+              <span>Mobile: {activeSessionsData.summary?.mobileOnlineCount || 0}</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Collapsible Daily Analytics Visual Charts */}
+      {showAnalyticsCharts && currentUser?.id && (
+        <DailyUsageCharts actorId={currentUser.id} />
+      )}
 
       {/* Role Descriptions Grid (Interactive Click to Filter) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
@@ -810,6 +977,20 @@ export default function UsersPage() {
               {inactiveCount}
             </span>
           </button>
+          <button
+            onClick={() => setOnlineOnlyFilter(!onlineOnlyFilter)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+              onlineOnlyFilter
+                ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400 font-extrabold'
+                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>🟢 ออนไลน์อยู่ตอนนี้</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${onlineOnlyFilter ? 'bg-emerald-800 text-white' : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'}`}>
+              {activeSessionsData.onlineUserIds.length}
+            </span>
+          </button>
         </div>
 
         {/* Selected Batch Toolbar */}
@@ -869,16 +1050,17 @@ export default function UsersPage() {
                 <th className="py-3 px-4">หน่วยงาน / ภาควิชา</th>
                 <th className="py-3 px-4">เบอร์โทรศัพท์</th>
                 <th className="py-3 px-4">สิทธิ์การใช้งาน</th>
+                <th className="py-3 px-4">สถานะ & ใช้งานล่าสุด</th>
                 <th className="py-3 px-4">สถานะบัญชี</th>
                 <th className="py-3 px-4 text-right">จัดการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {loading ? (
-                <TableLoadingRow colSpan={8} message="กำลังโหลดรายชื่อผู้ใช้งานและกำหนดสิทธิ์..." />
+                <TableLoadingRow colSpan={9} message="กำลังโหลดรายชื่อผู้ใช้งานและกำหนดสิทธิ์..." />
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400 dark:text-slate-500">
+                  <td colSpan={9} className="py-12 text-center text-slate-400 dark:text-slate-500">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Users className="w-8 h-8 text-slate-300 dark:text-slate-600" />
                       <span className="text-xs font-medium">
@@ -886,11 +1068,12 @@ export default function UsersPage() {
                           ? `ไม่พบผู้ใช้งานที่ตรงกับคำค้นหา "${searchQuery}"`
                           : `ไม่พบผู้ใช้งานในกลุ่ม "${selectedTab === 'ALL' ? 'ทั้งหมด' : selectedTab}"`}
                       </span>
-                      {(selectedTab !== 'ALL' || searchQuery) && (
+                      {(selectedTab !== 'ALL' || searchQuery || onlineOnlyFilter) && (
                         <button
                           onClick={() => {
                             setSelectedTab('ALL');
                             setSearchQuery('');
+                            setOnlineOnlyFilter(false);
                           }}
                           className="text-xs text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 font-bold underline cursor-pointer mt-1"
                         >
@@ -901,132 +1084,184 @@ export default function UsersPage() {
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((u) => (
-                <tr key={u.id} className={`hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition ${u.status === 'INACTIVE' ? 'opacity-70 bg-slate-50/40 dark:bg-slate-900/40' : ''}`}>
-                  <td className="py-3.5 px-3 text-center">
-                    <input
-                      type="checkbox"
-                      checked={selectedUserIds.includes(u.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedUserIds([...selectedUserIds, u.id]);
-                        } else {
-                          setSelectedUserIds(selectedUserIds.filter((id) => id !== u.id));
-                        }
-                      }}
-                      className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
-                    />
-                  </td>
-                  <td className="py-3.5 px-4">
-                    <div className="font-bold text-slate-900 dark:text-slate-100 text-xs flex items-center gap-1.5 flex-wrap">
-                      {u.prefix && (
-                        <span className="inline-block px-1.5 py-0.5 rounded bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 font-semibold text-[11px] border border-teal-200/60 dark:border-teal-800/60">
-                          {u.prefix}
-                        </span>
-                      )}
-                      <span>{u.prefix && u.name.startsWith(u.prefix) ? u.name.slice(u.prefix.length).trim() : u.name}</span>
-                    </div>
-                  </td>
-                  <td className="py-3.5 px-4">
-                    <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
-                      <Mail className="w-3 h-3 text-slate-400" />
-                      <span>{u.email}</span>
-                    </div>
-                    {u.studentId && (
-                      <div className="text-[10px] text-teal-700 dark:text-teal-400 font-mono mt-0.5">
-                        รหัส: {u.studentId}
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 font-medium">
-                    {u.department || '-'}
-                  </td>
-                  <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400">
-                    {u.phone || '-'}
-                  </td>
-                  <td className="py-3.5 px-4">
-                    <div className="flex flex-col gap-1 items-start">
-                      {getUserBadges(u).map((b, idx) => (
-                        <span
-                          key={idx}
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${b.badgeClass}`}
-                        >
-                          {b.label}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="py-3.5 px-4">
-                    {u.status === 'INACTIVE' ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                        <span>ปิดใช้งาน / ปิดบัญชี</span>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                        <span>เปิดใช้งาน</span>
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3.5 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      {u.status === 'INACTIVE' ? (
-                        <button
-                          onClick={() => handleActivateUser(u)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 font-bold text-xs transition cursor-pointer"
-                          title="เปิดใช้งานบัญชีนี้อีกครั้ง"
-                        >
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                          <span>เปิดใช้งาน</span>
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setDeactivatingUser(u);
-                            setDeactivateReason('GRADUATED');
+                filteredUsers.map((u) => {
+                  const isOnline = activeSessionsData.onlineUserIds.includes(u.id);
+                  const activityInfo = activeSessionsData.lastActivityMap[u.id];
+
+                  return (
+                    <tr key={u.id} className={`hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition ${u.status === 'INACTIVE' ? 'opacity-70 bg-slate-50/40 dark:bg-slate-900/40' : ''}`}>
+                      <td className="py-3.5 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedUserIds.includes(u.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedUserIds([...selectedUserIds, u.id]);
+                            } else {
+                              setSelectedUserIds(selectedUserIds.filter((id) => id !== u.id));
+                            }
                           }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 font-bold text-xs transition cursor-pointer"
-                          title="ปิดใช้งาน / ปิดบัญชีผู้ใช้นี้ (เช่น จบการศึกษา/ลาออก)"
-                        >
-                          <UserX className="w-3 h-3 text-rose-600 dark:text-rose-400" />
-                          <span>ปิดใช้งาน</span>
-                        </button>
-                      )}
-                      <button
-                        onClick={() => {
-                          setResettingUser(u);
-                          setNewResetPassword('123456');
-                          setResetSuccessMessage(null);
-                          setResetCopied(false);
-                          setResetError(null);
-                        }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 font-bold text-xs transition cursor-pointer"
-                        title="รีเซ็ตรหัสผ่านให้ผู้ใช้นี้"
-                      >
-                        <KeyRound className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                        <span>รีเซ็ตรหัส</span>
-                      </button>
-                      <button
-                        onClick={() =>
-                          setEditingUser({
-                            ...u,
-                            isExecutive: Boolean(u.isExecutive),
-                            executiveRole: u.executiveRole || '',
-                            approvalScopes: u.role === 'USER' ? '' : (u.approvalScopes || ''),
-                            password: '',
-                          })
-                        }
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/60 font-bold text-xs transition cursor-pointer"
-                        title="แก้ไขข้อมูลผู้ใช้"
-                      >
-                        <Edit3 className="w-3 h-3 text-teal-600 dark:text-teal-400" />
-                        <span>แก้ไข</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )))}
+                          className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                        />
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-slate-900 dark:text-slate-100 text-xs flex items-center gap-1.5 flex-wrap">
+                          {u.prefix && (
+                            <span className="inline-block px-1.5 py-0.5 rounded bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 font-semibold text-[11px] border border-teal-200/60 dark:border-teal-800/60">
+                              {u.prefix}
+                            </span>
+                          )}
+                          <span>{u.prefix && u.name.startsWith(u.prefix) ? u.name.slice(u.prefix.length).trim() : u.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                          <Mail className="w-3 h-3 text-slate-400" />
+                          <span>{u.email}</span>
+                        </div>
+                        {u.studentId && (
+                          <div className="text-[10px] text-teal-700 dark:text-teal-400 font-mono mt-0.5">
+                            รหัส: {u.studentId}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 font-medium">
+                        {u.department || '-'}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400">
+                        {u.phone || '-'}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="flex flex-col gap-1 items-start">
+                          {getUserBadges(u).map((b, idx) => (
+                            <span
+                              key={idx}
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${b.badgeClass}`}
+                            >
+                              {b.label}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="flex flex-col gap-1">
+                          {isOnline ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 w-fit shadow-xs">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block" />
+                              <span>🟢 ออนไลน์</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 w-fit">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                              <span>⚪ ออฟไลน์</span>
+                            </span>
+                          )}
+
+                          <div className="text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-1 mt-0.5 font-medium">
+                            {activityInfo?.device === 'MOBILE' ? (
+                              <span title="เข้าใช้งานผ่านสมาร์ทโฟน/แท็บเล็ต">
+                                <Smartphone className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                              </span>
+                            ) : (
+                              <span title="เข้าใช้งานผ่านคอมพิวเตอร์">
+                                <Monitor className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                              </span>
+                            )}
+                            <span>{formatLastActiveDisplay(activityInfo?.lastActiveAt || u.updatedAt)}</span>
+                          </div>
+
+                          {activityInfo?.details && (
+                            <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate max-w-[150px]" title={activityInfo.details}>
+                              {activityInfo.details}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        {u.status === 'INACTIVE' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                            <span>ปิดใช้งาน / ปิดบัญชี</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            <span>เปิดใช้งาน</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {isOnline && u.id !== currentUser?.id && (
+                            <button
+                              type="button"
+                              onClick={() => handleForceLogout(u)}
+                              disabled={forceLoggingOutId === u.id}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-rose-300 dark:border-rose-800 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 font-bold text-xs transition cursor-pointer shadow-xs disabled:opacity-50"
+                              title="สั่งให้ออกจากระบบทันที (Force Logout เพื่อความปลอดภัย)"
+                            >
+                              <LogOut className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+                              <span>{forceLoggingOutId === u.id ? 'กำลังออก...' : 'เตะออก'}</span>
+                            </button>
+                          )}
+                          {u.status === 'INACTIVE' ? (
+                            <button
+                              onClick={() => handleActivateUser(u)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 font-bold text-xs transition cursor-pointer"
+                              title="เปิดใช้งานบัญชีนี้อีกครั้ง"
+                            >
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                              <span>เปิดใช้งาน</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setDeactivatingUser(u);
+                                setDeactivateReason('GRADUATED');
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 font-bold text-xs transition cursor-pointer"
+                              title="ปิดใช้งาน / ปิดบัญชีผู้ใช้นี้ (เช่น จบการศึกษา/ลาออก)"
+                            >
+                              <UserX className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+                              <span>ปิดใช้งาน</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              setResettingUser(u);
+                              setNewResetPassword('123456');
+                              setResetSuccessMessage(null);
+                              setResetCopied(false);
+                              setResetError(null);
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 font-bold text-xs transition cursor-pointer"
+                            title="รีเซ็ตรหัสผ่านให้ผู้ใช้นี้"
+                          >
+                            <KeyRound className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                            <span>รีเซ็ตรหัส</span>
+                          </button>
+                          <button
+                            onClick={() =>
+                              setEditingUser({
+                                ...u,
+                                isExecutive: Boolean(u.isExecutive),
+                                executiveRole: u.executiveRole || '',
+                                approvalScopes: u.role === 'USER' ? '' : (u.approvalScopes || ''),
+                                password: '',
+                              })
+                            }
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/60 font-bold text-xs transition cursor-pointer"
+                            title="แก้ไขข้อมูลผู้ใช้"
+                          >
+                            <Edit3 className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+                            <span>แก้ไข</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

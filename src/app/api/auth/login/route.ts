@@ -88,6 +88,39 @@ export async function POST(req: Request) {
       executiveRole: user.executiveRole || null,
     };
 
+    // Record login presence and activity log
+    const userAgent = req.headers.get('user-agent');
+    const forwardedFor = req.headers.get('x-forwarded-for');
+    const ipAddress = forwardedFor ? forwardedFor.split(',')[0].trim() : req.headers.get('x-real-ip');
+
+    const { recordUserHeartbeat, detectDeviceType } = await import('@/lib/user-presence');
+    const { logActivity } = await import('@/lib/activity-log');
+
+    const device = detectDeviceType(userAgent);
+
+    recordUserHeartbeat({
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email,
+      userRole: user.role,
+      userAgent,
+      ipAddress,
+      isLogin: true,
+    });
+
+    logActivity({
+      userId: user.id,
+      userName: user.name,
+      userRole: user.role,
+      action: 'LOGIN',
+      entityType: 'USER',
+      entityId: user.id,
+      entityTitle: user.name,
+      details: `เข้าสู่ระบบผ่าน ${device === 'MOBILE' ? 'สมาร์ทโฟน/แท็บเล็ต' : 'คอมพิวเตอร์'}`,
+      ipAddress,
+      metadata: { device, userAgent },
+    }).catch(() => {});
+
     return NextResponse.json({
       success: true,
       user: sanitizedUser,

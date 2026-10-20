@@ -122,10 +122,9 @@ export async function POST(req: Request) {
     }
 
     // 3.1 Cross-system conflict: Check if room has an APPROVED room booking during this slot's time
-    const slotDayStart = new Date(slot.date);
-    slotDayStart.setHours(0, 0, 0, 0);
-    const slotDayEnd = new Date(slotDayStart);
-    slotDayEnd.setDate(slotDayStart.getDate() + 1);
+    const sDate = new Date(slot.date);
+    const slotDayStart = new Date(Date.UTC(sDate.getUTCFullYear(), sDate.getUTCMonth(), sDate.getUTCDate(), 0, 0, 0, 0));
+    const slotDayEnd = new Date(slotDayStart.getTime() + 24 * 60 * 60 * 1000);
 
     const conflictingRoom = await prisma.roomBooking.findFirst({
       where: {

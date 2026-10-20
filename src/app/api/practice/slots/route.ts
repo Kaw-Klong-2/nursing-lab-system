@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getBangkokStartOfDay } from '@/lib/date-time-utils';
 
 function parseDateAsUtcMidnight(dateInput: string | Date): Date {
   if (typeof dateInput === 'string') {
@@ -64,12 +65,9 @@ export async function GET(req: Request) {
     } else {
       // Default: current month +/- 15 days or 30 days
       const today = new Date();
-      const past = new Date(today);
-      past.setDate(today.getDate() - 15);
-      past.setHours(0, 0, 0, 0);
-      const future = new Date(today);
-      future.setDate(today.getDate() + 45);
-      future.setHours(23, 59, 59, 999);
+      const bkkToday = getBangkokStartOfDay(today);
+      const past = new Date(bkkToday.getTime() - 15 * 24 * 60 * 60 * 1000);
+      const future = new Date(bkkToday.getTime() + 46 * 24 * 60 * 60 * 1000);
 
       where.date = {
         gte: past,
@@ -135,10 +133,8 @@ export async function POST(req: Request) {
       // Validate each slot against existing slots and approved room bookings
       for (const s of body.slots) {
         const sDate = parseDateAsUtcMidnight(s.date);
-        const sStart = new Date(sDate);
-        sStart.setHours(0, 0, 0, 0);
-        const sEnd = new Date(sStart);
-        sEnd.setDate(sStart.getDate() + 1);
+        const sStart = sDate;
+        const sEnd = new Date(sDate.getTime() + 24 * 60 * 60 * 1000);
 
         const slotConflict = await prisma.practiceSlot.findFirst({
           where: {
@@ -207,10 +203,8 @@ export async function POST(req: Request) {
     }
 
     const slotDate = parseDateAsUtcMidnight(date);
-    const slotDayStart = new Date(slotDate);
-    slotDayStart.setHours(0, 0, 0, 0);
-    const slotDayEnd = new Date(slotDayStart);
-    slotDayEnd.setDate(slotDayStart.getDate() + 1);
+    const slotDayStart = slotDate;
+    const slotDayEnd = new Date(slotDate.getTime() + 24 * 60 * 60 * 1000);
 
     // 1. Check existing practice slot in same room with overlapping time
     const existingSlot = await prisma.practiceSlot.findFirst({

@@ -13,10 +13,6 @@ export async function GET(req: Request) {
       return NextResponse.json(cached);
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const endToday = new Date();
-    endToday.setHours(23, 59, 59, 999);
 
     const [
       activeNowCount,

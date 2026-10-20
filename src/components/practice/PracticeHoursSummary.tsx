@@ -81,8 +81,7 @@ export default function PracticeHoursSummary({
   const termFilteredBookings = useMemo(() => {
     if (!activeTerm) return bookings;
     const start = new Date(activeTerm.startDate!);
-    const end = new Date(activeTerm.endDate!);
-    end.setHours(23, 59, 59, 999);
+    const end = new Date(new Date(activeTerm.endDate!).getTime() + 86399999);
     return bookings.filter((b) => {
       const dStr = b.slot?.date || b.createdAt;
       if (!dStr) return false;

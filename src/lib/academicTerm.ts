@@ -100,8 +100,7 @@ export function getAcademicTermByDate(
     const matched = terms.find(t => {
       if (!t.startDate || !t.endDate) return false;
       const start = new Date(t.startDate);
-      const end = new Date(t.endDate);
-      end.setHours(23, 59, 59, 999);
+      const end = new Date(new Date(t.endDate).getTime() + 86399999);
       return d >= start && d <= end;
     });
 

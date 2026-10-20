@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getBangkokParts } from '@/lib/date-time-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,20 +98,19 @@ export async function GET(req: Request) {
 
     // กรองตามวันที่
     if (dateParam) {
-      const targetDate = new Date(dateParam);
-      targetDate.setHours(0, 0, 0, 0);
-      const nextDate = new Date(targetDate);
-      nextDate.setDate(targetDate.getDate() + 1);
+      const [y, m, d] = dateParam.slice(0, 10).split('-').map(Number);
+      const targetDate = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+      const nextDate = new Date(Date.UTC(y, m - 1, d + 1, 0, 0, 0, 0));
 
       where.bookingDate = {
         gte: targetDate,
         lt: nextDate,
       };
     } else if (startDateParam && endDateParam) {
-      const sDate = new Date(startDateParam);
-      sDate.setHours(0, 0, 0, 0);
-      const eDate = new Date(endDateParam);
-      eDate.setHours(23, 59, 59, 999);
+      const [sy, sm, sd] = startDateParam.slice(0, 10).split('-').map(Number);
+      const sDate = new Date(Date.UTC(sy, sm - 1, sd, 0, 0, 0, 0));
+      const [ey, em, ed] = endDateParam.slice(0, 10).split('-').map(Number);
+      const eDate = new Date(Date.UTC(ey, em - 1, ed, 23, 59, 59, 999));
 
       where.bookingDate = {
         gte: sDate,
@@ -127,12 +127,10 @@ export async function GET(req: Request) {
         lte: endOfMonth,
       };
     } else {
-      // หากไม่ระบุวันที่ ให้ดึงตั้งแต่วันนี้เป็นต้นไป (ล่วงหน้า 60 วัน)
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const next60Days = new Date();
-      next60Days.setDate(today.getDate() + 60);
-      next60Days.setHours(23, 59, 59, 999);
+      // หากไม่ระบุวันที่ ให้ดึงตั้งแต่วันนี้เป็นต้นไป (ล่วงหน้า 60 วัน) ตามปฏิทินไทย
+      const bkkNow = getBangkokParts(new Date());
+      const today = new Date(Date.UTC(bkkNow.year, bkkNow.month - 1, bkkNow.day, 0, 0, 0, 0));
+      const next60Days = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000 + 86399999);
 
       where.bookingDate = {
         gte: today,

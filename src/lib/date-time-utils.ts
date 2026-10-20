@@ -10,8 +10,9 @@ export const BANGKOK_TZ_OFFSET_MS = 7 * 60 * 60 * 1000;
 /**
  * แยกองค์ประกอบของวันและเวลาตามเวลาประเทศไทย (Bangkok Parts)
  */
-export function getBangkokParts(date: Date = new Date()) {
-  const bkkDate = new Date(date.getTime() + BANGKOK_TZ_OFFSET_MS);
+export function getBangkokParts(date: Date | string = new Date()) {
+  const d = typeof date === 'string' ? parseBangkokDateTime(date) : date;
+  const bkkDate = new Date(d.getTime() + BANGKOK_TZ_OFFSET_MS);
   const year = bkkDate.getUTCFullYear();
   const month = bkkDate.getUTCMonth(); // 0-11
   const day = bkkDate.getUTCDate();
@@ -27,7 +28,7 @@ export function getBangkokParts(date: Date = new Date()) {
  * คำนวณหาจุดเริ่มต้นของวัน (00:00:00.000 น. เวลาประเทศไทย) ในรูปแบบ UTC Date
  * ตัวอย่าง: วันที่ 2026-10-20 เวลา 00:00 น. ประเทศไทย = 2026-10-19T17:00:00.000Z
  */
-export function getBangkokStartOfDay(date: Date = new Date()): Date {
+export function getBangkokStartOfDay(date: Date | string = new Date()): Date {
   const { year, month, day } = getBangkokParts(date);
   return new Date(Date.UTC(year, month, day, 0, 0, 0, 0) - BANGKOK_TZ_OFFSET_MS);
 }
@@ -36,7 +37,7 @@ export function getBangkokStartOfDay(date: Date = new Date()): Date {
  * คำนวณหาจุดสิ้นสุดของวัน (23:59:59.999 น. เวลาประเทศไทย) ในรูปแบบ UTC Date
  * ตัวอย่าง: วันที่ 2026-10-20 เวลา 23:59:59.999 น. ประเทศไทย = 2026-10-20T16:59:59.999Z
  */
-export function getBangkokEndOfDay(date: Date = new Date()): Date {
+export function getBangkokEndOfDay(date: Date | string = new Date()): Date {
   const { year, month, day } = getBangkokParts(date);
   return new Date(Date.UTC(year, month, day, 23, 59, 59, 999) - BANGKOK_TZ_OFFSET_MS);
 }

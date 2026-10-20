@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCached, setCached } from '@/lib/cache';
 import { toLegacySemesterCode } from '@/lib/academicTerm';
+import { getBangkokStartOfDay, getBangkokEndOfDay } from '@/lib/date-time-utils';
 
 export async function GET(req: Request) {
   try {
@@ -33,12 +34,8 @@ export async function GET(req: Request) {
 
     const txDateFilter: any = {};
     if (filterMode === 'DATE') {
-      if (startDate) txDateFilter.gte = new Date(startDate);
-      if (endDate) {
-        const e = new Date(endDate);
-        e.setHours(23, 59, 59, 999);
-        txDateFilter.lte = e;
-      }
+      if (startDate) txDateFilter.gte = getBangkokStartOfDay(startDate);
+      if (endDate) txDateFilter.lte = getBangkokEndOfDay(endDate);
     }
 
     const now = new Date();

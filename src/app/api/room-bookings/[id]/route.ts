@@ -86,10 +86,9 @@ export async function PUT(
       }
 
       // Check conflict with open PracticeSlot in the same room on this date
-      const dayStart = new Date(existing.bookingDate);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(dayStart);
-      dayEnd.setDate(dayStart.getDate() + 1);
+      const bDate = new Date(existing.bookingDate);
+      const dayStart = new Date(Date.UTC(bDate.getUTCFullYear(), bDate.getUTCMonth(), bDate.getUTCDate(), 0, 0, 0, 0));
+      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
       const conflictingSlot = await prisma.practiceSlot.findFirst({
         where: {
@@ -338,10 +337,9 @@ export async function PUT(
       }
 
       // Check conflict with open practice slot in target room
-      const dayStart = new Date(existing.bookingDate);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(dayStart);
-      dayEnd.setDate(dayStart.getDate() + 1);
+      const bDate = new Date(existing.bookingDate);
+      const dayStart = new Date(Date.UTC(bDate.getUTCFullYear(), bDate.getUTCMonth(), bDate.getUTCDate(), 0, 0, 0, 0));
+      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
       const conflictingSlot = await prisma.practiceSlot.findFirst({
         where: {

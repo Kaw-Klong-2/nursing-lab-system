@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getBangkokStartOfDay, getBangkokEndOfDay } from '@/lib/date-time-utils';
 
 export async function GET(req: Request) {
   try {
@@ -58,18 +59,15 @@ export async function GET(req: Request) {
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) {
-        where.createdAt.gte = new Date(startDate);
+        where.createdAt.gte = getBangkokStartOfDay(startDate);
       }
       if (endDate) {
-        const eDate = new Date(endDate);
-        eDate.setHours(23, 59, 59, 999);
-        where.createdAt.lte = eDate;
+        where.createdAt.lte = getBangkokEndOfDay(endDate);
       }
     }
 
     // 3. Fetch Data & Today's Summary
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const todayStart = getBangkokStartOfDay(new Date());
 
     const [logs, totalCount, todayCount, todayApprovals, todayCheckouts, todayReturns] = await Promise.all([
       prisma.activityLog.findMany({

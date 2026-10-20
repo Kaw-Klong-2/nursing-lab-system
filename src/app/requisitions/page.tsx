@@ -376,8 +376,7 @@ export default function RequisitionsPage() {
         if (!dStr) return false;
         const d = new Date(dStr);
         const start = new Date(activeTerm.startDate!);
-        const end = new Date(activeTerm.endDate!);
-        end.setHours(23, 59, 59, 999);
+        const end = new Date(new Date(activeTerm.endDate!).getTime() + 86399999);
         return d >= start && d <= end;
       }
     }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { notifyRoles } from '@/lib/notifications';
+import { getBangkokParts, getBangkokStartOfDay } from '@/lib/date-time-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,13 +86,14 @@ export async function POST(req: Request) {
 
     // สร้างรหัสรายงานปัญหา เช่น REP-25691013-001
     const now = new Date();
-    const thaiYear = now.getFullYear() + 543;
-    const datePart = `${thaiYear}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+    const bkk = getBangkokParts(now);
+    const thaiYear = bkk.year + 543;
+    const datePart = `${thaiYear}${String(bkk.month).padStart(2, '0')}${String(bkk.day).padStart(2, '0')}`;
 
     const countToday = await prisma.equipmentIssueReport.count({
       where: {
         createdAt: {
-          gte: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0),
+          gte: getBangkokStartOfDay(now),
         },
       },
     });

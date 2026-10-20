@@ -26,20 +26,26 @@
      - **การแก้ไขในฐานข้อมูล**: ปรับแก้ Record `BRW-20261017-002` และ `REQ-20261017-012` ให้เก็บค่า UTC ที่แท้จริงคือ `05:00:00.000Z` ทำให้หน้า UI แสดงผลตรงกับความเป็นจริงที่ `12:00 น.`
   2. **สร้างไลบรารีสถาปัตยกรรมเวลาสากล [`src/lib/date-time-utils.ts`](file:///d:/LAB-system/src/lib/date-time-utils.ts)**:
      - รวมฟังก์ชันปลอดภัยต่อทุกสภาพแวดล้อม: `getBangkokParts`, `getBangkokStartOfDay`, `getBangkokEndOfDay`, `parseBangkokDateTime`, `combineSlotDateAndBangkokTime`, และ `formatBangkokDateTime`
-  3. **กวาดล้างและแก้ไขจุดเปราะบาง Timezone ครบทุกจุดใน 7 ซับซิสเต็ม**:
+  3. **กวาดล้างและแก้ไขจุดเปราะบาง Timezone ครบทุกจุดในทุกซับซิสเต็มของระบบ**:
      - **ระบบคำขอยืม-คืนครุภัณฑ์ (`/api/borrow`, `/api/requests/unified`, `/api/requests/edit`)**: ใช้ `parseBangkokDateTime` แปลงค่าจาก `<input type="datetime-local">` ให้เป็น UTC+7 เสมอ ป้องกันการเลื่อน 7 ชั่วโมง
-     - **ระบบเบิกวัสดุสิ้นเปลือง (`/api/requisitions`, `/api/requisitions/[id]`)**: ใช้ `parseBangkokDateTime` สำหรับ `dateNeeded`
-     - **ระบบจองห้องปฏิบัติการ (`/api/room-bookings`, `/api/room-bookings/batch`)**: ใช้ `getBangkokParts` และ `getBangkokStartOfDay` ในการนับ Sequence เลขที่จองประจำวันและสร้างรหัสจอง ป้องกันการนับวันถอยหลังช่วงเที่ยงคืนถึง 06:59 น.
+     - **ระบบเบิกวัสดุสิ้นเปลือง (`/api/requisitions`, `/api/requisitions/[id]`, `/requisitions/page.tsx`)**: ใช้ `parseBangkokDateTime` สำหรับ `dateNeeded` และแปลงตัวกรองภาคเรียนให้เป็นช่วงเวลาสากล
+     - **ระบบจองห้องปฏิบัติการ (`/api/room-bookings`, `/api/room-bookings/batch`, `/api/room-bookings/[id]`, `/api/room-bookings/batch-approval`)**: ใช้ `getBangkokParts` และ `getBangkokStartOfDay` ในการนับ Sequence เลขที่จองประจำวัน และใช้ขอบเขตวัน UTC Midnight 24 ชม. ตรวจสอบการทับซ้อนกับรอบฝึกปฏิบัติการข้ามระบบ
+     - **ระบบดึงข้อมูลตารางห้องสำหรับเครื่องปรับอากาศและระบบภายนอก (`/api/external/room-schedules`)**: รองรับการกรองตามวัน เดือน ปี โดยใช้ UTC Midnight ตรงตาม `bookingDate` เสมอ
+     - **ระบบประวัติการทำรายการ (`/api/activity-logs`)**: ใช้ `getBangkokStartOfDay` และ `getBangkokEndOfDay` กรองช่วงเวลาและสรุปยอดวันนี้ให้ตรงกับวันปฏิทินไทย
+     - **ระบบ Dashboard ภาพรวม (`/api/dashboard`)**: ใช้ `getBangkokStartOfDay` และ `getBangkokEndOfDay` ในโหมดกรองตามช่วงวันที่
+     - **ระบบแจ้งปัญหาและซ่อมบำรุง (`/api/maintenance/issues`)**: ใช้ `getBangkokParts` และ `getBangkokStartOfDay` สร้างรหัสเรื่องแจ้งปัญหา `REP-YYYYMMDD-XXX`
      - **ระบบจัดสรรและยืมต่อเนื่อง (`/api/borrow/allocation`)**: ใช้ `parseBangkokDateTime` คุม `startDate` และ `endDate`
-     - **ระบบเช็คอินฝึกปฏิบัติการ (`/api/practice/bookings/[id]`, `/api/practice/bookings`)**: ใช้ `combineSlotDateAndBangkokTime` และ `getBangkokEndOfDay` แก้ปัญหาบล็อกการเช็คอินล่วงหน้าของนิสิต
+     - **ระบบรอบฝึกและเช็คอินปฏิบัติการ (`/api/practice/slots`, `/api/practice/bookings`, `/api/practice/bookings/[id]`, `/api/practice/stats`, `PracticeHoursSummary.tsx`)**: กำจัด `.setHours()` ข้าม Timezone ทั้งหมด คำนวณช่วงเวลาเปิดรอบและการเช็คอินด้วยเวลาไทยอย่างเที่ยงตรง
      - **ระบบ POS หน้าร้าน (`/api/pos/checkout`)**: ปรับเวลาคืน 17:30 น. เป็นเวลาไทย (10:30 UTC) อย่างแม่นยำ
      - **ระบบแจ้งเตือนอัตโนมัติ (`/api/cron/reminders`)**: คำนวณช่วงเวลา D-Day, D-1 และ Overdue ด้วยเวลาไทย
+     - **ระบบภาคการศึกษา (`src/lib/academicTerm.ts`)**: คำนวณขอบเขตวันสิ้นสุดภาคเรียนด้วย `getTime() + 86399999` ปลอดภัยต่อทุก Timezone
   4. **การตรวจสอบคุณภาพตามมาตรฐานบรรณารักษ์**:
      - ตรวจสอบคำว่า "นิสิต" ผ่าน 100% (`npm run librarian:audit`)
      - ตรวจสอบ TypeScript ผ่าน 100% (`npx tsc --noEmit`)
      - Build ระบบผ่านสมบูรณ์ 100% (`npm run build`)
 - **ไฟล์สำคัญที่แก้ไข/สร้างขึ้น**:
   - `src/lib/date-time-utils.ts` (ใหม่)
+  - `src/lib/academicTerm.ts`
   - `src/app/api/borrow/route.ts`
   - `src/app/api/requests/unified/route.ts`
   - `src/app/api/requests/edit/route.ts`
@@ -47,11 +53,22 @@
   - `src/app/api/requisitions/[id]/route.ts`
   - `src/app/api/room-bookings/route.ts`
   - `src/app/api/room-bookings/batch/route.ts`
+  - `src/app/api/room-bookings/[id]/route.ts`
+  - `src/app/api/room-bookings/batch-approval/route.ts`
+  - `src/app/api/external/room-schedules/route.ts`
+  - `src/app/api/activity-logs/route.ts`
+  - `src/app/api/dashboard/route.ts`
+  - `src/app/api/maintenance/issues/route.ts`
   - `src/app/api/borrow/allocation/route.ts`
   - `src/app/api/practice/bookings/[id]/route.ts`
   - `src/app/api/practice/bookings/route.ts`
+  - `src/app/api/practice/slots/route.ts`
+  - `src/app/api/practice/stats/route.ts`
+  - `src/app/api/approvals/quick-action/route.ts`
   - `src/app/api/pos/checkout/route.ts`
   - `src/app/api/cron/reminders/route.ts`
+  - `src/app/requisitions/page.tsx`
+  - `src/components/practice/PracticeHoursSummary.tsx`
   - `LIBRARY_CATALOG.md`
   - `docs/WORK_LOG.md`
 

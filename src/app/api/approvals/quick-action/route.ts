@@ -520,10 +520,9 @@ export async function GET(req: Request) {
         }
 
         // Check conflict with open PracticeSlot
-        const qDayStart = new Date(roomBooking.bookingDate);
-        qDayStart.setHours(0, 0, 0, 0);
-        const qDayEnd = new Date(qDayStart);
-        qDayEnd.setDate(qDayStart.getDate() + 1);
+        const bDate = new Date(roomBooking.bookingDate);
+        const qDayStart = new Date(Date.UTC(bDate.getUTCFullYear(), bDate.getUTCMonth(), bDate.getUTCDate(), 0, 0, 0, 0));
+        const qDayEnd = new Date(qDayStart.getTime() + 24 * 60 * 60 * 1000);
 
         const conflictingSlot = await prisma.practiceSlot.findFirst({
           where: {

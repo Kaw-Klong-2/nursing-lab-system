@@ -32,11 +32,48 @@ function safeSetItem(key: string, value: string): void {
 }
 
 export default function PushNotificationManager() {
-  const { currentUser } = useAuth();
+  const { currentUser, isOfficer, isAdmin } = useAuth();
   const [showBanner, setShowBanner] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
+
+  // Client Heartbeat: ตรวจสอบและส่งแจ้งเตือนเตือนคืนครุภัณฑ์รอบเช้าอัตโนมัติ (จันทร์-ศุกร์ หลัง 09:00 น.)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !currentUser?.id) return;
+    if (!isOfficer && !isAdmin) return;
+
+    const runHeartbeat = async () => {
+      try {
+        const now = new Date();
+        const dayOfWeek = now.getDay(); // 0 = Sun, 1 = Mon, ..., 5 = Fri, 6 = Sat
+        if (dayOfWeek === 0 || dayOfWeek === 6) return; // เว้นวันหยุดเสาร์-อาทิตย์
+
+        // รันเฉพาะช่วงเวลาหลัง 09:00 น.
+        if (now.getHours() < 9) return;
+
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const heartbeatKey = `lab_return_reminder_heartbeat_${todayStr}`;
+
+        if (safeGetItem(heartbeatKey)) return;
+
+        // เรียก API ตรวจรอบเช้าในเบื้องหลัง
+        await fetch('/api/cron/reminders?type=morning&trigger=heartbeat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.id,
+          },
+        });
+
+        safeSetItem(heartbeatKey, 'true');
+      } catch {
+        // ทำงานเบื้องหลังเงียบ ๆ ไม่รบกวนผู้ใช้
+      }
+    };
+
+    runHeartbeat();
+  }, [currentUser?.id, isOfficer, isAdmin]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !currentUser) return;

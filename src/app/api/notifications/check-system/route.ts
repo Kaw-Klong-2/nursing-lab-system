@@ -63,6 +63,11 @@ export async function POST() {
           entityId: b.id,
         });
 
+        await prisma.borrowRequest.update({
+          where: { id: b.id },
+          data: { lastRemindedAt: now },
+        }).catch(() => {});
+
         alertsGenerated++;
       }
     }

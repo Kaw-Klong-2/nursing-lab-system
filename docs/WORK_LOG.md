@@ -17,6 +17,33 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-20] พัฒนาระบบเตือนคืนครุภัณฑ์ล่วงหน้าอัตโนมัติ (Automated Equipment Return Reminder)
+- **หมวดหมู่**: API / Scheduled Jobs / Background Workers & UI (`/api/cron/reminders`, `vercel.json`, `/borrow`)
+- **สิ่งที่ดำเนินการ**:
+  1. **สถาปัตยกรรมเตือนล่วงหน้า 3 ระดับ (Multi-Tier Cadence)**:
+     - **Tier 1 (D-1 ล่วงหน้า 1 วัน 18:00 น. จ-พฤ)**: แจ้งเตือนนิสิตผู้ยืมล่วงหน้าช่วงเย็นเพื่อเตรียมจัดเก็บอุปกรณ์ส่งคืน
+     - **Tier 2 (D-Day เช้าวันครบกำหนด 09:00 น. จ-ศ)**: แจ้งเตือนนิสิตให้ส่งคืนห้องปฏิบัติการพยาบาลก่อน 16:30 น.
+     - **Tier 3 (Overdue ค้างส่งเกินกำหนด 09:00 น. จ-ศ)**: แจ้งเตือนด่วน (`URGENT`) ตรงถึงนิสิตผู้ยืม พร้อมจัดทำ **"📋 Daily Overdue Digest" (สรุปรายงานประจำวัน 1 ฉบับ)** ส่งตรงถึงเจ้าหน้าที่ห้องแล็บ (`OFFICER`, `ADMIN`) สรุปจำนวนนิสิตและจำนวนรายการค้างส่งทั้งหมด
+  2. **กลไกการรันแบบ 2 ระบบคู่ขนาน (Dual Execution Mechanism)**:
+     - **Vercel Cron (`vercel.json`)**: ตั้งเวลาอัตโนมัติบน Cloud รอบเช้า 09:00 น. จันทร์-ศุกร์ (`0 2 * * 1-5` UTC) และรอบเย็น 18:00 น. จันทร์-พฤหัสบดี (`0 11 * * 1-4` UTC) ป้องกันด้วย `CRON_SECRET`
+     - **Client Heartbeat (Fallback สำหรับ Localhost)**: ใน `PushNotificationManager.tsx` เพิ่มระบบตรวจจับเบื้องหลังอัตโนมัติเมื่อเจ้าหน้าที่ล็อกอินในวันทำการหลัง 09:00 น. ควบคุมความถี่วันละ 1 ครั้ง
+  3. **ส่วนควบคุมสำหรับเจ้าหน้าที่บนหน้า `/borrow`**:
+     - เพิ่มปุ่ม **"ตรวจเตือนรอบวัน (09:00)"** บนหน้า `/borrow` สำหรับเจ้าหน้าที่และผู้ดูแลระบบ สั่งรันกวาดตรวจและส่งแจ้งเตือนได้ทันที พร้อมรับรายงานผลลัพธ์
+  4. **ระบบ Anti-Spam Throttling**:
+     - คุมระยะห่างการแจ้งเตือน Cooldown 18 ชั่วโมง และอัปเดต `lastRemindedAt` ใน `BorrowRequest` ทุกครั้งที่แจ้งเตือน
+  5. **ผลการตรวจสอบคุณภาพตามระเบียบบรรณารักษ์**:
+     - ตรวจสอบคำว่า "นิสิต" ผ่าน 100% (`npm run librarian:audit`)
+     - ตรวจสอบ TypeScript ผ่าน (`npx tsc --noEmit`)
+     - Build ระบบผ่านสมบูรณ์ 100% (`npm run build`)
+- **ไฟล์สำคัญที่แก้ไข/สร้างขึ้น**:
+  - `vercel.json` (ใหม่)
+  - `src/app/api/cron/reminders/route.ts` (ใหม่)
+  - `src/app/api/notifications/check-system/route.ts`
+  - `src/components/notifications/PushNotificationManager.tsx`
+  - `src/app/borrow/page.tsx`
+  - `LIBRARY_CATALOG.md`
+  - `docs/WORK_LOG.md`
+
 ### [2026-10-18] สลับรหัสห้อง (Room Code) ระหว่าง LAB-04 และ LAB-05 เพื่อรักษาประวัติการจองและการเปิดแอร์ให้ตรงกับห้องจริง
 - **หมวดหมู่**: Database / Data Integrity (PostgreSQL `PracticeRoom`)
 - **สิ่งที่ดำเนินการ**:

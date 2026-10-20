@@ -148,6 +148,35 @@ export default function BorrowPage() {
     }
   };
 
+  const [isRunningDailyReminder, setIsRunningDailyReminder] = useState(false);
+
+  const handleRunDailyReminders = async () => {
+    if (!currentUser?.id) return;
+    if (!confirm('ยืนยันให้ระบบตรวจสอบและส่งการแจ้งเตือนเตือนคืนครุภัณฑ์ประจำวันตามรอบอัตโนมัติ?')) return;
+    setIsRunningDailyReminder(true);
+    try {
+      const res = await fetch('/api/cron/reminders?type=morning', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const msg = `ตรวจรอบวันสำเร็จ: ส่งเตือนนิสิต ${data.overdueAlertsSent + data.dDayAlertsSent} รายการ (พบรายการค้างส่ง ${data.overdueCount} รายการ)`;
+        alert(msg);
+        fetchBorrowData(true);
+      } else {
+        alert(data.error || 'เกิดข้อผิดพลาดในการตรวจสอบและส่งแจ้งเตือน');
+      }
+    } catch {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+    } finally {
+      setIsRunningDailyReminder(false);
+    }
+  };
+
   // Course Allocation State
   const [primaryTab, setPrimaryTab] = useState<'REQUESTS' | 'ALLOCATION'>('REQUESTS');
   const [allocations, setAllocations] = useState<any[]>([]);
@@ -521,6 +550,17 @@ export default function BorrowPage() {
             <RefreshCw className={`w-3.5 h-3.5 text-teal-600 ${isRefreshing ? 'animate-spin' : ''}`} />
             <span>{isRefreshing ? 'กำลังโหลด...' : 'รีเฟรช'}</span>
           </button>
+          {(isOfficer || isAdmin) && (
+            <button
+              onClick={handleRunDailyReminders}
+              disabled={isRunningDailyReminder}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 text-xs font-bold transition cursor-pointer shadow-sm disabled:opacity-60"
+              title="ตรวจสอบรายการค้างส่งคืนและส่งแจ้งเตือนอัตโนมัติประจำวัน (จันทร์-ศุกร์)"
+            >
+              <Bell className={`w-3.5 h-3.5 text-amber-600 dark:text-amber-400 ${isRunningDailyReminder ? 'animate-bounce' : ''}`} />
+              <span>{isRunningDailyReminder ? 'กำลังประมวลผล...' : 'ตรวจเตือนรอบวัน (09:00)'}</span>
+            </button>
+          )}
           {primaryTab === 'ALLOCATION' ? (
             <button
               onClick={() => setShowNewAllocationModal(true)}

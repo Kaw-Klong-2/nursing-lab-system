@@ -192,8 +192,21 @@ export default function UsersPage() {
     fetchUsers();
     if (isAdmin && currentUser?.id) {
       fetchActiveSessions();
-      const interval = setInterval(fetchActiveSessions, 30 * 1000); // refresh every 30s
-      return () => clearInterval(interval);
+      const interval = setInterval(fetchActiveSessions, 20 * 1000); // refresh every 20s
+      const handleVis = () => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+          fetchActiveSessions();
+        }
+      };
+      if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', handleVis);
+      }
+      return () => {
+        clearInterval(interval);
+        if (typeof document !== 'undefined') {
+          document.removeEventListener('visibilitychange', handleVis);
+        }
+      };
     }
   }, [isAdmin, currentUser?.id]);
 

@@ -28,8 +28,8 @@ export async function GET(req: Request) {
       );
     }
 
-    // 2. ดึงข้อมูลผู้ใช้ออนไลน์ ณ ขณะนี้ (Real-time Online Sessions)
-    const onlineSessions = getActiveOnlineSessions();
+    // 2. ดึงข้อมูลผู้ใช้ออนไลน์ ณ ขณะนี้ (Real-time Online Sessions จาก DB + Memory)
+    const onlineSessions = await getActiveOnlineSessions();
     const onlineUserIds = onlineSessions.map((s) => s.userId);
 
     // 3. คำนวณช่วงเวลาวันนี้ตามเวลาประเทศไทย (UTC+7)

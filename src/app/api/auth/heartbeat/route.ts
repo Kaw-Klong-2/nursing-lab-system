@@ -15,7 +15,7 @@ export async function POST(req: Request) {
 
     // กรณีไคลเอนต์แจ้งออกจากระบบ (Explicit Logout)
     if (isLogout) {
-      removeUserPresence(userId);
+      await removeUserPresence(userId);
       const { logActivity } = await import('@/lib/activity-log');
       logActivity({
         userId,
@@ -28,7 +28,8 @@ export async function POST(req: Request) {
     }
 
     // ตรวจสอบว่าผู้ใช้ถูกสั่งให้ออกจากระบบระยะไกล (Force Logout) หรือไม่
-    if (isUserForceLoggedOut(userId, sessionLoginTime)) {
+    const forceLoggedOut = await isUserForceLoggedOut(userId, sessionLoginTime);
+    if (forceLoggedOut) {
       return NextResponse.json({
         success: false,
         forceLogout: true,
@@ -40,8 +41,8 @@ export async function POST(req: Request) {
     const forwardedFor = req.headers.get('x-forwarded-for');
     const ipAddress = forwardedFor ? forwardedFor.split(',')[0].trim() : req.headers.get('x-real-ip');
 
-    // บันทึก Heartbeat ใน Presence Engine
-    recordUserHeartbeat({
+    // บันทึก Heartbeat ใน Presence Engine (Memory + Supabase DB)
+    await recordUserHeartbeat({
       userId,
       userAgent,
       ipAddress,

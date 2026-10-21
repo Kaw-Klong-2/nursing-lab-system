@@ -32,6 +32,10 @@ model User {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  lastActiveAt      DateTime? // เวลาที่มีสัญญาณชีพ/ใช้งานล่าสุด
+  lastActiveDevice  String?   // "DESKTOP" | "MOBILE"
+  forceLoggedOutAt  DateTime? // เวลาที่ถูกผู้ดูแลระบบสั่งตัดเซสชัน
+
   borrowRequests      BorrowRequest[]      @relation("UserBorrowRequests")
   approvedBorrows     BorrowRequest[]      @relation("ApproverBorrowRequests")
   requisitionRequests RequisitionRequest[] @relation("UserRequisitions")
@@ -54,6 +58,7 @@ model User {
 
   @@index([role, status])
   @@index([studentId])
+  @@index([lastActiveAt])
 }
 
 model Course {

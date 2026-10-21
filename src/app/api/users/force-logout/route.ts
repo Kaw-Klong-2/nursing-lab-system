@@ -55,8 +55,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. สั่งตัด Session ใน Presence Engine
-    forceLogoutUser(targetUserId);
+    // 2. สั่งตัด Session ใน Presence Engine (Memory + DB)
+    await forceLogoutUser(targetUserId);
 
     // 3. บันทึก Activity Log สำหรับการตรวจสอบย้อนหลัง
     const forwardedFor = req.headers.get('x-forwarded-for');

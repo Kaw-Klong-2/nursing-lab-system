@@ -18,6 +18,8 @@ export interface User {
   isExecutive?: boolean | null;
   executiveRole?: string | null;
   status?: string | null;
+  lastActiveAt?: string | null;
+  lastActiveDevice?: string | null;
 }
 
 // Session timeout constants
@@ -122,11 +124,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Heartbeat pulse every 2 minutes while active to maintain presence and detect force logout
+  // Heartbeat pulse while active to maintain presence and detect force logout
+  // Enhanced with Page Visibility API, Focus, and User Activity detection
   useEffect(() => {
     if (!currentUser?.id) return;
 
-    const sendPulse = async () => {
+    let lastPulseSentAt = 0;
+
+    const sendPulse = async (force: boolean = false) => {
+      const now = Date.now();
+      // Throttle: avoid sending pulses more frequently than once every 15 seconds unless forced
+      if (!force && now - lastPulseSentAt < 15 * 1000) {
+        return;
+      }
+      lastPulseSentAt = now;
+
       try {
         const lastLoginTimeStr = localStorage.getItem('session_last_active');
         const res = await fetch('/api/auth/heartbeat', {
@@ -151,9 +163,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    sendPulse();
-    const interval = setInterval(sendPulse, 2 * 60 * 1000);
-    return () => clearInterval(interval);
+    // Initial pulse on mount
+    sendPulse(true);
+
+    // Regular interval every 60 seconds (1 minute)
+    const interval = setInterval(() => sendPulse(false), 60 * 1000);
+
+    // 1. Visibility change: When switching back to tab, immediately re-awaken online status
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        sendPulse(true);
+      }
+    };
+
+    // 2. Window focus
+    const handleFocus = () => {
+      sendPulse(false);
+    };
+
+    // 3. Network online reconnection
+    const handleOnline = () => {
+      sendPulse(true);
+    };
+
+    // 4. User activity throttled trigger
+    let lastActivityPulseAt = 0;
+    const handleUserInteraction = () => {
+      const now = Date.now();
+      if (now - lastActivityPulseAt > 60 * 1000) {
+        lastActivityPulseAt = now;
+        sendPulse(false);
+      }
+    };
+
+    if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      window.addEventListener('focus', handleFocus);
+      window.addEventListener('online', handleOnline);
+      window.addEventListener('click', handleUserInteraction, { passive: true });
+      window.addEventListener('keydown', handleUserInteraction, { passive: true });
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('focus', handleFocus);
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('click', handleUserInteraction);
+        window.removeEventListener('keydown', handleUserInteraction);
+      }
+    };
   }, [currentUser?.id]);
 
   const extendSession = () => {

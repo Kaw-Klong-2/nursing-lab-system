@@ -71,6 +71,8 @@ export async function GET(req: Request) {
         approvalScopes: true,
         isExecutive: true,
         executiveRole: true,
+        lastActiveAt: true,
+        lastActiveDevice: true,
       },
       orderBy: { name: 'asc' },
     });

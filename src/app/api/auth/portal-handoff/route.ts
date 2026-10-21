@@ -118,7 +118,7 @@ export async function POST(req: Request) {
 
     const device = detectDeviceType(userAgent);
 
-    recordUserHeartbeat({
+    await recordUserHeartbeat({
       userId: user.id,
       userName: user.name,
       userEmail: user.email,

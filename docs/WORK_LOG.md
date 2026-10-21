@@ -17,6 +17,51 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-21] แก้ไขปัญหาสถานะผู้ใช้ออนไลน์แสดงผลเป็นออฟไลน์ (Serverless DB Presence Engine)
+- **หมวดหมู่**: Authentication / Presence & Session Engine / Serverless Architecture (`prisma/schema.prisma`, `src/lib/user-presence.ts`, `src/lib/auth-context.tsx`, `src/app/api/auth/heartbeat/route.ts`, `src/app/api/users/active-sessions/route.ts`, `src/app/users/page.tsx`)
+- **สิ่งที่ดำเนินการ**:
+  1. **หาสาเหตุหลัก (Root Cause)**:
+     - ระบบเดิมเก็บ Session ผู้ใช้ออนไลน์ไว้ใน In-Memory Map ของ Node.js (`globalThis.__userPresenceMap`)
+     - บน Vercel Serverless Functions คำขอแต่ละรายการ (เช่น Heartbeat ของผู้ใช้ กับคำขอ Active Sessions ของแอดมิน) ถูกกระจายไปยังคนละ Container (AWS Lambda Worker) ทำให้ Container ที่แอดมินเรียกไม่มีข้อมูลใน Memory ส่งผลให้ผู้ใช้ที่กำลังออนไลน์ถูกมองว่าออฟไลน์
+     - เมื่อแท็บเบราว์เซอร์ของผู้ใช้อยู่เบื้องหลัง (Background Tab) เบราว์เซอร์จะหยุดหน่วง Timer ทำให้ Heartbeat ขาดช่วงเกิน 5 นาที
+  2. **ยกระดับเป็น Shared Database Persistence (Supabase PostgreSQL)**:
+     - เพิ่มฟิลด์ `lastActiveAt` (DateTime), `lastActiveDevice` (String), และ `forceLoggedOutAt` (DateTime) พร้อม Index ในโมเดล `User` (`prisma/schema.prisma`)
+     - ซิงค์ฐานข้อมูลด้วย `prisma db push` สำเร็จโดยไม่กระทบข้อมูลเดิม
+     - ปรับปรุง `src/lib/user-presence.ts` ให้บันทึกและดึงข้อมูลสถานะออนไลน์ผ่าน Supabase PostgreSQL เป็น Single Source of Truth ร่วมกับ In-Memory Cache ทำให้ทุก Serverless Container บน Vercel เห็นสถานะตรงกัน 100%
+  3. **ยกระดับ Client-side Heartbeat ให้ฉลาดรอบด้าน (`src/lib/auth-context.tsx`)**:
+     - ดักจับ `visibilitychange`: เมื่อผู้ใช้สลับกลับมาที่แท็บของระบบ จะส่งสัญญาณชีพปลุกสถานะเป็น 🟢 ออนไลน์ทันทีโดยไม่ต้องรอ Timer
+     - ดักจับ `focus`, `online`, และ User Activity (คลิก/กดแป้นพิมพ์หลังนิ่งไปนาน) เพื่อต่ออายุสถานะออนไลน์อัตโนมัติ
+     - ปรับความถี่ Heartbeat เป็น 60 วินาที พร้อมระบบ Throttling ป้องกันการยิงคำขอถี่เกินจำเป็น (ขั้นต่ำ 15 วินาที)
+  4. **ปรับปรุงการดึงข้อมูลหน้าจัดการผู้ใช้ (`src/app/users/page.tsx`)**:
+     - ปรับระยะดึงสถานะอัตโนมัติเป็นทุก 20 วินาที พร้อมรีเฟรชทันทีเมื่อแอดมินสลับกลับมาที่หน้าจอ
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `prisma/schema.prisma`
+  - `src/lib/user-presence.ts`
+  - `src/lib/auth-context.tsx`
+  - `src/app/api/auth/heartbeat/route.ts`
+  - `src/app/api/users/active-sessions/route.ts`
+  - `src/app/api/users/force-logout/route.ts`
+  - `src/app/api/users/route.ts`
+  - `src/app/users/page.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ผ่าน 100% (ไม่มีคำต้องห้าม, UTF-8 สมบูรณ์)
+
+### [2026-10-21] สกัดและส่งออกข้อมูลวัสดุสิ้นเปลืองทั้งหมดที่ไม่ใช่ lot 9999 เป็นไฟล์ Excel (.xlsx)
+- **หมวดหมู่**: Inventory / Data Export / Scripts (`exports/`, `scripts/generate_consumables_excel.js`)
+- **สิ่งที่ดำเนินการ**:
+  1. ดึงข้อมูลวัสดุสิ้นเปลือง (`type: 'CONSUMABLE'`) จากตาราง `StockLot` ร่วมกับ `Item` และ `Category` โดยกรองล็อตที่ไม่ใช่ 9999 (`lotNumber != '9999'`)
+  2. พบรายการล็อตที่ไม่ใช่ 9999 ทั้งหมด 80 ล็อต จากวัสดุสิ้นเปลือง 70 ชนิด (เช่น ล็อต อว 6501.38/1106, อว 6501.38/1429, อว 6501.38/0945, 111, 1414 ฯลฯ)
+  3. สร้างไฟล์ Excel (.xlsx) 2 ชีตอย่างสมบูรณ์:
+     - **ชีตที่ 1: รายการวัสดุแยกล็อต** (80 แถว): แสดงชื่อวัสดุ, ราคาต่อหน่วยใหญ่, วันที่รับเข้า (พ.ศ. และ ค.ศ.), จำนวนรับเข้า, จำนวนคงเหลือ, หน่วยใหญ่ (หน่วยบรรจุ), หน่วยย่อย (หน่วยเบิกใช้), อัตราแปลงหน่วย, จำนวนหน่วยย่อยรวม, มูลค่ารับเข้า/คงเหลือ, วันหมดอายุ, ผู้จัดจำหน่าย และสถานที่จัดเก็บ
+     - **ชีตที่ 2: สรุปรวมรายชนิดวัสดุ** (70 แถว): รวมยอดจำนวนรับเข้า/คงเหลือทั้งหน่วยใหญ่และหน่วยย่อย, แสดงหมายเลขล็อตทั้งหมดของแต่ละวัสดุ, วันที่รับเข้าล่าสุด และมูลค่ารวม
+  4. บันทึกไฟล์ไว้ในคลังโปรเจกต์อย่างปลอดภัยที่ `d:\LAB-system\exports\consumables_stock_lots_not_9999.xlsx` และ `d:\LAB-system\exports\ข้อมูลวัสดุสิ้นเปลือง_ไม่รวม_lot9999.xlsx`
+- **ไฟล์สำคัญที่สร้าง**:
+  - `scripts/generate_consumables_excel.js`
+  - `exports/consumables_stock_lots_not_9999.xlsx`
+  - `exports/ข้อมูลวัสดุสิ้นเปลือง_ไม่รวม_lot9999.xlsx`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ผ่าน 100% (คำว่า "นิสิต", UTF-8 ผ่านสมบูรณ์)
+
+
 ### [2026-10-21] เพิ่มปุ่มและป๊อปอัปดูรายละเอียดคำขอเบิก/ยืมฉบับเต็มในศูนย์จ่ายพัสดุ (Dispense Center)
 - **หมวดหมู่**: Operations / Counter Fulfillment / UI (`src/app/dispense/page.tsx`)
 - **สิ่งที่ดำเนินการ**:

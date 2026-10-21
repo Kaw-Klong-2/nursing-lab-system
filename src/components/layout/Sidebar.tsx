@@ -129,6 +129,12 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           badgeCount: pendingCount,
         },
         {
+          label: 'ศูนย์จ่ายพัสดุ',
+          href: '/dispense',
+          icon: PackageCheck,
+          roles: ['ADMIN', 'OFFICER'],
+        },
+        {
           label: 'ยืม-คืนครุภัณฑ์ & เบิกพัสดุ',
           href: '/borrow',
           icon: RefreshCw,

@@ -238,7 +238,7 @@ async function processReminders(type: string = 'all') {
           message: `วันนี้มีรายการที่ต้องจ่ายออกรวม ${todayDispenseCount} รายการ (ใบเบิกวัสดุ ${todayRequisitions.length} รายการ, นัดรับครุภัณฑ์ ${todayBorrowsToPickup.length} รายการ) กรุณาตรวจสอบและจัดเตรียมพัสดุที่ห้องแล็บ`,
           type: 'STATUS_UPDATE',
           priority: 'HIGH',
-          linkUrl: todayRequisitions.length > 0 ? '/requisitions' : '/borrow',
+          linkUrl: '/dispense',
           entityType: todayRequisitions.length > 0 ? 'REQUISITION' : 'BORROW',
         });
         dispenseDigestSent = true;

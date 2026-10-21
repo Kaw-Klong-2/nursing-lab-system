@@ -17,6 +17,37 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-21] เพิ่มศูนย์จ่ายพัสดุ (Dispense Center) สำหรับเจ้าหน้าที่และแอดมินในรูปแบบตารางกระชับ
+- **หมวดหมู่**: Operations / Counter Fulfillment / UI & API (`src/app/dispense/page.tsx`, `src/app/api/dispense/queue/route.ts`, `src/components/layout/Sidebar.tsx`, `src/app/api/cron/reminders/route.ts`)
+- **สิ่งที่ดำเนินการ**:
+  1. **สร้างหน้าจอศูนย์จ่ายพัสดุ ([`/dispense`](file:///d:/LAB-system/src/app/dispense/page.tsx))**:
+     - คงชื่อเมนูเดิมในระบบ (`ยืม-คืนครุภัณฑ์ & เบิกพัสดุ` และ `ประวัติเบิกจ่ายวัสดุ`) ตามความต้องการของผู้ใช้
+     - เพิ่มเมนูใหม่ **"ศูนย์จ่ายพัสดุ"** ใน Sidebar ภายใต้หมวดบริการ (จำกัดสิทธิ์เฉพาะ `ADMIN` และ `OFFICER` เพื่อไม่ให้รบกวนหน้านิสิตและอาจารย์)
+     - ออกแบบการแสดงผลเป็น **ตารางกระชับ (Compact Table View)** สรุปคิวงานจ่ายพัสดุที่ได้รับการอนุมัติแล้วทั้งหมด ทั้งวัสดุสิ้นเปลืองและครุภัณฑ์ยืมในหน้าจอเดียว
+     - แสดงการ์ด KPI 4 ใบ: คิวรอจ่ายทั้งหมด, กำหนดจ่ายวันนี้, เลยวันนัด (ค้างจ่าย), และสัดส่วนแยกตามประเภทวัสดุ/ครุภัณฑ์
+     - ตัวกรองด่วน: แยกประเภท (`[ทั้งหมด]`, `[เฉพาะวัสดุ]`, `[เฉพาะครุภัณฑ์]`), กรองเวลา (`[กำหนดจ่ายวันนี้]`, `[เลยวันนัด]`), และกล่องค้นหาแบบเรียลไทม์
+  2. **ระบบป๊อปอัปตรวจสอบและยืนยันการจ่ายพัสดุ (Dispense Modal)**:
+     - กดปุ่ม `[ 📦 จ่ายของ ]` จากแถวตารางเพื่อเปิดดูรายละเอียดพัสดุ ตำแหน่งตู้จัดเก็บ และสต็อกคงเหลือ
+     - สำหรับวัสดุสิ้นเปลือง: รองรับการตัดสต็อก FIFO อัตโนมัติและปรับจำนวนที่จ่ายจริง
+     - สำหรับครุภัณฑ์: รองรับการตรวจสอบและผูกรหัสครุภัณฑ์ (Asset Code)
+     - ป้อนหมายเหตุการส่งมอบ และกดยืนยันเพื่อตัดจ่ายทันที
+  3. **สร้างจุดเชื่อมต่อ API ใหม่ ([`/api/dispense/queue`](file:///d:/LAB-system/src/app/api/dispense/queue/route.ts))**:
+     - รวบรวม `RequisitionRequest` และ `BorrowRequest` ที่มีสถานะ `APPROVED` พร้อมข้อมูลผู้ขอ (นิสิต), รายวิชา, ตำแหน่งตู้จัดเก็บ, และล็อตคงเหลือ
+     - จัดลำดับคิวงานอัตโนมัติ (ค้างจ่าย/นัดวันนี้ขึ้นก่อน) และส่งมอบข้อมูลพร้อมสรุปตัวเลขแบบครบวงจร
+  4. **เชื่อมโยงการแจ้งเตือนรอบเช้า 09:00 น.**:
+     - อัปเดต `linkUrl` ในการแจ้งเตือนสรุปตารางจ่ายพัสดุประจำวันของ `/api/cron/reminders` ให้วิ่งตรงเข้าสู่หน้า [`/dispense`](file:///d:/LAB-system/src/app/dispense/page.tsx) ทันที
+- **ไฟล์สำคัญที่สร้างและแก้ไข**:
+  - `src/app/dispense/page.tsx` (ใหม่)
+  - `src/app/api/dispense/queue/route.ts` (ใหม่)
+  - `src/components/layout/Sidebar.tsx`
+  - `src/app/api/cron/reminders/route.ts`
+  - `LIBRARY_CATALOG.md`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**:
+  - `cmd /c npm run librarian:audit`: ผ่าน 100% (คำว่า "นิสิต", UTF-8 ผ่านสมบูรณ์)
+  - `cmd /c npx tsc --noEmit`: ผ่าน 0 errors
+  - `cmd /c npm run build`: สร้างโปรดักชันบิลด์สำเร็จ 100% (รวม 27 หน้า และ 94 API routes)
+
 ### [2026-10-21] แก้ไขระบบแจ้งเตือนสรุปรายวันรอบเช้าอัตโนมัติ (Server-side Cron Auth, Deduplication & Vercel Hobby Quota Optimization)
 - **หมวดหมู่**: Scheduled Jobs / Notifications / Cloud Automation (`src/app/api/cron/reminders/route.ts`, `vercel.json`, `src/components/notifications/PushNotificationManager.tsx`)
 - **สิ่งที่ดำเนินการ**:

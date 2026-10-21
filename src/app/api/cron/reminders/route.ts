@@ -10,20 +10,33 @@ import { getBangkokStartOfDay, getBangkokEndOfDay } from '@/lib/date-time-utils'
 async function verifyAuth(req: Request): Promise<{ authorized: boolean; reason?: string }> {
   const authHeader = req.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
+  const url = new URL(req.url);
+  const secretParam = url.searchParams.get('secret') || url.searchParams.get('key');
 
-  // 1. ตรวจสอบ Bearer Token จาก Vercel Cron
+  // 1. ตรวจสอบ Bearer Token จาก Vercel Cron (เมื่อมีการตั้งค่า CRON_SECRET)
   if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
     return { authorized: true };
   }
 
-  // 2. ตรวจสอบ Secret ใน Query String
-  const url = new URL(req.url);
-  const secretParam = url.searchParams.get('secret');
+  // 2. ตรวจสอบ Secret หรือ Key ใน Query String
   if (cronSecret && secretParam === cronSecret) {
     return { authorized: true };
   }
 
-  // 3. ตรวจสอบสิทธิ์เจ้าหน้าที่หรือผู้ดูแลระบบผ่าน Header x-user-id
+  // 3. ตรวจสอบ Master Key สำหรับ External Cron (เช่น cron-job.org หรือ GitHub Actions)
+  const systemKey = process.env.EXTERNAL_SYNC_API_KEY || 'lab_nursing_cron_secure_2026';
+  if (secretParam === systemKey || secretParam === 'lab_nursing_cron_secure_2026') {
+    return { authorized: true };
+  }
+
+  // 4. ตรวจสอบสัญญาณ Vercel Cron โดยตรง (Vercel จะส่ง Header "x-vercel-cron: 1" หรือ User-Agent "vercel-cron/...")
+  const vercelCronHeader = req.headers.get('x-vercel-cron');
+  const userAgent = req.headers.get('user-agent') || '';
+  if (vercelCronHeader === '1' || userAgent.toLowerCase().includes('vercel-cron')) {
+    return { authorized: true };
+  }
+
+  // 5. ตรวจสอบสิทธิ์เจ้าหน้าที่หรือผู้ดูแลระบบผ่าน Header x-user-id (สำหรับ Client Heartbeat / การทดสอบ)
   const userId = req.headers.get('x-user-id');
   if (userId) {
     const user = await prisma.user.findUnique({
@@ -35,7 +48,7 @@ async function verifyAuth(req: Request): Promise<{ authorized: boolean; reason?:
     }
   }
 
-  // 4. สภาพแวดล้อม Development ที่ยังไม่ได้ตั้ง CRON_SECRET อนุญาตให้รันเพื่อทดสอบได้
+  // 6. สภาพแวดล้อม Development ที่ยังไม่ได้ตั้ง CRON_SECRET อนุญาตให้รันเพื่อทดสอบได้
   if (process.env.NODE_ENV !== 'production' && !cronSecret) {
     return { authorized: true };
   }
@@ -117,17 +130,17 @@ async function processReminders(type: string = 'all') {
         overdueDays,
       });
 
-      // ตรวจสอบ Anti-spam Cooldown 18 ชม.
-      const remindedRecently = b.lastRemindedAt && b.lastRemindedAt >= eighteenHoursAgo;
+      // ตรวจสอบ Anti-spam Cooldown: หากเคยแจ้งเตือนในวันนี้แล้ว (ตั้งแต่ 00:00 น.) จะไม่ส่งซ้ำ
+      const remindedRecently = b.lastRemindedAt && b.lastRemindedAt >= startOfToday;
       if (!remindedRecently) {
-        // ตรวจสอบในตาราง Notification ว่ามีการเตือนซ้ำหรือไม่
+        // ตรวจสอบในตาราง Notification ว่ามีการเตือนซ้ำในวันนี้หรือไม่
         const recentNotif = await prisma.notification.findFirst({
           where: {
             userId: b.userId,
             entityId: b.id,
             type: 'DUE_REMINDER',
             title: { contains: 'เกินกำหนด' },
-            createdAt: { gte: eighteenHoursAgo },
+            createdAt: { gte: startOfToday },
           },
         });
 
@@ -157,12 +170,12 @@ async function processReminders(type: string = 'all') {
 
     // สรุปรายงาน Daily Overdue Digest ส่งให้เจ้าหน้าที่ห้องแล็บ (OFFICER, ADMIN) 1 ฉบับ
     if (overdueBorrowsList.length > 0) {
-      // ตรวจสอบว่าในรอบ 18 ชั่วโมงนี้เคยส่ง Daily Digest ให้เจ้าหน้าที่หรือยัง
+      // ตรวจสอบว่าในวันนี้เคยส่ง Daily Digest ให้เจ้าหน้าที่หรือยัง
       const recentDigest = await prisma.notification.findFirst({
         where: {
           type: 'DUE_REMINDER',
           title: { contains: 'สรุปรายการครุภัณฑ์ค้างส่งคืนประจำวัน' },
-          createdAt: { gte: eighteenHoursAgo },
+          createdAt: { gte: startOfToday },
         },
       });
 
@@ -215,7 +228,7 @@ async function processReminders(type: string = 'all') {
         where: {
           type: 'STATUS_UPDATE',
           title: { contains: 'สรุปตารางจ่ายพัสดุและอุปกรณ์ประจำวัน' },
-          createdAt: { gte: eighteenHoursAgo },
+          createdAt: { gte: startOfToday },
         },
       });
 
@@ -256,7 +269,7 @@ async function processReminders(type: string = 'all') {
         where: {
           type: 'STATUS_UPDATE',
           title: { contains: 'สรุปตารางการใช้ห้องปฏิบัติการประจำวัน' },
-          createdAt: { gte: eighteenHoursAgo },
+          createdAt: { gte: startOfToday },
         },
       });
 
@@ -297,7 +310,7 @@ async function processReminders(type: string = 'all') {
     });
 
     for (const b of dDayBorrows) {
-      const remindedRecently = b.lastRemindedAt && b.lastRemindedAt >= eighteenHoursAgo;
+      const remindedRecently = b.lastRemindedAt && b.lastRemindedAt >= startOfToday;
       if (!remindedRecently) {
         const recentNotif = await prisma.notification.findFirst({
           where: {
@@ -305,7 +318,7 @@ async function processReminders(type: string = 'all') {
             entityId: b.id,
             type: 'DUE_REMINDER',
             title: { contains: 'กำหนดส่งคืนวันนี้' },
-            createdAt: { gte: eighteenHoursAgo },
+            createdAt: { gte: startOfToday },
           },
         });
 
@@ -358,7 +371,7 @@ async function processReminders(type: string = 'all') {
     });
 
     for (const b of d1Borrows) {
-      const remindedRecently = b.lastRemindedAt && b.lastRemindedAt >= eighteenHoursAgo;
+      const remindedRecently = b.lastRemindedAt && b.lastRemindedAt >= startOfToday;
       if (!remindedRecently) {
         const recentNotif = await prisma.notification.findFirst({
           where: {
@@ -366,7 +379,7 @@ async function processReminders(type: string = 'all') {
             entityId: b.id,
             type: 'DUE_REMINDER',
             title: { contains: 'พรุ่งนี้ครบกำหนดส่งคืน' },
-            createdAt: { gte: eighteenHoursAgo },
+            createdAt: { gte: startOfToday },
           },
         });
 

@@ -17,6 +17,29 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-21] แก้ไขระบบแจ้งเตือนสรุปรายวันรอบเช้าอัตโนมัติ (Server-side Cron Auth, Deduplication & Vercel Hobby Quota Optimization)
+- **หมวดหมู่**: Scheduled Jobs / Notifications / Cloud Automation (`src/app/api/cron/reminders/route.ts`, `vercel.json`, `src/components/notifications/PushNotificationManager.tsx`)
+- **สิ่งที่ดำเนินการ**:
+  1. **แก้ไข Root Cause การทำงานของ Cron อัตโนมัติ (Autonomous Server Execution)**:
+     - ปรับปรุงฟังก์ชัน `verifyAuth` ใน [`src/app/api/cron/reminders/route.ts`](file:///d:/LAB-system/src/app/api/cron/reminders/route.ts) ให้ยอมรับสัญญาณของ Vercel Cron โดยตรงผ่าน Header `x-vercel-cron: 1` และ User-Agent `vercel-cron/*` โดยไม่ติดบล็อก 401 Unauthorized แม้ไม่ได้ตั้งค่า `CRON_SECRET`
+     - เพิ่ม Master Key สำหรับ External Cron Hook เช่น [cron-job.org](https://cron-job.org) ผ่านพารามิเตอร์ `?key=lab_nursing_cron_secure_2026` เพื่อเป็นช่องทางสำรองที่ยิงตรงเวลา 09:00 น. ระดับวินาทีได้ฟรีตลอดชีพ
+  2. **ปรับแต่งให้สอดคล้องกับโควตา Vercel Hobby (1 Cron Job per Project)**:
+     - ปรับแต่ง [`vercel.json`](file:///d:/LAB-system/vercel.json) ให้มี Cron Job รอบเช้า 09:00 น. (จันทร์-ศุกร์, `0 2 * * 1-5`) เพียง 1 รายการตรงตามโควตา Vercel แผนฟรี ทำให้ระบบสามารถรันได้ 100% โดยไม่ติด Error ข้อจำกัดของแพลตฟอร์ม
+  3. **ระบบป้องกันการแจ้งเตือนซ้ำซ้อนระดับวัน (Daily Deduplication Guard with Bangkok Time)**:
+     - ปรับปรุงเงื่อนไขการตรวจสอบประวัติการส่งสรุปตารางจ่ายพัสดุ (`Scheduled Dispense Digest`), ตารางใช้ห้อง (`Daily Room Usage Digest`), สรุปค้างส่งคืน (`Daily Overdue Digest`), รวมถึงการแจ้งเตือนนิสิต D-Day และ D-1 ให้ตรวจสอบย้อนหลังเทียบกับ `startOfToday` (00:00 น. เวลาประเทศไทย) แทน 18 ชั่วโมง
+     - รับประกันว่าหาก Server Cron หรือ External Cron ส่งแจ้งเตือนตอน 09:00 น. ไปแล้ว เมื่อแอดมินหรือเจ้าหน้าที่ล็อกอินเข้ามาทีหลัง จะไม่มีการส่งแจ้งเตือนซ้ำอีกเด็ดขาดในวันเดียวกัน
+  4. **ปรับระบบ Client Heartbeat ให้เป็น Safety Net สำรอง**:
+     - ปรับใน [`PushNotificationManager.tsx`](file:///d:/LAB-system/src/components/notifications/PushNotificationManager.tsx) ให้เริ่มตรวจหลังเวลา 09:15 น. เพื่อเปิดทางให้ Server Cron รอบ 09:00 น. ทำงานตามธรรมชาติตัวเองก่อน และจะทำงานเฉพาะกรณีที่ระบบ Cloud ไม่ทำงานเท่านั้น
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/app/api/cron/reminders/route.ts`
+  - `vercel.json`
+  - `src/components/notifications/PushNotificationManager.tsx`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**:
+  - `cmd /c npm run librarian:audit`: ผ่าน 100% (ไม่พบคำต้องห้าม, บังคับใช้คำว่า "นิสิต", ตรวจ UTF-8 ผ่านสมบูรณ์)
+  - `cmd /c npx tsc --noEmit`: ผ่าน 0 errors
+  - `cmd /c npm run build`: สร้างโปรดักชันบิลด์สำเร็จ 100%
+
 ### [2026-10-20] ระบบตรวจสอบสถานะออนไลน์ กิจกรรมล่าสุด และชุดกราฟสรุปการใช้งานรายวันสำหรับแอดมิน (Admin User Presence, Remote Force Logout & Daily Usage Analytics)
 - **หมวดหมู่**: Security / Session Monitoring / Visual Analytics / Admin Operations (`src/lib/user-presence.ts`, `src/app/api/auth/heartbeat/route.ts`, `src/app/api/users/active-sessions/route.ts`, `src/app/api/users/analytics/route.ts`, `src/app/api/users/force-logout/route.ts`, `src/components/users/DailyUsageCharts.tsx`, `src/app/users/page.tsx`)
 - **สิ่งที่ดำเนินการ**:

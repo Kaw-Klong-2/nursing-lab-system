@@ -49,8 +49,8 @@ export default function PushNotificationManager() {
         const dayOfWeek = now.getDay(); // 0 = Sun, 1 = Mon, ..., 5 = Fri, 6 = Sat
         if (dayOfWeek === 0 || dayOfWeek === 6) return; // เว้นวันหยุดเสาร์-อาทิตย์
 
-        // รันเฉพาะช่วงเวลาหลัง 09:00 น.
-        if (now.getHours() < 9) return;
+        // รันเฉพาะช่วงเวลาหลัง 09:15 น. (ทำหน้าที่เป็น Safety Net สำรอง หากเซิร์ฟเวอร์ส่งรอบ 09:00 น. ไปแล้วจะไม่ส่งซ้ำ)
+        if (now.getHours() < 9 || (now.getHours() === 9 && now.getMinutes() < 15)) return;
 
         const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
         const heartbeatKey = `lab_return_reminder_heartbeat_${todayStr}`;

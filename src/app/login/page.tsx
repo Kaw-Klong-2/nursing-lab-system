@@ -315,194 +315,261 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 flex items-center justify-center p-4">
-      <div className="max-w-md w-full space-y-6">
-        {/* Brand Header */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-teal-500 to-cyan-400 text-white shadow-xl shadow-teal-500/20 mb-2">
-            <Stethoscope className="w-8 h-8" />
-          </div>
-          <h1 className="text-3xl font-black text-white tracking-tight flex items-center justify-center gap-0.5">
-            <span>KUNurse</span>
-            <span className="text-teal-400 font-black text-3xl select-none">+</span>
-            <span>Lab</span>
-          </h1>
-          <p className="text-xs text-teal-300 font-medium flex items-center justify-center gap-1.5">
-            <Building2 className="w-3.5 h-3.5" /> ระบบบริหารจัดการห้องปฏิบัติการพยาบาล
-          </p>
-          <p className="text-[11px] text-slate-400">
-            คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์
-          </p>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-teal-50/80 via-slate-50 to-emerald-50/70 flex items-center justify-center p-4 md:p-8 relative overflow-hidden">
+      {/* Ambient Glow Orbs */}
+      <div className="w-96 h-96 rounded-full bg-teal-200/40 blur-3xl absolute -top-20 -left-20 pointer-events-none" />
+      <div className="w-96 h-96 rounded-full bg-emerald-200/30 blur-3xl absolute -bottom-20 -right-20 pointer-events-none" />
 
-        {/* Login Card */}
-        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-slate-800 space-y-6">
-          <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-            <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">เข้าสู่ระบบ (Sign In)</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              กรอกอีเมลและรหัสผ่านเพื่อเข้าสู่ระบบงานจริง
-            </p>
-          </div>
-
-          {timeoutNotice && (
-            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold flex items-start gap-2.5">
-              <Clock className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <div className="font-bold">เซสชันหมดอายุ</div>
-                <div className="text-[11px] text-amber-800 font-normal mt-0.5">
-                  ไม่มีการใช้งานเป็นเวลานานเกินกำหนด ระบบออกจากระบบอัตโนมัติเพื่อความปลอดภัย กรุณาเข้าสู่ระบบใหม่อีกครั้ง
-                </div>
+      <div className="max-w-4xl w-full relative z-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          
+          {/* Left Column (Desktop Hero / Mascot Showcase) */}
+          <div className="hidden lg:flex lg:col-span-5 flex-col items-start space-y-4">
+            {/* Welcoming Speech Bubble */}
+            <div className="relative bg-white/95 backdrop-blur-md p-4 rounded-2xl shadow-lg shadow-teal-900/5 border border-teal-100 text-slate-800 text-xs font-medium space-y-1 max-w-xs animate-in fade-in slide-in-from-top-4 duration-500">
+              <div className="flex items-center gap-1.5 text-teal-700 font-bold text-sm">
+                <span>สวัสดีค่ะ ยินดีต้อนรับค่ะ</span>
+                <span className="text-base">👩‍⚕️✨</span>
               </div>
-            </div>
-          )}
-
-          {error && (
-            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                รหัสประจำตัว (ID) หรือ อีเมล
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  required
-                  placeholder="เช่น admin, 6610210099 หรืออีเมล"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 pl-9 pr-4 text-xs font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition"
-                />
-                <User className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-              </div>
+              <p className="text-slate-600 leading-relaxed text-[12px]">
+                ยินดีต้อนรับอาจารย์ เจ้าหน้าที่ และ<strong className="text-teal-800 font-bold">นิสิต</strong> สู่ระบบบริหารจัดการห้องปฏิบัติการพยาบาลค่ะ
+              </p>
+              {/* Speech bubble tail */}
+              <div className="absolute -bottom-2 left-10 w-4 h-4 bg-white border-r border-b border-teal-100 transform rotate-45" />
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-bold text-slate-700">รหัสผ่าน</label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setForgotEmail(email);
-                    setForgotStep('REQUEST');
-                    setForgotError(null);
-                    setForgotSuccess(null);
-                    setIsForgotModalOpen(true);
-                  }}
-                  className="text-[11px] text-teal-600 hover:text-teal-700 font-semibold hover:underline cursor-pointer"
-                >
-                  ลืมรหัสผ่าน?
-                </button>
-              </div>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  placeholder="กรอกรหัสผ่าน"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 pl-9 pr-10 text-xs font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition"
-                />
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
-                  title={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            {/* Remember Me Checkbox */}
-            <div className="flex items-center justify-between px-0.5">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 border-slate-300 accent-teal-600"
-                />
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">จดจำฉันไว้ในระบบ</span>
-              </label>
-              <span className="text-[10px] text-slate-400">
-                {rememberMe ? 'ค้างไว้ 30 วัน (มือถือ)' : 'ค้างไว้ 8 ชม. (คอมแล็บ)'}
-              </span>
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting || googleSubmitting}
-              className="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-lg shadow-teal-600/30 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              <span>{submitting ? 'กำลังตรวจสอบรหัสผ่าน...' : 'เข้าสู่ระบบด้วยรหัสผ่าน'}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </form>
-
-          {/* Divider */}
-          <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-200 dark:border-slate-800" />
-            </div>
-            <div className="relative flex justify-center text-[11px] uppercase">
-              <span className="bg-white dark:bg-slate-900 px-3 font-semibold text-slate-400">
-                หรือเข้าสู่ระบบด้วย
-              </span>
-            </div>
-          </div>
-
-          {/* Google Sign-In Section */}
-          <div className="space-y-2.5">
-            <Script
-              src="https://accounts.google.com/gsi/client"
-              strategy="afterInteractive"
-              onLoad={() => initializeGoogleBtn()}
-            />
-
-            <div className="flex justify-center w-full min-h-[44px]">
-              {/* Google Native One Tap & Standard Button Container */}
-              <div
-                ref={googleBtnContainerRef}
-                className={`w-full flex justify-center ${googleSubmitting ? 'opacity-40 pointer-events-none' : ''}`}
+            {/* Mascot Image with 3D Ground Shadow */}
+            <div className="relative pt-1 pl-3 group">
+              <img
+                src="/images/nurse-mascot.png"
+                alt="Nurse Mascot"
+                className="w-60 max-w-full object-contain filter drop-shadow-md hover:scale-[1.02] transition-transform duration-300"
               />
             </div>
 
-            {googleSubmitting && (
-              <div className="text-center text-xs font-semibold text-teal-600 dark:text-teal-400 animate-pulse flex items-center justify-center gap-1.5 pt-1">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>กำลังยืนยันตัวตนกับบัญชี Google...</span>
+            {/* Feature Highlights */}
+            <div className="space-y-2 pt-1 w-full max-w-xs">
+              <div className="flex items-center gap-2.5 text-xs font-semibold text-teal-800 bg-white/80 backdrop-blur-sm px-3.5 py-2 rounded-xl border border-teal-100 shadow-sm">
+                <span className="text-sm">🏥</span>
+                <span>จองห้องฝึกปฏิบัติการทักษะ & ห้องแล็บ</span>
               </div>
-            )}
-
-            <p className="text-[11px] text-center text-slate-400">
-              รองรับบัญชี Google มหาวิทยาลัยเกษตรศาสตร์ (@ku.th)
-            </p>
+              <div className="flex items-center gap-2.5 text-xs font-semibold text-teal-800 bg-white/80 backdrop-blur-sm px-3.5 py-2 rounded-xl border border-teal-100 shadow-sm">
+                <span className="text-sm">📦</span>
+                <span>ระบบเบิก-ยืมพัสดุและเวชภัณฑ์</span>
+              </div>
+              <div className="flex items-center gap-2.5 text-xs font-semibold text-teal-800 bg-white/80 backdrop-blur-sm px-3.5 py-2 rounded-xl border border-teal-100 shadow-sm">
+                <span className="text-sm">🔔</span>
+                <span>แจ้งเตือนสถานะคำขอแบบเรียลไทม์</span>
+              </div>
+            </div>
           </div>
 
-          {/* System Info / Security Note */}
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <span className="flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
-              การเข้ารหัสรหัสผ่าน Bcrypt มาตรฐานสูง
-            </span>
-            <span>ติดต่อแอดมินเพื่อขอเปิดบัญชีใช้งาน</span>
-          </div>
-        </div>
+          {/* Right Column (Login Card & Mobile Header) */}
+          <div className="lg:col-span-7 max-w-md mx-auto w-full space-y-5">
+            {/* Mobile Mascot & Brand Header */}
+            <div className="text-center space-y-2">
+              {/* Mobile Mascot Preview */}
+              <div className="lg:hidden flex flex-col items-center justify-center mb-2">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-teal-800 text-[11px] font-bold shadow-sm border border-teal-100 mb-2">
+                  <span>สวัสดีค่ะ ยินดีต้อนรับอาจารย์และนิสิตค่ะ ✨</span>
+                </div>
+                <div className="w-28 h-36 flex items-center justify-center">
+                  <img
+                    src="/images/nurse-mascot.png"
+                    alt="Nurse Mascot"
+                    className="max-h-full object-contain filter drop-shadow-sm"
+                  />
+                </div>
+              </div>
 
-        {/* Footer Credit & Copyright */}
-        <div className="pt-1 text-center select-none space-y-1">
-          <p className="text-[11px] text-slate-400 font-mono tracking-wide">
-            &copy; 2026 Developed by <span className="font-semibold text-slate-300">KIy&#123;d6]K</span>
-          </p>
-          <p className="text-[10px] text-slate-400">
-            KUNurse+Lab &bull; คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์
-          </p>
+              {/* Brand Header */}
+              <div className="inline-flex items-center justify-center w-13 h-13 rounded-2xl bg-gradient-to-tr from-teal-600 to-emerald-500 text-white shadow-lg shadow-teal-600/20 mb-1">
+                <Stethoscope className="w-7 h-7" />
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight flex items-center justify-center gap-0.5">
+                <span>KUNurse</span>
+                <span className="text-teal-600 font-black select-none">+</span>
+                <span>Lab</span>
+              </h1>
+              <p className="text-xs text-teal-800 font-semibold flex items-center justify-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-teal-600" /> ระบบบริหารจัดการห้องปฏิบัติการพยาบาล
+              </p>
+              <p className="text-[11px] text-slate-500">
+                คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์
+              </p>
+            </div>
+
+            {/* Login Card */}
+            <div className="bg-white/95 backdrop-blur-xl p-7 sm:p-8 rounded-3xl shadow-xl shadow-teal-950/5 border border-teal-100/80 space-y-5">
+              <div className="border-b border-slate-100 pb-3">
+                <h2 className="text-base font-bold text-slate-800">เข้าสู่ระบบ (Sign In)</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  กรอกอีเมลและรหัสผ่านเพื่อเข้าสู่ระบบงานจริง
+                </p>
+              </div>
+
+              {timeoutNotice && (
+                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold flex items-start gap-2.5">
+                  <Clock className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold">เซสชันหมดอายุ</div>
+                    <div className="text-[11px] text-amber-800 font-normal mt-0.5">
+                      ไม่มีการใช้งานเป็นเวลานานเกินกำหนด ระบบออกจากระบบอัตโนมัติเพื่อความปลอดภัย กรุณาเข้าสู่ระบบใหม่อีกครั้ง
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    รหัสประจำตัว (ID) หรือ อีเมล
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      placeholder="เช่น admin, 6610210099 หรืออีเมล"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-9 pr-4 text-xs font-medium text-slate-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition"
+                    />
+                    <User className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">รหัสผ่าน</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotEmail(email);
+                        setForgotStep('REQUEST');
+                        setForgotError(null);
+                        setForgotSuccess(null);
+                        setIsForgotModalOpen(true);
+                      }}
+                      className="text-[11px] text-teal-600 hover:text-teal-700 font-semibold hover:underline cursor-pointer"
+                    >
+                      ลืมรหัสผ่าน?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      placeholder="กรอกรหัสผ่าน"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-9 pr-10 text-xs font-medium text-slate-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition"
+                    />
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      title={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Remember Me Checkbox */}
+                <div className="flex items-center justify-between px-0.5">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 border-slate-300 accent-teal-600"
+                    />
+                    <span className="text-xs font-medium text-slate-700">จดจำฉันไว้ในระบบ</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">
+                    {rememberMe ? 'ค้างไว้ 30 วัน (มือถือ)' : 'ค้างไว้ 8 ชม. (คอมแล็บ)'}
+                  </span>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting || googleSubmitting}
+                  className="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-lg shadow-teal-600/30 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <span>{submitting ? 'กำลังตรวจสอบรหัสผ่าน...' : 'เข้าสู่ระบบด้วยรหัสผ่าน'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </form>
+
+              {/* Divider */}
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-200" />
+                </div>
+                <div className="relative flex justify-center text-[11px] uppercase">
+                  <span className="bg-white px-3 font-semibold text-slate-400">
+                    หรือเข้าสู่ระบบด้วย
+                  </span>
+                </div>
+              </div>
+
+              {/* Google Sign-In Section */}
+              <div className="space-y-2.5">
+                <Script
+                  src="https://accounts.google.com/gsi/client"
+                  strategy="afterInteractive"
+                  onLoad={() => initializeGoogleBtn()}
+                />
+
+                <div className="flex justify-center w-full min-h-[44px]">
+                  {/* Google Native One Tap & Standard Button Container */}
+                  <div
+                    ref={googleBtnContainerRef}
+                    className={`w-full flex justify-center ${googleSubmitting ? 'opacity-40 pointer-events-none' : ''}`}
+                  />
+                </div>
+
+                {googleSubmitting && (
+                  <div className="text-center text-xs font-semibold text-teal-600 animate-pulse flex items-center justify-center gap-1.5 pt-1">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>กำลังยืนยันตัวตนกับบัญชี Google...</span>
+                  </div>
+                )}
+
+                <p className="text-[11px] text-center text-slate-500">
+                  รองรับบัญชี Google มหาวิทยาลัยเกษตรศาสตร์ (@ku.th)
+                </p>
+              </div>
+
+              {/* System Info / Security Note */}
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                <span className="flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
+                  การเข้ารหัสรหัสผ่าน Bcrypt มาตรฐานสูง
+                </span>
+                <span>ติดต่อแอดมินเพื่อขอเปิดบัญชีใช้งาน</span>
+              </div>
+            </div>
+
+            {/* Footer Credit & Copyright */}
+            <div className="pt-1 text-center select-none space-y-1">
+              <p className="text-[11px] text-slate-400 font-mono tracking-wide">
+                &copy; 2026 Developed by <span className="font-semibold text-slate-500">KIy&#123;d6]K</span>
+              </p>
+              <p className="text-[10px] text-slate-400">
+                KUNurse+Lab &bull; คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์
+              </p>
+            </div>
+          </div>
+
         </div>
       </div>
 

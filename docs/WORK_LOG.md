@@ -17,6 +17,23 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-22] ปรับปรุงดีไซน์หน้าเข้าสู่ระบบ (Login Page Theme Overhaul & Nurse Mascot Integration)
+- **หมวดหมู่**: UI / Authentication / Branding (`src/app/login/page.tsx`, `public/images/nurse-mascot.png`)
+- **สิ่งที่ดำเนินการ**:
+  1. **ปรับเปลี่ยนโทนสีพื้นหลังจากมืดทึบเป็นโทนสว่าง Medical Clean & Academic Warmth**:
+     - เปลี่ยนจากเดิม `from-slate-900 via-teal-950 to-slate-900` เป็นพื้นหลังโทนสว่างนุ่มนวล `bg-gradient-to-br from-teal-50/80 via-slate-50 to-emerald-50/70`
+     - เพิ่ม Ambient Glow Orbs วงแสงเรืองนวลละมุน (Teal/Emerald Blur) ให้หน้าจอมีมิติความลึก สบายตา ไม่อึดอัด
+  2. **ประมวลผลและไดคัทภาพตัวการ์ตูนพยาบาล (Nurse Mascot Pipeline)**:
+     - ใช้อัลกอริทึม Flood-Fill ลบฉากหลังขาวรอบนอกออกจนโปร่งใส 100% (Transparent PNG) โดยรักษาความสมบูรณ์ของหมวกและชุดพยาบาลสีขาวด้านในไว้อย่างประณีต
+     - เรนเดอร์เงาสัมผัสพื้นแบบ 3 มิติ (3D Ground Contact Shadow & Drop Shadow) ใต้ฝ่าเท้า ทำให้ตัวการ์ตูนดูเสมือนยืนอยู่บนพื้นจริง
+     - จัดเก็บไฟล์ภาพไว้ที่ `public/images/nurse-mascot.png`
+  3. **ออกแบบ Responsive Layout รองรับทั้ง Desktop และ Mobile**:
+     - **Desktop (`lg:` screens, `max-w-4xl`)**: วางโครงสร้างแบบ Split Hero Showcase ฝั่งซ้ายแสดงตัวการ์ตูนพยาบาลยืนต้อนรับพร้อม Speech Bubble ทักทายอาจารย์ เจ้าหน้าที่ และ**นิสิต** และป้ายไฮไลต์ 3 ฟังก์ชันเด่น (จองห้อง, เบิกยืม, แจ้งเตือน)
+     - **Mobile (`< lg`)**: แสดงตัวการ์ตูนพยาบาลยืนทักทายเหนือบอร์ดเข้าสู่ระบบแบบกะทัดรัด โดยไม่บังฟอร์มหรือปุ่มล็อกอิน
+  4. **ปรับแต่งการ์ดเข้าสู่ระบบและระบบล็อกอิน**:
+     - ปรับข้อความ ฟอนต์ ช่องกรอกข้อมูล ปุ่มเข้าสู่ระบบด้วยรหัสผ่าน และปุ่ม Google Sign-in ให้มีความคมชัดสูง เข้ากับธีมสว่างใหม่
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ✅ ผ่าน 100% (คำว่า "นิสิต" ถูกต้องทั้งหมด, UTF-8 สมบูรณ์)
+
 ### [2026-10-22] ยกระดับแดชบอร์ดผู้บริหาร (Executive Decision Analytics Cockpit 360°) สู่มาตรฐานระดับโลก
 - **หมวดหมู่**: Executive Cockpit / Data Visualization / AI Strategic Advisor (`src/app/executive/page.tsx`, `src/app/api/executive/stats/route.ts`)
 - **สิ่งที่ดำเนินการ**:

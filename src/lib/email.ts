@@ -16,10 +16,11 @@ const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 export async function generateQrCodeDataUrl(text: string): Promise<string> {
   try {
     return await QRCode.toDataURL(text, {
-      width: 280,
-      margin: 2,
+      width: 400,
+      margin: 3,
+      errorCorrectionLevel: 'H',
       color: {
-        dark: '#0f766e', // Teal color
+        dark: '#000000', // Pure Pitch Black (ดับพิกเซล OLED สมบูรณ์แบบ คอนทราสต์สูงสุดสำหรับสแกนจากจอมือถือ)
         light: '#ffffff',
       },
     });

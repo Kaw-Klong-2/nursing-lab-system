@@ -61,8 +61,9 @@ export default function PosReceiptModal({ receipt, onClose }: PosReceiptModalPro
         const payload = `${origin}/verify/${encodeURIComponent(receipt.receiptNumber)}`;
         const url = await QRCode.toDataURL(payload, {
           width: 160,
-          margin: 1,
-          color: { dark: '#0f172a', light: '#ffffff' },
+          margin: 2,
+          errorCorrectionLevel: 'M',
+          color: { dark: '#000000', light: '#ffffff' },
         });
         setQrUrl(url);
       } catch (err) {

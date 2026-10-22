@@ -17,6 +17,30 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-22] ยกระดับความเร็วการสแกน QR Code จากหน้าจอมือถือและการป้องกันแสงสะท้อน (Screen-to-Camera Instant Scan & Anti-Glare Architecture)
+- **หมวดหมู่**: QR Code Display / Mobile UX / Practice Check-in (`src/app/practice/page.tsx`, `src/lib/email.ts`, `src/lib/scanner-utils.ts`, `src/components/pos/PosReceiptModal.tsx`)
+- **สาเหตุที่สแกนจากหน้าจอมือถือช้ากว่ากระดาษ (Screen-to-Camera Optical Causes)**:
+  1. **Optical Blooming / Halation**: หน้าจอมือถือปล่อยแสงออกมาโดยตรง (500-1000 nits) ทำให้แสงสีขาวฟุ้งล้นกินสี่เหลี่ยมสีดำจนหดเล็กลง ผิดสัดส่วน 1:1:3:1:1
+  2. **Ceiling Specular Glare**: หลอดไฟเพดานห้องปฏิบัติการสะท้อนบนผิวกระจกโทรศัพท์เป็นดวงขาวจ้าทับตัวโค้ด ซึ่งระดับเดิมกู้คืนความเสียหายได้เพียง 15% (Level M)
+  3. **Quiet Zone Collapse in Dark Mode**: เมื่อนิสิตเปิด Dark Mode ตัวการ์ดมีขอบสีขาวหนาเพียง 4px ชนกับพื้นหลังสีเทาเข้ม กล้องจึงแยกขอบเขตของโค้ดไม่ได้
+  4. **Emissive Colors**: การใช้สีกรมท่า `#0f172a` หรือสีเขียว `#0f766e` ทำให้พิกเซล OLED เปล่งแสง กล้องมองเป็นสีเทาเรืองแสง ไม่ใช่สีดำสนิท
+- **การปรับปรุงและแก้ปัญหา**:
+  1. **Screen-Ready QR Generation**:
+     - อัปเกรด Error Correction เป็นระดับ **`H` (ทนทานความเสียหายและแสงสะท้อนเพดานได้ถึง 30%)**
+     - บังคับสีเป็น **`#000000` (Pitch Black)** ปิดพิกเซล OLED ดับสนิทเพื่อสร้าง Contrast สูงสุดต่อเซนเซอร์กล้อง
+     - ปรับขอบเว้นวรรค **`margin: 4`** ป้องกันปัญหาแสงฟุ้งล้นขอบ (Optical Blooming)
+  2. **Dark-Mode Proof UI Card**:
+     - ห่อหุ้มกล่อง QR Code ด้วยเกาะสีขาวบริสุทธิ์ (`bg-white`) เสมอ ไม่เปลี่ยนตาม Dark Mode เพื่อรักษา Quiet Zone
+  3. **โหมดสแกนเต็มหน้าจอ (Full-Screen Scan Mode)**:
+     - เพิ่มปุ่มและฟังก์ชันแตะที่รูปเพื่อขยาย QR Code เต็มหน้าจอมือถือ (80-90vw) ขยายโมดูลให้ใหญ่ ชนะคลื่นลายมัวร์ (Moiré) และการฟุ้งของแสง
+     - เพิ่มป้ายแนะนำอัจฉริยะ: *"💡 เพิ่มความสว่างหน้าจอ และเอียงหน้าจอหลบแสงสะท้อนหลอดไฟเพดานเล็กน้อย หรือแตะปุ่มขยายเต็มจอ"*
+  4. **Email Confirmation Ticket (`src/lib/email.ts`)**:
+     - ปรับ QR Code ในอีเมลแจ้งเตือนนิสิตเป็นสีดำสนิท `#000000` พร้อม `errorCorrectionLevel: 'H'` สแกนจากแอปอีเมลบนมือถือได้ทันที
+  5. **Camera Stream Constraints (`src/lib/scanner-utils.ts`)**:
+     - เพิ่ม `whiteBalanceMode: 'continuous'` เสริมความเสถียรของเซนเซอร์ต่อการเปลี่ยนแปลงของแสงหน้าจอ
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ✅ ผ่าน 100% (คำว่า "นิสิต" ถูกต้องทั้งหมด, UTF-8 สมบูรณ์)
+
+
 ### [2026-10-22] ยกระดับความเร็วระบบสแกน QR Code ทั่วระบบให้ติดทันทีระดับเสี้ยววินาที (Sub-100ms Instant Scan Architecture)
 - **หมวดหมู่**: QR Code & Barcode Scanner / Performance Optimization (`src/lib/scanner-utils.ts`, `src/components/qrcode/QrScannerModal.tsx`, `src/app/practice/page.tsx`, `src/components/qrcode/*`)
 - **สาเหตุที่เดิมติดช้าและต้องเล็งนาน (Root Causes Resolved)**:

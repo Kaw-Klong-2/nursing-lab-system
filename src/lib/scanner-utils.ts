@@ -288,6 +288,7 @@ export function getOptimalScanStartConfig(options?: {
       advanced: [
         { focusMode: 'continuous' } as any,
         { exposureMode: 'continuous' } as any,
+        { whiteBalanceMode: 'continuous' } as any,
       ],
     },
     qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {

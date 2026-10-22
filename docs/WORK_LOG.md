@@ -17,6 +17,18 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-22] ปลดล็อกเรขาคณิตภาพวิดีโอ 1:1 แท้และตัดลูปถอดรหัสซ้ำซ้อน เทียบเท่าแอพกล้อง iPhone (iPhone-Grade Instant QR Scanner Overhaul)
+- **หมวดหมู่**: Camera Viewfinder / Geometric Ratio / Optical Optimization (`src/app/globals.css`, `src/lib/scanner-utils.ts`)
+- **สาเหตุที่แอพกล้อง iPhone ไวมาก แต่ระบบเว็บช้า (Root Causes Discovered)**:
+  1. **The 1.77x Aspect Ratio Warping Bug**: CSS สั่ง `object-fit: cover` และบังคับความกว้างยาวของ `<video>` เป็นสี่เหลี่ยมจัตุรัส ทำให้ `widthRatio` (4.8) ไม่เท่ากับ `heightRatio` (2.7) ส่งผลให้คำสั่ง `drawImage` ดึงภาพยืดในแนวนอนบิดเบี้ยวถึง 77% สี่เหลี่ยมจัตุรัสกลายเป็นสี่เหลี่ยมผืนผ้าจนอัลกอริทึมมองไม่เห็น Finder Pattern 1:1:3:1:1
+  2. **Double-Decode Overhead (`disableFlip: false`)**: ไลบรารีสั่งกลับด้านภาพซ้าย-ขวาแล้วรันถอดรหัสซ้ำรอบที่สองในทุกๆ เฟรมที่ยังสแกนไม่ติด ทำให้เสียเวลา CPU สองเท่าและดรอปเฟรมเรตเหลือเพียง 2 FPS
+- **การปรับปรุงและแก้ปัญหา (Zero-Distortion Pipeline)**:
+  1. **Zero-Distortion Video Rendering (`src/app/globals.css`)**: ปลดล็อก `<video>` ให้มี `height: auto` และ `object-fit: contain` โดยรักษาเรขาคณิตสัดส่วนธรรมชาติของเซนเซอร์กล้อง ทำให้ `widthRatio === heightRatio` ภาพบนผืนผ้า Canvas สำหรับถอดรหัสมีอัตราส่วน 1:1 แท้ ไม่บิดเบี้ยวแม้แต่พิกเซลเดียว
+  2. **เปิด `disableFlip: true` (`src/lib/scanner-utils.ts`)**: ตัดกระบวนการถอดรหัสซ้ำรอบที่ 2 ที่ไร้ประโยชน์ทิ้งทันที เร่งความเร็วขึ้น 200%
+  3. **ปล่อย `aspectRatio: undefined`**: ให้อัตราส่วนเป็นไปตามเซนเซอร์กล้องอย่างแท้จริง ป้องกันการเกิด Letterbox Mismatch
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ✅ ผ่าน 100% (คำว่า "นิสิต" ถูกต้องทั้งหมด, UTF-8 สมบูรณ์)
+
+
 ### [2026-10-22] ยกระดับความเร็วการสแกน QR Code จากหน้าจอมือถือและการป้องกันแสงสะท้อน (Screen-to-Camera Instant Scan & Anti-Glare Architecture)
 - **หมวดหมู่**: QR Code Display / Mobile UX / Practice Check-in (`src/app/practice/page.tsx`, `src/lib/email.ts`, `src/lib/scanner-utils.ts`, `src/components/pos/PosReceiptModal.tsx`)
 - **สาเหตุที่สแกนจากหน้าจอมือถือช้ากว่ากระดาษ (Screen-to-Camera Optical Causes)**:

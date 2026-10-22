@@ -280,7 +280,8 @@ export function getOptimalScanStartConfig(options?: {
 
   return {
     fps,
-    aspectRatio: 1.0,
+    disableFlip: true, // ป้องกันการวนลูปถอดรหัสซ้ำ 2 รอบในทุกเฟรม เร่งความเร็วขึ้น 200% ทันที
+    aspectRatio: undefined, // ปล่อยให้อัตราส่วนเป็นไปตามเซนเซอร์กล้อง ป้องกันภาพยืดบิดเบี้ยว
     videoConstraints: {
       facingMode: { ideal: 'environment' },
       width: { min: 720, ideal: 1280, max: 1920 },

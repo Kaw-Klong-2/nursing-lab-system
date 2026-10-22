@@ -179,13 +179,16 @@ body {
 }
 
 
-/* QR Code Camera Scanner Enhancements (World-Class 1:1 Square Viewfinder) */
+/* QR Code Camera Scanner Enhancements (Zero-Distortion Optical Geometry) */
 #qr-reader-video-container video,
 #practice-qr-reader video {
   width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
+  height: auto !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
   border-radius: 1rem !important;
+  display: block !important;
+  margin: auto !important;
 }
 
 #qr-shaded-region {

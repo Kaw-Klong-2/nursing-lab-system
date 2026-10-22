@@ -1317,18 +1317,24 @@ export default function InventoryPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Boxes className="w-6 h-6 text-teal-600" />
-            ทะเบียนพัสดุและครุภัณฑ์ห้องปฏิบัติการพยาบาล
+      {/* Header - Luminous Sapphire Blue & Sky Inventory Card */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-blue-50/70 via-white to-sky-50/60 dark:from-slate-900 dark:via-slate-850 dark:to-blue-950/40 rounded-3xl p-5 sm:p-6 border border-blue-200/80 dark:border-blue-900/60 shadow-lg shadow-blue-900/5 dark:shadow-black/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all">
+        <div className="absolute right-0 top-0 w-72 h-72 bg-blue-400/15 dark:bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="relative z-10">
+          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-blue-100/80 dark:bg-blue-950/70 text-blue-800 dark:text-blue-300 border border-blue-200/90 dark:border-blue-800/80 text-xs font-bold uppercase tracking-wide mb-1.5">
+            <Boxes className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <span>ทะเบียนพัสดุและครุภัณฑ์ห้องปฏิบัติการพยาบาล</span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            คลังเวชภัณฑ์สิ้นเปลือง & ครุภัณฑ์คงทน
           </h2>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
             รายการครุภัณฑ์คงทนและเวชภัณฑ์สิ้นเปลือง พร้อมระบบติดตามสถานะรายชิ้นและ Lot วันหมดอายุ
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="relative z-10 flex items-center gap-2.5 flex-wrap">
           {lastUpdated && (
             <span className="hidden sm:inline text-[11px] text-slate-400 dark:text-slate-500 font-medium">
               อัปเดตล่าสุด: {lastUpdated}
@@ -1340,7 +1346,7 @@ export default function InventoryPage() {
             className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold transition cursor-pointer shadow-sm disabled:opacity-60"
             title="รีเฟรชข้อมูลสต็อกทันที"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-teal-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 text-blue-600 dark:text-blue-400 ${isRefreshing ? 'animate-spin' : ''}`} />
             <span>{isRefreshing ? 'กำลังโหลด...' : 'รีเฟรช'}</span>
           </button>
 
@@ -1348,20 +1354,20 @@ export default function InventoryPage() {
             <>
               <button
                 onClick={() => openCycleCountModal()}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-teal-600 hover:from-indigo-500 hover:to-teal-500 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition cursor-pointer"
                 title="ตรวจนับสต็อกจริงและปรับยอดกระทบยอด (Cycle Count & Reconciliation)"
               >
-                <ClipboardCheck className="w-4 h-4 text-emerald-300" />
+                <ClipboardCheck className="w-4 h-4 text-sky-200" />
                 <span>ตรวจนับสต็อกประจำงวด</span>
               </button>
 
               <button
                 onClick={handleOpenAddCategory}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 text-xs font-bold shadow-sm transition cursor-pointer"
-              title="จัดการหมวดหมู่พัสดุ (เพิ่ม, แก้ไขชื่อ, ลบหมวดหมู่)"
-            >
-              <Folder className="w-4 h-4 text-teal-600" />
-              <span>จัดการหมวดหมู่ ({categories.length})</span>
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 text-xs font-bold shadow-xs transition cursor-pointer"
+                title="จัดการหมวดหมู่พัสดุ (เพิ่ม, แก้ไขชื่อ, ลบหมวดหมู่)"
+              >
+                <Folder className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <span>จัดการหมวดหมู่ ({categories.length})</span>
             </button>
 
             {/* ปุ่มส่งออกรายการพัสดุ (Export Dropdown) */}

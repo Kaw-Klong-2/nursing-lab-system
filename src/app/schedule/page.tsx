@@ -1263,8 +1263,8 @@ export default function SchedulePage() {
           key={`event-${task.id}`}
           className="bg-white dark:bg-slate-900 rounded-3xl border-2 border-indigo-200/90 dark:border-indigo-900/60 shadow-md shadow-indigo-500/5 overflow-hidden transition"
         >
-          {/* Event Header Banner */}
-          <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-teal-950 p-4 sm:p-5 text-white">
+          {/* Event Header Banner - Luminous Amber & Indigo Vibrant Card */}
+          <div className="bg-gradient-to-r from-indigo-700 via-indigo-600 to-teal-600 p-4 sm:p-5 text-white">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -1987,20 +1987,25 @@ export default function SchedulePage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <CalendarDays className="w-6 h-6 text-teal-600" />
-            ตารางงานเจ้าหน้าที่ & กำหนดการรับ-คืน (Duty Schedule)
+      {/* Header - Luminous Amber & Golden Sun Card */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-amber-50/70 via-white to-orange-50/60 dark:from-slate-900 dark:via-slate-850 dark:to-amber-950/40 rounded-3xl p-5 sm:p-6 border border-amber-200/80 dark:border-amber-900/60 shadow-lg shadow-amber-900/5 dark:shadow-black/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all">
+        <div className="absolute right-0 top-0 w-72 h-72 bg-amber-400/15 dark:bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="relative z-10">
+          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-amber-100/80 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-200/90 dark:border-amber-800/80 text-xs font-bold uppercase tracking-wide mb-1.5">
+            <CalendarDays className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+            <span>ตารางงานเจ้าหน้าที่ & กำหนดการรับ-คืน (Duty Schedule)</span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            ติดตามรายการที่อนุมัติแล้ว & คิวฝึกปฏิบัติการ
           </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            ติดตามรายการที่อนุมัติแล้ว: วันที่ต้องจัดเตรียมของ วันที่ผู้รับจะมารับ กำหนดส่งคืน และคิวฝึกปฏิบัติการในห้องแล็บ
+          <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+            วันที่ต้องจัดเตรียมของ วันที่ผู้รับจะมารับ กำหนดส่งคืน และคิวฝึกปฏิบัติการในห้องแล็บ
           </p>
         </div>
 
         {canEdit && (
-          <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 px-3 py-1.5 rounded-xl text-xs font-semibold">
+          <div className="relative z-10 flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 px-3.5 py-2 rounded-xl text-xs font-semibold shadow-xs">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
             <span>สิทธิ์แอดมิน/เจ้าหน้าที่: สามารถแก้ไขกำหนดวันรับและวันคืนได้</span>
           </div>

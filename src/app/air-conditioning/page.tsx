@@ -1198,36 +1198,38 @@ export default function AirConditioningPage() {
 
   return (
     <div className="space-y-5 pb-12">
-      {/* Top Banner Navigation */}
-      <div className="bg-gradient-to-r from-teal-800 via-cyan-900 to-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-cyan-300 text-xs font-bold uppercase tracking-wider mb-1.5">
+      {/* Top Banner Navigation - Luminous Cyan & Ice Glacier Card */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-cyan-50/70 via-white to-sky-50/60 dark:from-slate-900 dark:via-slate-850 dark:to-cyan-950/40 rounded-3xl p-5 sm:p-6 border border-cyan-200/80 dark:border-cyan-900/60 shadow-lg shadow-cyan-900/5 dark:shadow-black/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all">
+        <div className="absolute right-0 top-0 w-80 h-80 bg-cyan-400/15 dark:bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="relative z-10">
+          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-cyan-100/80 dark:bg-cyan-950/70 text-cyan-800 dark:text-cyan-300 border border-cyan-200/90 dark:border-cyan-800/80 text-xs font-bold uppercase tracking-wide mb-1.5">
             <Link
               href="/"
-              className="inline-flex items-center gap-1 hover:text-white transition hover:underline"
+              className="inline-flex items-center gap-1 hover:text-cyan-900 dark:hover:text-white transition"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-3.5 h-3.5" />
               <span>กลับหน้าหลัก</span>
             </Link>
             <span>•</span>
             <span className="flex items-center gap-1">
-              <Wind className="w-3.5 h-3.5 text-cyan-400" />
+              <Wind className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
               <span>ระบบบริหารจัดการพลังงานและเครื่องปรับอากาศ</span>
             </span>
           </div>
 
-          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2.5">
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
             <span>ตารางบันทึกการเปิด-ปิดเครื่องปรับอากาศ</span>
           </h1>
-          <p className="text-xs text-slate-300 mt-1">
+          <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
             ประจำเดือน{monthName} ปี พ.ศ. {yearBE} (ค.ศ. {currentYear}) • คณะพยาบาลศาสตร์
           </p>
         </div>
 
         {/* Action Controls */}
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+        <div className="relative z-10 flex flex-wrap items-center gap-2 w-full md:w-auto">
           {/* Month / Year Navigator */}
-          <div className="flex items-center bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-1">
+          <div className="flex items-center bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-2xl border border-slate-200 dark:border-slate-700 p-1 shadow-xs">
             <button
               type="button"
               onClick={() => {
@@ -1238,13 +1240,13 @@ export default function AirConditioningPage() {
                   setCurrentMonth(currentMonth - 1);
                 }
               }}
-              className="p-1.5 text-white hover:bg-white/10 rounded-xl transition cursor-pointer"
+              className="p-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition cursor-pointer"
               title="เดือนก่อนหน้า"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            <span className="px-3 text-xs font-bold text-white">
+            <span className="px-3 text-xs font-bold text-slate-800 dark:text-slate-100">
               {monthName} {yearBE}
             </span>
 
@@ -1258,7 +1260,7 @@ export default function AirConditioningPage() {
                   setCurrentMonth(currentMonth + 1);
                 }
               }}
-              className="p-1.5 text-white hover:bg-white/10 rounded-xl transition cursor-pointer"
+              className="p-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition cursor-pointer"
               title="เดือนถัดไป"
             >
               <ChevronRight className="w-4 h-4" />
@@ -1689,15 +1691,15 @@ export default function AirConditioningPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
             {/* Modal Header */}
-            <div className="p-5 bg-gradient-to-r from-teal-800 to-slate-900 text-white flex items-center justify-between">
+            <div className="p-5 bg-gradient-to-r from-cyan-600 via-teal-600 to-sky-600 text-white flex items-center justify-between">
               <div>
-                <span className="text-[11px] text-teal-200 font-bold uppercase tracking-wider">
+                <span className="text-[11px] text-cyan-100 font-bold uppercase tracking-wider">
                   บันทึกการเปิด-ปิดเครื่องปรับอากาศ
                 </span>
                 <h3 className="text-base font-black mt-0.5">
                   {selectedCell.room.name}
                 </h3>
-                <p className="text-xs text-slate-300 mt-0.5">
+                <p className="text-xs text-cyan-100/90 mt-0.5">
                   วันที่ {selectedCell.dayNumber} {monthName} {yearBE}
                 </p>
               </div>

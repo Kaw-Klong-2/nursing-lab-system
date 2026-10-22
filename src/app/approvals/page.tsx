@@ -1747,21 +1747,26 @@ export default function ApprovalsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <CheckSquare className="w-6 h-6 text-teal-600" />
-            ศูนย์พิจารณาและประวัติการอนุมัติคำขอ (Approval Center)
+      {/* Header - Luminous Emerald & Teal Approvals Card */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-emerald-50/70 via-white to-teal-50/60 dark:from-slate-900 dark:via-slate-850 dark:to-emerald-950/40 rounded-3xl p-5 sm:p-6 border border-emerald-200/80 dark:border-emerald-900/60 shadow-lg shadow-emerald-900/5 dark:shadow-black/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all">
+        <div className="absolute right-0 top-0 w-72 h-72 bg-emerald-400/15 dark:bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="relative z-10">
+          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-100/80 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-200/90 dark:border-emerald-800/80 text-xs font-bold uppercase tracking-wide mb-1.5">
+            <CheckSquare className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span>ศูนย์พิจารณาและประวัติการอนุมัติคำขอ (Approval Center)</span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            การอนุมัติคำขอเบิก-ยืมพัสดุและฝึกปฏิบัติ
           </h2>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
             พิจารณาอนุมัติคำขอยืมครุภัณฑ์และการเบิกจ่ายวัสดุสิ้นเปลือง พร้อมตรวจสอบประวัติการอนุมัติย้อนหลัง
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="relative z-10 flex flex-wrap items-center gap-2">
           {lastUpdated && (
-            <span className="text-[11px] text-slate-500 hidden sm:inline font-medium">
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:inline font-medium">
               อัปเดตล่าสุด: {lastUpdated} น.
             </span>
           )}
@@ -1769,16 +1774,16 @@ export default function ApprovalsPage() {
             type="button"
             onClick={() => fetchData(true)}
             disabled={isRefreshing}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-xs font-bold shadow-xs cursor-pointer disabled:opacity-60 transition active:scale-95"
+            className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-xs font-bold shadow-xs cursor-pointer disabled:opacity-60 transition active:scale-95"
             title="กดเพื่อดึงข้อมูลคำขอและการอนุมัติล่าสุดทันที"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-teal-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ${isRefreshing ? 'animate-spin' : ''}`} />
             <span>{isRefreshing ? 'กำลังโหลด...' : 'รีเฟรชข้อมูล'}</span>
           </button>
 
           {pendingCount > 0 && (
-            <span className="px-3 py-1.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 font-bold text-xs flex items-center gap-1.5 animate-pulse">
-              <Clock className="w-4 h-4 text-amber-600" /> มีคำขอรอการพิจารณา {pendingCount} รายการ
+            <span className="px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 font-bold text-xs flex items-center gap-1.5 animate-pulse shadow-xs">
+              <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" /> มีคำขอรอการพิจารณา {pendingCount} รายการ
             </span>
           )}
         </div>

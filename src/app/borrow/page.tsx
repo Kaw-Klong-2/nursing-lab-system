@@ -1137,48 +1137,49 @@ export default function BorrowPage() {
     ) : (
       <div className="space-y-4">
         {/* Course Allocation Section Banner */}
-        <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 text-white p-5 rounded-2xl shadow-md">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="relative overflow-hidden bg-gradient-to-r from-indigo-50/70 via-white to-violet-50/60 dark:from-slate-900 dark:via-slate-850 dark:to-indigo-950/40 p-5 sm:p-6 rounded-3xl border border-indigo-200/80 dark:border-indigo-900/60 shadow-lg shadow-indigo-900/5 dark:shadow-black/20">
+          <div className="absolute right-0 top-0 w-80 h-80 bg-indigo-400/15 dark:bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
             <div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 mb-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-100/80 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300 border border-indigo-200/90 dark:border-indigo-800/80 mb-2">
                 <Building2 className="w-3.5 h-3.5" />
                 <span>Semester-Long Course Allocation</span>
               </div>
-              <h3 className="text-lg font-black tracking-tight">การจัดสรรครุภัณฑ์ประจำห้องปฏิบัติการสำหรับรายวิชา</h3>
-              <p className="text-xs text-indigo-200 mt-1 max-w-2xl leading-relaxed">
+              <h3 className="text-lg font-black tracking-tight text-slate-900 dark:text-white">การจัดสรรครุภัณฑ์ประจำห้องปฏิบัติการสำหรับรายวิชา</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 max-w-2xl leading-relaxed">
                 จัดสรรหุ่นฝึกทักษะและครุภัณฑ์ประจำห้องแล็ปตลอดภาคการศึกษา ระบบจะเปลี่ยนสถานที่ตั้งและสถานะของครุภัณฑ์เป็น "ประจำวิชา" เมื่อสิ้นภาคการศึกษาสามารถกด <strong>"ตรวจรับคืนทั้งหมดเข้าคลัง (Bulk Return)"</strong> เพื่อย้ายกลับเข้าชั้นวางเดิมอัตโนมัติ
               </p>
             </div>
             <button
               onClick={() => setShowNewAllocationModal(true)}
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white text-indigo-900 hover:bg-indigo-50 text-xs font-black shadow-lg transition cursor-pointer self-start md:self-auto flex-shrink-0"
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black shadow-md shadow-indigo-600/25 transition cursor-pointer self-start md:self-auto flex-shrink-0"
             >
-              <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
+              <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
               <span>+ จัดสรรอุปกรณ์ประจำวิชาใหม่</span>
             </button>
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-indigo-700/50 text-xs">
-            <div className="bg-indigo-950/50 p-2.5 rounded-xl border border-indigo-700/40">
-              <div className="text-indigo-300 font-semibold text-[11px]">การจัดสรรทั้งหมด</div>
-              <div className="text-xl font-black mt-0.5">{allocations.length} รายการ</div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-slate-200/80 dark:border-slate-800 text-xs relative z-10">
+            <div className="bg-white/90 dark:bg-slate-800/90 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+              <div className="text-slate-500 dark:text-slate-400 font-semibold text-[11px]">การจัดสรรทั้งหมด</div>
+              <div className="text-xl font-black text-slate-900 dark:text-white mt-0.5">{allocations.length} รายการ</div>
             </div>
-            <div className="bg-indigo-950/50 p-2.5 rounded-xl border border-indigo-700/40">
-              <div className="text-emerald-300 font-semibold text-[11px]">กำลังประจำห้องแล็ป</div>
-              <div className="text-xl font-black mt-0.5 text-emerald-400">
+            <div className="bg-white/90 dark:bg-slate-800/90 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+              <div className="text-slate-500 dark:text-slate-400 font-semibold text-[11px]">กำลังประจำห้องแล็ป</div>
+              <div className="text-xl font-black mt-0.5 text-emerald-600 dark:text-emerald-400">
                 {allocations.filter((a) => a.status === 'BORROWED').length} วิชา
               </div>
             </div>
-            <div className="bg-indigo-950/50 p-2.5 rounded-xl border border-indigo-700/40">
-              <div className="text-purple-300 font-semibold text-[11px]">คืนเข้าคลังเรียบร้อย</div>
-              <div className="text-xl font-black mt-0.5 text-purple-300">
+            <div className="bg-white/90 dark:bg-slate-800/90 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+              <div className="text-slate-500 dark:text-slate-400 font-semibold text-[11px]">คืนเข้าคลังเรียบร้อย</div>
+              <div className="text-xl font-black mt-0.5 text-purple-600 dark:text-purple-300">
                 {allocations.filter((a) => a.status === 'RETURNED_COMPLETE' || a.status === 'RETURNED_WITH_ISSUE').length} วิชา
               </div>
             </div>
-            <div className="bg-indigo-950/50 p-2.5 rounded-xl border border-indigo-700/40">
-              <div className="text-amber-300 font-semibold text-[11px]">จำนวนหุ่น/เครื่องมือที่จัดสรร</div>
-              <div className="text-xl font-black mt-0.5 text-amber-300">
+            <div className="bg-white/90 dark:bg-slate-800/90 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+              <div className="text-slate-500 dark:text-slate-400 font-semibold text-[11px]">จำนวนหุ่น/เครื่องมือที่จัดสรร</div>
+              <div className="text-xl font-black mt-0.5 text-amber-600 dark:text-amber-400">
                 {allocations.reduce((acc, a) => acc + (a.items?.length || 0), 0)} ชิ้น
               </div>
             </div>

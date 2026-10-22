@@ -1062,20 +1062,21 @@ export default function PracticePage() {
 
   return (
     <div className="space-y-6">
-      {/* Header & Stats Banner */}
-      <div className="bg-gradient-to-r from-teal-800 via-indigo-900 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      {/* Header & Stats Banner - Luminous Rose/Coral & Teal Clinical Practice Card */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-rose-50/70 via-white to-pink-50/60 dark:from-slate-900 dark:via-slate-850 dark:to-rose-950/40 rounded-3xl p-6 sm:p-8 border border-rose-200/80 dark:border-rose-900/60 shadow-lg shadow-rose-900/5 dark:shadow-black/20">
+        <div className="absolute right-0 top-0 w-96 h-96 bg-rose-400/15 dark:bg-rose-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute -bottom-10 -left-10 w-72 h-72 bg-teal-400/15 dark:bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
           <div>
-            <div className="flex items-center gap-2 text-teal-300 text-xs font-bold uppercase tracking-wider mb-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-rose-100/80 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border border-rose-200/90 dark:border-rose-800/80 text-xs font-bold uppercase tracking-wide mb-2">
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
               ระบบบริหารการฝึกทักษะด้วยตนเอง (Self-Practice Skill Lab)
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
               ตารางขอเข้าฝึกปฏิบัติการด้วยตนเองของนิสิต
             </h1>
-            <p className="text-slate-300 text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
+            <p className="text-slate-600 dark:text-slate-300 text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
               เปิดให้จองล่วงหน้าได้สูงสุด {config?.maxAdvanceDays || 7} วัน พร้อมระบบสแกน QR Code เช็คอิน-เช็คเอาท์
               เพื่อบันทึกและประเมินชั่วโมงการฝึกปฏิบัติการจริงอัตโนมัติ
             </p>
@@ -1083,27 +1084,27 @@ export default function PracticePage() {
 
           {/* KPI Mini-Cards */}
           <div className="flex flex-wrap items-center gap-3">
-            <div className="bg-white/10 backdrop-blur-md border border-white/15 px-4 py-3 rounded-2xl">
-              <div className="text-[11px] font-medium text-slate-300">กำลังฝึกอยู่ในแล็บ</div>
-              <div className="text-2xl font-black text-emerald-400 flex items-center gap-1.5 mt-0.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-                {stats?.activeNow || 0} <span className="text-xs font-normal text-slate-300">คน</span>
+            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border border-slate-200/80 dark:border-slate-700/80 px-4 py-3 rounded-2xl shadow-xs">
+              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">กำลังฝึกอยู่ในแล็บ</div>
+              <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 mt-0.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                {stats?.activeNow || 0} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">คน</span>
               </div>
             </div>
 
-            <div className="bg-white/10 backdrop-blur-md border border-white/15 px-4 py-3 rounded-2xl">
-              <div className="text-[11px] font-medium text-slate-300">ชั่วโมงฝึกสะสมรวม</div>
-              <div className="text-2xl font-black text-teal-300 mt-0.5">
-                {stats?.totalPracticeHours || '0.0'} <span className="text-xs font-normal text-slate-300">ชม.</span>
+            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border border-slate-200/80 dark:border-slate-700/80 px-4 py-3 rounded-2xl shadow-xs">
+              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">ชั่วโมงฝึกสะสมรวม</div>
+              <div className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-0.5">
+                {stats?.totalPracticeHours || '0.0'} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">ชม.</span>
               </div>
             </div>
 
             {stats?.pendingApprovals > 0 && (
-              <div className="bg-amber-500/20 backdrop-blur-md border border-amber-400/30 px-4 py-3 rounded-2xl">
-                <div className="text-[11px] font-bold text-amber-300">รออาจารย์อนุมัติ</div>
-                <div className="text-2xl font-black text-amber-300 mt-0.5 flex items-center gap-1">
-                  <Clock className="w-5 h-5 text-amber-400" />
-                  {stats.pendingApprovals} <span className="text-xs font-normal text-amber-200">รายการ</span>
+              <div className="bg-amber-50 dark:bg-amber-950/40 backdrop-blur-md border border-amber-200 dark:border-amber-800/60 px-4 py-3 rounded-2xl shadow-xs">
+                <div className="text-[11px] font-bold text-amber-800 dark:text-amber-300">รออาจารย์อนุมัติ</div>
+                <div className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-0.5 flex items-center gap-1">
+                  <Clock className="w-5 h-5 text-amber-500" />
+                  {stats.pendingApprovals} <span className="text-xs font-normal text-amber-700 dark:text-amber-300">รายการ</span>
                 </div>
               </div>
             )}
@@ -1111,13 +1112,13 @@ export default function PracticePage() {
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex flex-wrap items-center gap-2 mt-6 pt-5 border-t border-white/10">
+        <div className="flex flex-wrap items-center gap-2 mt-6 pt-5 border-t border-slate-200/70 dark:border-slate-800 relative z-10">
           <button
             onClick={() => setActiveTab('TIMETABLE')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
               activeTab === 'TIMETABLE'
-                ? 'bg-teal-500 text-white shadow-lg shadow-teal-500/30'
-                : 'bg-white/5 hover:bg-white/10 text-slate-200'
+                ? 'bg-rose-500 text-white shadow-md shadow-rose-500/25'
+                : 'bg-white/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
             }`}
           >
             <CalendarDays className="w-4 h-4" />
@@ -1128,8 +1129,8 @@ export default function PracticePage() {
             onClick={() => setActiveTab('BOOKINGS')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
               activeTab === 'BOOKINGS'
-                ? 'bg-teal-500 text-white shadow-lg shadow-teal-500/30'
-                : 'bg-white/5 hover:bg-white/10 text-slate-200'
+                ? 'bg-rose-500 text-white shadow-md shadow-rose-500/25'
+                : 'bg-white/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
             }`}
           >
             <CheckCircle2 className="w-4 h-4" />
@@ -1143,8 +1144,8 @@ export default function PracticePage() {
             }}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
               activeTab === 'SCANNER'
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                : 'bg-white/5 hover:bg-white/10 text-slate-200'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25'
+                : 'bg-white/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
             }`}
           >
             <QrCode className="w-4 h-4" />
@@ -1155,8 +1156,8 @@ export default function PracticePage() {
             onClick={() => setActiveTab('HOURS_LOG')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
               activeTab === 'HOURS_LOG'
-                ? 'bg-teal-500 text-white shadow-lg shadow-teal-500/30 font-black'
-                : 'bg-white/5 hover:bg-white/10 text-slate-200'
+                ? 'bg-teal-600 text-white shadow-md shadow-teal-600/25 font-black'
+                : 'bg-white/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
             }`}
           >
             <Clock className="w-4 h-4" />
@@ -1168,8 +1169,8 @@ export default function PracticePage() {
               onClick={() => setActiveTab('SETTINGS')}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
                 activeTab === 'SETTINGS'
-                  ? 'bg-teal-500 text-white shadow-lg shadow-teal-500/30'
-                  : 'bg-white/5 hover:bg-white/10 text-slate-200'
+                  ? 'bg-slate-800 text-white shadow-md shadow-slate-800/25'
+                  : 'bg-white/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
               }`}
             >
               <Settings className="w-4 h-4" />
@@ -1179,7 +1180,7 @@ export default function PracticePage() {
 
           <div className="ml-auto flex items-center gap-2">
             {lastUpdated && (
-              <span className="hidden sm:inline text-[11px] text-teal-200 font-medium">
+              <span className="hidden sm:inline text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                 อัปเดตล่าสุด: {lastUpdated}
               </span>
             )}

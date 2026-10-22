@@ -17,6 +17,33 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-22] ปรับปรุงดีไซน์ส่วนหัวการ์ดแบนเนอร์ให้สว่าง สดใส สบายตา (Luminous Headers) และพัฒนาระบบ Dynamic Subsystem Color Theming สำหรับ 9 โมดูลหลัก + Sidebar
+- **หมวดหมู่**: Design System / Theming / UI Architecture (`src/lib/module-theme.ts`, `src/components/layout/Sidebar.tsx`, `src/app/page.tsx`, `src/app/practice/page.tsx`, `src/app/air-conditioning/page.tsx`, `src/app/borrow/page.tsx`, `src/app/schedule/page.tsx`, `src/app/executive/page.tsx`, `src/app/inventory/page.tsx`, `src/app/approvals/page.tsx`)
+- **สาเหตุและปัญหาเดิม (Root Causes & Problem Statement)**:
+  1. การ์ดส่วนหัวเดิม (Header Banners) ในหลายหน้าใช้เกรเดียนต์มืดทะมึนที่ลงท้ายด้วย `to-slate-900` หรือ `from-slate-950` ทำให้ใน Light Mode (โหมดสว่าง) ส่วนหัวการ์ดกลายเป็นบล็อกดำทึบ ดูอึดอัดและกินสายตามากเกินไป
+  2. แถบเมนูด้านข้าง (Sidebar) ถูก Hardcode เป็นสี Teal (`bg-teal-600`) สีเดียวตายตัวทั่วทั้งระบบ ไม่ว่าผู้ใช้จะเปิดโมดูลคลังพัสดุ (Inventory), ฝึกปฏิบัติ OSCE (Practice), หรือตารางงาน (Schedule) ทำให้ขาดความชัดเจนของเอกลักษณ์ระบบ
+- **การปรับปรุงและแก้ปัญหา (Luminous Design & Dynamic Theming Engine)**:
+  1. **สร้างระบบจัดการธีมสีส่วนกลาง (`src/lib/module-theme.ts`)**:
+     - รองรับ 9 โมดูลพร้อมชุดสี static Tailwind classes ครบถ้วน:
+       - 🏠 ภาพรวม & แดชบอร์ด (`/`): Medical Emerald & Teal (`teal-600` / `emerald-500`)
+       - 📦 คลังพัสดุ & ครุภัณฑ์ (`/inventory`, `/stock-in`): Sapphire Blue & Sky (`blue-600` / `sky-500`)
+       - 🔄 เบิก-ยืม & Lab Store (`/borrow`, `/pos`): Indigo & Violet (`indigo-600` / `violet-500`)
+       - 🏥 ฝึกทักษะ OSCE & ห้องแล็บ (`/practice`, `/rooms`): Rose & Coral (`rose-500` / `pink-500`)
+       - ✅ ศูนย์อนุมัติคำขอ (`/approvals`): Mint Emerald & Green (`emerald-600` / `teal-600`)
+       - 📅 ตารางงาน & กำหนดรับ-คืน (`/schedule`): Amber & Warm Sun (`amber-500` / `orange-500`)
+       - ❄️ ระบบเปิด-ปิดแอร์ (`/air-conditioning`): Cyan & Ice Glacier (`cyan-500` / `sky-400`)
+       - 📊 แดชบอร์ดผู้บริหาร (`/executive`, `/reports`): Royal Purple & Amethyst (`purple-600` / `fuchsia-600`)
+       - ⚙️ จัดการระบบ & สิทธิ์ (`/users`, `/settings`): Slate & Modern Zinc (`slate-700` / `zinc-600`)
+  2. **Sidebar ปรับเปลี่ยนสีอัตโนมัติ (Dynamic Sidebar Theming)**:
+     - ดึง `getModuleTheme(pathname)` มาใช้งาน
+     - Active item pill ปรับสีพื้นหลัง เงาเรืองแสง และไอคอนตามสีโมดูลที่เปิดอยู่ทันที
+     - หัวกลุ่มเมนู (Group Header) และจุดไฟสถานะ (Indicator Dot) สว่างขึ้นตามสีของระบบ
+     - เพิ่มป้ายแสดงโมดูลที่กำลังใช้งานบนมุมบนของ Sidebar ข้างชื่อ KUNurse+ Lab
+  3. **อัปเกรดส่วนหัวการ์ดแบนเนอร์ (Luminous Headers)**:
+     - หน้าแรก (`src/app/page.tsx`): เปลี่ยนจากการ์ดดำ `to-slate-900` เป็น Luminous Clean Glass Card พื้นหลังขาวนวลประกายแสงออร่ามรกต ตัวอักษรสีเข้มคมชัดสบายตา พร้อมปุ่ม Quick Actions แยกสีตามโมดูลปลายทาง
+     - ปรับปรุงการ์ดหัวเว็บในระบบหลักครบทั้ง 8 หน้า: `/practice`, `/air-conditioning`, `/borrow`, `/schedule`, `/executive`, `/inventory`, `/approvals` ให้สว่าง สดใส สบายตา และมีเอกลักษณ์เฉพาะตัว
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ✅ ผ่าน 100% (คำว่า "นิสิต" ถูกต้องทั้งหมด, UTF-8 สมบูรณ์, TypeScript pass 0 errors)
+
 ### [2026-10-22] ปลดล็อกเรขาคณิตภาพวิดีโอ 1:1 แท้และตัดลูปถอดรหัสซ้ำซ้อน เทียบเท่าแอพกล้อง iPhone (iPhone-Grade Instant QR Scanner Overhaul)
 - **หมวดหมู่**: Camera Viewfinder / Geometric Ratio / Optical Optimization (`src/app/globals.css`, `src/lib/scanner-utils.ts`)
 - **สาเหตุที่แอพกล้อง iPhone ไวมาก แต่ระบบเว็บช้า (Root Causes Discovered)**:

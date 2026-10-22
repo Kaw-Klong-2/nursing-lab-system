@@ -245,24 +245,24 @@ export default function ExecutiveDashboardPage() {
       {/* ---------------------------------------------------- */}
       {/* 1. EXECUTIVE COCKPIT 360° BANNER HEADER              */}
       {/* ---------------------------------------------------- */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-slate-950 via-teal-950 to-blue-950 text-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-teal-800/40">
+      <div className="relative overflow-hidden bg-gradient-to-r from-purple-50/70 via-white to-fuchsia-50/60 dark:from-slate-900 dark:via-slate-850 dark:to-purple-950/40 rounded-3xl p-6 sm:p-7 shadow-lg shadow-purple-900/5 dark:shadow-black/20 border border-purple-200/80 dark:border-purple-900/60 transition-all">
         {/* Subtle Background Glow */}
-        <div className="absolute top-0 right-0 -mt-12 -mr-12 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute bottom-0 left-1/3 -mb-16 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute top-0 right-0 -mt-12 -mr-12 w-96 h-96 bg-purple-400/15 dark:bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-0 left-1/3 -mb-16 w-80 h-80 bg-fuchsia-400/15 dark:bg-fuchsia-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
           <div>
-            <div className="flex items-center gap-2 text-cyan-300 text-xs font-bold uppercase tracking-wider mb-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-purple-100/80 dark:bg-purple-950/70 text-purple-800 dark:text-purple-300 border border-purple-200/90 dark:border-purple-800/80 text-xs font-bold uppercase tracking-wide mb-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse"></span>
               <span>Executive Cockpit 360° | คณะพยาบาลศาสตร์</span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] bg-teal-500/20 text-teal-300 border border-teal-400/30">
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-purple-200/70 dark:bg-purple-800/50 text-purple-900 dark:text-purple-200 font-black">
                 5 กราฟตัดสินใจเชิงยุทธศาสตร์
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
               <span>แดชบอร์ดผู้บริหารและการวิเคราะห์เชิงกลยุทธ์</span>
             </h1>
-            <p className="text-xs text-slate-300 mt-1 max-w-2xl">
+            <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 max-w-2xl">
               ศูนย์การเรียนรู้ปฏิบัติการทางการพยาบาลเสมือนจริง • ติดตามสุขภาวะสินทรัพย์ ความคุ้มค่าการใช้พื้นที่ และนโยบายห้องปฏิบัติการสีเขียว (Green Lab)
             </p>
           </div>
@@ -272,20 +272,20 @@ export default function ExecutiveDashboardPage() {
             <button
               type="button"
               onClick={() => setIsFocusMode(!isFocusMode)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-md border border-white/15 transition cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-white/90 dark:bg-slate-800/90 hover:bg-purple-50 dark:hover:bg-slate-700 text-purple-900 dark:text-purple-200 text-xs font-bold border border-purple-200 dark:border-purple-800/60 shadow-xs transition cursor-pointer"
               title={isFocusMode ? 'ออกจากโหมดนำเสนอ' : 'เข้าสู่โหมดนำเสนอสำหรับที่ประชุมบอร์ด'}
             >
-              {isFocusMode ? <Minimize2 className="w-4 h-4 text-cyan-300" /> : <Maximize2 className="w-4 h-4 text-cyan-300" />}
+              {isFocusMode ? <Minimize2 className="w-4 h-4 text-purple-600 dark:text-purple-400" /> : <Maximize2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />}
               <span className="hidden sm:inline">{isFocusMode ? 'ย่อหน้าต่าง' : 'โหมดนำเสนอ'}</span>
             </button>
 
             {/* Month & Year Filter Selector */}
-            <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-white/15">
-              <Calendar className="w-4 h-4 text-cyan-300 shrink-0" />
+            <div className="flex items-center gap-1.5 bg-white/90 dark:bg-slate-800/90 px-3 py-1.5 rounded-2xl border border-purple-200 dark:border-purple-800/60 shadow-xs">
+              <Calendar className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                className="bg-transparent text-white text-xs font-bold outline-none cursor-pointer [&>option]:text-slate-900"
+                className="bg-transparent text-slate-800 dark:text-slate-100 text-xs font-bold outline-none cursor-pointer [&>option]:text-slate-900"
               >
                 {THAI_MONTHS.map((m) => (
                   <option key={m.value} value={m.value}>
@@ -293,11 +293,11 @@ export default function ExecutiveDashboardPage() {
                   </option>
                 ))}
               </select>
-              <span className="text-white/40">/</span>
+              <span className="text-slate-400">/</span>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
-                className="bg-transparent text-white text-xs font-bold outline-none cursor-pointer [&>option]:text-slate-900"
+                className="bg-transparent text-slate-800 dark:text-slate-100 text-xs font-bold outline-none cursor-pointer [&>option]:text-slate-900"
               >
                 {years.map((y) => (
                   <option key={y} value={y}>
@@ -307,9 +307,9 @@ export default function ExecutiveDashboardPage() {
               </select>
             </div>
 
-            <div className="hidden lg:block bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-2xl border border-white/10 text-right">
-              <span className="text-[10px] text-slate-300 block">ผู้เข้าใช้งาน</span>
-              <span className="text-xs font-bold text-white">
+            <div className="hidden lg:block bg-white/90 dark:bg-slate-800/90 px-3.5 py-1.5 rounded-2xl border border-purple-200 dark:border-purple-800/60 text-right shadow-xs">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">ผู้เข้าใช้งาน</span>
+              <span className="text-xs font-bold text-slate-900 dark:text-white">
                 {currentUser ? `${formatUserName(currentUser) || currentUser.name} (${getRoleLabel(currentUser.role)})` : 'กำลังโหลด...'}
               </span>
             </div>
@@ -318,7 +318,7 @@ export default function ExecutiveDashboardPage() {
               type="button"
               onClick={() => fetchStats(true)}
               disabled={refreshing}
-              className="p-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white transition border border-white/10 cursor-pointer disabled:opacity-50"
+              className="p-2.5 rounded-2xl bg-white/90 dark:bg-slate-800/90 hover:bg-purple-50 dark:hover:bg-slate-700 text-purple-900 dark:text-purple-200 transition border border-purple-200 dark:border-purple-800/60 cursor-pointer disabled:opacity-50 shadow-xs"
               title="รีเฟรชข้อมูลล่าสุด"
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
@@ -330,22 +330,22 @@ export default function ExecutiveDashboardPage() {
       {/* ---------------------------------------------------- */}
       {/* 2. ZERO-PII AI EXECUTIVE ADVISOR COCKPIT             */}
       {/* ---------------------------------------------------- */}
-      <div className="bg-gradient-to-br from-slate-900 via-teal-950/80 to-slate-900 rounded-3xl border border-teal-500/30 p-5 sm:p-6 shadow-xl text-white space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-teal-800/40 pb-3">
+      <div className="bg-gradient-to-br from-slate-900 via-purple-950/50 to-slate-900 rounded-3xl border border-purple-500/30 p-5 sm:p-6 shadow-xl text-white space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-purple-800/40 pb-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-2xl bg-teal-500/20 text-teal-300 flex items-center justify-center border border-teal-400/30">
-              <BrainCircuit className="w-5 h-5 text-cyan-300" />
+            <div className="w-9 h-9 rounded-2xl bg-purple-500/20 text-purple-300 flex items-center justify-center border border-purple-400/30">
+              <BrainCircuit className="w-5 h-5 text-purple-300" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm sm:text-base font-black tracking-tight text-white">
                   AI Executive Strategic Advisor (Zero-PII Insight Cockpit)
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-400/30">
                   Real-time Synthesis
                 </span>
               </div>
-              <p className="text-[11px] text-teal-200/80">
+              <p className="text-[11px] text-purple-200/80">
                 ประมวลผลดัชนีชี้วัดเชิงยุทธศาสตร์เพื่อสนับสนุนการตัดสินใจของผู้บริหาร (ไม่ส่งข้อมูลส่วนบุคคลออกนอกระบบ 100%)
               </p>
             </div>

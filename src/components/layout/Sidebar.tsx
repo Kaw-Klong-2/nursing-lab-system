@@ -36,6 +36,7 @@ import {
 import ProfileModal from '@/components/profile/ProfileModal';
 import ThemeToggle from '@/components/common/ThemeToggle';
 import { formatUserName } from '@/lib/user-utils';
+import { getModuleTheme } from '@/lib/module-theme';
 
 interface SidebarProps {
   mobileOpen?: boolean;
@@ -44,6 +45,7 @@ interface SidebarProps {
 
 export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps = {}) {
   const pathname = usePathname();
+  const currentTheme = getModuleTheme(pathname);
   const { currentUser, isOfficer, isApprover, isExecutive, isAdmin, logout } = useAuth();
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -300,7 +302,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
       <div>
         <div className="px-3 py-2.5 flex items-center justify-between border-b border-slate-800/80 pb-3 mb-2">
           <div className="flex flex-col">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-sm font-black tracking-tight text-white flex items-center gap-0.5">
                 <span>KUNurse</span>
                 <span className="text-teal-400 font-black text-sm select-none">+</span>
@@ -309,6 +311,11 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
               <span className="text-[9px] bg-slate-800 text-teal-400 px-1.5 py-0.5 rounded font-mono border border-slate-700 font-bold">
                 {userRole}
               </span>
+              {currentTheme && currentTheme.key !== 'overview' && (
+                <span className={`text-[9px] px-1.5 py-0.2 rounded-md font-bold border transition-colors ${currentTheme.sidebarBadge}`}>
+                  {currentTheme.badgeLabel}
+                </span>
+              )}
             </div>
             <span className="text-[10px] text-slate-400 mt-0.5">
               คณะพยาบาลศาสตร์ มก.
@@ -362,12 +369,18 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
                   onClick={() => toggleGroup(group.groupKey)}
                   className={`w-full px-2.5 py-1.5 rounded-xl flex items-center justify-between text-xs font-bold transition cursor-pointer group ${
                     hasActiveItem
-                      ? 'text-teal-300 bg-slate-800/80'
+                      ? currentTheme.sidebarActiveGroupBg
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <group.groupIcon className="w-3.5 h-3.5 text-teal-500/80 group-hover:text-teal-400 transition" />
+                    <group.groupIcon
+                      className={`w-3.5 h-3.5 transition ${
+                        hasActiveItem
+                          ? currentTheme.sidebarActiveGroupText
+                          : 'text-slate-400 group-hover:text-slate-200'
+                      }`}
+                    />
                     <span className="text-[11px] font-bold">{group.groupName}</span>
                     <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-400 font-mono">
                       {visibleItems.length}
@@ -376,7 +389,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
 
                   <div className="flex items-center gap-1.5">
                     {hasActiveItem && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-teal-400"></span>
+                      <span className={`w-1.5 h-1.5 rounded-full ${currentTheme.sidebarActiveIndicator}`}></span>
                     )}
                     <ChevronDown
                       className={`w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300 transition-transform duration-200 ${
@@ -400,14 +413,16 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
                           }}
                           className={`flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-medium transition-all group ${
                             isActive
-                              ? 'bg-teal-600 text-white shadow-md shadow-teal-600/30 font-bold'
+                              ? `${currentTheme.sidebarActiveBg} ${currentTheme.sidebarActiveText} ${currentTheme.sidebarActiveShadow} font-bold`
                               : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                           }`}
                         >
                           <div className="flex items-center gap-2.5">
                             <item.icon
                               className={`w-3.5 h-3.5 transition ${
-                                isActive ? 'text-white' : 'text-slate-400 group-hover:text-teal-400'
+                                isActive
+                                  ? 'text-white'
+                                  : `text-slate-400 ${currentTheme.sidebarIconHover}`
                               }`}
                             />
                             <span className="truncate">{item.label}</span>

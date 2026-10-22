@@ -178,3 +178,31 @@ body {
   }
 }
 
+
+/* QR Code Camera Scanner Enhancements (World-Class 1:1 Square Viewfinder) */
+#qr-reader-video-container video,
+#practice-qr-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 1rem !important;
+}
+
+#qr-shaded-region {
+  display: none !important; /* Hide legacy distorted rectangular border shader from html5-qrcode */
+}
+
+@keyframes scannerLaserSweep {
+  0%, 100% {
+    top: 6%;
+    opacity: 0.6;
+  }
+  50% {
+    top: 94%;
+    opacity: 1;
+  }
+}
+
+.animate-scanner-laser {
+  animation: scannerLaserSweep 2.2s ease-in-out infinite;
+}

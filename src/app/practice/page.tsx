@@ -304,7 +304,15 @@ export default function PracticePage() {
 
         await scanner.start(
           { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1.0 },
+          {
+            fps: 15,
+            qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+              const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+              const qrboxSize = Math.max(Math.floor(minEdge * 0.72), 200);
+              return { width: qrboxSize, height: qrboxSize };
+            },
+            aspectRatio: 1.0,
+          },
           (decodedText) => {
             handleProcessScannedCode(decodedText);
           },
@@ -2668,8 +2676,28 @@ export default function PracticePage() {
             </div>
 
             {/* Camera Viewfinder */}
-            <div className="relative bg-slate-950 rounded-2xl overflow-hidden aspect-square max-w-sm mx-auto shadow-inner flex items-center justify-center">
+            <div className="relative bg-slate-950 rounded-2xl overflow-hidden aspect-square max-w-sm mx-auto shadow-inner flex items-center justify-center border-2 border-indigo-500/30">
               <div id="practice-qr-reader" className="w-full h-full"></div>
+
+              {/* World-Class 1:1 Square Viewfinder Reticle Overlay */}
+              {isCameraActive && !cameraError && (
+                <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-6">
+                  {/* Square Framing Box (1:1 Ratio) */}
+                  <div className="relative w-56 h-56 max-w-[78%] max-h-[78%] aspect-square">
+                    {/* 4 Glowing Corner Brackets */}
+                    <div className="absolute top-0 left-0 w-7 h-7 border-t-4 border-l-4 border-indigo-400 rounded-tl-xl shadow-[0_0_8px_rgba(129,140,248,0.6)]" />
+                    <div className="absolute top-0 right-0 w-7 h-7 border-t-4 border-r-4 border-indigo-400 rounded-tr-xl shadow-[0_0_8px_rgba(129,140,248,0.6)]" />
+                    <div className="absolute bottom-0 left-0 w-7 h-7 border-b-4 border-l-4 border-indigo-400 rounded-bl-xl shadow-[0_0_8px_rgba(129,140,248,0.6)]" />
+                    <div className="absolute bottom-0 right-0 w-7 h-7 border-b-4 border-r-4 border-indigo-400 rounded-br-xl shadow-[0_0_8px_rgba(129,140,248,0.6)]" />
+
+                    {/* Animated Laser Scan Line */}
+                    <div className="absolute left-2 right-2 h-0.5 bg-gradient-to-r from-transparent via-indigo-400 to-transparent shadow-[0_0_10px_rgba(129,140,248,0.9)] animate-scanner-laser" />
+
+                    {/* Subtle Center Reticle Dot */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-indigo-400/40" />
+                  </div>
+                </div>
+              )}
 
               {cameraError && (
                 <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center p-6 text-rose-300 text-xs text-center space-y-2">

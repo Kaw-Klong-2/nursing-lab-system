@@ -17,6 +17,22 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-22] ยกระดับระบบกล้องสแกน QR Code เป็นกรอบสี่เหลี่ยมจัตุรัส 1:1 ระดับสากล (World-Class 1:1 Square Viewfinder Overhaul)
+- **หมวดหมู่**: QR Scanner / UI Component / Camera Viewfinder (`src/components/qrcode/QrScannerModal.tsx`, `src/app/practice/page.tsx`, `src/app/globals.css`)
+- **สาเหตุที่เกิดขึ้นจริง (Root Cause)**:
+  1. เซนเซอร์กล้องมือถือ/เว็บแคมส่งภาพอัตราส่วน 16:9 หรือ 4:3 (สี่เหลี่ยมผืนผ้า) เมื่อแท็ก `<video>` ไม่ได้ใส่ `object-fit: cover` จึงเกิดขอบดำด้านบน-ล่าง
+  2. ไลบรารี `html5-qrcode` สร้างกรอบแรเงา `#qr-shaded-region` โดยคำนวณจากขอบวิดีโอผืนผ้า ทำให้ช่องสแกนถูกบีบกลายเป็นสี่เหลี่ยมผืนผ้าแคบๆ
+- **การปรับปรุงและแก้ปัญหาทั้งระบบ**:
+  1. **บังคับวิดีโอกล้องเต็มพื้นที่ (`object-fit: cover !important`)**: วิดีโอกล้องทั้งใน `QrScannerModal` (Navbar, Inventory, POS) และใน `practice/page.tsx` (จุดสแกนเช็คอิน/เช็คเอาท์ห้องแล็บ) จะขยายเต็มพื้นที่สี่เหลี่ยมจัตุรัสพอดี ไม่มีขอบดำ
+  2. **ปิดกรอบสี่เหลี่ยมผืนผ้าเดิมของไลบรารี (`#qr-shaded-region { display: none !important; }`)**: ซ่อนกรอบเงาเดิมที่เพี้ยน
+  3. **ติดตั้ง Custom 1:1 Square Viewfinder Reticle**:
+     - กรอบสี่เหลี่ยมจัตุรัสสัดส่วน 1:1 แท้สมบูรณ์แบบ
+     - มุมฉากเรืองแสง 4 มุม (4 Glowing Corner Brackets) สี Teal-400 / Indigo-400
+     - เส้นเลเซอร์สแกนแสงแบบเคลื่อนไหว (`animate-scanner-laser`) วิ่งกวาดขึ้น-ลงอย่างนุ่มนวล
+     - จุดเล็งกึ่งกลาง (Center Reticle Dot) ช่วยให้เล็ง QR Code และบาร์โค้ดได้แม่นยำและรวดเร็ว
+  4. **ปรับขนาดพื้นที่จับภาพ (qrbox)**: คำนวณขนาดสี่เหลี่ยมจัตุรัส 1:1 สัมพันธ์กับขนาดจออัตโนมัติ
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ✅ ผ่าน 100% (คำว่า "นิสิต" ถูกต้องทั้งหมด, UTF-8 สมบูรณ์)
+
 ### [2026-10-22] ปรับแต่งหน้าจอมือถือเป็น Zero-Scroll 100% (Mobile Login Zero-Scroll Optimization)
 - **หมวดหมู่**: UI / Mobile Ergonomics / Authentication (`src/app/login/page.tsx`)
 - **สิ่งที่ดำเนินการ**:

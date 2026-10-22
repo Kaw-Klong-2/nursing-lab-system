@@ -116,10 +116,10 @@ export default function QrScannerModal({ isOpen, onClose, onScan }: QrScannerMod
             fps: 15,
             qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
               const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-              const qrboxSize = Math.floor(minEdge * 0.75);
+              const qrboxSize = Math.max(Math.floor(minEdge * 0.72), 200);
               return {
-                width: Math.max(qrboxSize, 220),
-                height: Math.max(qrboxSize, 220),
+                width: qrboxSize,
+                height: qrboxSize,
               };
             },
             aspectRatio: 1.0,
@@ -227,8 +227,28 @@ export default function QrScannerModal({ isOpen, onClose, onScan }: QrScannerMod
           {activeTab === 'CAMERA' && (
             <div className="space-y-3">
               {/* Camera Container */}
-              <div className="relative rounded-2xl overflow-hidden bg-slate-950 aspect-square flex items-center justify-center border-2 border-dashed border-teal-500/40">
+              <div className="relative rounded-2xl overflow-hidden bg-slate-950 aspect-square flex items-center justify-center border-2 border-teal-500/30 shadow-inner">
                 <div id={readerElementId} className="w-full h-full" />
+
+                {/* World-Class 1:1 Square Viewfinder Reticle Overlay */}
+                {isScanning && !cameraError && (
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-6">
+                    {/* Square Framing Box (1:1 Ratio) */}
+                    <div className="relative w-56 h-56 max-w-[78%] max-h-[78%] aspect-square">
+                      {/* 4 Glowing Corner Brackets */}
+                      <div className="absolute top-0 left-0 w-7 h-7 border-t-4 border-l-4 border-teal-400 rounded-tl-xl shadow-[0_0_8px_rgba(45,212,191,0.6)]" />
+                      <div className="absolute top-0 right-0 w-7 h-7 border-t-4 border-r-4 border-teal-400 rounded-tr-xl shadow-[0_0_8px_rgba(45,212,191,0.6)]" />
+                      <div className="absolute bottom-0 left-0 w-7 h-7 border-b-4 border-l-4 border-teal-400 rounded-bl-xl shadow-[0_0_8px_rgba(45,212,191,0.6)]" />
+                      <div className="absolute bottom-0 right-0 w-7 h-7 border-b-4 border-r-4 border-teal-400 rounded-br-xl shadow-[0_0_8px_rgba(45,212,191,0.6)]" />
+
+                      {/* Animated Laser Scan Line */}
+                      <div className="absolute left-2 right-2 h-0.5 bg-gradient-to-r from-transparent via-teal-400 to-transparent shadow-[0_0_10px_rgba(45,212,191,0.9)] animate-scanner-laser" />
+
+                      {/* Subtle Center Reticle Dot */}
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-teal-400/40" />
+                    </div>
+                  </div>
+                )}
 
                 {cameraError && (
                   <div className="absolute inset-0 bg-slate-900/90 p-6 flex flex-col items-center justify-center text-center text-white space-y-3">
@@ -236,7 +256,7 @@ export default function QrScannerModal({ isOpen, onClose, onScan }: QrScannerMod
                     <p className="text-xs text-slate-300 leading-relaxed">{cameraError}</p>
                     <button
                       onClick={() => setActiveTab('MANUAL')}
-                      className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition"
+                      className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition cursor-pointer"
                     >
                       สลับไปพิมพ์รหัสแทน
                     </button>

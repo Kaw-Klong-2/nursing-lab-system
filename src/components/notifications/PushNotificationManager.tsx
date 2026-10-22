@@ -49,8 +49,8 @@ export default function PushNotificationManager() {
         const dayOfWeek = now.getDay(); // 0 = Sun, 1 = Mon, ..., 5 = Fri, 6 = Sat
         if (dayOfWeek === 0 || dayOfWeek === 6) return; // เว้นวันหยุดเสาร์-อาทิตย์
 
-        // รันเฉพาะช่วงเวลาหลัง 09:15 น. (ทำหน้าที่เป็น Safety Net สำรอง หากเซิร์ฟเวอร์ส่งรอบ 09:00 น. ไปแล้วจะไม่ส่งซ้ำ)
-        if (now.getHours() < 9 || (now.getHours() === 9 && now.getMinutes() < 15)) return;
+        // รันเฉพาะช่วงเวลาหลัง 09:02 น. (ทำหน้าที่เป็น Safety Net สำรอง หากเซิร์ฟเวอร์หลักหรือ Cron ยิงไปแล้วจะไม่ส่งซ้ำ)
+        if (now.getHours() < 9 || (now.getHours() === 9 && now.getMinutes() < 2)) return;
 
         const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
         const heartbeatKey = `lab_return_reminder_heartbeat_${todayStr}`;
@@ -72,7 +72,12 @@ export default function PushNotificationManager() {
       }
     };
 
+    // รันตรวจทันทีเมื่อคอมโพเนนต์โหลด
     runHeartbeat();
+
+    // ตั้ง Timer ตรวจสอบซ้ำทุก 60 วินาที สำหรับกรณีผู้ใช้เปิดหน้าต่างค้างไว้ตั้งแต่ก่อน 09:00 น.
+    const intervalId = setInterval(runHeartbeat, 60000);
+    return () => clearInterval(intervalId);
   }, [currentUser?.id, isOfficer, isAdmin]);
 
   useEffect(() => {

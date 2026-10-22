@@ -102,7 +102,8 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
 
         const url = await QRCode.toDataURL(qrPayload, {
           width: 450,
-          margin: labelSize === 'mini' ? 1 : 2,
+          margin: 2,
+          errorCorrectionLevel: 'M',
           color: {
             dark: '#0f172a',
             light: '#ffffff',

@@ -75,7 +75,7 @@ export default function CabinetQrPrintModal({
         try {
           const qrDataUrl = await QRCode.toDataURL(url, {
             width: 320,
-            margin: 1,
+            margin: 2,
             color: {
               dark: '#0f172a',
               light: '#ffffff',

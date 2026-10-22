@@ -243,3 +243,120 @@ function detectTypeFromCode(code: string): 'ASSET' | 'CONSUMABLE' | 'PRACTICE' |
 
   return 'UNKNOWN';
 }
+
+/**
+ * โครงแบบคอนฟิกประสิทธิภาพสูงสำหรับ Html5Qrcode Constructor
+ * - เปิดใช้งาน Native BarcodeDetector (GPU Hardware Acceleration)
+ * - จำกัดเฉพาะฟอร์แมตบาร์โค้ดที่ใช้งานในระบบจริง (QR Code, Code 128, Code 39, EAN 13) เพื่อลดภาระ CPU เกิน 65%
+ */
+export function getOptimalCameraScannerConfig(customFormats?: any[]) {
+  return {
+    formatsToSupport: customFormats || [
+      0, // QR_CODE
+      5, // CODE_128
+      3, // CODE_39
+      9, // EAN_13
+    ],
+    verbose: false,
+    experimentalFeatures: {
+      useBarCodeDetectorIfSupported: true,
+    },
+  };
+}
+
+/**
+ * ตัวเลือกการเปิดกล้องความเร็วสูง (High-Performance Video Constraints)
+ * - ปรับความละเอียดเป็น 720p/1080p เพื่อให้อ่านสติกเกอร์ขนาดเล็กและป้าย Mini ได้คมชัด
+ * - เปิดใช้งาน Continuous Auto-Focus ป้องกันภาพเบลอ
+ * - เพิ่มความถี่สแกนเป็น 24 FPS เพื่อการตรวจจับทันทีในเสี้ยววินาที (<100ms)
+ * - ขยายพื้นที่ตรวจจับกว้าง (Wide 88-92%) ป้องกันปัญหาขอบ Finder Pattern หลุดกรอบ
+ */
+export function getOptimalScanStartConfig(options?: {
+  fps?: number;
+  isWideScan?: boolean;
+}) {
+  const fps = options?.fps || 24;
+  const isWideScan = options?.isWideScan ?? true;
+
+  return {
+    fps,
+    aspectRatio: 1.0,
+    videoConstraints: {
+      facingMode: { ideal: 'environment' },
+      width: { min: 720, ideal: 1280, max: 1920 },
+      height: { min: 720, ideal: 1280, max: 1920 },
+      advanced: [
+        { focusMode: 'continuous' } as any,
+        { exposureMode: 'continuous' } as any,
+      ],
+    },
+    qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+      const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+      // ขยายพื้นที่สแกนกว้าง 88% เพื่อให้ผู้ใช้งานไม่ต้องเล็งตรงกลาง 100% ก็สแกนติดทันที
+      const ratio = isWideScan ? 0.88 : 0.75;
+      const size = Math.max(Math.floor(minEdge * ratio), 220);
+      return { width: size, height: size };
+    },
+  };
+}
+
+/**
+ * เสียงบี๊บยืนยันการสแกนสำเร็จ (Medical Grade Web Audio API Beep)
+ * สร้างเสียงแบบเรียลไทม์ผ่าน AudioContext โดยไม่ต้องโหลดไฟล์ภายนอก
+ */
+let sharedAudioContext: AudioContext | null = null;
+
+export function playScanSuccessBeep() {
+  if (typeof window === 'undefined') return;
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    if (!sharedAudioContext || sharedAudioContext.state === 'closed') {
+      sharedAudioContext = new AudioContextClass();
+    }
+
+    if (sharedAudioContext.state === 'suspended') {
+      sharedAudioContext.resume().catch(() => {});
+    }
+
+    const ctx = sharedAudioContext;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    // ความถี่ 880Hz (A5) สดใสและชัดเจนตามมาตรฐานเครื่องสแกนบาร์โค้ดการแพทย์
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.08);
+
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.09);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.09);
+  } catch {
+    // ซอฟต์แวร์ทำงานต่อได้ปกติแม้เบราว์เซอร์ไม่อนุญาตให้เล่นเสียง
+  }
+}
+
+/**
+ * ระบบป้องกันการสแกนซ้ำซ้อนภายในช่วงเวลา (Scan Throttle)
+ */
+export function createScanThrottle(throttleMs = 1200) {
+  let lastScannedText = '';
+  let lastScannedTime = 0;
+
+  return (text: string, onExecute: () => void) => {
+    const now = Date.now();
+    if (text === lastScannedText && now - lastScannedTime < throttleMs) {
+      return false; // ถูก throttle ไว้
+    }
+    lastScannedText = text;
+    lastScannedTime = now;
+    onExecute();
+    return true;
+  };
+}

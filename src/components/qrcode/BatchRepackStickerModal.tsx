@@ -208,7 +208,8 @@ export default function BatchRepackStickerModal({
           if (!qrs[lotPayload]) {
             qrs[lotPayload] = await QRCode.toDataURL(lotPayload, {
               width: 450,
-              margin: 1,
+              margin: 2,
+              errorCorrectionLevel: 'M',
               color: { dark: '#0f172a', light: '#ffffff' },
             });
           }
@@ -219,7 +220,8 @@ export default function BatchRepackStickerModal({
           if (!qrs[packPayload]) {
             qrs[packPayload] = await QRCode.toDataURL(packPayload, {
               width: 450,
-              margin: 1,
+              margin: 2,
+              errorCorrectionLevel: 'M',
               color: { dark: '#0f172a', light: '#ffffff' },
             });
           }
@@ -300,7 +302,8 @@ export default function BatchRepackStickerModal({
           if (!qrs[lotPayload]) {
             qrs[lotPayload] = await QRCode.toDataURL(lotPayload, {
               width: 250,
-              margin: 1,
+              margin: 2,
+              errorCorrectionLevel: 'M',
               color: { dark: '#0f172a', light: '#ffffff' },
             });
           }
@@ -311,7 +314,8 @@ export default function BatchRepackStickerModal({
           if (!qrs[packPayload]) {
             qrs[packPayload] = await QRCode.toDataURL(packPayload, {
               width: 250,
-              margin: 1,
+              margin: 2,
+              errorCorrectionLevel: 'M',
               color: { dark: '#0f172a', light: '#ffffff' },
             });
           }
@@ -406,7 +410,8 @@ export default function BatchRepackStickerModal({
       for (const p of payloadsToGen) {
         qrs[p] = await QRCode.toDataURL(p, {
           width: 160,
-          margin: 1,
+          margin: 2,
+          errorCorrectionLevel: 'M',
           color: { dark: '#0f172a', light: '#ffffff' },
         });
       }

@@ -11,10 +11,18 @@ import {
   CheckCircle2,
   Barcode,
   Keyboard,
-  Sparkles
+  Sparkles,
+  Zap,
+  ZapOff
 } from 'lucide-react';
 
-import { extractCleanCode } from '@/lib/scanner-utils';
+import {
+  extractCleanCode,
+  getOptimalCameraScannerConfig,
+  getOptimalScanStartConfig,
+  playScanSuccessBeep,
+  createScanThrottle,
+} from '@/lib/scanner-utils';
 
 interface QrScannerModalProps {
   isOpen: boolean;
@@ -28,7 +36,10 @@ export default function QrScannerModal({ isOpen, onClose, onScan }: QrScannerMod
   const [manualCode, setManualCode] = useState('');
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [isTorchSupported, setIsTorchSupported] = useState(false);
+  const [isTorchOn, setIsTorchOn] = useState(false);
   const scannerRef = useRef<any>(null);
+  const scanThrottleRef = useRef(createScanThrottle(1500));
   const readerElementId = 'qr-reader-video-container';
 
   // Helper to extract clean code from scanned text (URL, JSON, or plain barcode)
@@ -76,6 +87,8 @@ export default function QrScannerModal({ isOpen, onClose, onScan }: QrScannerMod
   };
 
   const stopScanner = async () => {
+    setIsTorchOn(false);
+    setIsTorchSupported(false);
     if (scannerRef.current) {
       try {
         await scannerRef.current.stop();
@@ -86,6 +99,19 @@ export default function QrScannerModal({ isOpen, onClose, onScan }: QrScannerMod
       scannerRef.current = null;
     }
     setIsScanning(false);
+  };
+
+  const toggleTorch = async () => {
+    if (!scannerRef.current) return;
+    try {
+      const nextState = !isTorchOn;
+      await scannerRef.current.applyVideoConstraints({
+        advanced: [{ torch: nextState }],
+      });
+      setIsTorchOn(nextState);
+    } catch (e) {
+      console.warn('Torch toggle failed', e);
+    }
   };
 
   useEffect(() => {
@@ -99,7 +125,7 @@ export default function QrScannerModal({ isOpen, onClose, onScan }: QrScannerMod
     async function startScanner() {
       setCameraError(null);
       try {
-        const { Html5Qrcode } = await import('html5-qrcode');
+        const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode');
 
         if (!isMounted) return;
 
@@ -107,26 +133,32 @@ export default function QrScannerModal({ isOpen, onClose, onScan }: QrScannerMod
         const container = document.getElementById(readerElementId);
         if (!container) return;
 
-        const html5QrCode = new Html5Qrcode(readerElementId);
+        // สถาปัตยกรรม High-Performance Scanner: Native GPU BarcodeDetector + กรองเฉพาะฟอร์แมตที่ใช้จริง
+        const scannerConfig = getOptimalCameraScannerConfig([
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.EAN_13,
+        ]);
+
+        const html5QrCode = new Html5Qrcode(readerElementId, scannerConfig);
         scannerRef.current = html5QrCode;
 
+        // คอนฟิก 24 FPS, Continuous Auto-Focus และพื้นที่สแกนกว้างพิเศษ (Wide Scan)
+        const startConfig = getOptimalScanStartConfig({
+          fps: 24,
+          isWideScan: true,
+        });
+
         await html5QrCode.start(
-          { facingMode: 'environment' }, // prefer rear camera
-          {
-            fps: 15,
-            qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-              const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-              const qrboxSize = Math.max(Math.floor(minEdge * 0.72), 200);
-              return {
-                width: qrboxSize,
-                height: qrboxSize,
-              };
-            },
-            aspectRatio: 1.0,
-          },
+          { facingMode: 'environment' }, // กล้องหลัง
+          startConfig,
           (decodedText) => {
-            // Success
-            processScannedResult(decodedText);
+            // ระบบ Throttle และเสียง Beep ตอบสนองระดับเสี้ยววินาที
+            scanThrottleRef.current(decodedText, () => {
+              playScanSuccessBeep();
+              processScannedResult(decodedText);
+            });
           },
           () => {
             // Frame error (normal during scanning)
@@ -135,6 +167,15 @@ export default function QrScannerModal({ isOpen, onClose, onScan }: QrScannerMod
 
         if (isMounted) {
           setIsScanning(true);
+          // ตรวจสอบความสามารถเปิดไฟฉาย (Torch)
+          try {
+            const capabilities: any = html5QrCode.getRunningTrackCameraCapabilities();
+            if (capabilities && (capabilities.torch || capabilities.torchFeature)) {
+              setIsTorchSupported(true);
+            }
+          } catch {
+            // ignore if not supported
+          }
         }
       } catch (err: any) {
         console.error('Camera Scanner Error:', err);
@@ -229,6 +270,22 @@ export default function QrScannerModal({ isOpen, onClose, onScan }: QrScannerMod
               {/* Camera Container */}
               <div className="relative rounded-2xl overflow-hidden bg-slate-950 aspect-square flex items-center justify-center border-2 border-teal-500/30 shadow-inner">
                 <div id={readerElementId} className="w-full h-full" />
+
+                {/* Torch / Flashlight Button */}
+                {isScanning && !cameraError && isTorchSupported && (
+                  <button
+                    type="button"
+                    onClick={toggleTorch}
+                    className={`absolute top-3 right-3 z-20 p-2.5 rounded-xl backdrop-blur-md transition-all cursor-pointer ${
+                      isTorchOn
+                        ? 'bg-amber-400 text-slate-950 shadow-[0_0_12px_rgba(251,191,36,0.9)] scale-105'
+                        : 'bg-black/40 text-white/90 hover:bg-black/60 border border-white/10'
+                    }`}
+                    title={isTorchOn ? 'ปิดไฟฉาย' : 'เปิดไฟฉาย'}
+                  >
+                    {isTorchOn ? <Zap className="w-4 h-4 fill-current" /> : <ZapOff className="w-4 h-4" />}
+                  </button>
+                )}
 
                 {/* World-Class 1:1 Square Viewfinder Reticle Overlay */}
                 {isScanning && !cameraError && (

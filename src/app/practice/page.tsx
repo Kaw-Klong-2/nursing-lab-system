@@ -50,6 +50,12 @@ import {
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import PracticeHoursSummary from '@/components/practice/PracticeHoursSummary';
 import { formatUserName, formatTeacherName } from '@/lib/user-utils';
+import {
+  getOptimalCameraScannerConfig,
+  getOptimalScanStartConfig,
+  playScanSuccessBeep,
+  createScanThrottle,
+} from '@/lib/scanner-utils';
 
 export default function PracticePage() {
   const { currentUser, isOfficer, isApprover, isAdmin, isTeacher } = useAuth();
@@ -155,6 +161,7 @@ export default function PracticePage() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const html5ScannerRef = useRef<any>(null);
+  const practiceScanThrottleRef = useRef(createScanThrottle(2000));
 
   // Room Modal & Management States
   const [showAddRoomModal, setShowAddRoomModal] = useState(false);
@@ -293,28 +300,33 @@ export default function PracticePage() {
     async function startCamera() {
       setCameraError(null);
       try {
-        const { Html5Qrcode } = await import('html5-qrcode');
+        const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode');
         if (!isMounted) return;
 
         const container = document.getElementById('practice-qr-reader');
         if (!container) return;
 
-        const scanner = new Html5Qrcode('practice-qr-reader');
+        // สถาปัตยกรรม High-Performance Scanner: Native GPU BarcodeDetector + QR Code
+        const scannerConfig = getOptimalCameraScannerConfig([
+          Html5QrcodeSupportedFormats.QR_CODE,
+        ]);
+
+        const scanner = new Html5Qrcode('practice-qr-reader', scannerConfig);
         html5ScannerRef.current = scanner;
+
+        const startConfig = getOptimalScanStartConfig({
+          fps: 24,
+          isWideScan: true,
+        });
 
         await scanner.start(
           { facingMode: 'environment' },
-          {
-            fps: 15,
-            qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-              const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-              const qrboxSize = Math.max(Math.floor(minEdge * 0.72), 200);
-              return { width: qrboxSize, height: qrboxSize };
-            },
-            aspectRatio: 1.0,
-          },
+          startConfig,
           (decodedText) => {
-            handleProcessScannedCode(decodedText);
+            practiceScanThrottleRef.current(decodedText, () => {
+              playScanSuccessBeep();
+              handleProcessScannedCode(decodedText);
+            });
           },
           () => {}
         );

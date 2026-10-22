@@ -17,6 +17,15 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-22] ปรับแต่งหน้าจอมือถือเป็น Zero-Scroll 100% (Mobile Login Zero-Scroll Optimization)
+- **หมวดหมู่**: UI / Mobile Ergonomics / Authentication (`src/app/login/page.tsx`)
+- **สิ่งที่ดำเนินการ**:
+  1. ตัดตัวการ์ตูนพยาบาลและป้ายข้อความบนหน้าจอมือถือ (`lg:hidden`) ออกอย่างสมบูรณ์ตามความต้องการของผู้ใช้ เพื่อคืนพื้นที่แนวตั้งกว่า 160px
+  2. จัดวางโลโก้และหัวข้อ `KUNurse+Lab` แบบกะทัดรัด กึ่งกลางหน้าจอ
+  3. ปรับขนาด Padding และระยะห่างของการ์ดล็อกอิน ให้พอดีกับหน้าจอมือถือทุกขนาดอย่างสมบูรณ์แบบ **(Zero-Scroll 100% ไม่ต้องเลื่อนจอเลยแม้แต่น้อย)**
+  4. คงตัวการ์ตูนพยาบาลแบบ Split Hero Showcase ที่สวยงามไว้บนหน้าจอคอมพิวเตอร์ Desktop (`lg:`) ตามเดิม
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ✅ ผ่าน 100% (คำว่า "นิสิต" ถูกต้องทั้งหมด, UTF-8 สมบูรณ์)
+
 ### [2026-10-22] ปรับปรุงดีไซน์หน้าเข้าสู่ระบบ (Login Page Theme Overhaul & Nurse Mascot Integration)
 - **หมวดหมู่**: UI / Authentication / Branding (`src/app/login/page.tsx`, `public/images/nurse-mascot.png`)
 - **สิ่งที่ดำเนินการ**:

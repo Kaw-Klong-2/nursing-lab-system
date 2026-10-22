@@ -365,26 +365,11 @@ export default function LoginPage() {
           </div>
 
           {/* Right Column (Login Card & Mobile Header) */}
-          <div className="lg:col-span-7 max-w-md mx-auto w-full space-y-5">
-            {/* Mobile Mascot & Brand Header */}
-            <div className="text-center space-y-2">
-              {/* Mobile Mascot Preview */}
-              <div className="lg:hidden flex flex-col items-center justify-center mb-2">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-teal-800 text-[11px] font-bold shadow-sm border border-teal-100 mb-2">
-                  <span>สวัสดีค่ะ ยินดีต้อนรับอาจารย์และนิสิตค่ะ ✨</span>
-                </div>
-                <div className="w-28 h-36 flex items-center justify-center">
-                  <img
-                    src="/images/nurse-mascot.png"
-                    alt="Nurse Mascot"
-                    className="max-h-full object-contain filter drop-shadow-sm"
-                  />
-                </div>
-              </div>
-
-              {/* Brand Header */}
-              <div className="inline-flex items-center justify-center w-13 h-13 rounded-2xl bg-gradient-to-tr from-teal-600 to-emerald-500 text-white shadow-lg shadow-teal-600/20 mb-1">
-                <Stethoscope className="w-7 h-7" />
+          <div className="lg:col-span-7 max-w-md mx-auto w-full space-y-4 sm:space-y-5">
+            {/* Brand Header */}
+            <div className="text-center space-y-1.5 sm:space-y-2">
+              <div className="inline-flex items-center justify-center w-11 h-11 sm:w-13 sm:h-13 rounded-2xl bg-gradient-to-tr from-teal-600 to-emerald-500 text-white shadow-lg shadow-teal-600/20 mb-0.5">
+                <Stethoscope className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
               <h1 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight flex items-center justify-center gap-0.5">
                 <span>KUNurse</span>
@@ -400,7 +385,7 @@ export default function LoginPage() {
             </div>
 
             {/* Login Card */}
-            <div className="bg-white/95 backdrop-blur-xl p-7 sm:p-8 rounded-3xl shadow-xl shadow-teal-950/5 border border-teal-100/80 space-y-5">
+            <div className="bg-white/95 backdrop-blur-xl p-6 sm:p-8 rounded-3xl shadow-xl shadow-teal-950/5 border border-teal-100/80 space-y-4 sm:space-y-5">
               <div className="border-b border-slate-100 pb-3">
                 <h2 className="text-base font-bold text-slate-800">เข้าสู่ระบบ (Sign In)</h2>
                 <p className="text-xs text-slate-500 mt-0.5">

@@ -18,7 +18,7 @@
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
 ### [2026-10-22] ปรับปรุงดีไซน์ส่วนหัวการ์ดแบนเนอร์ให้สว่าง สดใส สบายตา (Luminous Headers) และพัฒนาระบบ Dynamic Subsystem Color Theming สำหรับ 9 โมดูลหลัก + Sidebar
-- **หมวดหมู่**: Design System / Theming / UI Architecture (`src/lib/module-theme.ts`, `src/components/layout/Sidebar.tsx`, `src/app/page.tsx`, `src/app/practice/page.tsx`, `src/app/air-conditioning/page.tsx`, `src/app/borrow/page.tsx`, `src/app/schedule/page.tsx`, `src/app/executive/page.tsx`, `src/app/inventory/page.tsx`, `src/app/approvals/page.tsx`)
+- **หมวดหมู่**: Design System / Theming / UI Architecture (`src/lib/module-theme.ts`, `src/components/layout/Sidebar.tsx`, `src/app/page.tsx`, `src/app/practice/page.tsx`, `src/app/rooms/page.tsx`, `src/app/air-conditioning/page.tsx`, `src/app/borrow/page.tsx`, `src/app/schedule/page.tsx`, `src/app/executive/page.tsx`, `src/app/inventory/page.tsx`, `src/app/approvals/page.tsx`, `src/app/users/page.tsx`, `src/app/login/page.tsx`)
 - **สาเหตุและปัญหาเดิม (Root Causes & Problem Statement)**:
   1. การ์ดส่วนหัวเดิม (Header Banners) ในหลายหน้าใช้เกรเดียนต์มืดทะมึนที่ลงท้ายด้วย `to-slate-900` หรือ `from-slate-950` ทำให้ใน Light Mode (โหมดสว่าง) ส่วนหัวการ์ดกลายเป็นบล็อกดำทึบ ดูอึดอัดและกินสายตามากเกินไป
   2. แถบเมนูด้านข้าง (Sidebar) ถูก Hardcode เป็นสี Teal (`bg-teal-600`) สีเดียวตายตัวทั่วทั้งระบบ ไม่ว่าผู้ใช้จะเปิดโมดูลคลังพัสดุ (Inventory), ฝึกปฏิบัติ OSCE (Practice), หรือตารางงาน (Schedule) ทำให้ขาดความชัดเจนของเอกลักษณ์ระบบ

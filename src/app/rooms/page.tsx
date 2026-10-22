@@ -1470,20 +1470,21 @@ export default function RoomsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="bg-gradient-to-r from-teal-800 via-slate-900 to-indigo-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      {/* Top Banner - Luminous Rose & Coral Room Reservation Card */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-rose-50/70 via-white to-pink-50/60 dark:from-slate-900 dark:via-slate-850 dark:to-rose-950/40 rounded-3xl p-6 sm:p-8 border border-rose-200/80 dark:border-rose-900/60 shadow-lg shadow-rose-900/5 dark:shadow-black/20">
+        <div className="absolute right-0 top-0 w-96 h-96 bg-rose-400/15 dark:bg-rose-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute -bottom-10 -left-10 w-72 h-72 bg-teal-400/15 dark:bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
           <div>
-            <div className="flex items-center gap-2 text-teal-300 text-xs font-bold uppercase tracking-wider mb-2">
-              <Building2 className="w-4 h-4 text-teal-400" />
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-rose-100/80 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border border-rose-200/90 dark:border-rose-800/80 text-xs font-bold uppercase tracking-wide mb-2">
+              <Building2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
               <span>ระบบจองห้องปฏิบัติการสำหรับใช้งาน (Room Reservation)</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
               ตารางและการยื่นคำขอจองห้องปฏิบัติการ
             </h1>
-            <p className="text-slate-300 text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
+            <p className="text-slate-600 dark:text-slate-300 text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
               ขอใช้ห้องปฏิบัติการสำหรับการเรียนการสอน การสอบประเมิน การฝึกกลุ่ม และกิจกรรมต่างๆ พร้อมระบบตรวจสอบช่วงเวลาไม่ให้ชนกัน
             </p>
           </div>
@@ -1501,7 +1502,7 @@ export default function RoomsPage() {
                 resetBookingModal('SINGLE');
                 setShowBookingModal(true);
               }}
-              className="px-5 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-white font-bold text-sm shadow-lg shadow-teal-500/30 transition cursor-pointer flex items-center gap-2"
+              className="px-5 py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm shadow-md shadow-rose-600/25 transition cursor-pointer flex items-center gap-2"
             >
               <Plus className="w-5 h-5" />
               <span>+ ยื่นคำขอจองห้องใช้งาน</span>
@@ -1513,7 +1514,7 @@ export default function RoomsPage() {
                   resetBookingModal('TIMETABLE');
                   setShowBookingModal(true);
                 }}
-                className="px-4 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition cursor-pointer flex items-center gap-1.5"
+                className="px-4 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/25 transition cursor-pointer flex items-center gap-1.5"
                 title="จัดตารางเรียนรายวิชาประจำภาคการศึกษา หรือจองหลายห้องพร้อมกัน"
               >
                 <CalendarDays className="w-4 h-4 text-indigo-200" />
@@ -1535,9 +1536,9 @@ export default function RoomsPage() {
                   });
                   setShowRoomModal(true);
                 }}
-                className="px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/15 transition cursor-pointer flex items-center gap-1.5"
+                className="px-4 py-3 rounded-2xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs border border-slate-200 dark:border-slate-700 shadow-xs transition cursor-pointer flex items-center gap-1.5"
               >
-                <Building className="w-4 h-4 text-teal-300" />
+                <Building className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                 <span>+ เพิ่มห้องใหม่</span>
               </button>
             )}
@@ -1545,44 +1546,44 @@ export default function RoomsPage() {
         </div>
 
         {/* Mini KPI Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-white/10">
-          <div className="bg-white/10 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-white/10">
-            <span className="text-[11px] font-medium text-slate-300 block">ห้องที่เปิดให้จอง</span>
-            <div className="text-xl font-black text-emerald-300 mt-0.5">
-              {activeRoomsCount} <span className="text-xs font-normal text-slate-300">/ {visibleRooms.length} ห้อง</span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-slate-200/80 dark:border-slate-800 relative z-10">
+          <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">ห้องที่เปิดให้จอง</span>
+            <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
+              {activeRoomsCount} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">/ {visibleRooms.length} ห้อง</span>
             </div>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-white/10">
-            <span className="text-[11px] font-medium text-slate-300 block">คำขอรออนุมัติ</span>
-            <div className="text-xl font-black text-amber-300 mt-0.5">
-              {pendingCount} <span className="text-xs font-normal text-slate-300">รายการ</span>
+          <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">คำขอรออนุมัติ</span>
+            <div className="text-xl font-black text-amber-600 dark:text-amber-400 mt-0.5">
+              {pendingCount} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">รายการ</span>
             </div>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-white/10">
-            <span className="text-[11px] font-medium text-slate-300 block">อนุมัติแล้วในเดือนนี้</span>
-            <div className="text-xl font-black text-teal-300 mt-0.5">
-              {approvedCount} <span className="text-xs font-normal text-slate-300">รอบใช้งาน</span>
+          <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">อนุมัติแล้วในเดือนนี้</span>
+            <div className="text-xl font-black text-rose-600 dark:text-rose-400 mt-0.5">
+              {approvedCount} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">รอบใช้งาน</span>
             </div>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-white/10">
-            <span className="text-[11px] font-medium text-slate-300 block">การจองทั้งหมด</span>
-            <div className="text-xl font-black text-indigo-300 mt-0.5">
-              {bookings.length} <span className="text-xs font-normal text-slate-300">รายการ</span>
+          <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">การจองทั้งหมด</span>
+            <div className="text-xl font-black text-indigo-600 dark:text-indigo-400 mt-0.5">
+              {bookings.length} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">รายการ</span>
             </div>
           </div>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex flex-wrap items-center gap-2 mt-5">
+        <div className="flex flex-wrap items-center gap-2 mt-5 relative z-10">
           <button
             onClick={() => setActiveTab('TIMETABLE')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 ${
               activeTab === 'TIMETABLE'
-                ? 'bg-teal-500 text-white shadow-md shadow-teal-500/30'
-                : 'bg-white/5 hover:bg-white/10 text-slate-200'
+                ? 'bg-rose-500 text-white shadow-md shadow-rose-500/25'
+                : 'bg-white/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
             }`}
           >
             <CalendarDays className="w-4 h-4" />
@@ -1593,8 +1594,8 @@ export default function RoomsPage() {
             onClick={() => setActiveTab('REQUESTS')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 ${
               activeTab === 'REQUESTS'
-                ? 'bg-teal-500 text-white shadow-md shadow-teal-500/30'
-                : 'bg-white/5 hover:bg-white/10 text-slate-200'
+                ? 'bg-rose-500 text-white shadow-md shadow-rose-500/25'
+                : 'bg-white/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
             }`}
           >
             <CheckCircle2 className="w-4 h-4" />
@@ -1609,10 +1610,10 @@ export default function RoomsPage() {
           <button
             onClick={() => fetchData(true)}
             disabled={isRefreshing}
-            className="ml-auto p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+            className="ml-auto p-2 bg-white/80 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs"
             title="รีเฟรชข้อมูล"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 text-rose-600 dark:text-rose-400 ${isRefreshing ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">รีเฟรช</span>
           </button>
         </div>

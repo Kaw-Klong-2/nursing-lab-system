@@ -563,7 +563,7 @@ export default function LoginPage() {
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-teal-700 to-slate-900 p-5 text-white flex items-center justify-between">
+            <div className="bg-gradient-to-r from-teal-600 via-teal-700 to-emerald-600 p-5 text-white flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-teal-300">
                   <KeyRound className="w-5 h-5" />

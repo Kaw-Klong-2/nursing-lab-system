@@ -686,7 +686,7 @@ export default function UsersPage() {
       </div>
 
       {/* Live Presence & Today's Usage Overview Bar (Admin Only) */}
-      <div className="bg-gradient-to-r from-teal-900 via-slate-900 to-indigo-950 p-4 rounded-3xl text-white shadow-md border border-teal-800/40">
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-4 rounded-3xl text-white shadow-md border border-slate-700/60">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="relative flex items-center justify-center p-2 rounded-2xl bg-white/10">
@@ -1892,7 +1892,7 @@ export default function UsersPage() {
         <div className="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             {/* Header */}
-            <div className="bg-gradient-to-r from-amber-600 to-slate-900 p-5 text-white flex items-center justify-between">
+            <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 p-5 text-white flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-amber-300">
                   <KeyRound className="w-5 h-5" />

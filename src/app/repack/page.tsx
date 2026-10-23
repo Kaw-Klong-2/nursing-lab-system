@@ -1,10 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import QRCode from 'qrcode';
 import { useAuth } from '@/lib/auth-context';
 import {
   PackageCheck,
+  ShieldAlert,
   Plus,
   Search,
   Printer,
@@ -28,12 +31,19 @@ import {
   Hash,
   Eye
 } from 'lucide-react';
-import { TableLoadingRow } from '@/components/common/LoadingSpinner';
+import LoadingSpinner, { TableLoadingRow } from '@/components/common/LoadingSpinner';
 import BatchRepackStickerModal from '@/components/qrcode/BatchRepackStickerModal';
 
 export default function RepackPage() {
-  const { currentUser, isOfficer, isAdmin } = useAuth();
+  const router = useRouter();
+  const { currentUser, isOfficer, isAdmin, isLoading } = useAuth();
   const isStaff = isOfficer || isAdmin;
+
+  useEffect(() => {
+    if (!isLoading && !isStaff) {
+      router.replace('/');
+    }
+  }, [isLoading, isStaff, router]);
 
   const [records, setRecords] = useState<any[]>([]);
   const [consumableItems, setConsumableItems] = useState<any[]>([]);
@@ -648,6 +658,37 @@ export default function RepackPage() {
       (r.packItems && r.packItems.some((p: any) => p.packCode.toLowerCase().includes(term)))
     );
   });
+
+  if (isLoading || (loading && isStaff)) {
+    return (
+      <LoadingSpinner
+        message="กำลังโหลดข้อมูลการแบ่งบรรจุและสเตอร์ไรด์..."
+        submessage="กำลังเชื่อมต่อฐานข้อมูลซองปลอดเชื้อ"
+      />
+    );
+  }
+
+  if (!isStaff) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-3xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 flex items-center justify-center mb-4">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800 dark:text-white">
+          ไม่มีสิทธิ์เข้าถึง (Access Denied)
+        </h2>
+        <p className="text-xs text-slate-500 max-w-md mt-1 mb-6">
+          หน้านี้เป็นระบบงานแบ่งบรรจุและสเตอร์ไรด์ สงวนสิทธิ์เฉพาะเจ้าหน้าที่ห้องปฏิบัติการและผู้ดูแลระบบเท่านั้น
+        </p>
+        <Link
+          href="/"
+          className="px-5 py-2.5 rounded-xl bg-teal-600 text-white text-xs font-bold shadow-md hover:bg-teal-500 transition"
+        >
+          กลับหน้าหลัก
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 print:space-y-4">

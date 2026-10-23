@@ -1,7 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
 import {
   CalendarDays,
   Plus,
@@ -33,7 +36,8 @@ interface AcademicTermItem {
 }
 
 export default function AcademicTermsSettingsPage() {
-  const { currentUser, isLoading } = useAuth();
+  const router = useRouter();
+  const { currentUser, isOfficer, isAdmin, isLoading } = useAuth();
   const [terms, setTerms] = useState<AcademicTermItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -51,6 +55,12 @@ export default function AcademicTermsSettingsPage() {
 
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  useEffect(() => {
+    if (!isLoading && !isOfficer && !isAdmin) {
+      router.replace('/');
+    }
+  }, [isLoading, isOfficer, isAdmin, router]);
 
   const fetchTerms = async () => {
     try {
@@ -199,6 +209,37 @@ export default function AcademicTermsSettingsPage() {
   };
 
   const currentTerm = terms.find((t) => t.isCurrent);
+
+  if (isLoading || loading) {
+    return (
+      <LoadingSpinner
+        message="กำลังโหลดข้อมูลภาคการศึกษา..."
+        submessage="กำลังตรวจสอบสิทธิ์การตั้งค่าระบบ"
+      />
+    );
+  }
+
+  if (!isOfficer && !isAdmin) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-3xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 flex items-center justify-center mb-4">
+          <AlertCircle className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800 dark:text-white">
+          ไม่มีสิทธิ์เข้าถึง (Access Denied)
+        </h2>
+        <p className="text-xs text-slate-500 max-w-md mt-1 mb-6">
+          หน้านี้สงวนสิทธิ์เฉพาะผู้ดูแลระบบและเจ้าหน้าที่ห้องปฏิบัติการเท่านั้น
+        </p>
+        <Link
+          href="/"
+          className="px-5 py-2.5 rounded-xl bg-teal-600 text-white text-xs font-bold shadow-md hover:bg-teal-500 transition"
+        >
+          กลับหน้าหลัก
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50/60 dark:bg-slate-950 p-4 sm:p-6 lg:p-8 space-y-6">

@@ -1,10 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth, UserRole } from '@/lib/auth-context';
+import LoadingSpinner, { TableLoadingRow } from '@/components/common/LoadingSpinner';
 import {
   Users,
   ShieldCheck,
+  ShieldAlert,
   Activity,
   UserCheck,
   UserX,
@@ -44,15 +48,21 @@ import {
   Clock,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { TableLoadingRow } from '@/components/common/LoadingSpinner';
 import { COMMON_USER_PREFIXES, formatUserName, getUserBadges } from '@/lib/user-utils';
 import { formatApprovalScopeBadge, ApprovalScopeType } from '@/lib/approval-scope';
 import DailyUsageCharts from '@/components/users/DailyUsageCharts';
 
 export default function UsersPage() {
-  const { availableUsers, isAdmin, currentUser } = useAuth();
+  const router = useRouter();
+  const { availableUsers, isAdmin, currentUser, isLoading } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isLoading && !isAdmin) {
+      router.replace('/');
+    }
+  }, [isLoading, isAdmin, router]);
   const [selectedTab, setSelectedTab] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -189,7 +199,9 @@ export default function UsersPage() {
   };
 
   useEffect(() => {
-    fetchUsers();
+    if (isAdmin) {
+      fetchUsers();
+    }
     if (isAdmin && currentUser?.id) {
       fetchActiveSessions();
       const interval = setInterval(fetchActiveSessions, 20 * 1000); // refresh every 20s
@@ -636,6 +648,37 @@ export default function UsersPage() {
     }
     return true;
   });
+
+  if (isLoading || (loading && isAdmin)) {
+    return (
+      <LoadingSpinner
+        message="กำลังโหลดข้อมูลบัญชีผู้ใช้งาน..."
+        submessage="กำลังตรวจสอบสิทธิ์การจัดการระบบ"
+      />
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-3xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 flex items-center justify-center mb-4">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800 dark:text-white">
+          ไม่มีสิทธิ์เข้าถึง (Access Denied)
+        </h2>
+        <p className="text-xs text-slate-500 max-w-md mt-1 mb-6">
+          หน้านี้สงวนสิทธิ์เฉพาะผู้ดูแลระบบสูงสุด (Admin) เท่านั้น
+        </p>
+        <Link
+          href="/"
+          className="px-5 py-2.5 rounded-xl bg-teal-600 text-white text-xs font-bold shadow-md hover:bg-teal-500 transition"
+        >
+          กลับหน้าหลัก
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

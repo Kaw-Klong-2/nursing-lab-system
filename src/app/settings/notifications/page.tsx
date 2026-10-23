@@ -1,7 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
 import {
   Bell,
   Sliders,
@@ -41,7 +44,8 @@ const CATEGORIES = [
 ];
 
 export default function NotificationSettingsPage() {
-  const { currentUser, isLoading } = useAuth();
+  const router = useRouter();
+  const { currentUser, isAdmin, isLoading } = useAuth();
   const [templates, setTemplates] = useState<NotificationTemplateItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('ALL');
@@ -49,6 +53,12 @@ export default function NotificationSettingsPage() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ [id: string]: { type: 'success' | 'error'; message: string } }>({});
+
+  useEffect(() => {
+    if (!isLoading && !isAdmin) {
+      router.replace('/');
+    }
+  }, [isLoading, isAdmin, router]);
 
   const fetchTemplates = async () => {
     try {
@@ -66,8 +76,10 @@ export default function NotificationSettingsPage() {
   };
 
   useEffect(() => {
-    fetchTemplates();
-  }, []);
+    if (isAdmin) {
+      fetchTemplates();
+    }
+  }, [isAdmin]);
 
   const handleFieldChange = (id: string, field: 'title' | 'message' | 'isActive', value: any) => {
     setTemplates((prev) =>
@@ -228,16 +240,31 @@ export default function NotificationSettingsPage() {
     return preview;
   };
 
-  if (!isLoading && currentUser?.role !== 'ADMIN') {
+  if (isLoading || (loading && isAdmin)) {
     return (
-      <div className="max-w-4xl mx-auto py-12 px-4 text-center">
+      <LoadingSpinner
+        message="กำลังโหลดแม่แบบข้อความแจ้งเตือน..."
+        submessage="กำลังตรวจสอบสิทธิ์ผู้ดูแลระบบ"
+      />
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="max-w-4xl mx-auto py-16 px-4 text-center">
         <div className="w-16 h-16 bg-rose-100 dark:bg-rose-950/50 text-rose-600 rounded-3xl mx-auto flex items-center justify-center mb-4">
           <AlertCircle className="w-8 h-8" />
         </div>
-        <h2 className="text-xl font-bold text-slate-900 dark:text-white">ไม่มีสิทธิ์เข้าถึงหน้านี้</h2>
-        <p className="text-sm text-slate-500 mt-1">
-          หน้านี้สงวนไว้สำหรับผู้ดูแลระบบ (Admin) เท่านั้น
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">ไม่มีสิทธิ์เข้าถึงหน้านี้ (Access Denied)</h2>
+        <p className="text-sm text-slate-500 mt-1 mb-6">
+          หน้านี้สงวนสิทธิ์เฉพาะผู้ดูแลระบบสูงสุด (Admin) เท่านั้น
         </p>
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-teal-600 text-white text-xs font-bold shadow-md hover:bg-teal-500 transition"
+        >
+          กลับหน้าหลัก
+        </Link>
       </div>
     );
   }

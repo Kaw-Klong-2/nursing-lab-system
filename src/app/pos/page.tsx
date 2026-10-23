@@ -1,9 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
 import {
   Store,
+  ShieldAlert,
   ScanBarcode,
   Barcode,
   Search,
@@ -53,9 +57,17 @@ interface CartItem {
 }
 
 export default function PosPage() {
-  const { currentUser, isOfficer, isAdmin } = useAuth();
+  const router = useRouter();
+  const { currentUser, isOfficer, isAdmin, isLoading } = useAuth();
+  const isStaff = isOfficer || isAdmin;
   const [mode, setMode] = useState<'CHECKOUT' | 'RETURN'>('CHECKOUT');
   const [soundEnabled, setSoundEnabled] = useState(true);
+
+  useEffect(() => {
+    if (!isLoading && !isStaff) {
+      router.replace('/');
+    }
+  }, [isLoading, isStaff, router]);
 
   // Form / Selection State
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
@@ -568,6 +580,37 @@ export default function PosPage() {
       setReturnSubmitting(false);
     }
   };
+
+  if (isLoading) {
+    return (
+      <LoadingSpinner
+        message="กำลังโหลดจุดบริการเบิกจ่ายด่วน (POS)..."
+        submessage="กำลังเตรียมพร้อมระบบเครื่องยิงบาร์โค้ด"
+      />
+    );
+  }
+
+  if (!isStaff) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-3xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 flex items-center justify-center mb-4">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800 dark:text-white">
+          ไม่มีสิทธิ์เข้าถึง (Access Denied)
+        </h2>
+        <p className="text-xs text-slate-500 max-w-md mt-1 mb-6">
+          หน้านี้เป็นระบบจุดบริการเบิกจ่ายด่วนหน้าร้าน (POS) สงวนสิทธิ์เฉพาะเจ้าหน้าที่ห้องปฏิบัติการและผู้ดูแลระบบเท่านั้น
+        </p>
+        <Link
+          href="/"
+          className="px-5 py-2.5 rounded-xl bg-teal-600 text-white text-xs font-bold shadow-md hover:bg-teal-500 transition"
+        >
+          กลับหน้าหลัก
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 p-3 sm:p-5 lg:p-6 space-y-4">

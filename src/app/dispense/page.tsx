@@ -1,9 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
 import {
   PackageCheck,
+  ShieldAlert,
   Search,
   RefreshCw,
   Clock,
@@ -64,8 +68,16 @@ interface QueueItem {
 }
 
 export default function DispenseCenterPage() {
-  const { currentUser, isOfficer, isAdmin } = useAuth();
+  const router = useRouter();
+  const { currentUser, isOfficer, isAdmin, isLoading } = useAuth();
+  const isStaff = isOfficer || isAdmin;
   const [queue, setQueue] = useState<QueueItem[]>([]);
+
+  useEffect(() => {
+    if (!isLoading && !isStaff) {
+      router.replace('/');
+    }
+  }, [isLoading, isStaff, router]);
   const [summary, setSummary] = useState({
     totalPending: 0,
     todayCount: 0,
@@ -240,12 +252,33 @@ export default function DispenseCenterPage() {
     }
   };
 
-  if (!isOfficer && !isAdmin) {
+  if (isLoading || (loading && isStaff)) {
     return (
-      <div className="p-8 text-center text-slate-500">
-        <PackageCheck className="w-12 h-12 mx-auto text-slate-400 mb-3" />
-        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200">สงวนสิทธิ์เฉพาะเจ้าหน้าที่ห้องแล็บและผู้ดูแลระบบ</h2>
-        <p className="text-xs text-slate-400 mt-1">กรุณาเข้าสู่ระบบด้วยบัญชีเจ้าหน้าที่เพื่อดำเนินการจ่ายพัสดุ</p>
+      <LoadingSpinner
+        message="กำลังโหลดคิวงานจ่ายพัสดุ..."
+        submessage="กำลังเชื่อมต่อฐานข้อมูลเคาน์เตอร์ห้องปฏิบัติการ"
+      />
+    );
+  }
+
+  if (!isStaff) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-3xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 flex items-center justify-center mb-4">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800 dark:text-white">
+          ไม่มีสิทธิ์เข้าถึง (Access Denied)
+        </h2>
+        <p className="text-xs text-slate-500 max-w-md mt-1 mb-6">
+          หน้านี้เป็นระบบเคาน์เตอร์จ่ายพัสดุ สงวนสิทธิ์เฉพาะเจ้าหน้าที่ห้องปฏิบัติการและผู้ดูแลระบบเท่านั้น
+        </p>
+        <Link
+          href="/"
+          className="px-5 py-2.5 rounded-xl bg-teal-600 text-white text-xs font-bold shadow-md hover:bg-teal-500 transition"
+        >
+          กลับหน้าหลัก
+        </Link>
       </div>
     );
   }

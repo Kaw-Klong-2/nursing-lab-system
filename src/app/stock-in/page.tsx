@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import BoxStickerModal from '@/components/qrcode/BoxStickerModal';
 import { useAuth } from '@/lib/auth-context';
 import { formatUserName } from '@/lib/user-utils';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
 import {
   ArrowDownToLine,
   Boxes,
@@ -21,7 +23,7 @@ import {
 } from 'lucide-react';
 
 export default function StockInPage() {
-  const { currentUser, isOfficer } = useAuth();
+  const { currentUser, isOfficer, isLoading } = useAuth();
   const [items, setItems] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'CONSUMABLE' | 'EQUIPMENT'>('CONSUMABLE');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -214,14 +216,31 @@ export default function StockInPage() {
   const selectedItem = items.find((i) => i.id === form.itemId);
   const eligibleItems = items.filter((i) => i.type === activeTab);
 
+  if (isLoading || (loading && isOfficer)) {
+    return (
+      <LoadingSpinner
+        message="กำลังโหลดข้อมูลรับเข้าพัสดุ..."
+        submessage="กำลังเชื่อมต่อฐานข้อมูลสต็อกและครุภัณฑ์"
+      />
+    );
+  }
+
   if (!isOfficer) {
     return (
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center text-amber-800">
-        <AlertCircle className="w-8 h-8 mx-auto mb-2 text-amber-600" />
-        <h3 className="font-bold text-base">เฉพาะเจ้าหน้าที่ห้องปฏิบัติการพยาบาล</h3>
-        <p className="text-xs mt-1">
-          กรุณาสลับบทบาทเป็น "เจ้าหน้าที่แล็บ" หรือ "ผู้ดูแลระบบ" จากแถบด้านบนเพื่อบันทึกการรับเข้าพัสดุ
+      <div className="min-h-[50vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-3xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 flex items-center justify-center mb-4">
+          <AlertCircle className="w-8 h-8" />
+        </div>
+        <h3 className="font-bold text-lg text-slate-800 dark:text-white">เฉพาะเจ้าหน้าที่ห้องปฏิบัติการพยาบาล</h3>
+        <p className="text-xs text-slate-500 max-w-md mt-1 mb-6">
+          กรุณาเข้าสู่ระบบด้วยบัญชี "เจ้าหน้าที่แล็บ" หรือ "ผู้ดูแลระบบ" เพื่อบันทึกการรับเข้าพัสดุและลงทะเบียนครุภัณฑ์
         </p>
+        <Link
+          href="/"
+          className="px-5 py-2.5 rounded-xl bg-teal-600 text-white text-xs font-bold shadow-md hover:bg-teal-500 transition"
+        >
+          กลับหน้าหลัก
+        </Link>
       </div>
     );
   }

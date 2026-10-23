@@ -17,6 +17,30 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-24] ยกระดับความปลอดภัยการเข้าถึงหน้าจอด้วย Role Guard Hardening (Defense-in-Depth)
+- **หมวดหมู่**: Security / Authorization / Defense-in-Depth
+- **สิ่งที่ดำเนินการ**:
+  1. **เสริมความปลอดภัยการเข้าถึงหน้าจอโดยตรง (Direct Navigation Protection)**:
+     - ป้องกันกรณีผู้ใช้ทั่วไปหรือนิสิตพิมพ์ URL โดยตรงในแถบเบราว์เซอร์เพื่อเข้าถึงหน้าจอของผู้ดูแลระบบหรือเจ้าหน้าที่
+     - เพิ่ม `useEffect` สำหรับตรวจจับและ Redirect อัตโนมัติ (`router.replace('/')`) พร้อมแสดงบัตร Access Denied และปุ่มกลับหน้าหลัก
+  2. **ครอบคลุมหน้าจอสำคัญและคลังข้อมูล**:
+     - `src/app/settings/terms/page.tsx`: สงวนสิทธิ์เฉพาะ `ADMIN` และ `OFFICER`
+     - `src/app/settings/notifications/page.tsx`: สงวนสิทธิ์เฉพาะ `ADMIN` พร้อมปรับปรุงการดึงข้อมูล `fetchTemplates()` ให้เรียกเฉพาะเมื่อมีสิทธิ์
+     - `src/app/users/page.tsx`: สงวนสิทธิ์เฉพาะ `ADMIN` พร้อมปรับปรุงการดึง `fetchUsers()` ไม่ให้โหลดข้อมูลผู้ใช้หากไม่มีสิทธิ์
+     - `src/app/dispense/page.tsx`: สงวนสิทธิ์เฉพาะ `OFFICER` และ `ADMIN` สำหรับคิวงานจ่ายพัสดุหน้าเคาน์เตอร์
+     - `src/app/pos/page.tsx`: สงวนสิทธิ์เฉพาะ `OFFICER` และ `ADMIN` สำหรับจุดบริการจ่ายด่วนหน้าร้าน
+     - `src/app/stock-in/page.tsx` & `src/app/repack/page.tsx`: ปรับปรุง LoadingSpinner และ Access Denied ให้รองรับ `isLoading` และ Link กลับหน้าหลักอย่างราบรื่น
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/app/settings/terms/page.tsx`
+  - `src/app/settings/notifications/page.tsx`
+  - `src/app/users/page.tsx`
+  - `src/app/dispense/page.tsx`
+  - `src/app/pos/page.tsx`
+  - `src/app/stock-in/page.tsx`
+  - `src/app/repack/page.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `node scripts/librarian-audit.mjs` ผ่าน 100% (คำว่า "นิสิต" ถูกต้องสมบูรณ์, UTF-8 สมบูรณ์)
+
+
 ### [2026-10-24] ปรับปรุง Luminous Sidebar และแก้ไขข้อผิดพลาด Routing ของศูนย์ปฏิบัติการแอดมิน (Staff & Admin Console)
 - **หมวดหมู่**: Navigation / Routing Bugfix / Luminous Sidebar Theming
 - **สิ่งที่ดำเนินการ**:

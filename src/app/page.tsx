@@ -32,13 +32,22 @@ import CourseBudgetDonut from '@/components/dashboard/CourseBudgetDonut';
 import DashboardCharts from '@/components/dashboard/DashboardCharts';
 import MasterRoomCalendar from '@/components/calendar/MasterRoomCalendar';
 import { formatUserName, formatTeacherName } from '@/lib/user-utils';
+import { getSubAppsForUser } from '@/lib/sub-apps';
 
 export default function DashboardPage() {
-  const { currentUser, isTeacher, isOfficer, isApprover } = useAuth();
+  const { currentUser, isTeacher, isOfficer, isApprover, isAdmin, isExecutive } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'CALENDAR' | 'ANALYTICS'>('CALENDAR');
   const [currentTerm, setCurrentTerm] = useState<any>(null);
+
+  const accessibleApps = getSubAppsForUser(currentUser?.role, {
+    isTeacher,
+    isOfficer,
+    isAdmin,
+    isApprover,
+    isExecutive,
+  });
 
   const fetchDashboard = async () => {
     try {
@@ -145,6 +154,96 @@ export default function DashboardPage() {
               <span className="truncate">รับเข้าสต็อก/Lot</span>
             </Link>
           )}
+        </div>
+      </div>
+
+      {/* 📱 KUNurse Lab Sub-Apps Launchpad Hub */}
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center font-bold text-base border border-teal-500/20">
+              㗊
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <span>ศูนย์รวมแอปพลิเคชันย่อย (KUNurse Lab Sub-Apps)</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300">
+                  {accessibleApps.length} ระบบ
+                </span>
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                เลือกระบบงานที่ต้องการเพื่อเข้าถึงฟังก์ชันและเมนูเฉพาะด้าน
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Sub-Apps Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {accessibleApps.map((app) => {
+            const isConsole = app.id === 'staff-admin-console';
+            const isApprovals = app.id === 'approvals-hub';
+            const pendingCount =
+              (data?.pendingBorrows || 0) +
+              (data?.pendingRequisitions || 0) +
+              (data?.pendingPracticeCount || 0) +
+              (data?.pendingRoomBookings || 0);
+
+            return (
+              <Link
+                key={app.id}
+                href={app.primaryHref}
+                className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 text-left group hover:scale-[1.01] ${
+                  isConsole
+                    ? 'bg-gradient-to-br from-cyan-50/70 via-white to-blue-50/60 dark:from-slate-850 dark:via-slate-800 dark:to-cyan-950/40 border-cyan-300 dark:border-cyan-800 hover:border-cyan-400 shadow-sm hover:shadow-md'
+                    : 'bg-slate-50/60 dark:bg-slate-800/40 hover:bg-white dark:hover:bg-slate-800 border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs hover:shadow-md'
+                }`}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="w-10 h-10 rounded-2xl bg-white dark:bg-slate-700 flex items-center justify-center text-xl shadow-xs border border-slate-200/60 dark:border-slate-600/60">
+                      {app.emoji}
+                    </div>
+
+                    <div className="flex flex-col items-end gap-1">
+                      {isConsole && (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800">
+                          รวม 9 งานบันทึก
+                        </span>
+                      )}
+                      {isApprovals && pendingCount > 0 && (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-500 text-white animate-pulse">
+                          รออนุมัติ {pendingCount}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-2.5 space-y-0.5">
+                    <h4 className="text-sm font-black text-slate-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition">
+                      {app.name}
+                    </h4>
+                    <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
+                      {app.nameEn}
+                    </p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-2 pt-1">
+                      {app.tagline}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between text-xs font-bold text-teal-600 dark:text-teal-400">
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                    {app.items.length} เมนูย่อย
+                  </span>
+                  <span className="inline-flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                    <span>เข้าสู่ระบบ</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </div>
 

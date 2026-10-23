@@ -24,6 +24,7 @@ import ProfileModal from '@/components/profile/ProfileModal';
 import QrScannerModal from '@/components/qrcode/QrScannerModal';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import ThemeToggle from '@/components/common/ThemeToggle';
+import AppLauncherModal from '@/components/layout/AppLauncherModal';
 import { formatUserName } from '@/lib/user-utils';
 
 interface NavbarProps {
@@ -35,6 +36,7 @@ export default function Navbar({ onToggleMobileMenu, isMobileMenuOpen }: NavbarP
   const { currentUser, logout } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isAppLauncherOpen, setIsAppLauncherOpen] = useState(false);
 
   const getRoleBadge = (role?: UserRole) => {
     switch (role) {
@@ -131,6 +133,17 @@ export default function Navbar({ onToggleMobileMenu, isMobileMenuOpen }: NavbarP
           <span className="hidden sm:inline">Lab Store (POS)</span>
         </Link>
 
+        {/* 9-Dots Sub-Apps Launcher Button */}
+        <button
+          type="button"
+          onClick={() => setIsAppLauncherOpen(true)}
+          className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 text-xs font-bold transition border border-slate-200 dark:border-slate-700 shadow-xs cursor-pointer flex-shrink-0"
+          title="ศูนย์รวมแอปพลิเคชันย่อย (KUNurse Lab Apps)"
+        >
+          <span className="text-base leading-none">㗊</span>
+          <span className="hidden sm:inline">แอปย่อย</span>
+        </button>
+
         {/* Quick QR Scanner Button */}
         <button
           onClick={() => setIsScannerOpen(true)}
@@ -192,6 +205,9 @@ export default function Navbar({ onToggleMobileMenu, isMobileMenuOpen }: NavbarP
           </Link>
         )}
       </div>
+
+      {/* App Launcher 9-Dots Modal */}
+      <AppLauncherModal isOpen={isAppLauncherOpen} onClose={() => setIsAppLauncherOpen(false)} />
 
       {/* Profile Modal */}
       <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />

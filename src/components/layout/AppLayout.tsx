@@ -15,7 +15,7 @@ import {
   LayoutDashboard,
   Boxes,
   QrCode,
-  Stethoscope,
+  Building2,
   Menu,
 } from 'lucide-react';
 
@@ -132,14 +132,14 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         </button>
 
         <Link
-          href="/practice"
+          href="/rooms"
           onClick={() => setIsMobileMenuOpen(false)}
           className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition ${
-            pathname?.startsWith('/practice') ? 'text-teal-600 dark:text-teal-400 font-bold' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+            pathname?.startsWith('/rooms') ? 'text-teal-600 dark:text-teal-400 font-bold' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
-          <Stethoscope className="w-5 h-5" />
-          <span className="text-[10px]">ฝึกซ้อม</span>
+          <Building2 className="w-5 h-5" />
+          <span className="text-[10px]">จองห้อง</span>
         </Link>
 
         <button
@@ -150,7 +150,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           }`}
         >
           <Menu className="w-5 h-5" />
-          <span className="text-[10px]">เมนู</span>
+          <span className="text-[10px]">แอปย่อย</span>
         </button>
       </nav>
 

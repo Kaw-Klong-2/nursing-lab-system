@@ -17,6 +17,25 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-23] ปรับปรุงสถาปัตยกรรมระบบนำทางเป็น Modular Sub-App Suite พร้อม Staff & Admin Console และ 9-Dots Launcher
+- **หมวดหมู่**: Navigation / UX Architecture / Modular Sub-Apps
+- **สิ่งที่ดำเนินการ**:
+  1. **สร้างระบบจัดการแอปย่อย (`src/lib/sub-apps.ts`)**: รองรับ 6 แอปย่อย ได้แก่ (1) ระบบจองห้องปฏิบัติการ (Lab Room Reservation) (2) ระบบบริการยืม-คืนและเบิกจ่าย (Borrow & Dispense System) (3) ระบบบริหารคลังพัสดุและครุภัณฑ์ (Inventory & Asset Management) (4) ศูนย์อนุมัติคำขอ (Approvals Hub) (5) รายงานและแดชบอร์ดผู้บริหาร (Executive Analytics) และ (6) ระบบจัดการเจ้าหน้าที่ & ผู้ดูแลระบบ (Staff & Admin Console)
+  2. **ระบบจัดการเจ้าหน้าที่ & ผู้ดูแลระบบ (Staff & Admin Console)**: รวบรวม 9 งานบันทึกหน้างานสำคัญของเจ้าหน้าที่และแอดมิน (จ่ายของเคาน์เตอร์, รับเข้าพัสดุ, แบ่งบรรจุสเตอร์ไรด์, จดเปิด-ปิดแอร์, ตรวจเช็กซ่อมบำรุง, จัดการผู้ใช้, ภาคเรียน, แจ้งเตือน, Audit Logs) รวมไว้ใน Console เดียวกันเพื่อความสะดวกโดยไม่ต้องสลับแอปไปมา ในขณะที่ยังคงเมนูเหล่านั้นไว้ในแอปย่อยเดิมควบคู่กัน
+  3. **Sidebar ปรับตามแอปย่อย (Contextual Sidebar)**: บนหัว Sidebar มีตัวเลือกสลับแอป (Sub-App Switcher Dropdown) และแสดงเฉพาะเมนูของแอปย่อยนั้น (3-5 เมนู) เมนูสั้น กระชับ สบายตา พร้อมปุ่มภาพรวมห้องแล็บอยู่ด้านบนสุดเสมอ
+  4. **9-Dots App Launcher Modal (`src/components/layout/AppLauncherModal.tsx` & `Navbar.tsx`)**: เพิ่มปุ่มไอคอน 9-Dots บนแถบนำทางด้านบน เพื่อเปิดโมดอลกระโดดข้ามแอปย่อยได้ทันทีจากทุกหน้าจอ
+  5. **Sub-Apps Launchpad Hub หน้าแรก (`src/app/page.tsx`)**: เพิ่มกล่องรวมการ์ดแอปย่อย 6 ระบบบนหน้าแรก พร้อมตัวเลขสถานะงานค้างและปุ่มทางลัดเข้าสู่ระบบ
+  6. **Mobile Bottom Navigation Bar (`AppLayout.tsx`)**: ปรับปรุงปุ่มแถบล่างสำหรับสมาร์ทโฟนให้มีปุ่มจองห้องและปุ่มเมนูแอปย่อยอย่างลงตัว
+- **ไฟล์สำคัญที่แก้ไข/สร้างใหม่**:
+  - `src/lib/sub-apps.ts`
+  - `src/components/layout/AppLauncherModal.tsx`
+  - `src/components/layout/Sidebar.tsx`
+  - `src/components/layout/Navbar.tsx`
+  - `src/components/layout/AppLayout.tsx`
+  - `src/app/page.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx.cmd tsc --noEmit` ผ่าน 0 errors, `node scripts/librarian-audit.mjs` ผ่าน 100% (คำว่า "นิสิต" ถูกต้องครบถ้วน, UTF-8 สมบูรณ์)
+
+
 ### [2026-10-23] ปรับปรุงส่วนประกอบโทนสีมืดที่เหลือทั้งระบบให้เป็น Luminous Theme สว่างสดใส คลีน สบายตา ครบ 100%
 - **หมวดหมู่**: UI / Theming / Design System
 - **สิ่งที่ดำเนินการ**:

@@ -2,41 +2,31 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth, UserRole } from '@/lib/auth-context';
 import {
   LayoutDashboard,
-  Boxes,
-  ArrowDownToLine,
-  RefreshCw,
-  FileSpreadsheet,
-  CheckSquare,
-  BarChart3,
-  Users,
-  Clock,
-  Shield,
-  GraduationCap,
-  UserCog,
-  CalendarDays,
-  BriefcaseMedical,
-  PackageCheck,
-  QrCode,
-  BookOpen,
   ChevronDown,
   ChevronsUpDown,
   Building2,
   X,
-  Store,
-  Sliders,
-  Wind,
   LogOut,
-  Wrench,
-  History,
+  Layers,
+  Sparkles,
+  ChevronRight,
+  ExternalLink,
 } from 'lucide-react';
 import ProfileModal from '@/components/profile/ProfileModal';
 import ThemeToggle from '@/components/common/ThemeToggle';
 import { formatUserName } from '@/lib/user-utils';
 import { getModuleTheme } from '@/lib/module-theme';
+import {
+  SUB_APPS,
+  SubAppConfig,
+  SubAppId,
+  getSubAppsForUser,
+  detectSubAppFromPathname,
+} from '@/lib/sub-apps';
 
 interface SidebarProps {
   mobileOpen?: boolean;
@@ -45,10 +35,13 @@ interface SidebarProps {
 
 export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps = {}) {
   const pathname = usePathname();
+  const router = useRouter();
   const currentTheme = getModuleTheme(pathname);
-  const { currentUser, isOfficer, isApprover, isExecutive, isAdmin, logout } = useAuth();
+  const { currentUser, isOfficer, isApprover, isExecutive, isAdmin, isTeacher, logout } = useAuth();
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [preferredSubAppId, setPreferredSubAppId] = useState<SubAppId | null>(null);
+  const [isSwitcherOpen, setIsSwitcherOpen] = useState<boolean>(false);
 
   useEffect(() => {
     async function fetchStats() {
@@ -77,230 +70,34 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
     return null;
   }
 
-  interface NavItem {
-    label: string;
-    href: string;
-    icon: any;
-    roles: string[];
-    badgeCount?: number;
-  }
+  const userRole = currentUser?.role || 'USER';
 
-  interface NavGroup {
-    groupName: string;
-    groupKey: string;
-    groupIcon: any;
-    items: NavItem[];
-  }
-
-  const navGroups: NavGroup[] = [
-    {
-      groupName: 'ภาพรวม & กำหนดการ',
-      groupKey: 'overview',
-      groupIcon: LayoutDashboard,
-      items: [
-        {
-          label: 'ภาพรวมห้องแล็บ',
-          href: '/',
-          icon: LayoutDashboard,
-          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'USER'],
-        },
-        {
-          label: 'ตารางงาน & กำหนดรับ-คืน',
-          href: '/schedule',
-          icon: CalendarDays,
-          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER'],
-        },
-        {
-          label: 'แดชบอร์ดผู้บริหาร (Cockpit 360°)',
-          href: '/executive',
-          icon: BarChart3,
-          roles: ['ADMIN', 'EXECUTIVE'],
-        },
-      ],
-    },
-    {
-      groupName: 'บริการเบิก-ยืม & ฝึกปฏิบัติ',
-      groupKey: 'services',
-      groupIcon: RefreshCw,
-      items: [
-        {
-          label: 'ศูนย์อนุมัติคำขอ',
-          href: '/approvals',
-          icon: CheckSquare,
-          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'USER'],
-          badgeCount: pendingCount,
-        },
-        {
-          label: 'ศูนย์จ่ายพัสดุ',
-          href: '/dispense',
-          icon: PackageCheck,
-          roles: ['ADMIN', 'OFFICER'],
-        },
-        {
-          label: 'ยืม-คืนครุภัณฑ์ & เบิกพัสดุ',
-          href: '/borrow',
-          icon: RefreshCw,
-          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'USER'],
-        },
-        {
-          label: 'จุดเบิกจ่ายด่วน (Lab Store)',
-          href: '/pos',
-          icon: Store,
-          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'USER'],
-        },
-        {
-          label: 'ชุดฝึกปฏิบัติการ (Kits)',
-          href: '/kits',
-          icon: BriefcaseMedical,
-          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'USER'],
-        },
-        {
-          label: 'จองห้องสำหรับใช้งาน',
-          href: '/rooms',
-          icon: Building2,
-          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'USER'],
-        },
-        {
-          label: 'ขอเข้าฝึกปฏิบัติด้วยตนเอง',
-          href: '/practice',
-          icon: QrCode,
-          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'USER'],
-        },
-        {
-          label: 'ประวัติเบิกจ่ายวัสดุ',
-          href: '/requisitions',
-          icon: FileSpreadsheet,
-          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'USER'],
-        },
-      ],
-    },
-    {
-      groupName: 'จัดการคลัง & งานแล็บ',
-      groupKey: 'inventory',
-      groupIcon: Boxes,
-      items: [
-        {
-          label: 'ทะเบียนพัสดุ-ครุภัณฑ์',
-          href: '/inventory',
-          icon: Boxes,
-          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'USER'],
-        },
-        {
-          label: 'รับเข้าพัสดุ (Stock In)',
-          href: '/stock-in',
-          icon: ArrowDownToLine,
-          roles: ['ADMIN', 'OFFICER'],
-        },
-        {
-          label: 'แบ่งบรรจุ & สเตอร์ไรด์',
-          href: '/repack',
-          icon: PackageCheck,
-          roles: ['ADMIN', 'OFFICER'],
-        },
-        {
-          label: 'ตรวจเช็ก & บำรุงรักษา',
-          href: '/maintenance',
-          icon: Wrench,
-          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE'],
-        },
-      ],
-    },
-    {
-      groupName: 'งบประมาณ & รายงาน',
-      groupKey: 'analytics',
-      groupIcon: BarChart3,
-      items: [
-        {
-          label: 'รายงาน & วิเคราะห์ข้อมูล',
-          href: '/reports',
-          icon: BarChart3,
-          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE'],
-        },
-        {
-          label: 'จัดการรายวิชา & ต้นทุน',
-          href: '/courses',
-          icon: BookOpen,
-          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE'],
-        },
-        {
-          label: 'บันทึกเปิด-ปิดแอร์ (AC Logs)',
-          href: '/air-conditioning',
-          icon: Wind,
-          roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE'],
-        },
-        {
-          label: 'ประวัติการทำรายการ (Audit Logs)',
-          href: '/audit-logs',
-          icon: History,
-          roles: ['ADMIN', 'OFFICER'],
-        },
-      ],
-    },
-    {
-      groupName: 'ผู้ดูแลระบบ',
-      groupKey: 'admin',
-      groupIcon: Users,
-      items: [
-        {
-          label: 'จัดการผู้ใช้ & สิทธิ์',
-          href: '/users',
-          icon: Users,
-          roles: ['ADMIN'],
-        },
-        {
-          label: 'กำหนดภาคการศึกษา',
-          href: '/settings/terms',
-          icon: CalendarDays,
-          roles: ['ADMIN', 'OFFICER'],
-        },
-        {
-          label: 'ตั้งค่าข้อความแจ้งเตือน',
-          href: '/settings/notifications',
-          icon: Sliders,
-          roles: ['ADMIN'],
-        },
-      ],
-    },
-  ];
-
-  // Track open state for dropdown groups (Default all open so menus are clearly visible)
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    overview: true,
-    services: true,
-    inventory: true,
-    analytics: true,
-    admin: true,
+  // Get accessible Sub-Apps for current user
+  const accessibleApps = getSubAppsForUser(userRole, {
+    isTeacher,
+    isOfficer,
+    isAdmin,
+    isApprover,
+    isExecutive,
   });
 
-  // Auto-expand group containing current pathname
-  useEffect(() => {
-    navGroups.forEach((g) => {
-      if (g.items.some((it) => it.href === pathname)) {
-        setOpenGroups((prev) => ({ ...prev, [g.groupKey]: true }));
-      }
-    });
-  }, [pathname]);
+  // Detect current active Sub-App from pathname or preference
+  const detectedAppId = detectSubAppFromPathname(pathname, preferredSubAppId);
+  const activeAppId = detectedAppId || (preferredSubAppId && accessibleApps.some((a) => a.id === preferredSubAppId) ? preferredSubAppId : null);
+  const activeSubApp = activeAppId ? SUB_APPS[activeAppId] : null;
 
-  const toggleGroup = (key: string) => {
-    setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  const handleSelectSubApp = (app: SubAppConfig, isMobile = false) => {
+    setPreferredSubAppId(app.id);
+    setIsSwitcherOpen(false);
+    if (isMobile && onMobileClose) onMobileClose();
+    router.push(app.primaryHref);
   };
-
-  const toggleAllGroups = () => {
-    const anyClosed = Object.values(openGroups).some((v) => !v);
-    const updated: Record<string, boolean> = {};
-    navGroups.forEach((g) => {
-      updated[g.groupKey] = anyClosed;
-    });
-    setOpenGroups(updated);
-  };
-
-  // Current user's role
-  const userRole = currentUser?.role || 'USER';
 
   const renderSidebarContent = (isMobile = false) => (
     <>
-      <div>
-        <div className="px-3 py-2.5 flex items-center justify-between border-b border-slate-800/80 pb-3 mb-2">
+      <div className="space-y-3">
+        {/* Brand & App Suite Identifier */}
+        <div className="px-2 py-2 flex items-center justify-between border-b border-slate-800/80 pb-3">
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-sm font-black tracking-tight text-white flex items-center gap-0.5">
@@ -311,24 +108,13 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
               <span className="text-[9px] bg-slate-800 text-teal-400 px-1.5 py-0.5 rounded font-mono border border-slate-700 font-bold">
                 {userRole}
               </span>
-              {currentTheme && currentTheme.key !== 'overview' && (
-                <span className={`text-[9px] px-1.5 py-0.2 rounded-md font-bold border transition-colors ${currentTheme.sidebarBadge}`}>
-                  {currentTheme.badgeLabel}
-                </span>
-              )}
             </div>
             <span className="text-[10px] text-slate-400 mt-0.5">
               คณะพยาบาลศาสตร์ มก.
             </span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={toggleAllGroups}
-              title="ย่อ/ขยายกลุ่มเมนูทั้งหมด"
-              className="p-1 hover:bg-slate-800 text-slate-400 hover:text-teal-400 rounded transition cursor-pointer"
-            >
-              <ChevronsUpDown className="w-3.5 h-3.5" />
-            </button>
+
+          <div className="flex items-center gap-1">
             {isMobile && onMobileClose && (
               <button
                 type="button"
@@ -342,189 +128,234 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           </div>
         </div>
 
-        <nav className="space-y-2">
-          {navGroups.map((group) => {
-            const visibleItems = group.items.filter((item) => {
-              if (item.href === '/executive') {
-                return isExecutive || isAdmin || item.roles.includes(userRole);
-              }
-              if (item.href === '/approvals') {
-                return isApprover || isAdmin || item.roles.includes(userRole);
-              }
-              if (item.href === '/audit-logs') {
-                return isAdmin || isOfficer;
-              }
-              return item.roles.includes(userRole);
-            });
-            if (visibleItems.length === 0) return null;
-
-            const isOpen = openGroups[group.groupKey] ?? true;
-            const hasActiveItem = visibleItems.some((item) => pathname === item.href);
-
-            return (
-              <div key={group.groupKey} className="space-y-1">
-                {/* Group Dropdown Header */}
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(group.groupKey)}
-                  className={`w-full px-2.5 py-1.5 rounded-xl flex items-center justify-between text-xs font-bold transition cursor-pointer group ${
-                    hasActiveItem
-                      ? currentTheme.sidebarActiveGroupBg
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <group.groupIcon
-                      className={`w-3.5 h-3.5 transition ${
-                        hasActiveItem
-                          ? currentTheme.sidebarActiveGroupText
-                          : 'text-slate-400 group-hover:text-slate-200'
-                      }`}
-                    />
-                    <span className="text-[11px] font-bold">{group.groupName}</span>
-                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-400 font-mono">
-                      {visibleItems.length}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    {hasActiveItem && (
-                      <span className={`w-1.5 h-1.5 rounded-full ${currentTheme.sidebarActiveIndicator}`}></span>
-                    )}
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300 transition-transform duration-200 ${
-                        isOpen ? 'rotate-0' : '-rotate-90'
-                      }`}
-                    />
-                  </div>
-                </button>
-
-                {/* Submenu Dropdown Items */}
-                {isOpen && (
-                  <div className="space-y-1 pl-2.5 ml-2 border-l border-slate-800/80 mt-0.5">
-                    {visibleItems.map((item) => {
-                      const isActive = pathname === item.href;
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          onClick={() => {
-                            if (isMobile && onMobileClose) onMobileClose();
-                          }}
-                          className={`flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-medium transition-all group ${
-                            isActive
-                              ? `${currentTheme.sidebarActiveBg} ${currentTheme.sidebarActiveText} ${currentTheme.sidebarActiveShadow} font-bold`
-                              : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <item.icon
-                              className={`w-3.5 h-3.5 transition ${
-                                isActive
-                                  ? 'text-white'
-                                  : `text-slate-400 ${currentTheme.sidebarIconHover}`
-                              }`}
-                            />
-                            <span className="truncate">{item.label}</span>
-                          </div>
-
-                          {item.badgeCount && item.badgeCount > 0 ? (
-                            <span className="flex items-center justify-center px-2 py-0.5 text-[10px] font-bold text-white bg-amber-500 rounded-full animate-pulse flex-shrink-0">
-                              {item.badgeCount}
-                            </span>
-                          ) : null}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </nav>
-      </div>
-
-      {/* Role status footer & Profile Edit */}
-      <div className="mt-8 pt-4 border-t border-slate-800 text-xs space-y-2">
-        <div className="bg-slate-800/80 rounded-2xl p-3 border border-slate-700/60 space-y-1">
-          <div className="flex items-center gap-1.5 text-teal-400 font-bold text-[11px]">
-            <Shield className="w-3.5 h-3.5" />
-            <span>สิทธิ์การใช้งานปัจจุบัน:</span>
+        {/* Global Home Hub Button (Always accessible at top) */}
+        <Link
+          href="/"
+          onClick={() => {
+            setPreferredSubAppId(null);
+            setIsSwitcherOpen(false);
+            if (isMobile && onMobileClose) onMobileClose();
+          }}
+          className={`flex items-center justify-between px-3 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer border ${
+            pathname === '/'
+              ? 'bg-gradient-to-r from-teal-600 to-cyan-600 text-white shadow-md shadow-teal-600/30 border-teal-500'
+              : 'bg-slate-800/50 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-700/60'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <LayoutDashboard className="w-4 h-4 text-teal-400" />
+            <span>ภาพรวมห้องแล็บ (All Apps Hub)</span>
           </div>
-          <div
-            className="text-xs font-bold text-white break-words leading-snug"
-            title={formatUserName(currentUser) || 'ผู้ใช้งาน'}
+          {pathname === '/' && (
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+          )}
+        </Link>
+
+        {/* Sub-App Switcher Box */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setIsSwitcherOpen(!isSwitcherOpen)}
+            className="w-full p-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 text-left transition cursor-pointer group"
           >
-            {formatUserName(currentUser) || 'ผู้ใช้งาน'}
-          </div>
-          <div className="text-[10px] text-slate-400 space-y-0.5">
-            {currentUser?.isExecutive && (
-              <div className="text-rose-300 font-semibold">
-                🏛️ {currentUser.executiveRole || 'ผู้บริหาร'}
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                ระบบงานที่กำลังเปิด:
+              </span>
+              <span className="text-[10px] text-teal-400 group-hover:underline flex items-center gap-0.5">
+                <span>สลับระบบ</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${isSwitcherOpen ? 'rotate-180' : ''}`} />
+              </span>
+            </div>
+
+            <div className="mt-1.5 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xl shrink-0">
+                  {activeSubApp ? activeSubApp.emoji : '📱'}
+                </span>
+                <div className="truncate">
+                  <span className="text-xs font-black text-white block truncate">
+                    {activeSubApp ? activeSubApp.name : 'เลือกแอปย่อย'}
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400 block truncate">
+                    {activeSubApp ? activeSubApp.nameEn : 'Modular Suite'}
+                  </span>
+                </div>
               </div>
-            )}
-            {userRole === 'ADMIN' && <div>เข้าถึงและกำหนดค่าได้ทุกระบบ</div>}
-            {userRole === 'OFFICER' && <div>จัดการคลัง รับเข้า จ่ายของ และตรวจคืน</div>}
-            {userRole === 'APPROVER' && <div>มีสิทธิ์อนุมัติคำขอยืมและเบิก (หัวหน้าภาค/ผู้บริหาร)</div>}
-            {userRole === 'TEACHER' && <div>อาจารย์ผู้สอน (มีสิทธิ์รับทราบคำขอ/ยืมสอน)</div>}
-            {userRole === 'USER' && <div>นิสิต (มีสิทธิ์ยื่นคำขอยืมและขอเบิกวัสดุ)</div>}
-            {userRole !== 'ADMIN' && userRole !== 'USER' && currentUser?.approvalScopes && currentUser.approvalScopes !== 'NONE' && (
-              <div className="text-amber-300 font-medium pt-0.5">
-                📋 มีสิทธิ์อนุมัติคำขอในระบบ
+            </div>
+          </button>
+
+          {/* Sub-App Switcher Dropdown Drawer */}
+          {isSwitcherOpen && (
+            <div className="mt-1.5 p-2 rounded-2xl bg-slate-850 border border-slate-700 shadow-2xl space-y-1 z-30 max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
+              <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                <span>แอปย่อยทั้งหมด ({accessibleApps.length}):</span>
               </div>
-            )}
-          </div>
+
+              {accessibleApps.map((app) => {
+                const isSelected = activeAppId === app.id;
+                return (
+                  <button
+                    key={app.id}
+                    type="button"
+                    onClick={() => handleSelectSubApp(app, isMobile)}
+                    className={`w-full p-2 rounded-xl text-left transition flex items-center justify-between gap-2 text-xs cursor-pointer ${
+                      isSelected
+                        ? 'bg-teal-600 text-white font-bold shadow-sm'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-base">{app.emoji}</span>
+                      <div className="truncate">
+                        <span className="block truncate font-bold text-[11px]">{app.name}</span>
+                        <span className={`block truncate text-[9px] ${isSelected ? 'text-teal-100' : 'text-slate-400'}`}>
+                          {app.shortName}
+                        </span>
+                      </div>
+                    </div>
+                    {isSelected ? (
+                      <span className="text-[10px] font-bold shrink-0">✓</span>
+                    ) : (
+                      <ChevronRight className="w-3 h-3 text-slate-500 shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Quick Edit Profile & Logout Buttons */}
-        {currentUser && (
-          <div className="space-y-2">
-            <button
-              onClick={() => {
-                if (isMobile && onMobileClose) onMobileClose();
-                const navbarEditBtn = document.querySelector<HTMLButtonElement>('[title="แก้ไขข้อมูลส่วนตัว"]');
-                if (navbarEditBtn) {
-                  navbarEditBtn.click();
-                } else {
-                  setIsProfileOpen(true);
-                }
-              }}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition cursor-pointer"
-            >
-              <UserCog className="w-4 h-4 text-teal-400" />
-              <span>แก้ไขบัญชีส่วนตัว</span>
-            </button>
+        {/* Navigation Section: Contextual Sub-App Menus */}
+        <div className="pt-1">
+          {activeSubApp ? (
+            <div className="space-y-1">
+              {/* Active Sub-App Section Header */}
+              <div className="px-2.5 py-1 flex items-center justify-between text-[11px] font-bold text-slate-400">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400"></span>
+                  <span>เมนู: {activeSubApp.shortName}</span>
+                </span>
+                <span className="text-[10px] font-mono bg-slate-800 text-slate-300 px-1.5 py-0.2 rounded">
+                  {activeSubApp.items.length}
+                </span>
+              </div>
 
-            <button
-              onClick={() => {
-                if (isMobile && onMobileClose) onMobileClose();
-                logout();
-              }}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 hover:text-rose-200 text-xs font-bold transition cursor-pointer shadow-sm active:scale-[0.98]"
-            >
-              <LogOut className="w-4 h-4 text-rose-400" />
-              <span>ออกจากระบบ</span>
-            </button>
-          </div>
-        )}
+              {/* Sub-App Menu List */}
+              <div className="space-y-1">
+                {activeSubApp.items
+                  .filter((item) => {
+                    if (item.href === '/executive') return isExecutive || isAdmin || item.roles.includes(userRole);
+                    if (item.href === '/approvals') return isApprover || isAdmin || isTeacher || isOfficer || item.roles.includes(userRole);
+                    if (item.href === '/audit-logs') return isAdmin || isOfficer;
+                    if (item.href === '/users' || item.href === '/settings/notifications') return isAdmin;
+                    return item.roles.includes(userRole);
+                  })
+                  .map((item) => {
+                    const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+                    const isApprovals = item.href === '/approvals';
 
-        {/* Theme Toggle Button */}
-        <div className="pt-2">
-          <ThemeToggle className="w-full justify-center py-2" showLabel />
-        </div>
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => {
+                          if (isMobile && onMobileClose) onMobileClose();
+                        }}
+                        className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all group ${
+                          isActive
+                            ? `${currentTheme.sidebarActiveBg} ${currentTheme.sidebarActiveText} ${currentTheme.sidebarActiveShadow} font-bold`
+                            : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <item.icon
+                            className={`w-4 h-4 shrink-0 transition ${
+                              isActive
+                                ? 'text-white'
+                                : `text-slate-400 ${currentTheme.sidebarIconHover}`
+                            }`}
+                          />
+                          <span className="truncate">{item.label}</span>
+                        </div>
 
-        {/* Developer Credit & Copyright Footer */}
-        <div className="pt-3 pb-1 border-t border-slate-800/80 text-center select-none space-y-0.5">
-          <div className="text-[10px] text-slate-400 font-mono tracking-wide hover:text-teal-400 transition cursor-default">
-            &copy; 2026 Developed by <span className="font-bold text-slate-300">KIy&#123;d6]K</span>
-          </div>
-          <div className="text-[9px] text-slate-400">
-            v1.0.0 &bull; Faculty of Nursing, KU
-          </div>
+                        {/* Badges */}
+                        {isApprovals && pendingCount > 0 && (
+                          <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white animate-pulse shadow-sm">
+                            {pendingCount}
+                          </span>
+                        )}
+                        {item.isImportant && !isActive && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                        )}
+                      </Link>
+                    );
+                  })}
+              </div>
+            </div>
+          ) : (
+            /* If at Overview and no sub-app active, show Quick Apps Launcher inside sidebar */
+            <div className="space-y-1.5">
+              <div className="px-2.5 py-1 text-[11px] font-bold text-slate-400">
+                <span>เลือกเข้าสู่แอปย่อย:</span>
+              </div>
+              <div className="space-y-1">
+                {accessibleApps.map((app) => (
+                  <button
+                    key={app.id}
+                    type="button"
+                    onClick={() => handleSelectSubApp(app, isMobile)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-850/60 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold transition flex items-center justify-between text-left cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <span className="text-base shrink-0">{app.emoji}</span>
+                      <span className="truncate group-hover:text-teal-300 transition">{app.name}</span>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Fallback Profile Modal if not in Navbar */}
+      {/* Footer Area: User Profile & Logout */}
+      <div className="pt-3 border-t border-slate-800/80 space-y-2">
+        <button
+          type="button"
+          onClick={() => setIsProfileOpen(true)}
+          className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-slate-800 transition cursor-pointer text-left group"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-teal-600/30 text-teal-400 flex items-center justify-center font-bold text-xs border border-teal-500/30 shrink-0">
+              {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+            </div>
+            <div className="truncate">
+              <span className="text-xs font-bold text-slate-200 block truncate group-hover:text-teal-400 transition">
+                {formatUserName(currentUser) || 'ผู้ใช้งาน'}
+              </span>
+              <span className="text-[10px] text-slate-400 block truncate">
+                {currentUser?.email || currentUser?.studentId || 'บัญชีผู้ใช้'}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <ThemeToggle />
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => logout()}
+          className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 border border-rose-500/20 text-xs font-bold transition cursor-pointer"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          <span>ออกจากระบบ</span>
+        </button>
+      </div>
+
+      {/* Fallback Profile Modal */}
       {isProfileOpen && (
         <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
       )}

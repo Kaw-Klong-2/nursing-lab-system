@@ -17,6 +17,27 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-24] ปรับปรุง Luminous Sidebar และแก้ไขข้อผิดพลาด Routing ของศูนย์ปฏิบัติการแอดมิน (Staff & Admin Console)
+- **หมวดหมู่**: Navigation / Routing Bugfix / Luminous Sidebar Theming
+- **สิ่งที่ดำเนินการ**:
+  1. **แก้ไขข้อผิดพลาด Admin Menu Routing เข้าไปที่ระบบยืมคืน**:
+     - สาเหตุเดิมเกิดจาก `staff-admin-console` ใน `src/lib/sub-apps.ts` กำหนด `primaryHref: '/dispense'` ซึ่งชนกับเส้นทางของระบบยืมคืนและทำให้ `detectSubAppFromPathname` สลับไปที่ `borrow-dispense` ทันที
+     - สร้างหน้าศูนย์ปฏิบัติการเฉพาะ `src/app/admin/page.tsx` รวม 9 งานบันทึก (5 งานประจำวันเคาน์เตอร์/สต็อก/แอร์/ซ่อมบำรุง + 4 งานบริหารความปลอดภัย/ผู้ใช้/เทอม/Logs) พร้อมสถิติ KPI สด
+     - เปลี่ยน `primaryHref` ของ `staff-admin-console` เป็น `/admin` และเพิ่ม `/admin` ในเมนูแรกของ Console
+     - เพิ่ม Context Persistence ผ่าน `sessionStorage` (`active_sub_app_id`) ทำให้เมื่อเจ้าหน้าที่นำทางจาก Admin Console ไปยังหน้างานต่างๆ Sidebar จะยังคงล็อกบริบท `Staff & Admin Console` ไว้ได้อย่างถูกต้อง ไม่หลุดสลับ
+  2. **ปรับ Sidebar เป็น Luminous Theme สว่าง คลีน สบายตา (รองรับทั้ง Light / Dark Mode)**:
+     - ปรับกรอบ Sidebar ทั้ง Desktop (`<aside>`) และ Mobile Drawer จากเดิมที่ล็อกสีมืด `bg-slate-900 text-slate-300` ให้เป็น Light-first `bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-r border-slate-200/80 dark:border-slate-800`
+     - ปรับกล่องสลับแอปย่อย (Sub-App Switcher Dropdown), ปุ่มภาพรวมห้องแล็บ (All Apps Hub), รายการเมนู และการ์ดโปรไฟล์ผู้ใช้ด้านล่างให้สว่าง สดใส สะอาดตา สอดรับกับส่วนหัวและหน้าจอทั้งระบบ
+- **ไฟล์สำคัญที่แก้ไข/สร้างใหม่**:
+  - `src/app/admin/page.tsx` (สร้างใหม่)
+  - `src/lib/sub-apps.ts`
+  - `src/lib/module-theme.ts`
+  - `src/components/layout/Sidebar.tsx`
+  - `src/components/layout/AppLauncherModal.tsx`
+  - `src/app/page.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx.cmd tsc --noEmit` ผ่าน 0 errors, `node scripts/librarian-audit.mjs` ผ่าน 100% (คำว่า "นิสิต" ถูกต้องสมบูรณ์, UTF-8 ไร้รอยตำหนิ)
+
+
 ### [2026-10-23] ปรับปรุงสถาปัตยกรรมระบบนำทางเป็น Modular Sub-App Suite พร้อม Staff & Admin Console และ 9-Dots Launcher
 - **หมวดหมู่**: Navigation / UX Architecture / Modular Sub-Apps
 - **สิ่งที่ดำเนินการ**:

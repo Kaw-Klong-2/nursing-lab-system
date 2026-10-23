@@ -193,6 +193,11 @@ export default function DashboardPage() {
               <Link
                 key={app.id}
                 href={app.primaryHref}
+                onClick={() => {
+                  try {
+                    sessionStorage.setItem('active_sub_app_id', app.id);
+                  } catch {}
+                }}
                 className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 text-left group hover:scale-[1.01] ${
                   isConsole
                     ? 'bg-gradient-to-br from-cyan-50/70 via-white to-blue-50/60 dark:from-slate-850 dark:via-slate-800 dark:to-cyan-950/40 border-cyan-300 dark:border-cyan-800 hover:border-cyan-400 shadow-sm hover:shadow-md'

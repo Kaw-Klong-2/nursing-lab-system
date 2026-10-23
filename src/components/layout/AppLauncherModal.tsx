@@ -36,6 +36,9 @@ export default function AppLauncherModal({
   });
 
   const handleAppClick = (app: SubAppConfig) => {
+    try {
+      sessionStorage.setItem('active_sub_app_id', app.id);
+    } catch {}
     if (onSelectSubApp) {
       onSelectSubApp(app.id);
     }
@@ -44,6 +47,9 @@ export default function AppLauncherModal({
   };
 
   const handleHomeClick = () => {
+    try {
+      sessionStorage.removeItem('active_sub_app_id');
+    } catch {}
     onClose();
     router.push('/');
   };

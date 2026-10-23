@@ -304,7 +304,7 @@ export const SUB_APPS: Record<SubAppId, SubAppConfig> = {
     description: 'โต๊ะทำงานและจุดรวมงานบันทึกประจำวันของเจ้าหน้าที่ห้องปฏิบัติการและผู้ดูแลระบบ ทำงานจบในหน้าเดียวโดยไม่ต้องสลับแอป',
     icon: Users,
     emoji: '⚙️',
-    primaryHref: '/dispense',
+    primaryHref: '/admin',
     colorName: 'cyan',
     themeClasses: {
       accentText: 'text-cyan-600 dark:text-cyan-400',
@@ -317,6 +317,13 @@ export const SUB_APPS: Record<SubAppId, SubAppConfig> = {
     },
     allowedRoles: ['ADMIN', 'OFFICER'],
     items: [
+      {
+        label: 'ภาพรวมระบบจัดการ (Admin Hub)',
+        href: '/admin',
+        icon: LayoutDashboard,
+        roles: ['ADMIN', 'OFFICER'],
+        isImportant: true,
+      },
       {
         label: 'ศูนย์จ่ายพัสดุเคาน์เตอร์',
         href: '/dispense',
@@ -425,7 +432,12 @@ export function detectSubAppFromPathname(
 ): SubAppId | null {
   if (!pathname || pathname === '/') return null;
 
-  // If user explicitly chose 'staff-admin-console' and current path is inside it, keep it
+  // 1. Direct match for Admin Hub
+  if (pathname.startsWith('/admin')) {
+    return 'staff-admin-console';
+  }
+
+  // 2. If user explicitly chose 'staff-admin-console' and current path is inside it, keep it
   if (preferredSubAppId === 'staff-admin-console') {
     const consoleItems = SUB_APPS['staff-admin-console'].items;
     if (consoleItems.some((it) => pathname === it.href || pathname.startsWith(it.href + '/'))) {
@@ -476,6 +488,7 @@ export function detectSubAppFromPathname(
   }
 
   if (
+    pathname.startsWith('/admin') ||
     pathname.startsWith('/users') ||
     pathname.startsWith('/settings') ||
     pathname.startsWith('/audit-logs')

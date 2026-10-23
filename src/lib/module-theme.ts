@@ -321,6 +321,7 @@ export function getModuleTheme(pathname?: string | null): ModuleTheme {
 
   // ผู้ดูแลระบบ การตั้งค่า และรายวิชา
   if (
+    pathname.startsWith('/admin') ||
     pathname.startsWith('/users') ||
     pathname.startsWith('/settings') ||
     pathname.startsWith('/courses')

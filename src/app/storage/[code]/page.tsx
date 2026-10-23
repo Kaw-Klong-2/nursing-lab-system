@@ -192,7 +192,7 @@ export default function CabinetStoragePage() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-16">
       {/* Top Banner / Breadcrumb */}
-      <div className="bg-gradient-to-r from-teal-700 via-teal-800 to-slate-900 text-white px-4 py-5 shadow-lg">
+      <div className="bg-gradient-to-r from-teal-600 via-teal-700 to-cyan-700 text-white px-4 py-5 shadow-md">
         <div className="max-w-4xl mx-auto space-y-3">
           {room && (
             <Link

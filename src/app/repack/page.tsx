@@ -1783,7 +1783,7 @@ export default function RepackPage() {
 
             <button
               onClick={() => setPreviewQrModal(null)}
-              className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition cursor-pointer"
+              className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition cursor-pointer"
             >
               ปิดหน้าต่างนี้
             </button>

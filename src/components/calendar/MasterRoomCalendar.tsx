@@ -642,17 +642,18 @@ export default function MasterRoomCalendar({
     <div className={`space-y-6 ${className}`}>
       {/* 1. TOP HEADER BANNER (Optional) */}
       {!hideHeaderBanner && (
-        <div className="bg-gradient-to-r from-teal-800 via-slate-900 to-indigo-950 rounded-3xl p-6 sm:p-7 text-white shadow-xl relative overflow-hidden border border-teal-500/20">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-rose-50/70 via-white to-pink-50/60 dark:from-slate-900 dark:via-slate-850 dark:to-rose-950/40 p-6 sm:p-7 border border-rose-200/80 dark:border-rose-900/60 shadow-lg shadow-rose-900/5 dark:shadow-black/20">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-rose-400/10 dark:bg-rose-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
             <div>
-              <div className="flex items-center gap-2 text-teal-300 text-xs font-bold uppercase tracking-wider mb-1.5">
-                <Building2 className="w-4 h-4 text-teal-400" />
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-2 bg-rose-100/80 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800/80">
+                <Building2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
                 <span>ระบบปฏิทินกิจกรรมและการใช้ห้องรวมศูนย์ (Master Lab Schedule)</span>
               </div>
-              <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
+              <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
                 ปฏิทินกิจกรรมการใช้ห้องปฏิบัติการรวมทุกห้อง
               </h2>
-              <p className="text-slate-300 text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
+              <p className="text-slate-600 dark:text-slate-300 text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
                 ศูนย์กลางตารางเวลาห้องแล็บพยาบาลทุกห้อง รวมทั้งการเรียนการสอน การสอบ OSCE และรอบเปิดฝึกทักษะหัตถการของนิสิตไว้ในหน้าจอเดียว
               </p>
             </div>
@@ -667,7 +668,7 @@ export default function MasterRoomCalendar({
                     window.location.href = `/rooms?action=book&date=${selectedDate}`;
                   }
                 }}
-                className="px-5 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-white font-bold text-xs sm:text-sm shadow-lg shadow-teal-500/30 transition cursor-pointer flex items-center gap-2"
+                className="px-5 py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-rose-600/25 transition cursor-pointer flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
                 <span>+ ยื่นคำขอจองห้องใช้งาน</span>
@@ -677,7 +678,7 @@ export default function MasterRoomCalendar({
                 type="button"
                 onClick={() => fetchData(true)}
                 disabled={isRefreshing}
-                className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 border border-white/10"
+                className="p-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-bold border border-slate-200 dark:border-slate-700 transition cursor-pointer flex items-center gap-1.5 shadow-sm"
                 title="รีเฟรชข้อมูล"
               >
                 <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />

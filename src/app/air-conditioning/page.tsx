@@ -1440,11 +1440,11 @@ export default function AirConditioningPage() {
                   วัน
                 </th>
                 {activeRooms.map((r: any) => (
-                  <th key={r.id} colSpan={5} className="p-2.5 border border-slate-700 bg-teal-900 text-cyan-100">
+                  <th key={r.id} colSpan={5} className="p-2.5 border border-slate-700 bg-teal-700 text-white">
                     {r.name}
                   </th>
                 ))}
-                <th rowSpan={2} className="p-2.5 border border-slate-700 bg-slate-900 text-white w-24">
+                <th rowSpan={2} className="p-2.5 border border-slate-700 bg-slate-800 text-white w-24">
                   รวมทั้งวัน (ชม.)
                 </th>
               </tr>

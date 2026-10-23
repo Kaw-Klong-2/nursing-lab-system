@@ -686,10 +686,10 @@ export default function UsersPage() {
       </div>
 
       {/* Live Presence & Today's Usage Overview Bar (Admin Only) */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-4 rounded-3xl text-white shadow-md border border-slate-700/60">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-indigo-50/70 via-white to-purple-50/60 dark:from-slate-900 dark:via-slate-850 dark:to-indigo-950/40 p-4 sm:p-5 border border-indigo-200/80 dark:border-indigo-900/60 shadow-lg shadow-indigo-900/5 dark:shadow-black/20">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 relative z-10">
           <div className="flex items-center gap-3">
-            <div className="relative flex items-center justify-center p-2 rounded-2xl bg-white/10">
+            <div className="relative flex items-center justify-center p-2.5 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/20">
               <span className="flex h-3 w-3 relative">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
@@ -697,38 +697,38 @@ export default function UsersPage() {
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-sm font-black tracking-wide flex items-center gap-1.5 text-white">
+                <h3 className="text-sm font-black tracking-wide flex items-center gap-1.5 text-slate-900 dark:text-white">
                   <span>ผู้ใช้งานออนไลน์ขณะนี้:</span>
-                  <span className="text-emerald-400 text-base font-black">
+                  <span className="text-emerald-600 dark:text-emerald-400 text-base font-black">
                     {activeSessionsData.summary?.onlineCount ?? activeSessionsData.onlineUserIds.length}
                   </span>
-                  <span className="text-xs text-slate-300 font-medium">คน</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">คน</span>
                 </h3>
                 <button
                   type="button"
                   onClick={() => setOnlineOnlyFilter(!onlineOnlyFilter)}
                   className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full transition cursor-pointer border ${
                     onlineOnlyFilter
-                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-extrabold shadow-sm'
-                      : 'bg-white/10 hover:bg-white/20 text-emerald-300 border-emerald-500/40'
+                      ? 'bg-emerald-600 text-white border-emerald-600 font-extrabold shadow-sm'
+                      : 'bg-emerald-50 dark:bg-slate-800 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
                   }`}
                 >
                   {onlineOnlyFilter ? '✓ กำลังกรองเฉพาะคนออนไลน์' : 'คลิกเพื่อกรองเฉพาะคนออนไลน์'}
                 </button>
               </div>
-              <p className="text-[11px] text-slate-300 mt-0.5">
+              <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
                 มีผู้เข้าใช้งานวันนี้รวม {activeSessionsData.summary?.activeTodayCount || 0} คน (คอมพิวเตอร์ {activeSessionsData.summary?.desktopOnlineCount || 0} เครื่อง, สมาร์ทโฟน {activeSessionsData.summary?.mobileOnlineCount || 0} เครื่อง)
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-start md:self-auto text-xs font-semibold text-slate-300">
-            <span className="inline-flex items-center gap-1 bg-white/10 px-2.5 py-1 rounded-xl">
-              <Monitor className="w-3.5 h-3.5 text-sky-400" />
+          <div className="flex items-center gap-2 self-start md:self-auto text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <span className="inline-flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-xl shadow-xs">
+              <Monitor className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
               <span>Desktop: {activeSessionsData.summary?.desktopOnlineCount || 0}</span>
             </span>
-            <span className="inline-flex items-center gap-1 bg-white/10 px-2.5 py-1 rounded-xl">
-              <Smartphone className="w-3.5 h-3.5 text-purple-400" />
+            <span className="inline-flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-xl shadow-xs">
+              <Smartphone className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
               <span>Mobile: {activeSessionsData.summary?.mobileOnlineCount || 0}</span>
             </span>
           </div>

@@ -143,7 +143,7 @@ export default function RoomStoragePage() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-16">
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-teal-800 via-teal-900 to-slate-950 text-white px-4 py-6 shadow-lg">
+      <div className="bg-gradient-to-r from-teal-600 via-teal-700 to-cyan-700 text-white px-4 py-6 shadow-md">
         <div className="max-w-4xl mx-auto space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>

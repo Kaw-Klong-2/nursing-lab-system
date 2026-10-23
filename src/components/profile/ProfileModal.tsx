@@ -431,14 +431,14 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
       <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex-shrink-0 bg-gradient-to-r from-teal-700 via-teal-800 to-slate-900 p-5 sm:p-6 text-white flex items-center justify-between border-b border-teal-600/30">
+        <div className="flex-shrink-0 bg-gradient-to-r from-teal-600 via-teal-700 to-cyan-700 p-5 sm:p-6 text-white flex items-center justify-between border-b border-teal-500/30 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-teal-300">
+            <div className="w-10 h-10 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-white shadow-sm border border-white/20">
               <User className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold">จัดการบัญชีผู้ใช้งาน</h3>
-              <p className="text-xs text-teal-200">แก้ไขข้อมูลส่วนตัวและเปลี่ยนรหัสผ่าน</p>
+              <h3 className="text-base font-bold text-white">จัดการบัญชีผู้ใช้งาน</h3>
+              <p className="text-xs text-teal-100">แก้ไขข้อมูลส่วนตัวและเปลี่ยนรหัสผ่าน</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1059,43 +1059,43 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
           {activeTab === 'ABOUT' && (
             <div className="space-y-4 animate-fadeIn">
               {/* Brand Banner Card */}
-              <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 text-white border border-teal-500/30 shadow-xl relative overflow-hidden">
+              <div className="p-5 rounded-2xl bg-gradient-to-br from-teal-50/80 via-white to-cyan-50/70 dark:from-slate-900 dark:via-slate-850 dark:to-teal-950/40 text-slate-900 dark:text-white border border-teal-200/80 dark:border-teal-800/80 shadow-lg shadow-teal-900/5 relative overflow-hidden">
                 <div className="absolute top-0 right-0 translate-x-4 -translate-y-4 w-32 h-32 bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
                 <div className="flex items-start justify-between relative z-10">
                   <div className="space-y-1">
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30 text-[10px] font-bold">
-                      <Sparkles className="w-3 h-3 text-amber-300" />
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-teal-500/10 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 border border-teal-500/20 text-[10px] font-bold">
+                      <Sparkles className="w-3 h-3 text-amber-500 dark:text-amber-300" />
                       <span>{SYSTEM_INFO.build}</span>
                     </div>
-                    <h3 className="text-2xl font-black tracking-tight text-white flex items-center gap-0.5 pt-1">
+                    <h3 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-0.5 pt-1">
                       <span>{SYSTEM_INFO.brandPrefix}</span>
-                      <span className="text-teal-400 font-black text-2xl select-none">+</span>
+                      <span className="text-teal-600 dark:text-teal-400 font-black text-2xl select-none">+</span>
                       <span>{SYSTEM_INFO.brandSuffix}</span>
                     </h3>
-                    <p className="text-xs text-teal-200 font-medium">
+                    <p className="text-xs text-teal-800 dark:text-teal-200 font-semibold">
                       {SYSTEM_INFO.thaiTitle}
                     </p>
-                    <p className="text-[11px] text-slate-400 pt-0.5">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-0.5">
                       {SYSTEM_INFO.institution}
                     </p>
                   </div>
                   <div className="text-right">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 text-[10px] font-bold">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                       System Operational
                     </span>
                   </div>
                 </div>
 
                 {/* Developer Credit Signature Box */}
-                <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                   <div>
-                    <span className="text-[10px] text-slate-400 block">System Architecture & Engineering:</span>
-                    <span className="font-mono font-bold text-teal-300 text-xs tracking-wide">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block">System Architecture & Engineering:</span>
+                    <span className="font-mono font-bold text-teal-700 dark:text-teal-300 text-xs tracking-wide">
                       Developed by KIy&#123;d6]K
                     </span>
                   </div>
-                  <div className="text-right font-mono text-[10px] text-slate-400">
+                  <div className="text-right font-mono text-[10px] text-slate-500 dark:text-slate-400">
                     &copy; {SYSTEM_INFO.copyrightYear} All Rights Reserved
                   </div>
                 </div>

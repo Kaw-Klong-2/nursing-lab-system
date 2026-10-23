@@ -252,7 +252,7 @@ export default function MobileCabinetAuditModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white dark:bg-slate-900 w-full max-w-2xl max-h-[92vh] rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-teal-800 via-teal-900 to-slate-900 p-4 sm:p-5 text-white flex items-center justify-between gap-3 shrink-0">
+        <div className="bg-gradient-to-r from-teal-600 via-teal-700 to-cyan-700 p-4 sm:p-5 text-white flex items-center justify-between gap-3 shrink-0 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-teal-500/20 border border-teal-400/30 flex items-center justify-center shrink-0">
               <ClipboardCheck className="w-5 h-5 text-teal-300" />

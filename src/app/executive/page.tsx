@@ -330,22 +330,22 @@ export default function ExecutiveDashboardPage() {
       {/* ---------------------------------------------------- */}
       {/* 2. ZERO-PII AI EXECUTIVE ADVISOR COCKPIT             */}
       {/* ---------------------------------------------------- */}
-      <div className="bg-gradient-to-br from-slate-900 via-purple-950/50 to-slate-900 rounded-3xl border border-purple-500/30 p-5 sm:p-6 shadow-xl text-white space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-purple-800/40 pb-3">
+      <div className="bg-gradient-to-br from-purple-50/70 via-white to-indigo-50/60 dark:from-slate-900 dark:via-purple-950/50 dark:to-slate-900 rounded-3xl border border-purple-200/80 dark:border-purple-500/30 p-5 sm:p-6 shadow-xl shadow-purple-900/5 dark:shadow-black/20 text-slate-900 dark:text-white space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-purple-200 dark:border-purple-800/40 pb-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-2xl bg-purple-500/20 text-purple-300 flex items-center justify-center border border-purple-400/30">
-              <BrainCircuit className="w-5 h-5 text-purple-300" />
+            <div className="w-9 h-9 rounded-2xl bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 flex items-center justify-center border border-purple-200 dark:border-purple-400/30">
+              <BrainCircuit className="w-5 h-5 text-purple-700 dark:text-purple-300" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-black tracking-tight text-white">
+                <h3 className="text-sm sm:text-base font-black tracking-tight text-slate-900 dark:text-white">
                   AI Executive Strategic Advisor (Zero-PII Insight Cockpit)
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-400/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 dark:bg-purple-500/20 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-400/30">
                   Real-time Synthesis
                 </span>
               </div>
-              <p className="text-[11px] text-purple-200/80">
+              <p className="text-[11px] text-slate-600 dark:text-purple-200/80">
                 ประมวลผลดัชนีชี้วัดเชิงยุทธศาสตร์เพื่อสนับสนุนการตัดสินใจของผู้บริหาร (ไม่ส่งข้อมูลส่วนบุคคลออกนอกระบบ 100%)
               </p>
             </div>
@@ -354,17 +354,17 @@ export default function ExecutiveDashboardPage() {
           <button
             type="button"
             onClick={handleCopyInsight}
-            className="self-start sm:self-center flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600/30 hover:bg-teal-600/50 text-cyan-200 text-xs font-semibold border border-teal-400/30 transition cursor-pointer"
+            className="self-start sm:self-center flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-100 hover:bg-purple-200 dark:bg-teal-600/30 dark:hover:bg-teal-600/50 text-purple-800 dark:text-cyan-200 text-xs font-semibold border border-purple-200 dark:border-teal-400/30 transition cursor-pointer"
             title="คัดลอกข้อเสนอแนะเชิงกลยุทธ์สำหรับนำเสนอที่ประชุม"
           >
-            {copySuccess ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+            {copySuccess ? <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-4 h-4" />}
             <span>{copySuccess ? 'คัดลอกเรียบร้อย' : 'คัดลอกสรุปสำหรับที่ประชุม'}</span>
           </button>
         </div>
 
         {/* Interactive Inquiry Chips */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[11px] font-bold text-slate-400 shrink-0">มิติการวิเคราะห์:</span>
+          <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0">มิติการวิเคราะห์:</span>
           {aiInsights.map((insight: any) => {
             const isSelected = selectedInquiryId === insight.id;
             return (
@@ -374,8 +374,8 @@ export default function ExecutiveDashboardPage() {
                 onClick={() => setSelectedInquiryId(insight.id)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
                   isSelected
-                    ? 'bg-teal-500 text-slate-950 border-teal-300 shadow-md font-black'
-                    : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
+                    ? 'bg-purple-600 text-white border-purple-600 shadow-md font-black dark:bg-teal-500 dark:text-slate-950 dark:border-teal-300'
+                    : 'bg-white dark:bg-white/5 hover:bg-purple-50 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10'
                 }`}
               >
                 <span>{insight.topic.split('(')[0].trim()}</span>
@@ -386,35 +386,35 @@ export default function ExecutiveDashboardPage() {
 
         {/* Selected Insight Detail Card */}
         {currentInsight && (
-          <div className="bg-slate-950/60 rounded-2xl p-4 sm:p-5 border border-teal-500/20 space-y-3">
+          <div className="bg-purple-50/50 dark:bg-slate-950/60 rounded-2xl p-4 sm:p-5 border border-purple-200/80 dark:border-teal-500/20 space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4" />
+              <span className="text-xs font-bold text-purple-900 dark:text-cyan-300 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-purple-600 dark:text-cyan-400" />
                 {currentInsight.topic}
               </span>
               <span
                 className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
                   currentInsight.priority === 'HIGH'
-                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                    ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-500/40'
                     : currentInsight.priority === 'MEDIUM'
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                    ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40'
+                    : 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40'
                 }`}
               >
                 {currentInsight.priority === 'HIGH' ? 'ประเด็นเร่งด่วน' : 'สถานะปกติ'}
               </span>
             </div>
 
-            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-medium">
+            <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed font-medium">
               <strong>ข้อค้นพบเชิงสถิติ:</strong> {currentInsight.summary}
             </p>
 
-            <div className="pt-2 border-t border-slate-800 flex items-start gap-2 text-xs text-teal-300/90 leading-relaxed">
-              <div className="w-5 h-5 rounded-md bg-teal-500/20 flex items-center justify-center shrink-0 mt-0.5 text-teal-300 font-bold">
+            <div className="pt-2 border-t border-purple-200 dark:border-slate-800 flex items-start gap-2 text-xs text-purple-900 dark:text-teal-300/90 leading-relaxed">
+              <div className="w-5 h-5 rounded-md bg-purple-200 dark:bg-teal-500/20 flex items-center justify-center shrink-0 mt-0.5 text-purple-700 dark:text-teal-300 font-bold">
                 💡
               </div>
               <div>
-                <strong className="text-teal-200">ข้อเสนอแนะเชิงกลยุทธ์ (Strategic Action):</strong>{' '}
+                <strong className="text-purple-950 dark:text-teal-200">ข้อเสนอแนะเชิงกลยุทธ์ (Strategic Action):</strong>{' '}
                 {currentInsight.recommendation}
               </div>
             </div>

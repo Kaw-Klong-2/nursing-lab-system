@@ -569,23 +569,26 @@ export default function DashboardPage() {
           </div>
 
           {/* Quick Navigation Cards */}
-          <div className="bg-gradient-to-br from-slate-900 to-teal-950 p-5 rounded-2xl text-white shadow-lg space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-teal-400">
-              ศูนย์งานห้องปฏิบัติการ
-            </h4>
-            <p className="text-xs text-slate-300 leading-relaxed">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-teal-50/70 via-white to-emerald-50/60 dark:from-slate-900 dark:via-slate-850 dark:to-teal-950/40 p-5 border border-teal-200/80 dark:border-teal-900/60 shadow-lg shadow-teal-900/5 dark:shadow-black/20 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-teal-700 dark:text-teal-300">
+                ศูนย์งานห้องปฏิบัติการ
+              </h4>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
               รองรับการยืม-คืนอุปกรณ์จำลองเสมือนจริง การตัดสต็อกอัตโนมัติ และสรุปต้นทุนสำหรับทำรายงานประจำภาคการศึกษา
             </p>
             <div className="pt-2">
               <Link
                 href="/approvals"
-                className="w-full flex items-center justify-between px-3 py-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold transition border border-white/10"
+                className="w-full flex items-center justify-between px-3.5 py-2.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-bold transition shadow-sm shadow-teal-600/25 cursor-pointer"
               >
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-teal-400" />
+                  <ShieldCheck className="w-4 h-4 text-white" />
                   <span>ตรวจสอบคำขอที่รออนุมัติ</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-400" />
+                <ChevronRight className="w-4 h-4 text-teal-100" />
               </Link>
             </div>
           </div>

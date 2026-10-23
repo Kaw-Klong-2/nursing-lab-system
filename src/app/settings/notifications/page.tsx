@@ -255,23 +255,23 @@ export default function NotificationSettingsPage() {
   return (
     <div className="max-w-6xl mx-auto py-6 px-4 sm:px-6 space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-teal-900 via-slate-900 to-indigo-950 p-6 md:p-8 rounded-3xl text-white shadow-xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-cyan-50/70 via-white to-blue-50/60 dark:from-slate-900 dark:via-slate-850 dark:to-cyan-950/40 p-6 md:p-8 border border-cyan-200/80 dark:border-cyan-900/60 shadow-lg shadow-cyan-900/5 dark:shadow-black/20 flex flex-col md:flex-row md:items-center justify-between gap-5">
+        <div className="absolute right-0 top-0 w-96 h-96 bg-cyan-400/10 dark:bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-teal-500/20 border border-teal-500/30 flex items-center justify-center text-teal-300 shadow-inner">
+          <div className="w-14 h-14 rounded-2xl bg-cyan-100 dark:bg-cyan-950/80 border border-cyan-200 dark:border-cyan-800/80 flex items-center justify-center text-cyan-600 dark:text-cyan-400 shadow-sm">
             <Sliders className="w-7 h-7" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-cyan-100/80 dark:bg-cyan-950/70 text-cyan-800 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/80">
                 ผู้ดูแลระบบ (Admin)
               </span>
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100/80 dark:bg-blue-950/70 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800/80">
                 In-App & Web Push
               </span>
             </div>
-            <h1 className="text-xl md:text-2xl font-black mt-1">ตั้งค่าข้อความแจ้งเตือน (Templates)</h1>
-            <p className="text-xs md:text-sm text-teal-100/70 mt-0.5">
+            <h1 className="text-xl md:text-2xl font-black mt-1 text-slate-900 dark:text-white">ตั้งค่าข้อความแจ้งเตือน (Templates)</h1>
+            <p className="text-xs md:text-sm text-slate-600 dark:text-slate-300 mt-0.5">
               ปรับแต่งหัวข้อ ข้อความ และตัวแปรอัตโนมัติสำหรับการแจ้งเตือนคำขอและระบบทั้งหมด
             </p>
           </div>
@@ -281,9 +281,9 @@ export default function NotificationSettingsPage() {
           <button
             type="button"
             onClick={handleResetAll}
-            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-sm"
+            className="px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-sm"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <RotateCcw className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
             <span>คืนค่าเริ่มต้นทั้งหมด</span>
           </button>
         </div>
@@ -450,28 +450,28 @@ export default function NotificationSettingsPage() {
                     </div>
 
                     {/* Mobile Notification Mockup */}
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-tr from-slate-900 to-slate-950 text-white border border-slate-800 shadow-lg space-y-2">
-                      <div className="flex items-center justify-between text-[10px] text-slate-400 border-b border-slate-800/80 pb-1.5">
+                    <div className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/90 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 shadow-md space-y-2">
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800/80 pb-1.5">
                         <div className="flex items-center gap-1.5">
-                          <div className="w-3.5 h-3.5 rounded-md bg-teal-500 flex items-center justify-center text-[9px] text-white font-bold">
+                          <div className="w-3.5 h-3.5 rounded-md bg-teal-600 flex items-center justify-center text-[9px] text-white font-bold">
                             N
                           </div>
-                          <span className="font-semibold text-slate-300">ระบบห้องปฏิบัติการพยาบาล</span>
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">ระบบห้องปฏิบัติการพยาบาล</span>
                         </div>
                         <span>ตอนนี้</span>
                       </div>
 
                       <div className="space-y-0.5">
-                        <h4 className="text-xs font-bold text-white line-clamp-1">
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white line-clamp-1">
                           {renderPreview(item.title, item.variablesList) || 'หัวข้อแจ้งเตือน'}
                         </h4>
-                        <p className="text-[11px] text-slate-300 leading-relaxed line-clamp-3">
+                        <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-3">
                           {renderPreview(item.message, item.variablesList) || 'เนื้อหาข้อความแจ้งเตือน...'}
                         </p>
                       </div>
 
                       <div className="pt-1 flex gap-1.5">
-                        <div className="px-2 py-0.5 rounded-md bg-white/10 text-[9px] text-teal-300 font-semibold">
+                        <div className="px-2 py-0.5 rounded-md bg-teal-50 dark:bg-teal-950/50 text-[9px] text-teal-700 dark:text-teal-300 font-semibold border border-teal-200 dark:border-teal-800/50">
                           🔍 ดูรายละเอียด
                         </div>
                       </div>

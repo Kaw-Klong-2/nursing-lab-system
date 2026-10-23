@@ -17,6 +17,34 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-23] ปรับปรุงส่วนประกอบโทนสีมืดที่เหลือทั้งระบบให้เป็น Luminous Theme สว่างสดใส คลีน สบายตา ครบ 100%
+- **หมวดหมู่**: UI / Theming / Design System
+- **สิ่งที่ดำเนินการ**:
+  1. **หน้าแดชบอร์ดนิสิต (`StudentDashboard.tsx`)**: ปรับแถบต้อนรับหลัก (Student Welcome Banner) จากโทนมืด `via-cyan-800 to-slate-900` เป็น Luminous Cyan/Teal เกรเดียนต์โปร่งสบายตา พร้อมปรับแถบครุภัณฑ์ค้างส่งเป็น Luminous Amber/Orange สดใสสะดุดตา
+  2. **การ์ดศูนย์งานห้องปฏิบัติการหน้าแรก (`src/app/page.tsx`)**: ปรับจากกล่องมืด `from-slate-900 to-teal-950` เป็นการ์ดสว่าง Luminous Card พร้อม Accent Border และปุ่มแอ็กชันสีเขียวพยาบาล
+  3. **ปฏิทินรวมห้องปฏิบัติการ (`MasterRoomCalendar.tsx`)**: ปรับหัวแบนเนอร์ปฏิทินรวมทุกห้องเป็น Luminous Rose/Pink Card สอดรับกับโมดูลปฏิทิน
+  4. **ป๊อปอัปโปรไฟล์ผู้ใช้ (`ProfileModal.tsx`)**: ปรับหัว Modal จาก `to-slate-900` เป็น Luminous Teal/Cyan สว่างสดใส และปรับการ์ดเกี่ยวกับระบบและทีมพัฒนาเป็นกล่องขาวสว่าง Accent Gradient
+  5. **แถบผู้ใช้ออนไลน์สด (`src/app/users/page.tsx`)**: ปรับแผงสรุปผู้ใช้ออนไลน์สดจาก `from-slate-900 via-slate-800 to-indigo-950` เป็น Luminous Indigo Card สว่างเรียบหรูพร้อม Glassmorphism
+  6. **หน้าตั้งค่าแจ้งเตือน (`settings/notifications/page.tsx`)**: ปรับหัวข้อหน้าเป็น Luminous Cyan/Blue และปรับกล่องพรีวิวแจ้งเตือนบนมือถือให้รองรับ Light/Dark mode
+  7. **หน้าตู้จัดเก็บสาธารณะ (`storage/[code]`, `storage/room/[code]`, `MobileCabinetAuditModal.tsx`)**: ปรับหัวแบนเนอร์จากการสแกน QR ตู้/ห้องให้เป็น Luminous Teal ปลอดโปร่ง
+  8. **ตารางเปิด-ปิดแอร์และกล่องคลัง (`air-conditioning/page.tsx`, `repack/page.tsx`)**: ปรับหัวตารางเมทริกซ์และปุ่มปิดโมดอลให้สว่างสบายตา
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/components/dashboard/StudentDashboard.tsx`
+  - `src/components/calendar/MasterRoomCalendar.tsx`
+  - `src/components/profile/ProfileModal.tsx`
+  - `src/components/storage/MobileCabinetAuditModal.tsx`
+  - `src/app/page.tsx`
+  - `src/app/users/page.tsx`
+  - `src/app/settings/notifications/page.tsx`
+  - `src/app/storage/[code]/page.tsx`
+  - `src/app/storage/room/[code]/page.tsx`
+  - `src/app/air-conditioning/page.tsx`
+  - `src/app/executive/page.tsx`
+  - `src/app/repack/page.tsx`
+  - `scripts/audit-dark-elements.mjs`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx.cmd tsc --noEmit` ผ่าน 0 errors, `node scripts/librarian-audit.mjs` ผ่าน 100% (คำว่า "นิสิต" ถูกต้องครบถ้วน, UTF-8 สมบูรณ์)
+
+
 ### [2026-10-22] ปรับปรุงดีไซน์ส่วนหัวการ์ดแบนเนอร์ให้สว่าง สดใส สบายตา (Luminous Headers) และพัฒนาระบบ Dynamic Subsystem Color Theming สำหรับ 9 โมดูลหลัก + Sidebar
 - **หมวดหมู่**: Design System / Theming / UI Architecture (`src/lib/module-theme.ts`, `src/components/layout/Sidebar.tsx`, `src/app/page.tsx`, `src/app/practice/page.tsx`, `src/app/rooms/page.tsx`, `src/app/air-conditioning/page.tsx`, `src/app/borrow/page.tsx`, `src/app/schedule/page.tsx`, `src/app/executive/page.tsx`, `src/app/inventory/page.tsx`, `src/app/approvals/page.tsx`, `src/app/users/page.tsx`, `src/app/login/page.tsx`)
 - **สาเหตุและปัญหาเดิม (Root Causes & Problem Statement)**:

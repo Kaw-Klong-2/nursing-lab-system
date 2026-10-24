@@ -61,6 +61,12 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
     ? new Date(borrow.checkedOutAt).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })
     : borrowDateStr;
 
+  const instructorDisplay = borrow.course?.instructorName
+    ? formatTeacherName(borrow.course.instructorName)
+    : (borrow.advisorName && !borrow.advisorName.includes('แอดมิน') && !borrow.advisorName.includes('เจ้าหน้าที่')
+        ? formatTeacherName(borrow.advisorName)
+        : 'อาจารย์ประจำรายวิชา');
+
   // Print A4 Form
   const handlePrintA4 = () => {
     const printWindow = window.open('', '_blank', 'width=900,height=800');
@@ -200,6 +206,10 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
               margin-bottom: 14px;
               font-size: 11.5px;
             }
+            tr {
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
             th {
               background-color: #f1f5f9;
               color: #334155;
@@ -215,6 +225,8 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
               display: flex;
               align-items: center;
               gap: 6px;
+              page-break-after: avoid;
+              break-after: avoid;
             }
             .terms-box {
               background-color: #f0fdf4;
@@ -225,6 +237,8 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
               color: #166534;
               margin-bottom: 18px;
               line-height: 1.45;
+              page-break-inside: avoid;
+              break-inside: avoid;
             }
             .signatures-grid {
               display: grid;
@@ -233,6 +247,8 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
               margin-top: 15px;
               text-align: center;
               font-size: 11px;
+              page-break-inside: avoid;
+              break-inside: avoid;
             }
             .signature-block {
               border: 1px dashed #cbd5e1;
@@ -273,7 +289,7 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
             </div>
             <div class="meta-item">
               <span class="meta-label">อาจารย์ผู้สอน:</span>
-              <span class="meta-value">${formatTeacherName(borrow.advisorName || borrow.course?.instructorName || 'อาจารย์ประจำวิชา')}</span>
+              <span class="meta-value">${instructorDisplay}</span>
             </div>
             <div class="meta-item">
               <span class="meta-label">วันที่จ่ายของ:</span>
@@ -597,7 +613,7 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
             <div className="flex items-center justify-between">
               <span className="text-slate-500">อาจารย์ผู้สอน:</span>
               <span className="font-semibold text-slate-800 dark:text-slate-200">
-                {formatTeacherName(borrow.advisorName || borrow.course?.instructorName || 'อาจารย์ประจำวิชา')}
+                {instructorDisplay}
               </span>
             </div>
             <div className="flex items-center justify-between">

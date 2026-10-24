@@ -24,7 +24,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     const borrow = await prisma.borrowRequest.findUnique({
       where: { id },
-      include: { items: true, user: true },
+      include: { items: true, user: true, course: true },
     });
 
     if (!borrow) {
@@ -182,25 +182,35 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         }
       }
 
+      // Preserve genuine teacher/instructor name if present; do not overwrite with staff/admin username
+      const existingTeacher =
+        borrow.course?.instructorName ||
+        (borrow.advisorName && !borrow.advisorName.includes('แอดมิน') && !borrow.advisorName.includes('เจ้าหน้าที่')
+          ? borrow.advisorName
+          : null);
+      const finalAdvisorName = existingTeacher || body.advisorName || borrow.advisorName;
+
       const updated = await prisma.borrowRequest.update({
         where: { id },
         data: {
           instructorAcknowledged: true,
           acknowledgedAt: new Date(),
-          advisorName: body.advisorName || borrow.advisorName,
+          advisorName: finalAdvisorName,
         },
       });
 
       // Synchronize with linked requisition request if unified
       if (borrow.requisitionRequestId) {
-        await prisma.requisitionRequest.update({
-          where: { id: borrow.requisitionRequestId },
-          data: {
-            instructorAcknowledged: true,
-            acknowledgedAt: new Date(),
-            advisorName: body.advisorName || borrow.advisorName,
-          },
-        }).catch((e) => console.error('Failed to sync linked requisition acknowledge:', e));
+        await prisma.requisitionRequest
+          .update({
+            where: { id: borrow.requisitionRequestId },
+            data: {
+              instructorAcknowledged: true,
+              acknowledgedAt: new Date(),
+              advisorName: finalAdvisorName,
+            },
+          })
+          .catch((e) => console.error('Failed to sync linked requisition acknowledge:', e));
       }
 
       // Notify student with proper role transparency (Teacher vs Admin/Staff)
@@ -427,41 +437,77 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           continue;
         }
 
-        // Update quantity if adjusted
-        if (newQty !== bItem.quantity) {
+        // Check if item has individual EquipmentAsset tracking in inventory
+        const availableAssetsForItem = await prisma.equipmentAsset.findMany({
+          where: { itemId: bItem.itemId, status: 'AVAILABLE' },
+          orderBy: { sequenceNumber: 'asc' },
+        });
+
+        const explicitAssign =
+          assignedAssets?.find((a: any) => a.borrowItemId === bItem.id) ||
+          (adj?.assetId ? { assetId: adj.assetId } : null);
+
+        if (availableAssetsForItem.length > 0 || explicitAssign?.assetId || bItem.assetId) {
+          // Individual Asset Tracking Mode:
+          // Ensure each physical asset has its own BorrowItem with quantity = 1, and status = BORROWED
+          const primaryAssetId = explicitAssign?.assetId || bItem.assetId || availableAssetsForItem[0]?.id;
+
+          // 1. Set the first BorrowItem to quantity 1 and assign primary asset
+          await prisma.borrowItem.update({
+            where: { id: bItem.id },
+            data: {
+              quantity: 1,
+              assetId: primaryAssetId || null,
+            },
+          });
+          if (primaryAssetId) {
+            await prisma.equipmentAsset.update({
+              where: { id: primaryAssetId },
+              data: { status: 'BORROWED' },
+            });
+          }
+
+          // 2. If newQty > 1, create individual BorrowItem records for additional units
+          if (newQty > 1) {
+            const additionalNeeded = newQty - 1;
+            const remainingAvailable = availableAssetsForItem.filter((a) => a.id !== primaryAssetId);
+            const assetsToAssign = remainingAvailable.slice(0, additionalNeeded);
+
+            for (const asset of assetsToAssign) {
+              await prisma.borrowItem.create({
+                data: {
+                  borrowRequestId: borrow.id,
+                  itemId: bItem.itemId,
+                  assetId: asset.id,
+                  quantity: 1,
+                  previousLocation: asset.location,
+                },
+              });
+              await prisma.equipmentAsset.update({
+                where: { id: asset.id },
+                data: { status: 'BORROWED' },
+              });
+            }
+
+            // If requested more than available physical assets, record remaining as unassigned items
+            const unassignedCount = additionalNeeded - assetsToAssign.length;
+            if (unassignedCount > 0) {
+              await prisma.borrowItem.create({
+                data: {
+                  borrowRequestId: borrow.id,
+                  itemId: bItem.itemId,
+                  assetId: null,
+                  quantity: unassignedCount,
+                },
+              });
+            }
+          }
+        } else {
+          // Bulk equipment without individual asset barcodes
           await prisma.borrowItem.update({
             where: { id: bItem.id },
             data: { quantity: newQty },
           });
-        }
-
-        // Explicit asset assignment or auto-assign available asset
-        const explicitAssign =
-          assignedAssets?.find((a: any) => a.borrowItemId === bItem.id) ||
-          (adj?.assetId ? { assetId: adj.assetId } : null);
-        if (explicitAssign?.assetId) {
-          await prisma.borrowItem.update({
-            where: { id: bItem.id },
-            data: { assetId: explicitAssign.assetId },
-          });
-          await prisma.equipmentAsset.update({
-            where: { id: explicitAssign.assetId },
-            data: { status: 'BORROWED' },
-          });
-        } else if (!bItem.assetId) {
-          const availableAsset = await prisma.equipmentAsset.findFirst({
-            where: { itemId: bItem.itemId, status: 'AVAILABLE' },
-          });
-          if (availableAsset) {
-            await prisma.borrowItem.update({
-              where: { id: bItem.id },
-              data: { assetId: availableAsset.id },
-            });
-            await prisma.equipmentAsset.update({
-              where: { id: availableAsset.id },
-              data: { status: 'BORROWED' },
-            });
-          }
         }
       }
 

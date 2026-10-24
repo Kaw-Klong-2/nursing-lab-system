@@ -17,6 +17,26 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-24] ปรับปรุงตรรกะตัดสต็อกครุภัณฑ์รายชิ้น (Asset ID vs Quantity) และแก้ไขการแสดงชื่ออาจารย์ผู้สอนบนใบยืม-คืน
+- **หมวดหมู่**: Borrow & Requisitions / Asset Management / Slip Integrity
+- **สิ่งที่ดำเนินการ**:
+  1. **แก้ไขความขัดแย้งของรหัสประจำชิ้นและจำนวน (Asset ID vs Quantity Fix)**:
+     - ปรับปรุงตรรกะใน `src/app/api/borrow/[id]/route.ts` ตอนจ่ายครุภัณฑ์ (CHECKOUT): หากมีการยืมมากกว่า 1 ชิ้น ระบบจะแยกรายการ `BorrowItem` ออกเป็นรายชิ้น (Quantity = 1) และผูกรหัส `EquipmentAsset` ครบทุกชิ้น พร้อมตัดสถานะเป็น `BORROWED` จริงในฐานข้อมูลทุกชิ้น (ไม่ค้างเป็น AVAILABLE)
+     - Normalization ข้อมูลคำขอยืม `BRW-20261017-002` แยกรายการรถเข็นฉีดยาฯ, หุ่นฝึกฉีดยาสะโพกฯ, หุ่นฝึกใส่สายอาหารฯ, เครื่องดูดเสมหะฯ ออกเป็น 12 ชิ้นย่อย พร้อมผูกรหัส Asset ID ครบถ้วนทุกชิ้น
+     - แสดงผลในใบยืม-คืน `BorrowSlipModal.tsx` แต่ละแถวเป็นรหัสประจำชิ้นพร้อมจำนวน 1 ชิ้น เพื่อให้เจ้าหน้าที่สามารถตรวจรับคืนและลงบันทึกสภาพได้เป็นรายชิ้นอย่างถูกต้อง
+  2. **แก้ไขชื่ออาจารย์ผู้สอนบนใบสลิป (Instructor Display Fix)**:
+     - ปรับปรุงการดึงชื่ออาจารย์ใน `BorrowSlipModal.tsx` และ `RequisitionSlipModal.tsx` ให้แสดงชื่ออาจารย์ประจำรายวิชาจริงจาก `course.instructorName` เป็นลำดับแรก
+     - แก้ไข API การรับทราบ (ACKNOWLEDGE) ใน `api/borrow/[id]` และ `api/requisitions/[id]` ไม่ให้เขียนทับชื่ออาจารย์ด้วยชื่อแอดมินหรือเจ้าหน้าที่ที่กดรับทราบแทน
+     - ปรับแก้ข้อมูล `advisorName` ของ `BRW-20261017-002` ในฐานข้อมูลให้ตรงกับอาจารย์ประจำวิชา ("ผศ. กัญจน์ณิชา เรืองชัยทวีสุข")
+  3. **ปรับปรุงการตัดหน้าพิมพ์ (Print Break Avoid)**:
+     - เพิ่ม `page-break-inside: avoid` ให้กับตาราง, กล่องข้อกำหนด และกล่องลายเซ็น เพื่อให้พิมพ์ออกกระดาษ A4 ได้สวยงามไม่ฉีกขาดกลางกล่อง
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/app/api/borrow/[id]/route.ts`
+  - `src/app/api/requisitions/[id]/route.ts`
+  - `src/components/slips/BorrowSlipModal.tsx`
+  - `src/components/slips/RequisitionSlipModal.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `node scripts/librarian-audit.mjs` ผ่าน 100%, `npm run build` ผ่าน 100% (92 routes)
+
 ### [2026-10-24] พัฒนาระบบใบยืม-คืนอุปกรณ์และเบิกพัสดุ (Slips) พร้อม Smart QR Verification และระบบรับคืนวัสดุสิ้นเปลืองเหลือใช้ (Sub-Unit Surplus Restock)
 - **หมวดหมู่**: Borrow & Requisitions / Slips / Inventory / QR Code Engine
 - **สิ่งที่ดำเนินการ**:

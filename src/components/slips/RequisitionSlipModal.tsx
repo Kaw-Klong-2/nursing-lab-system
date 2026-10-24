@@ -56,6 +56,12 @@ export default function RequisitionSlipModal({ requisition, onClose }: Requisiti
     ? new Date(requisition.dispensedAt).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })
     : '-';
 
+  const instructorDisplay = requisition.course?.instructorName
+    ? formatTeacherName(requisition.course.instructorName)
+    : (requisition.advisorName && !requisition.advisorName.includes('แอดมิน') && !requisition.advisorName.includes('เจ้าหน้าที่')
+        ? formatTeacherName(requisition.advisorName)
+        : 'อาจารย์ผู้รับผิดชอบ');
+
   // Print A4
   const handlePrintA4 = () => {
     const printWindow = window.open('', '_blank', 'width=900,height=800');
@@ -143,7 +149,7 @@ export default function RequisitionSlipModal({ requisition, onClose }: Requisiti
           <div class="meta-grid">
             <div><b>ผู้ขอเบิก:</b> ${formatUserName(requisition.user)} ${requisition.user?.studentId ? `(${requisition.user.studentId})` : ''}</div>
             <div><b>รายวิชา:</b> ${requisition.course ? `[${requisition.course.code}] ${requisition.course.name}` : 'ทั่วไป'}</div>
-            <div><b>อาจารย์ผู้รับผิดชอบ:</b> ${formatTeacherName(requisition.advisorName || requisition.course?.instructorName || '-')}</div>
+            <div><b>อาจารย์ผู้รับผิดชอบ:</b> ${instructorDisplay}</div>
             <div><b>วันที่จ่ายของ:</b> ${dispensedAtStr} น.</div>
             <div style="grid-column: span 2;"><b>วัตถุประสงค์:</b> ${requisition.purpose || '-'}</div>
           </div>

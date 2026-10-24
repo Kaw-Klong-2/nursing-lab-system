@@ -56,25 +56,37 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     };
 
     if (action === 'ACKNOWLEDGE') {
+      // Preserve genuine teacher/instructor name if present; do not overwrite with staff/admin username
+      const existingTeacher =
+        requisition.course?.instructorName ||
+        (requisition.advisorName &&
+        !requisition.advisorName.includes('แอดมิน') &&
+        !requisition.advisorName.includes('เจ้าหน้าที่')
+          ? requisition.advisorName
+          : null);
+      const finalAdvisorName = existingTeacher || body.advisorName || requisition.advisorName;
+
       const updated = await prisma.requisitionRequest.update({
         where: { id },
         data: {
           instructorAcknowledged: true,
           acknowledgedAt: new Date(),
-          advisorName: body.advisorName || requisition.advisorName,
+          advisorName: finalAdvisorName,
         },
       });
 
       // Synchronize with linked borrow request if unified
       if (requisition.borrowRequest) {
-        await prisma.borrowRequest.update({
-          where: { id: requisition.borrowRequest.id },
-          data: {
-            instructorAcknowledged: true,
-            acknowledgedAt: new Date(),
-            advisorName: body.advisorName || requisition.advisorName,
-          },
-        }).catch((e) => console.error('Failed to sync linked borrow acknowledge:', e));
+        await prisma.borrowRequest
+          .update({
+            where: { id: requisition.borrowRequest.id },
+            data: {
+              instructorAcknowledged: true,
+              acknowledgedAt: new Date(),
+              advisorName: finalAdvisorName,
+            },
+          })
+          .catch((e) => console.error('Failed to sync linked borrow acknowledge:', e));
       }
 
       // Notify student with proper role transparency (Teacher vs Admin/Staff)

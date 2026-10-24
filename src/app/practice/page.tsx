@@ -133,6 +133,9 @@ export default function PracticePage() {
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [isEditingAdvisor, setIsEditingAdvisor] = useState(false);
   const [slotForBooking, setSlotForBooking] = useState<any>(null);
+  const [allStudents, setAllStudents] = useState<any[]>([]);
+  const [selectedCompanions, setSelectedCompanions] = useState<any[]>([]);
+  const [companionSearchQuery, setCompanionSearchQuery] = useState('');
   const [bookingForm, setBookingForm] = useState({
     skillTopic: '',
     isCustomSkill: false,
@@ -210,7 +213,7 @@ export default function PracticePage() {
       const year = currentMonth.getFullYear();
       const month = currentMonth.getMonth() + 1;
 
-      const [slotsRes, roomsRes, bookingsRes, configRes, statsRes, coursesRes, kitsRes, usersRes] = await Promise.all([
+      const [slotsRes, roomsRes, bookingsRes, configRes, statsRes, coursesRes, kitsRes, usersRes, studentsRes] = await Promise.all([
         fetch(`/api/practice/slots?year=${year}&month=${month}`),
         fetch('/api/practice/rooms?includeInactive=true'),
         fetch(`/api/practice/bookings${currentUser?.role === 'USER' && !isTeacher ? `?userId=${currentUser.id}` : ''}`),
@@ -219,7 +222,13 @@ export default function PracticePage() {
         fetch('/api/courses?compact=true'),
         fetch('/api/kits'),
         fetch('/api/users?role=APPROVER'),
+        fetch('/api/users?role=USER'),
       ]);
+
+      if (studentsRes.ok) {
+        const sList = await studentsRes.json();
+        setAllStudents(Array.isArray(sList) ? sList : []);
+      }
 
       if (slotsRes.ok) setSlots(await slotsRes.json());
       if (roomsRes.ok) {
@@ -500,6 +509,8 @@ export default function PracticePage() {
       practiceKitId: matchedKit ? matchedKit.id : '',
       additionalEquipment: '',
     });
+    setSelectedCompanions([]);
+    setCompanionSearchQuery('');
     setIsEditingAdvisor(false);
     setShowBookingModal(true);
   };
@@ -538,12 +549,18 @@ export default function PracticePage() {
           courseId: bookingForm.courseId || null,
           practiceKitId: bookingForm.practiceKitId || null,
           additionalEquipment: bookingForm.additionalEquipment || null,
+          companionUserIds: selectedCompanions.map((c: any) => c.id),
         }),
       });
 
       if (res.ok) {
-        alert('ยื่นคำขอเข้าฝึกปฏิบัติด้วยตนเองสำเร็จ! รออาจารย์พิจารณาอนุมัติ');
+        if (selectedCompanions.length > 0) {
+          alert(`ยื่นคำขอเข้าฝึกปฏิบัติการสำเร็จ (กลุ่ม ${selectedCompanions.length + 1} คน)! สมาชิกทุกคนจะได้รับ QR Code ประจำตัวหลังจากอาจารย์อนุมัติ`);
+        } else {
+          alert('ยื่นคำขอเข้าฝึกปฏิบัติด้วยตนเองสำเร็จ! รออาจารย์พิจารณาอนุมัติ');
+        }
         setShowBookingModal(false);
+        setSelectedCompanions([]);
         fetchData();
         setActiveTab('BOOKINGS');
       } else {
@@ -3888,6 +3905,120 @@ export default function PracticePage() {
                 </div>
               </div>
 
+              {/* 4. Group Companions Picker (เพื่อนร่วมกลุ่มฝึก) */}
+              {(() => {
+                const maxCap = slotForBooking.maxCapacity || 6;
+                const booked = slotForBooking.bookedCount || 0;
+                const availableSeats = slotForBooking.availableSeats !== undefined ? slotForBooking.availableSeats : Math.max(0, maxCap - booked);
+                const currentParticipants = 1 + selectedCompanions.length;
+                const remainingSlots = Math.max(0, availableSeats - currentParticipants);
+                const canAddMore = remainingSlots > 0;
+
+                const searchTrimmed = companionSearchQuery.trim().toLowerCase();
+                const matchedStudents = searchTrimmed
+                  ? allStudents.filter((s: any) => {
+                      if (s.id === currentUser?.id) return false;
+                      if (selectedCompanions.some((c: any) => c.id === s.id)) return false;
+                      const sName = (s.name || '').toLowerCase();
+                      const sCode = (s.studentId || '').toLowerCase();
+                      return sName.includes(searchTrimmed) || sCode.includes(searchTrimmed);
+                    }).slice(0, 5)
+                  : [];
+
+                return (
+                  <div className="space-y-2.5 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Users className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                          เพื่อนร่วมกลุ่มฝึก (ถ้ามี)
+                        </span>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                        canAddMore
+                          ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                          : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                      }`}>
+                        รวม {currentParticipants} คน (ว่างอีก {remainingSlots} ที่)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      ท่านเป็นผู้เข้าฝึกหลัก (1 ที่นั่ง) สามารถเพิ่มเพื่อนร่วมกลุ่มได้ตามที่นั่งว่างในรอบนี้ โดยเพื่อนแต่ละคนจะได้ QR Code ประจำตัวแยกของตนเอง
+                    </p>
+
+                    {/* Selected Companion Chips */}
+                    {selectedCompanions.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {selectedCompanions.map((comp: any) => (
+                          <div
+                            key={comp.id}
+                            className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-xl bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 text-teal-900 dark:text-teal-200 text-xs font-medium"
+                          >
+                            <span>{formatUserName(comp)}</span>
+                            {comp.studentId && (
+                              <span className="text-[10px] text-teal-600 dark:text-teal-400 font-mono">
+                                ({comp.studentId})
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedCompanions(selectedCompanions.filter((c: any) => c.id !== comp.id))}
+                              className="w-4 h-4 rounded-full hover:bg-teal-200/60 dark:hover:bg-teal-900 flex items-center justify-center text-teal-700 dark:text-teal-300 cursor-pointer ml-0.5"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Companion Search Input & Dropdown */}
+                    {canAddMore ? (
+                      <div className="relative pt-1">
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            placeholder="พิมพ์รหัสนิสิต หรือชื่อเพื่อนเพื่อเพิ่มเข้ากลุ่ม..."
+                            value={companionSearchQuery}
+                            onChange={(e) => setCompanionSearchQuery(e.target.value)}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                          />
+                        </div>
+
+                        {matchedStudents.length > 0 && (
+                          <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-20 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
+                            {matchedStudents.map((st: any) => (
+                              <button
+                                key={st.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedCompanions([...selectedCompanions, st]);
+                                  setCompanionSearchQuery('');
+                                }}
+                                className="w-full px-3 py-2 text-left text-xs hover:bg-teal-50 dark:hover:bg-teal-950/40 flex items-center justify-between cursor-pointer transition"
+                              >
+                                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                  {formatUserName(st)}
+                                </span>
+                                <span className="text-[11px] text-teal-600 dark:text-teal-400 font-mono">
+                                  {st.studentId || st.department || 'นิสิต'}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-xl px-3 py-1.5 flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>จำนวนผู้เข้าฝึกครบตามที่นั่งว่างในรอบนี้แล้ว ({availableSeats} คน)</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   วัตถุประสงค์เพิ่มเติม (ถ้ามี)
@@ -4362,6 +4493,12 @@ export default function PracticePage() {
                   <div className="bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800/60 p-2.5 rounded-xl text-teal-900 dark:text-teal-200 flex items-center gap-2">
                     <Boxes className="w-4 h-4 text-teal-600 flex-shrink-0" />
                     <span>ชุดพัสดุหัตถการ: <strong>{selectedBookingForDetail.practiceKit.name}</strong></span>
+                  </div>
+                )}
+                {(selectedBookingForDetail.groupCode || selectedBookingForDetail.notes?.includes('[กลุ่ม')) && (
+                  <div className="bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60 p-2.5 rounded-xl text-indigo-900 dark:text-indigo-200 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                    <span>การเข้าฝึก: <strong>{selectedBookingForDetail.notes || 'ฝึกเป็นกลุ่ม'}</strong></span>
                   </div>
                 )}
                 {selectedBookingForDetail.additionalEquipment && (

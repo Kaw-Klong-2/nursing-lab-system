@@ -1,8 +1,11 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { processScheduledBroadcasts } from '@/lib/notifications';
 
 export async function GET(req: Request) {
   try {
+    // Process any due scheduled broadcasts in background
+    processScheduledBroadcasts().catch(() => {});
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get('userId');
     const unreadOnly = searchParams.get('unreadOnly') === 'true';

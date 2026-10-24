@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { sendPushToUser, PushPayload } from '@/lib/webpush';
 import { canUserApprove, ApprovalScopeType } from '@/lib/approval-scope';
 import { getRenderedNotification } from '@/lib/notification-templates';
-import { stripAllPrefixes } from '@/lib/user-utils';
+import { stripAllPrefixes, formatUserName } from '@/lib/user-utils';
 
 export interface CreateNotificationParams {
   userId: string;
@@ -20,7 +20,7 @@ export interface CreateNotificationParams {
     | 'SYSTEM';
   priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
   linkUrl?: string;
-  entityType?: 'BORROW' | 'REQUISITION' | 'ITEM' | 'STORAGE' | 'BOOKING' | 'PRACTICE' | 'ROOM';
+  entityType?: 'BORROW' | 'REQUISITION' | 'ITEM' | 'STORAGE' | 'BOOKING' | 'PRACTICE' | 'ROOM' | 'BROADCAST';
   entityId?: string;
   templateId?: string;
   variables?: Record<string, string | number | undefined | null>;
@@ -366,4 +366,138 @@ export async function notifyAdvisorWithTemplate(
     entityId: params.entityId,
   });
 }
+
+/**
+ * ดำเนินการกระจายข้อความประกาศ (Broadcast Message) ไปยังผู้รับเป้าหมาย
+ */
+export async function dispatchBroadcastMessage(broadcastId: string) {
+  try {
+    const broadcast = await prisma.broadcastMessage.findUnique({
+      where: { id: broadcastId },
+    });
+
+    if (!broadcast || broadcast.status === 'CANCELLED') return null;
+
+    // หาผู้รับตาม targetType
+    let targetUsers: { id: string; name: string; prefix?: string | null; studentId?: string | null }[] = [];
+
+    if (broadcast.targetType === 'ALL_STUDENTS') {
+      targetUsers = await prisma.user.findMany({
+        where: { status: 'ACTIVE', role: 'USER' },
+        select: { id: true, name: true, prefix: true, studentId: true },
+      });
+    } else if (broadcast.targetType === 'ALL_TEACHERS') {
+      targetUsers = await prisma.user.findMany({
+        where: { status: 'ACTIVE', role: { in: ['TEACHER', 'APPROVER'] } },
+        select: { id: true, name: true, prefix: true, studentId: true },
+      });
+    } else if (broadcast.targetType === 'ALL_USERS') {
+      targetUsers = await prisma.user.findMany({
+        where: { status: 'ACTIVE' },
+        select: { id: true, name: true, prefix: true, studentId: true },
+      });
+    } else if (broadcast.targetType === 'CUSTOM_USERS') {
+      let customIds: string[] = [];
+      try {
+        if (broadcast.targetUserIds) {
+          customIds = JSON.parse(broadcast.targetUserIds);
+        }
+      } catch (e) {}
+
+      if (customIds.length > 0) {
+        targetUsers = await prisma.user.findMany({
+          where: { status: 'ACTIVE', id: { in: customIds } },
+          select: { id: true, name: true, prefix: true, studentId: true },
+        });
+      }
+    }
+
+    if (targetUsers.length === 0) {
+      await prisma.broadcastMessage.update({
+        where: { id: broadcast.id },
+        data: {
+          status: 'SENT',
+          sentAt: new Date(),
+          totalRecipients: 0,
+        },
+      });
+      return { success: true, count: 0 };
+    }
+
+    // สร้างการแจ้งเตือนแยกรายคน พร้อมแทนที่ตัวแปรเฉพาะบุคคล เช่น {student_name}
+    const notifs = targetUsers.map((u) => {
+      const uName = formatUserName(u) || u.name;
+      const personalizedMsg = broadcast.message
+        .replace(/\{student_name\}/g, uName)
+        .replace(/\{name\}/g, uName)
+        .replace(/\{student_id\}/g, u.studentId || '');
+
+      return {
+        userId: u.id,
+        title: broadcast.title,
+        message: personalizedMsg,
+        type: 'SYSTEM' as const,
+        priority: (broadcast.priority as any) || 'NORMAL',
+        linkUrl: broadcast.linkUrl || undefined,
+        entityType: 'BROADCAST' as const,
+        entityId: broadcast.id,
+      };
+    });
+
+    await createMultipleNotifications(notifs);
+
+    await prisma.broadcastMessage.update({
+      where: { id: broadcast.id },
+      data: {
+        status: 'SENT',
+        sentAt: new Date(),
+        totalRecipients: targetUsers.length,
+      },
+    });
+
+    return { success: true, count: targetUsers.length };
+  } catch (err) {
+    console.error('Failed to dispatch broadcast message:', err);
+    return null;
+  }
+}
+
+// In-memory timestamp to throttle periodic scheduler checks (run at most once per 20s per process)
+let lastScheduledCheck = 0;
+
+/**
+ * ตรวจสอบและประมวลผลประกาศที่ตั้งเวลาไว้ (Scheduled Broadcasts) เมื่อถึงกำหนดเวลาส่ง
+ */
+export async function processScheduledBroadcasts(): Promise<number> {
+  const now = Date.now();
+  if (now - lastScheduledCheck < 20000) {
+    return 0; // Throttled
+  }
+  lastScheduledCheck = now;
+
+  try {
+    const nowDate = new Date();
+    const dueBroadcasts = await prisma.broadcastMessage.findMany({
+      where: {
+        status: 'SCHEDULED',
+        scheduledAt: { lte: nowDate },
+      },
+      select: { id: true },
+    });
+
+    if (dueBroadcasts.length === 0) return 0;
+
+    let processed = 0;
+    for (const b of dueBroadcasts) {
+      await dispatchBroadcastMessage(b.id);
+      processed++;
+    }
+
+    return processed;
+  } catch (err) {
+    console.error('Error processing scheduled broadcasts:', err);
+    return 0;
+  }
+}
+
 

@@ -536,6 +536,9 @@ model PracticeBooking {
   checkOutTime    DateTime?      // เวลาที่สแกน Check-out จริง
   actualMinutes   Int?           // จำนวนนาทีที่ฝึกปฏิบัติจริง
   
+  groupCode       String?        // รหัสกลุ่มการจอง เช่น GRP-25691025-XXXX
+  bookedById      String?        // รหัสผู้ใช้ที่เป็นคนกดจองหลัก
+  
   notes           String?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
@@ -628,6 +631,26 @@ model PushSubscription {
   updatedAt DateTime @updatedAt
 
   @@index([userId, isActive])
+}
+
+model BroadcastMessage {
+  id              String    @id @default(cuid())
+  title           String
+  message         String
+  targetType      String    // "ALL_STUDENTS", "ALL_TEACHERS", "ALL_USERS", "CUSTOM_USERS"
+  targetUserIds   String?   // JSON array of user IDs
+  priority        String    @default("NORMAL") // "NORMAL", "HIGH", "URGENT"
+  linkUrl         String?
+  scheduledAt     DateTime? // กำหนดเวลาส่ง (null = ส่งทันที)
+  status          String    @default("SENT") // "SCHEDULED", "SENT", "CANCELLED"
+  sentAt          DateTime?
+  totalRecipients Int       @default(0)
+  authorId        String?
+  authorName      String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status, scheduledAt])
 }
 
 model NotificationTemplate {

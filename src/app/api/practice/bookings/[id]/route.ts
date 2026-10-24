@@ -84,103 +84,131 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         }
       }
 
-      const updated = await prisma.practiceBooking.update({
-        where: { id: booking.id },
-        data: {
-          status: 'APPROVED',
-          approverId: userId || null,
-          approvedAt: new Date(),
-        },
-        include: {
-          user: true,
-          slot: { include: { room: true } },
-          approver: true,
-        },
-      });
-      // Trigger email with QR Code to student in background
-      if (updated.user?.email) {
-        const slotDateFormatted = updated.slot?.date ? new Date(updated.slot.date).toLocaleDateString('th-TH', {
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
-        }) : '';
-        const dateTimeStr = `${slotDateFormatted} เวลา ${updated.slot?.startTime} - ${updated.slot?.endTime} น.`;
+      // หากเป็นการจองแบบกลุ่ม ให้อนุมัติสมาชิกในกลุ่มเดียวกันพร้อมกัน
+      const bookingsToApprove = booking.groupCode
+        ? await prisma.practiceBooking.findMany({
+            where: { groupCode: booking.groupCode, status: 'PENDING' },
+            include: { user: true, slot: { include: { room: true } } },
+          })
+        : [booking];
 
-        sendApprovalNotificationWithQrEmail({
-          studentEmail: updated.user.email,
-          studentName: updated.user.name,
-          bookingNumber: updated.bookingNumber,
-          skillTopic: updated.skillTopic,
-          roomName: updated.slot?.room?.name || 'ห้องปฏิบัติการพยาบาล',
-          dateTimeStr,
-          qrCodeToken: updated.qrCodeToken,
-        }).catch((err) => console.error('Background student QR email failed:', err));
-      }
+      const approvedList = [];
 
-      // In-app notification
-      if (updated.userId) {
-        createNotification({
-          userId: updated.userId,
-          title: 'คำขอจองห้องฝึกได้รับการอนุมัติแล้ว 🎉',
-          message: `คำขอจอง ${updated.bookingNumber} (${updated.skillTopic}) ได้รับการอนุมัติแล้ว พร้อมรับ QR เข้าห้อง`,
-          type: 'STATUS_UPDATE',
-          linkUrl: '/practice/my-bookings',
-          entityType: 'PRACTICE',
+      for (const b of bookingsToApprove) {
+        const updated = await prisma.practiceBooking.update({
+          where: { id: b.id },
+          data: {
+            status: 'APPROVED',
+            approverId: userId || null,
+            approvedAt: new Date(),
+          },
+          include: {
+            user: true,
+            slot: { include: { room: true } },
+            approver: true,
+          },
+        });
+        approvedList.push(updated);
+
+        // Trigger email with individual QR Code to each student in background
+        if (updated.user?.email) {
+          const slotDateFormatted = updated.slot?.date
+            ? new Date(updated.slot.date).toLocaleDateString('th-TH', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+              })
+            : '';
+          const dateTimeStr = `${slotDateFormatted} เวลา ${updated.slot?.startTime} - ${updated.slot?.endTime} น.`;
+
+          sendApprovalNotificationWithQrEmail({
+            studentEmail: updated.user.email,
+            studentName: updated.user.name,
+            bookingNumber: updated.bookingNumber,
+            skillTopic: updated.skillTopic,
+            roomName: updated.slot?.room?.name || 'ห้องปฏิบัติการพยาบาล',
+            dateTimeStr,
+            qrCodeToken: updated.qrCodeToken,
+          }).catch((err) => console.error('Background student QR email failed:', err));
+        }
+
+        // In-app notification for each student
+        if (updated.userId) {
+          createNotification({
+            userId: updated.userId,
+            title: 'คำขอจองห้องฝึกได้รับการอนุมัติแล้ว 🎉',
+            message: `คำขอจอง ${updated.bookingNumber} (${updated.skillTopic}) ได้รับการอนุมัติแล้ว พร้อมรับ QR เข้าห้อง`,
+            type: 'STATUS_UPDATE',
+            linkUrl: '/practice/my-bookings',
+            entityType: 'PRACTICE',
+            entityId: updated.id,
+          }).catch(() => {});
+        }
+
+        logActivity({
+          userId,
+          action: 'APPROVE',
+          entityType: 'PRACTICE_BOOKING',
           entityId: updated.id,
-        }).catch(() => {});
+          entityTitle: updated.bookingNumber,
+          details: `อนุมัติคำขอเข้าฝึกทักษะ ${updated.bookingNumber} (${updated.skillTopic})`,
+        });
       }
 
-      logActivity({
-        userId,
-        action: 'APPROVE',
-        entityType: 'PRACTICE_BOOKING',
-        entityId: updated.id,
-        entityTitle: updated.bookingNumber,
-        details: `อนุมัติคำขอเข้าฝึกทักษะ ${updated.bookingNumber} (${updated.skillTopic})`,
-      });
-
-      return NextResponse.json(updated);
+      return NextResponse.json(approvedList.find((x) => x.id === booking.id) || approvedList[0]);
     }
 
     if (action === 'REJECT') {
-      const updated = await prisma.practiceBooking.update({
-        where: { id: booking.id },
-        data: {
-          status: 'REJECTED',
-          approverId: userId || null,
-          rejectionReason: reason || 'ไม่อนุมัติ',
-        },
-        include: {
-          user: true,
-          slot: { include: { room: true } },
-          approver: true,
-        },
-      });
+      const bookingsToReject = booking.groupCode
+        ? await prisma.practiceBooking.findMany({
+            where: { groupCode: booking.groupCode, status: 'PENDING' },
+            include: { user: true, slot: { include: { room: true } } },
+          })
+        : [booking];
 
-      // In-app notification
-      if (updated.userId) {
-        createNotification({
-          userId: updated.userId,
-          title: 'คำขอจองห้องฝึกไม่ได้รับการอนุมัติ ❌',
-          message: `คำขอจอง ${updated.bookingNumber} (${updated.skillTopic}) ไม่ได้รับการอนุมัติ: ${updated.rejectionReason || 'ไม่อนุมัติ'}`,
-          type: 'STATUS_UPDATE',
-          priority: 'HIGH',
-          linkUrl: '/practice/my-bookings',
-          entityType: 'PRACTICE',
+      const rejectedList = [];
+
+      for (const b of bookingsToReject) {
+        const updated = await prisma.practiceBooking.update({
+          where: { id: b.id },
+          data: {
+            status: 'REJECTED',
+            approverId: userId || null,
+            rejectionReason: reason || 'ไม่อนุมัติ',
+          },
+          include: {
+            user: true,
+            slot: { include: { room: true } },
+            approver: true,
+          },
+        });
+        rejectedList.push(updated);
+
+        // In-app notification
+        if (updated.userId) {
+          createNotification({
+            userId: updated.userId,
+            title: 'คำขอจองห้องฝึกไม่ได้รับการอนุมัติ ❌',
+            message: `คำขอจอง ${updated.bookingNumber} (${updated.skillTopic}) ไม่ได้รับการอนุมัติ: ${updated.rejectionReason || 'ไม่อนุมัติ'}`,
+            type: 'STATUS_UPDATE',
+            priority: 'HIGH',
+            linkUrl: '/practice/my-bookings',
+            entityType: 'PRACTICE',
+            entityId: updated.id,
+          }).catch(() => {});
+        }
+
+        logActivity({
+          userId,
+          action: 'REJECT',
+          entityType: 'PRACTICE_BOOKING',
           entityId: updated.id,
-        }).catch(() => {});
+          entityTitle: updated.bookingNumber,
+          details: `ปฏิเสธคำขอเข้าฝึกทักษะ ${updated.bookingNumber} (เหตุผล: ${updated.rejectionReason || 'ไม่อนุมัติ'})`,
+        });
       }
 
-      logActivity({
-        userId,
-        action: 'REJECT',
-        entityType: 'PRACTICE_BOOKING',
-        entityId: updated.id,
-        entityTitle: updated.bookingNumber,
-        details: `ปฏิเสธคำขอเข้าฝึกทักษะ ${updated.bookingNumber} (เหตุผล: ${updated.rejectionReason || 'ไม่อนุมัติ'})`,
-      });
-
-      return NextResponse.json(updated);
+      return NextResponse.json(rejectedList.find((x) => x.id === booking.id) || rejectedList[0]);
     }
 
     if (action === 'CHECK_IN') {

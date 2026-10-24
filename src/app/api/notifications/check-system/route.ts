@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { notifyRoles, createNotification } from '@/lib/notifications';
+import { notifyRoles, createNotification, processScheduledBroadcasts } from '@/lib/notifications';
 
 export async function POST() {
   try {
+    // ประมวลผลข้อความประกาศที่ถึงกำหนดเวลาส่ง
+    await processScheduledBroadcasts().catch(() => {});
     const now = new Date();
     const twentyFourHoursAhead = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     const thirtyDaysAhead = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);

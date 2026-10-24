@@ -17,6 +17,46 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-25] พัฒนาระบบส่งข้อความประกาศ & ตั้งเวลาแจ้งเตือนล่วงหน้า และระบบจองรอบฝึกปฏิบัติการพร้อมเพื่อนร่วมกลุ่ม
+- **หมวดหมู่**: Messaging & Push Notifications / Practice Group Booking / Student Engagement
+- **สิ่งที่ดำเนินการ**:
+  1. **ระบบส่งข้อความประกาศและตั้งเวลาแจ้งเตือนนิสิตล่วงหน้า (Broadcast & Scheduled Notification Center)**:
+     - พัฒนาโมเดล `BroadcastMessage` ในฐานข้อมูล PostgreSQL รองรับการจัดเก็บประกาศ, กลุ่มเป้าหมาย, ระดับความสำคัญ, วันเวลาที่ตั้งเวลาส่ง (`scheduledAt`), สถานะ (`SCHEDULED` / `SENT` / `CANCELLED`), และจำนวนผู้รับ
+     - สร้าง API `src/app/api/notifications/broadcast/route.ts` รองรับการสร้างประกาศ (ส่งทันที / ตั้งเวลาส่ง), การดึงประวัติพร้อมคำนวณจำนวนคนที่เปิดอ่านแล้ว (`readCount`), การกดส่งทันทีจากคิว (`SEND_NOW`), และการยกเลิก/ลบประกาศ
+     - เพิ่มฟังก์ชัน `dispatchBroadcastMessage()` และ `processScheduledBroadcasts()` ใน `src/lib/notifications.ts` พร้อมระบบตรวจจับคิวส่งอัตโนมัติเมื่อถึงเวลาที่กำหนดผ่าน Session Heartbeat และ Check-system
+     - ปรับปรุงหน้าจอ `src/app/settings/notifications/page.tsx`:
+       - เพิ่มแท็บหลักสลับระหว่าง **"📢 ส่งประกาศ & ตั้งเวลาแจ้งเตือน (Broadcast Center)"** และ **"⚙️ แม่แบบระบบอัตโนมัติ (Templates)"**
+       - มีเทมเพลตข้อความด่วน (Quick Presets) เช่น แจ้งเปิดรอบฝึกเพิ่ม, แจ้งปิดห้องสอบ OSCE, แจ้งเตือนส่งคืนอุปกรณ์ก่อนปิดเทอม
+       - เลือกกลุ่มผู้รับได้ทั้ง นิสิตทั้งหมด, เลือกรายบุคคล/เฉพาะกลุ่ม (พร้อมช่องค้นหารหัสนิสิต/ชื่อ), อาจารย์ทั้งหมด หรือทุกคน
+       - รองรับการแทรกตัวแปร `{student_name}` เพื่อให้ระบบใส่ชื่อนิสิตให้อัตโนมัติ
+       - แสดงผลตัวอย่างบนจอมือถือนิสิต (Live Preview Mockup)
+       - มีตารางคิวรอส่ง (`SCHEDULED`) และประวัติการส่ง (`SENT`) แสดงสถิติการเปิดอ่านจริง
+  2. **ระบบจองรอบฝึกปฏิบัติการพร้อมเพื่อนร่วมกลุ่ม (Group Practice Booking System)**:
+     - ปรับปรุง `src/app/api/practice/bookings/route.ts`:
+       - ผู้กดจองต้องเป็นผู้เข้าฝึกหลักเสมอ (1 ที่นั่ง) และรับ `companionUserIds` เพิ่มเติม
+       - ตรวจสอบความจุห้องรวม (`totalSeats <= availableSeats`) ป้องกันการเลือกคนเกินที่นั่งว่าง
+       - ตรวจสอบการจองซ้ำในรอบเดียวกันและตรวจคิวชนข้ามห้องของสมาชิกทุกคนในกลุ่มแบบรายบุคคล
+       - สร้าง `PracticeBooking` แยกรายบุคคลภายใต้ `prisma.$transaction` โดยแต่ละคนมี `qrCodeToken` ประจำตัวของตัวเอง และผูก `groupCode` เดียวกัน
+       - ส่งการแจ้งเตือน In-App Notification ไปยังเพื่อนร่วมกลุ่มทุกคน
+     - ปรับปรุง `src/app/api/practice/bookings/[id]/route.ts`:
+       - รองรับการอนุมัติยกกลุ่ม (Group Approval) เมื่ออาจารย์กดอนุมัติ
+       - **คงระบบ Check-in และ Check-out แยกรายบุคคล 100%** (1 สแกน = 1 คน) ป้องกันการเช็คอินแทนเพื่อน
+     - ปรับปรุงหน้าจอ `src/app/practice/page.tsx`:
+       - เพิ่มส่วน **"👥 เพื่อนร่วมกลุ่มฝึก (ถ้ามี)"** ใน `BookingModal` พร้อมระบบค้นหาด้วยรหัสนิสิต/ชื่อ
+       - แถบแสดงโควตาที่นั่งแบบ Real-time (`รวม X คน, ว่างอีก Y ที่`) และล็อกการเพิ่มเมื่อเต็มความจุ
+       - แสดงป้ายกำกับการเข้าฝึกเป็นกลุ่มในหน้าต่างรายละเอียดคำขอ
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `prisma/schema.prisma`
+  - `src/lib/notifications.ts`
+  - `src/app/api/notifications/broadcast/route.ts` (NEW)
+  - `src/app/api/notifications/route.ts`
+  - `src/app/api/notifications/check-system/route.ts`
+  - `src/app/api/practice/bookings/route.ts`
+  - `src/app/api/practice/bookings/[id]/route.ts`
+  - `src/app/practice/page.tsx`
+  - `src/app/settings/notifications/page.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `node scripts/librarian-audit.mjs` ผ่าน 100%, `npx.cmd tsc --noEmit` ผ่าน 0 errors, `npm.cmd run build` ผ่าน 100% (93 routes)
+
 ### [2026-10-25] ควบคุมสิทธิ์การมองเห็นเมนูและยกระดับระบบติดตามประวัติคำขอสำหรับนิสิต (Role-Based Menu Visibility & Student Request Hub)
 - **หมวดหมู่**: Authorization / UX / Student Request History / Menu Security
 - **สิ่งที่ดำเนินการ**:

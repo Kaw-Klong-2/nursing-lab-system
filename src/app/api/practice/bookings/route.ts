@@ -53,6 +53,7 @@ export async function POST(req: Request) {
       courseId,
       practiceKitId,
       additionalEquipment,
+      companionUserIds = [],
     } = body;
 
     if (!userId || !slotId || !skillTopic) {
@@ -61,6 +62,12 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    // รวมรายชื่อผู้เข้าฝึกทั้งหมด (ผู้จองหลัก + เพื่อนร่วมกลุ่ม)
+    const allUserIds = Array.from(
+      new Set([userId, ...(Array.isArray(companionUserIds) ? companionUserIds : [])].filter(Boolean))
+    );
+    const totalSeats = allUserIds.length;
 
     // 1. Fetch slot & config
     const [slot, config] = await Promise.all([
@@ -106,7 +113,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3. Check capacity in this slot
+    // 3. Check capacity in this slot for the whole group
     const activeCount = await prisma.practiceBooking.count({
       where: {
         slotId,
@@ -114,9 +121,12 @@ export async function POST(req: Request) {
       },
     });
 
-    if (activeCount >= slot.maxCapacity) {
+    const availableSeats = Math.max(0, slot.maxCapacity - activeCount);
+    if (activeCount + totalSeats > slot.maxCapacity) {
       return NextResponse.json(
-        { error: `รอบเวลานี้เต็มแล้ว (ความจุสูงสุด ${slot.maxCapacity} ท่าน)` },
+        {
+          error: `รอบเวลานี้เหลือที่ว่างเพียง ${availableSeats} ที่ ไม่เพียงพอสำหรับผู้เข้าฝึก ${totalSeats} ท่าน (ความจุห้อง ${slot.maxCapacity} ท่าน)`,
+        },
         { status: 400 }
       );
     }
@@ -148,64 +158,75 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4. Check duplicate or overlapping practice bookings by the same student on this date
-    const existingSameSlot = await prisma.practiceBooking.findFirst({
-      where: {
-        userId,
-        slotId,
-        status: { in: ['PENDING', 'APPROVED', 'CHECKED_IN'] },
-      },
+    // 4. Fetch users for validation
+    const targetUsers = await prisma.user.findMany({
+      where: { id: { in: allUserIds } },
+      select: { id: true, name: true, prefix: true, studentId: true, email: true },
     });
+    const userMap = new Map(targetUsers.map((u) => [u.id, u]));
 
-    if (existingSameSlot) {
-      return NextResponse.json(
-        { error: 'ท่านได้ยื่นคำขอในรอบเวลานี้ไปแล้ว' },
-        { status: 400 }
-      );
+    // Check duplicate or overlapping practice bookings for EACH member in the group
+    for (const uid of allUserIds) {
+      const u = userMap.get(uid);
+      const uLabel = u ? `${formatUserName(u)} (${u.studentId || 'ไม่ระบุรหัส'})` : 'นิสิตในกลุ่ม';
+
+      const existingSameSlot = await prisma.practiceBooking.findFirst({
+        where: {
+          userId: uid,
+          slotId,
+          status: { in: ['PENDING', 'APPROVED', 'CHECKED_IN'] },
+        },
+      });
+
+      if (existingSameSlot) {
+        return NextResponse.json(
+          { error: `${uLabel} ได้ยื่นคำขอในรอบเวลานี้ไปแล้ว` },
+          { status: 400 }
+        );
+      }
+
+      const overlappingBooking = await prisma.practiceBooking.findFirst({
+        where: {
+          userId: uid,
+          status: { in: ['PENDING', 'APPROVED', 'CHECKED_IN'] },
+          slot: {
+            date: {
+              gte: slotDayStart,
+              lt: slotDayEnd,
+            },
+            startTime: { lt: slot.endTime },
+            endTime: { gt: slot.startTime },
+          },
+        },
+        include: {
+          slot: {
+            include: {
+              room: true,
+            },
+          },
+        },
+      });
+
+      if (overlappingBooking) {
+        const bookedRoom = overlappingBooking.slot.room?.name || 'ห้องปฏิบัติการ';
+        const bookedTime = `${overlappingBooking.slot.startTime} - ${overlappingBooking.slot.endTime} น.`;
+        return NextResponse.json(
+          {
+            error: `${uLabel} มีคิวจองรอบฝึกทักษะในช่วงเวลาที่ซ้อนทับกันแล้ว (${bookedRoom} เวลา ${bookedTime}) กรุณาตรวจสอบตารางเวลาของสมาชิกในกลุ่ม`,
+          },
+          { status: 400 }
+        );
+      }
     }
 
-    const overlappingBooking = await prisma.practiceBooking.findFirst({
-      where: {
-        userId,
-        status: { in: ['PENDING', 'APPROVED', 'CHECKED_IN'] },
-        slot: {
-          date: {
-            gte: slotDayStart,
-            lt: slotDayEnd,
-          },
-          startTime: { lt: slot.endTime },
-          endTime: { gt: slot.startTime },
-        },
-      },
-      include: {
-        slot: {
-          include: {
-            room: true,
-          },
-        },
-      },
-    });
-
-    if (overlappingBooking) {
-      const bookedRoom = overlappingBooking.slot.room?.name || 'ห้องปฏิบัติการ';
-      const bookedTime = `${overlappingBooking.slot.startTime} - ${overlappingBooking.slot.endTime} น.`;
-      return NextResponse.json(
-        {
-          error: `ท่านได้ทำการจองรอบฝึกทักษะในช่วงเวลาที่ซ้อนทับกันแล้ว (${bookedRoom} เวลา ${bookedTime}) กรุณาเลือกช่วงเวลาอื่นที่ไม่ซ้อนทับกัน`,
-        },
-        { status: 400 }
-      );
-    }
-
-    // 5. Generate booking number: SPB-YYYYMMDD-XXX
+    // 5. Generate group code if more than 1 participant
     const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const countToday = await prisma.practiceBooking.count();
-    const bookingNumber = `SPB-${todayStr}-${String(countToday + 1).padStart(3, '0')}`;
+    const isGroup = allUserIds.length > 1;
+    const groupCode = isGroup
+      ? `GRP-${todayStr}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`
+      : null;
 
-    // 6. Generate secure QR token
-    const qrCodeToken = `SPK-${crypto.randomBytes(8).toString('hex').toUpperCase()}`;
-
-    // 7. Resolve advisorName: from course if provided, otherwise from user selection
+    // 6. Resolve advisorName: from course if provided, otherwise from user selection
     let finalAdvisorName = advisorName ? formatTeacherName(advisorName) : null;
     if (courseId && !finalAdvisorName) {
       const course = await prisma.course.findUnique({
@@ -217,31 +238,83 @@ export async function POST(req: Request) {
       }
     }
 
-    const booking = await prisma.practiceBooking.create({
-      data: {
-        bookingNumber,
-        userId,
-        slotId,
-        skillTopic,
-        objectives: objectives || null,
-        advisorName: finalAdvisorName,
-        courseId: courseId || null,
-        practiceKitId: practiceKitId || null,
-        additionalEquipment: additionalEquipment || null,
-        status: 'PENDING',
-        qrCodeToken,
-      },
-      include: {
-        user: true,
-        slot: {
-          include: {
-            room: true,
+    // ผู้จองหลัก
+    const bookerUser = userMap.get(userId);
+    const bookerName = bookerUser ? formatUserName(bookerUser) : 'นิสิต';
+
+    // 7. Create individual linked bookings in transaction
+    const countToday = await prisma.practiceBooking.count();
+
+    const createdBookings = await prisma.$transaction(async (tx) => {
+      const results = [];
+      for (let i = 0; i < allUserIds.length; i++) {
+        const currentUid = allUserIds[i];
+        const isCurrentBooker = currentUid === userId;
+        const bNumber = `SPB-${todayStr}-${String(countToday + i + 1).padStart(3, '0')}`;
+        const qrCodeToken = `SPK-${crypto.randomBytes(8).toString('hex').toUpperCase()}`;
+
+        const companionNotes = isGroup
+          ? isCurrentBooker
+            ? `[กลุ่ม ${allUserIds.length} คน: ${bookerName} (ผู้จองหลัก) พร้อมเพื่อน ${allUserIds.length - 1} คน]`
+            : `[กลุ่ม ${allUserIds.length} คน: จองร่วมกับ ${bookerName}]`
+          : null;
+
+        const bRecord = await tx.practiceBooking.create({
+          data: {
+            bookingNumber: bNumber,
+            userId: currentUid,
+            slotId,
+            skillTopic,
+            objectives: objectives || null,
+            advisorName: finalAdvisorName,
+            courseId: courseId || null,
+            practiceKitId: practiceKitId || null,
+            additionalEquipment: additionalEquipment || null,
+            status: 'PENDING',
+            qrCodeToken,
+            groupCode,
+            bookedById: userId,
+            notes: companionNotes,
           },
-        },
-        course: true,
-        practiceKit: true,
-      },
+          include: {
+            user: true,
+            slot: {
+              include: {
+                room: true,
+              },
+            },
+            course: true,
+            practiceKit: true,
+          },
+        });
+        results.push(bRecord);
+      }
+      return results;
     });
+
+    const primaryBooking = createdBookings.find((b) => b.userId === userId) || createdBookings[0];
+    const slotDateFormatted = new Date(slot.date).toLocaleDateString('th-TH', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    // 8. Notifications to companions
+    if (isGroup) {
+      for (const b of createdBookings) {
+        if (b.userId !== userId) {
+          createNotification({
+            userId: b.userId,
+            title: 'เพื่อนได้เพิ่มชื่อท่านในรอบฝึกปฏิบัติการ 👥',
+            message: `${bookerName} ได้ลงทะเบียนรอบฝึกทักษะ (${skillTopic}) ในวันที่ ${slotDateFormatted} เวลา ${slot.startTime} - ${slot.endTime} น. ร่วมกับท่าน`,
+            type: 'STATUS_UPDATE',
+            linkUrl: '/practice',
+            entityType: 'PRACTICE',
+            entityId: b.id,
+          }).catch(() => {});
+        }
+      }
+    }
 
     // Background notification: Send email to advisor/approver
     try {
@@ -286,18 +359,19 @@ export async function POST(req: Request) {
         sendApprovalRequestEmail({
           approverEmail,
           approverName,
-          studentName: formatUserName(booking.user) || 'นิสิต',
-          studentId: booking.user?.studentId || undefined,
+          studentName: formatUserName(primaryBooking.user) || 'นิสิต',
+          studentId: primaryBooking.user?.studentId || undefined,
           type: 'PRACTICE',
-          title: `คำขอจองห้องฝึกปฏิบัติการ (${bookingNumber})`,
-          requestId: booking.id,
+          title: `คำขอจองห้องฝึกปฏิบัติการ (${primaryBooking.bookingNumber})`,
+          requestId: primaryBooking.id,
           details: [
-            { label: 'รหัสคำขอ', value: bookingNumber },
+            { label: 'รหัสคำขอ', value: primaryBooking.bookingNumber },
             { label: 'หัตถการที่ขอฝึก', value: skillTopic },
             { label: 'ห้องปฏิบัติการ', value: slot.room?.name || 'ห้องแล็บ' },
             { label: 'วันและเวลานัดหมาย', value: `${slotDateFormatted} เวลา ${slot.startTime} - ${slot.endTime} น.` },
-            { label: 'รายวิชา', value: booking.course ? `[${booking.course.code}] ${booking.course.name}` : 'ฝึกอิสระนอกหลักสูตร' },
-            { label: 'ชุดฝึก Practice Kit', value: booking.practiceKit?.name || 'ใช้อุปกรณ์ประจำห้องแล็บ' },
+            { label: 'รายวิชา', value: primaryBooking.course ? `[${primaryBooking.course.code}] ${primaryBooking.course.name}` : 'ฝึกอิสระนอกหลักสูตร' },
+            { label: 'ชุดฝึก Practice Kit', value: primaryBooking.practiceKit?.name || 'ใช้อุปกรณ์ประจำห้องแล็บ' },
+            ...(isGroup ? [{ label: 'รูปแบบการเข้าฝึก', value: `ฝึกเป็นกลุ่ม ${allUserIds.length} คน` }] : []),
           ],
         }).catch((err) => console.error('Error sending background approval email:', err));
       }
@@ -306,25 +380,25 @@ export async function POST(req: Request) {
     }
 
     // In-app & Push notifications (awaited)
-    const requesterDisplay = formatRequesterWithRole(booking.user);
+    const requesterDisplay = formatRequesterWithRole(primaryBooking.user);
     await Promise.allSettled([
       notifyRoles(
         ['OFFICER', 'ADMIN', 'APPROVER'],
         {
           templateId: 'PRACTICE_BOOKING_SUBMITTED',
           variables: {
-            studentName: formatUserName(booking.user) || 'นิสิต',
+            studentName: formatUserName(primaryBooking.user) || 'นิสิต',
             roomName: slot.room?.name || 'ห้องปฏิบัติการ',
-            date: booking.slot?.date?.toISOString().slice(0, 10) || '',
-            timeSlot: `${booking.slot?.startTime || ''} - ${booking.slot?.endTime || ''}`,
-            bookingNumber: booking.bookingNumber,
+            date: primaryBooking.slot?.date?.toISOString().slice(0, 10) || '',
+            timeSlot: `${primaryBooking.slot?.startTime || ''} - ${primaryBooking.slot?.endTime || ''}`,
+            bookingNumber: primaryBooking.bookingNumber,
           },
           title: 'มีคำขอจองห้องฝึกปฏิบัติการใหม่ 🏢',
-          message: `${requesterDisplay} ยื่นคำขอจองเลขที่ ${booking.bookingNumber} (${booking.skillTopic})`,
+          message: `${requesterDisplay} ยื่นคำขอจองเลขที่ ${primaryBooking.bookingNumber} (${primaryBooking.skillTopic})${isGroup ? ` (กลุ่ม ${allUserIds.length} คน)` : ''}`,
           type: 'APPROVAL',
           linkUrl: '/practice/bookings',
           entityType: 'PRACTICE',
-          entityId: booking.id,
+          entityId: primaryBooking.id,
           priority: 'HIGH',
         },
         'PRACTICE'
@@ -333,28 +407,32 @@ export async function POST(req: Request) {
       finalAdvisorName
         ? notifyAdvisorByName(finalAdvisorName, {
             title: 'มีคำขอจองห้องฝึกปฏิบัติการรอกดรับทราบ 👩‍🏫',
-            message: `${requesterDisplay} ยื่นคำขอจอง ${booking.bookingNumber} (${booking.skillTopic}) รออาจารย์รับทราบ`,
+            message: `${requesterDisplay} ยื่นคำขอจอง ${primaryBooking.bookingNumber} (${primaryBooking.skillTopic}) รออาจารย์รับทราบ`,
             type: 'REQUEST_SUBMITTED',
             priority: 'HIGH',
             linkUrl: '/approvals',
             entityType: 'PRACTICE',
-            entityId: booking.id,
+            entityId: primaryBooking.id,
           })
         : Promise.resolve(null),
 
       createNotification({
-        userId: booking.userId,
+        userId: primaryBooking.userId,
         title: 'ยื่นคำขอจองห้องฝึกปฏิบัติการเรียบร้อยแล้ว ✅',
-        message: `คำขอจองห้องฝึก ${booking.slot?.room?.name || ''} (${booking.bookingNumber}) ถูกส่งเข้าสู่ระบบแล้ว และอยู่ระหว่างรอการอนุมัติ`,
+        message: `คำขอจองห้องฝึก ${primaryBooking.slot?.room?.name || ''} (${primaryBooking.bookingNumber}) ถูกส่งเข้าสู่ระบบแล้ว และอยู่ระหว่างรอการอนุมัติ${isGroup ? ` (ร่วมกับเพื่อน ${allUserIds.length - 1} คน)` : ''}`,
         type: 'STATUS_UPDATE',
         priority: 'NORMAL',
         linkUrl: '/practice/my-bookings',
         entityType: 'PRACTICE',
-        entityId: booking.id,
+        entityId: primaryBooking.id,
       }),
     ]);
 
-    return NextResponse.json(booking);
+    return NextResponse.json({
+      ...primaryBooking,
+      groupBookings: createdBookings,
+      groupCount: createdBookings.length,
+    });
   } catch (error: any) {
     console.error('Error creating practice booking:', error);
     return NextResponse.json({ error: error.message || 'Failed to create booking' }, { status: 500 });

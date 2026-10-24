@@ -447,10 +447,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           assignedAssets?.find((a: any) => a.borrowItemId === bItem.id) ||
           (adj?.assetId ? { assetId: adj.assetId } : null);
 
-        if (availableAssetsForItem.length > 0 || explicitAssign?.assetId || bItem.assetId) {
+        const explicitAssetIds: string[] = Array.isArray(explicitAssign?.assetIds)
+          ? explicitAssign.assetIds.filter(Boolean)
+          : (explicitAssign?.assetId ? [explicitAssign.assetId] : []);
+
+        if (availableAssetsForItem.length > 0 || explicitAssetIds.length > 0 || bItem.assetId) {
           // Individual Asset Tracking Mode:
           // Ensure each physical asset has its own BorrowItem with quantity = 1, and status = BORROWED
-          const primaryAssetId = explicitAssign?.assetId || bItem.assetId || availableAssetsForItem[0]?.id;
+          const primaryAssetId = explicitAssetIds[0] || bItem.assetId || availableAssetsForItem[0]?.id;
 
           // 1. Set the first BorrowItem to quantity 1 and assign primary asset
           await prisma.borrowItem.update({
@@ -469,37 +473,43 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
           // 2. If newQty > 1, create individual BorrowItem records for additional units
           if (newQty > 1) {
-            const additionalNeeded = newQty - 1;
             const remainingAvailable = availableAssetsForItem.filter((a) => a.id !== primaryAssetId);
-            const assetsToAssign = remainingAvailable.slice(0, additionalNeeded);
 
-            for (const asset of assetsToAssign) {
-              await prisma.borrowItem.create({
-                data: {
-                  borrowRequestId: borrow.id,
-                  itemId: bItem.itemId,
-                  assetId: asset.id,
-                  quantity: 1,
-                  previousLocation: asset.location,
-                },
-              });
-              await prisma.equipmentAsset.update({
-                where: { id: asset.id },
-                data: { status: 'BORROWED' },
-              });
-            }
+            for (let sIdx = 1; sIdx < newQty; sIdx++) {
+              let assignedId = explicitAssetIds[sIdx];
+              let assignedAsset = assignedId
+                ? await prisma.equipmentAsset.findUnique({ where: { id: assignedId } })
+                : null;
 
-            // If requested more than available physical assets, record remaining as unassigned items
-            const unassignedCount = additionalNeeded - assetsToAssign.length;
-            if (unassignedCount > 0) {
-              await prisma.borrowItem.create({
-                data: {
-                  borrowRequestId: borrow.id,
-                  itemId: bItem.itemId,
-                  assetId: null,
-                  quantity: unassignedCount,
-                },
-              });
+              if (!assignedAsset) {
+                assignedAsset = remainingAvailable.shift() || null;
+              }
+
+              if (assignedAsset) {
+                await prisma.borrowItem.create({
+                  data: {
+                    borrowRequestId: borrow.id,
+                    itemId: bItem.itemId,
+                    assetId: assignedAsset.id,
+                    quantity: 1,
+                    previousLocation: assignedAsset.location,
+                  },
+                });
+                await prisma.equipmentAsset.update({
+                  where: { id: assignedAsset.id },
+                  data: { status: 'BORROWED' },
+                });
+              } else {
+                // If requested more than available physical assets, record as unassigned
+                await prisma.borrowItem.create({
+                  data: {
+                    borrowRequestId: borrow.id,
+                    itemId: bItem.itemId,
+                    assetId: null,
+                    quantity: 1,
+                  },
+                });
+              }
             }
           }
         } else {

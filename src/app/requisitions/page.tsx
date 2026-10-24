@@ -100,7 +100,7 @@ export default function RequisitionsPage() {
     name: string;
     unit: string;
     requestedQty: number;
-    quantity: number;
+    quantity: number | string;
     allowed: boolean;
     isSubUnit?: boolean;
     requestedUnit?: string;
@@ -318,7 +318,13 @@ export default function RequisitionsPage() {
         body: JSON.stringify({
           action: 'DISPENSE',
           userId: currentUser?.id,
-          itemAdjustments: dispenseItems,
+          itemAdjustments: dispenseItems.map((i) => ({
+            ...i,
+            quantity:
+              typeof i.quantity === 'number' && i.quantity >= 1
+                ? i.quantity
+                : parseInt(String(i.quantity), 10) || 1,
+          })),
           dispenseNote: dispenseNote ? dispenseNote.trim() : undefined,
         }),
       });
@@ -1446,11 +1452,25 @@ export default function RequisitionsPage() {
                               type="number"
                               min="1"
                               max={it.requestedQty}
-                              value={it.quantity}
+                              value={it.quantity === 0 ? '' : it.quantity}
                               onChange={(e) => {
-                                const val = Math.max(1, Number(e.target.value));
+                                const raw = e.target.value;
                                 setDispenseItems((prev) =>
-                                  prev.map((item, i) => (i === idx ? { ...item, quantity: val } : item))
+                                  prev.map((item, i) =>
+                                    i === idx
+                                      ? { ...item, quantity: raw === '' ? '' : Math.max(1, Number(raw)) }
+                                      : item
+                                  )
+                                );
+                              }}
+                              onBlur={() => {
+                                setDispenseItems((prev) =>
+                                  prev.map((item, i) => {
+                                    if (i !== idx) return item;
+                                    const num = typeof item.quantity === 'number' ? item.quantity : Number(item.quantity);
+                                    const clamped = isNaN(num) || num < 1 ? 1 : Math.min(num, item.requestedQty);
+                                    return { ...item, quantity: clamped };
+                                  })
                                 );
                               }}
                               className="w-14 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1 text-xs font-bold text-center text-slate-900 dark:text-slate-100"
@@ -1499,8 +1519,9 @@ export default function RequisitionsPage() {
                         </div>
                         {(() => {
                           const ratio = Number(it.conversionRatio) > 0 ? Number(it.conversionRatio) : 1;
-                          const wholePacks = Math.floor(it.quantity / ratio);
-                          const loosePieces = it.quantity % ratio;
+                          const numQty = typeof it.quantity === 'number' ? it.quantity : (parseInt(String(it.quantity), 10) || 0);
+                          const wholePacks = Math.floor(numQty / ratio);
+                          const loosePieces = numQty % ratio;
                           const openRemainder = it.stockLots?.find((l: any) => (l.openPackRemainder || 0) > 0)?.openPackRemainder || 0;
 
                           return (
@@ -1573,7 +1594,7 @@ export default function RequisitionsPage() {
                         </span>
                         <span className="font-mono font-bold text-teal-800 dark:text-teal-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded border border-teal-200 dark:border-teal-800/60">
                           {it.recommendedPacks.packs
-                            .slice(0, it.quantity)
+                            .slice(0, Number(it.quantity) || 1)
                             .map((p: any) => `#${p.packNumber} (${p.packCode})`)
                             .join(', ')}
                         </span>

@@ -102,10 +102,11 @@ export default function BorrowPage() {
     name: string;
     unit: string;
     requestedQty: number;
-    quantity: number;
+    quantity: number | string;
     allowed: boolean;
     assetId?: string | null;
     assetCode: string | null;
+    selectedAssetIds: string[];
   }[]>([]);
   const [checkoutReqItems, setCheckoutReqItems] = useState<{
     id: string;
@@ -113,7 +114,7 @@ export default function BorrowPage() {
     name: string;
     unit: string;
     requestedQty: number;
-    quantity: number;
+    quantity: number | string;
     allowed: boolean;
     isSubUnit?: boolean;
     requestedUnit?: string;
@@ -410,14 +411,41 @@ export default function BorrowPage() {
           returnNote: actionType === 'RETURN' ? returnNote : undefined,
           checkoutNote: actionType === 'CHECKOUT' ? checkoutNote : undefined,
           itemReturns: actionType === 'RETURN' ? itemReturns : undefined,
-          borrowItemAdjustments: actionType === 'CHECKOUT' ? checkoutBorrowItems : undefined,
+          borrowItemAdjustments:
+            actionType === 'CHECKOUT'
+              ? checkoutBorrowItems.map((i) => ({
+                  ...i,
+                  quantity:
+                    typeof i.quantity === 'number' && i.quantity >= 1
+                      ? i.quantity
+                      : parseInt(String(i.quantity), 10) || 1,
+                }))
+              : undefined,
           assignedAssets:
             actionType === 'CHECKOUT'
               ? checkoutBorrowItems
-                  .filter((i) => i.allowed && i.assetId)
-                  .map((i) => ({ borrowItemId: i.id, assetId: i.assetId }))
+                  .filter((i) => i.allowed && (i.selectedAssetIds?.length > 0 || i.assetId))
+                  .map((i) => ({
+                    borrowItemId: i.id,
+                    assetId: i.selectedAssetIds?.[0] || i.assetId,
+                    assetIds:
+                      i.selectedAssetIds && i.selectedAssetIds.length > 0
+                        ? i.selectedAssetIds
+                        : i.assetId
+                        ? [i.assetId]
+                        : [],
+                  }))
               : undefined,
-          requisitionItemAdjustments: actionType === 'CHECKOUT' ? checkoutReqItems : undefined,
+          requisitionItemAdjustments:
+            actionType === 'CHECKOUT'
+              ? checkoutReqItems.map((i) => ({
+                  ...i,
+                  quantity:
+                    typeof i.quantity === 'number' && i.quantity >= 1
+                      ? i.quantity
+                      : parseInt(String(i.quantity), 10) || 1,
+                }))
+              : undefined,
           requisitionReturns:
             actionType === 'RETURN'
               ? reqSurplusReturns
@@ -1077,7 +1105,24 @@ export default function BorrowPage() {
                           (req.items || []).map((it: any) => {
                             const matchEq = equipmentList.find((e) => e.id === it.itemId);
                             const availableAssets = matchEq?.availableAssets || [];
-                            const defaultAsset = it.asset || (availableAssets.length > 0 ? availableAssets[0] : null);
+                            const qty = it.quantity || 1;
+                            const preselected: string[] = [];
+                            if (it.assetId) {
+                              preselected.push(it.assetId);
+                            }
+                            for (const a of availableAssets) {
+                              if (preselected.length >= qty) break;
+                              if (!preselected.includes(a.id)) {
+                                preselected.push(a.id);
+                              }
+                            }
+                            const defaultAssetId =
+                              preselected[0] || it.assetId || (availableAssets.length > 0 ? availableAssets[0].id : null);
+                            const defaultAssetCode =
+                              availableAssets.find((a: any) => a.id === defaultAssetId)?.assetCode ||
+                              it.asset?.assetCode ||
+                              null;
+
                             return {
                               id: it.id,
                               itemId: it.itemId,
@@ -1086,8 +1131,9 @@ export default function BorrowPage() {
                               requestedQty: it.quantity,
                               quantity: it.quantity,
                               allowed: true,
-                              assetId: it.assetId || defaultAsset?.id || null,
-                              assetCode: it.asset?.assetCode || defaultAsset?.assetCode || null,
+                              assetId: defaultAssetId,
+                              assetCode: defaultAssetCode,
+                              selectedAssetIds: preselected,
                             };
                           })
                         );
@@ -1900,11 +1946,70 @@ export default function BorrowPage() {
                                     type="number"
                                     min="1"
                                     max={it.requestedQty}
-                                    value={it.quantity}
+                                    value={it.quantity === 0 ? '' : it.quantity}
                                     onChange={(e) => {
-                                      const val = Math.max(1, Number(e.target.value));
+                                      const raw = e.target.value;
+                                      if (raw === '') {
+                                        setCheckoutBorrowItems((prev) =>
+                                          prev.map((item, i) => (i === idx ? { ...item, quantity: '' } : item))
+                                        );
+                                        return;
+                                      }
+                                      const val = parseInt(raw, 10);
+                                      if (!isNaN(val)) {
+                                        const clamped = Math.min(it.requestedQty, Math.max(1, val));
+                                        setCheckoutBorrowItems((prev) =>
+                                          prev.map((item, i) => {
+                                            if (i !== idx) return item;
+                                            const currentSelected = [...(item.selectedAssetIds || [])];
+                                            if (clamped > currentSelected.length) {
+                                              const unused = availableAssets.filter((a: any) => !currentSelected.includes(a.id));
+                                              const needed = clamped - currentSelected.length;
+                                              currentSelected.push(...unused.slice(0, needed).map((a: any) => a.id));
+                                            } else if (clamped < currentSelected.length) {
+                                              currentSelected.splice(clamped);
+                                            }
+                                            return {
+                                              ...item,
+                                              quantity: clamped,
+                                              selectedAssetIds: currentSelected,
+                                              assetId: currentSelected[0] || null,
+                                              assetCode:
+                                                availableAssets.find((a: any) => a.id === currentSelected[0])?.assetCode ||
+                                                item.assetCode ||
+                                                null,
+                                            };
+                                          })
+                                        );
+                                      }
+                                    }}
+                                    onBlur={() => {
                                       setCheckoutBorrowItems((prev) =>
-                                        prev.map((item, i) => (i === idx ? { ...item, quantity: val } : item))
+                                        prev.map((item, i) => {
+                                          if (i !== idx) return item;
+                                          const currentQty =
+                                            typeof item.quantity === 'number' && item.quantity >= 1
+                                              ? Math.min(item.requestedQty, item.quantity)
+                                              : 1;
+                                          const currentSelected = [...(item.selectedAssetIds || [])];
+                                          if (currentQty > currentSelected.length) {
+                                            const unused = availableAssets.filter((a: any) => !currentSelected.includes(a.id));
+                                            const needed = currentQty - currentSelected.length;
+                                            currentSelected.push(...unused.slice(0, needed).map((a: any) => a.id));
+                                          } else if (currentQty < currentSelected.length) {
+                                            currentSelected.splice(currentQty);
+                                          }
+                                          return {
+                                            ...item,
+                                            quantity: currentQty,
+                                            selectedAssetIds: currentSelected,
+                                            assetId: currentSelected[0] || null,
+                                            assetCode:
+                                              availableAssets.find((a: any) => a.id === currentSelected[0])?.assetCode ||
+                                              item.assetCode ||
+                                              null,
+                                          };
+                                        })
                                       );
                                     }}
                                     className="w-14 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-center text-slate-800 dark:text-slate-200"
@@ -1941,77 +2046,147 @@ export default function BorrowPage() {
                             </div>
                           </div>
 
-                          {/* Smart Asset Recommendation */}
-                          {it.allowed && availableAssets.length > 0 && (
-                            <div className="p-2 rounded-lg bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 flex flex-wrap items-center justify-between gap-1.5">
-                              <div className="flex items-center gap-1.5 text-[11px] text-indigo-900 dark:text-indigo-200">
-                                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                                <span>แนะนำหยิบเครื่อง:</span>
-                                <span className="font-mono font-bold text-indigo-800 dark:text-indigo-300 bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
-                                  {availableAssets[0].assetCode}
-                                  {availableAssets[0].serialNumber ? ` (S/N: ${availableAssets[0].serialNumber})` : ''}
-                                </span>
-                                {availableAssets[0].location && (
-                                  <span className="text-[10px] text-indigo-600 dark:text-indigo-400">
-                                    ({availableAssets[0].location})
+                          {/* Multi-Asset Selector: Individual slot for each unit being lent */}
+                          {it.allowed && availableAssets.length > 0 && (() => {
+                            const numSlots =
+                              typeof it.quantity === 'number' && it.quantity >= 1
+                                ? it.quantity
+                                : parseInt(String(it.quantity), 10) || 1;
+                            return (
+                              <div className="pt-2 border-t border-indigo-100 dark:border-indigo-900/60 space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[11px] font-bold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                                    <Tag className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                                    ระบุครุภัณฑ์รายชิ้นที่ส่งมอบ ({numSlots} ชิ้น):
                                   </span>
-                                )}
-                              </div>
-                              {(!it.assetCode || it.assetCode !== availableAssets[0].assetCode) && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setCheckoutBorrowItems((prev) =>
-                                      prev.map((item, i) =>
-                                        i === idx
-                                          ? {
-                                              ...item,
-                                              assetCode: availableAssets[0].assetCode,
-                                              assetId: availableAssets[0].id,
-                                            }
-                                          : item
-                                      )
-                                    );
-                                  }}
-                                  className="text-[10px] px-2 py-0.5 rounded font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition cursor-pointer"
-                                >
-                                  เลือกเครื่องนี้
-                                </button>
-                              )}
-                            </div>
-                          )}
+                                  <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                                    พร้อมจ่ายในคลัง {availableAssets.length} ชิ้น
+                                  </span>
+                                </div>
 
-                          {/* Asset Selection Dropdown for Specific Serial/AssetCode */}
-                          {it.allowed && availableAssets.length > 0 && (
-                            <div className="pt-2 border-t border-indigo-100 dark:border-indigo-900/60 flex flex-col sm:flex-row sm:items-center gap-2">
-                              <span className="text-[11px] text-indigo-900 dark:text-indigo-300 font-semibold flex items-center gap-1 shrink-0">
-                                <Tag className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-                                ระบุหมายเลขเครื่องเฉพาะ:
-                              </span>
-                              <select
-                                value={it.assetCode || ''}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  const found = availableAssets.find((a: any) => a.assetCode === val);
-                                  setCheckoutBorrowItems((prev) =>
-                                    prev.map((item, i) =>
-                                      i === idx
-                                        ? { ...item, assetCode: val || null, assetId: found?.id || null }
-                                        : item
-                                    )
-                                  );
-                                }}
-                                className="bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-800 dark:text-slate-200 flex-1"
-                              >
-                                <option value="">-- อัตโนมัติ (หยิบเครื่องใดก็ได้) --</option>
-                                {availableAssets.map((ast: any) => (
-                                  <option key={ast.id} value={ast.assetCode}>
-                                    {ast.assetCode} {ast.serialNumber ? `(S/N: ${ast.serialNumber})` : ''} - สถานที่: {ast.location || 'ห้องแล็บ'}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
+                                {/* Quick-Pick Chips */}
+                                <div className="flex flex-wrap items-center gap-1.5 p-2 bg-indigo-50/50 dark:bg-indigo-950/40 rounded-xl border border-indigo-100 dark:border-indigo-900/60">
+                                  <span className="text-[10.5px] font-semibold text-indigo-800 dark:text-indigo-300 flex items-center gap-1 shrink-0">
+                                    <Sparkles className="w-3 h-3 text-amber-500" /> เลือกด่วน:
+                                  </span>
+                                  {availableAssets.map((ast: any) => {
+                                    const isSelected = (it.selectedAssetIds || []).includes(ast.id);
+                                    return (
+                                      <button
+                                        key={ast.id}
+                                        type="button"
+                                        onClick={() => {
+                                          setCheckoutBorrowItems((prev) =>
+                                            prev.map((item, i) => {
+                                              if (i !== idx) return item;
+                                              let selected = [...(item.selectedAssetIds || [])];
+                                              if (isSelected) {
+                                                selected = selected.filter((id) => id !== ast.id);
+                                              } else {
+                                                if (selected.length < numSlots) {
+                                                  selected.push(ast.id);
+                                                } else if (selected.length > 0) {
+                                                  selected[selected.length - 1] = ast.id;
+                                                } else {
+                                                  selected = [ast.id];
+                                                }
+                                              }
+                                              return {
+                                                ...item,
+                                                selectedAssetIds: selected,
+                                                assetId: selected[0] || null,
+                                                assetCode:
+                                                  availableAssets.find((a: any) => a.id === selected[0])?.assetCode ||
+                                                  item.assetCode ||
+                                                  null,
+                                              };
+                                            })
+                                          );
+                                        }}
+                                        className={`px-2 py-0.5 rounded-lg text-[10.5px] font-mono font-bold transition flex items-center gap-1 cursor-pointer border ${
+                                          isSelected
+                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-300'
+                                        }`}
+                                        title={`คลิกเพื่อเลือก/ยกเลิกเครื่อง ${ast.assetCode}`}
+                                      >
+                                        {isSelected ? <Check className="w-3 h-3" /> : null}
+                                        <span>{ast.assetCode}</span>
+                                        {ast.serialNumber && (
+                                          <span className={`text-[9px] ${isSelected ? 'text-indigo-200' : 'text-slate-400'}`}>
+                                            ({ast.serialNumber})
+                                          </span>
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+
+                                {/* Individual Slot Selectors */}
+                                <div className="space-y-1.5">
+                                  {Array.from({ length: numSlots }).map((_, slotIdx) => {
+                                    const currentSlotAssetId = it.selectedAssetIds?.[slotIdx] || '';
+                                    const currentAsset = availableAssets.find((a: any) => a.id === currentSlotAssetId);
+                                    return (
+                                      <div
+                                        key={slotIdx}
+                                        className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-200 dark:border-slate-800 text-[11px]"
+                                      >
+                                        <span className="font-bold text-slate-700 dark:text-slate-300 shrink-0 w-16">
+                                          ชิ้นที่ {slotIdx + 1}:
+                                        </span>
+                                        <select
+                                          value={currentSlotAssetId}
+                                          onChange={(e) => {
+                                            const chosenId = e.target.value;
+                                            setCheckoutBorrowItems((prev) =>
+                                              prev.map((item, i) => {
+                                                if (i !== idx) return item;
+                                                const selected = [...(item.selectedAssetIds || [])];
+                                                selected[slotIdx] = chosenId;
+                                                return {
+                                                  ...item,
+                                                  selectedAssetIds: selected,
+                                                  assetId: selected[0] || null,
+                                                  assetCode:
+                                                    availableAssets.find((a: any) => a.id === selected[0])?.assetCode ||
+                                                    item.assetCode ||
+                                                    null,
+                                                };
+                                              })
+                                            );
+                                          }}
+                                          className="bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-800 dark:text-slate-200 flex-1 font-mono"
+                                        >
+                                          <option value="">-- เลือกหมายเลขเครื่อง --</option>
+                                          {availableAssets.map((ast: any) => {
+                                            const isSelectedInOtherSlot = (it.selectedAssetIds || []).some(
+                                              (id, sIdx) => id === ast.id && sIdx !== slotIdx
+                                            );
+                                            return (
+                                              <option
+                                                key={ast.id}
+                                                value={ast.id}
+                                                disabled={isSelectedInOtherSlot}
+                                              >
+                                                {ast.assetCode} {ast.serialNumber ? `(S/N: ${ast.serialNumber})` : ''} - {ast.location || 'ห้องแล็บ'} {isSelectedInOtherSlot ? '(ถูกเลือกในชิ้นอื่นแล้ว)' : ''}
+                                              </option>
+                                            );
+                                          })}
+                                        </select>
+                                        {currentAsset?.location && (
+                                          <span className="text-[10px] text-slate-500 dark:text-slate-400 shrink-0 flex items-center gap-0.5">
+                                            <MapPin className="w-2.5 h-2.5 text-rose-500" />
+                                            {currentAsset.location}
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       );
                     })}
@@ -2080,11 +2255,33 @@ export default function BorrowPage() {
                                       type="number"
                                       min="1"
                                       max={it.requestedQty}
-                                      value={it.quantity}
+                                      value={it.quantity === 0 ? '' : it.quantity}
                                       onChange={(e) => {
-                                        const val = Math.max(1, Number(e.target.value));
+                                        const raw = e.target.value;
+                                        if (raw === '') {
+                                          setCheckoutReqItems((prev) =>
+                                            prev.map((item, i) => (i === idx ? { ...item, quantity: '' } : item))
+                                          );
+                                          return;
+                                        }
+                                        const val = parseInt(raw, 10);
+                                        if (!isNaN(val)) {
+                                          const clamped = Math.min(it.requestedQty, Math.max(1, val));
+                                          setCheckoutReqItems((prev) =>
+                                            prev.map((item, i) => (i === idx ? { ...item, quantity: clamped } : item))
+                                          );
+                                        }
+                                      }}
+                                      onBlur={() => {
                                         setCheckoutReqItems((prev) =>
-                                          prev.map((item, i) => (i === idx ? { ...item, quantity: val } : item))
+                                          prev.map((item, i) => {
+                                            if (i !== idx) return item;
+                                            const currentQty =
+                                              typeof item.quantity === 'number' && item.quantity >= 1
+                                                ? Math.min(item.requestedQty, item.quantity)
+                                                : 1;
+                                            return { ...item, quantity: currentQty };
+                                          })
                                         );
                                       }}
                                       className="w-14 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-center text-slate-800 dark:text-slate-200"
@@ -2133,8 +2330,9 @@ export default function BorrowPage() {
                                 </div>
                                 {(() => {
                                   const ratio = Number(it.conversionRatio) > 0 ? Number(it.conversionRatio) : 1;
-                                  const wholePacks = Math.floor(it.quantity / ratio);
-                                  const loosePieces = it.quantity % ratio;
+                                  const numQty = typeof it.quantity === 'number' ? it.quantity : (parseInt(String(it.quantity), 10) || 0);
+                                  const wholePacks = Math.floor(numQty / ratio);
+                                  const loosePieces = numQty % ratio;
                                   const openRemainder = matchCons?.stockLots?.find((l: any) => (l.openPackRemainder || 0) > 0)?.openPackRemainder || 0;
 
                                   return (

@@ -17,6 +17,24 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-24] พัฒนาระบบเลือกครุภัณฑ์รายชิ้นตอนจ่ายของ (Multi-Asset Selection UI) และแก้ไขปัญหาการพิมพ์ตัวเลขในช่องจำนวน (Quantity Input Backspace Fix)
+- **หมวดหมู่**: Borrow & Requisitions / Inventory Checkout UX / Input Ergonomics
+- **สิ่งที่ดำเนินการ**:
+  1. **ระบบเลือกครุภัณฑ์รายชิ้นอิสระตอนจ่ายของ (Individual Multi-Asset Selector UI)**:
+     - พัฒนา UI ให้เจ้าหน้าที่สามารถเลือกเจาะจงเครื่อง/ชิ้นที่จะให้ยืมได้อย่างอิสระเมื่อยืมอุปกรณ์มากกว่า 1 ชิ้น ในหน้า `/borrow`
+     - มีแถบ Quick-Pick Chips ให้คลิกเลือก/สลับชิ้นได้ทันที พร้อมแสดงสถานะสต็อก, พิกัดจัดเก็บ (Location), และซีเรียลนัมเบอร์
+     - มีช่อง Dropdown แยกรายชิ้นสำหรับแต่ละหน่วยที่ยืม ป้องกันการเลือกซ้ำ (Duplicate Prevention) และแนะนำเครื่องที่พร้อมใช้งานอัตโนมัติเป็นค่าเริ่มต้น
+     - ปรับปรุง API `src/app/api/borrow/[id]/route.ts` (Action `CHECKOUT`) ให้รับ `explicitAssign.assetIds` และตัดสถานะ `BORROWED` พร้อมผูก `BorrowItem` แยก 1 ชิ้นต่อ 1 รายการ
+  2. **แก้ไขปัญหาการลบตัวเลขในช่องจำนวน (Input Backspace Glitch Fix)**:
+     - แก้ไขปัญหาเมื่อกด Backspace ลบตัวเลข เช่น เดิมเป็น 2 จะแก้เป็น 5 พอลบเลข 2 ออกแล้วดีดกลับเป็น 1 ทันที
+     - ปรับโครงสร้าง State ให้รองรับค่าว่างชั่วขณะ (`quantity: number | string`), ให้แสดงค่าว่างได้ขณะกำลังพิมพ์ และนำตรรกะ Clamping (1 ถึง Max) ไปทำงานใน Event `onBlur` แทน
+     - ปรับปรุงครอบคลุมทั้ง 3 จุด: โมดอลจ่ายอุปกรณ์ (Equipment Checkout ใน `/borrow`), โมดอลจ่ายวัสดุสิ้นเปลืองในหน้ายืม (`/borrow`), และโมดอลจ่ายของเบิกพัสดุ (Requisition Dispense ใน `/requisitions`)
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/app/borrow/page.tsx`
+  - `src/app/requisitions/page.tsx`
+  - `src/app/api/borrow/[id]/route.ts`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `node scripts/librarian-audit.mjs` ผ่าน 100%, `npx tsc --noEmit` ผ่าน 0 errors, `npm run build` ผ่าน 100% (92 routes)
+
 ### [2026-10-24] ปรับปรุงตรรกะตัดสต็อกครุภัณฑ์รายชิ้น (Asset ID vs Quantity) และแก้ไขการแสดงชื่ออาจารย์ผู้สอนบนใบยืม-คืน
 - **หมวดหมู่**: Borrow & Requisitions / Asset Management / Slip Integrity
 - **สิ่งที่ดำเนินการ**:

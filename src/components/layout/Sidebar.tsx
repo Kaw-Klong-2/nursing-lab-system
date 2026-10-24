@@ -215,7 +215,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
                 </span>
                 <div className="truncate">
                   <span className="text-xs font-black text-slate-900 dark:text-white block truncate">
-                    {activeSubApp ? activeSubApp.name : 'เลือกแอปย่อย'}
+                    {activeSubApp ? activeSubApp.name : 'เลือกแอปพลิเคชัน'}
                   </span>
                   <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 block truncate">
                     {activeSubApp ? activeSubApp.nameEn : 'Modular Suite'}
@@ -229,7 +229,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           {isSwitcherOpen && (
             <div className="mt-1.5 p-2 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 shadow-2xl space-y-1 z-30 max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
               <div className="px-2 py-1 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                <span>แอปย่อยทั้งหมด ({accessibleApps.length}):</span>
+                <span>แอปพลิเคชันทั้งหมด ({accessibleApps.length}):</span>
               </div>
 
               {accessibleApps.map((app) => {
@@ -337,7 +337,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
             /* If at Overview and no sub-app active, show Quick Apps Launcher inside sidebar */
             <div className="space-y-1.5">
               <div className="px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                <span>เลือกเข้าสู่แอปย่อย:</span>
+                <span>เลือกแอปพลิเคชัน:</span>
               </div>
               <div className="space-y-1">
                 {accessibleApps.map((app) => (

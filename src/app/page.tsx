@@ -157,7 +157,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 📱 KUNurse Lab Sub-Apps Launchpad Hub */}
+      {/* 📱 KUNurse+ Lab Apps Launchpad Hub */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2.5">
@@ -166,7 +166,7 @@ export default function DashboardPage() {
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
-                <span>ศูนย์รวมแอปพลิเคชันย่อย (KUNurse Lab Sub-Apps)</span>
+                <span>ศูนย์รวมแอปพลิเคชัน (KUNurse+ Lab Apps)</span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300">
                   {accessibleApps.length} ระบบ
                 </span>

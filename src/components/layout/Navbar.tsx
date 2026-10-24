@@ -138,10 +138,10 @@ export default function Navbar({ onToggleMobileMenu, isMobileMenuOpen }: NavbarP
           type="button"
           onClick={() => setIsAppLauncherOpen(true)}
           className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 text-xs font-bold transition border border-slate-200 dark:border-slate-700 shadow-xs cursor-pointer flex-shrink-0"
-          title="ศูนย์รวมแอปพลิเคชันย่อย (KUNurse Lab Apps)"
+          title="ศูนย์รวมแอปพลิเคชัน (KUNurse+ Lab Apps)"
         >
           <span className="text-base leading-none">㗊</span>
-          <span className="hidden sm:inline">แอปย่อย</span>
+          <span className="hidden sm:inline">แอปพลิเคชัน</span>
         </button>
 
         {/* Quick QR Scanner Button */}

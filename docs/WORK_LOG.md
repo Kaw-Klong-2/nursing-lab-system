@@ -17,6 +17,23 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-24] ปรับเปลี่ยนชื่อระบบศูนย์รวมแอปพลิเคชันเป็น "ศูนย์รวมแอปพลิเคชัน (KUNurse+ Lab Apps)"
+- **หมวดหมู่**: UI / Branding / Modular Suite Navigation
+- **สิ่งที่ดำเนินการ**:
+  1. ปรับปรุงชื่อเรียกจาก "ศูนย์รวมแอปพลิเคชันย่อย (KUNurse Lab Sub-Apps)" เป็น **"ศูนย์รวมแอปพลิเคชัน (KUNurse+ Lab Apps)"** โดยตัดคำว่า "ย่อย" (Sub-) ออก เพื่อยกระดับความสำคัญของแต่ละโมดูลงานหลักของคณะพยาบาลศาสตร์ให้เป็นระดับ Enterprise-grade
+  2. เพิ่มเครื่องหมาย `+` สื่อถึงสัญลักษณ์การพยาบาล/การแพทย์ (Nursing Cross) และบริการเสริมคุณค่า (KUNurse Plus)
+  3. ปรับเปลี่ยนข้อความให้สอดคล้องกันทั่วทั้งระบบ:
+     - หน้าหลัก Dashboard (`src/app/page.tsx`): หัวการ์ด Launchpad Hub
+     - แถบนำทางด้านบน (`src/components/layout/Navbar.tsx`): ปุ่มและ Tooltip 9-Dots Launcher
+     - หน้าต่างป๊อปอัปเรียกแอป (`src/components/layout/AppLauncherModal.tsx`): หัวข้อ Modal Header
+     - เมนูด้านข้าง (`src/components/layout/Sidebar.tsx`): ปรับข้อความปุ่มเลือกแอปพลิเคชัน
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/app/page.tsx`
+  - `src/components/layout/Navbar.tsx`
+  - `src/components/layout/AppLauncherModal.tsx`
+  - `src/components/layout/Sidebar.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `node scripts/librarian-audit.mjs` ผ่าน 100%, `npx tsc --noEmit` ผ่าน 0 errors, `npm run build` ผ่าน 100% (92 routes)
+
 ### [2026-10-24] พัฒนาระบบเลือกครุภัณฑ์รายชิ้นตอนจ่ายของ (Multi-Asset Selection UI) และแก้ไขปัญหาการพิมพ์ตัวเลขในช่องจำนวน (Quantity Input Backspace Fix)
 - **หมวดหมู่**: Borrow & Requisitions / Inventory Checkout UX / Input Ergonomics
 - **สิ่งที่ดำเนินการ**:

@@ -72,7 +72,7 @@ export default function AppLauncherModal({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-                  ศูนย์รวมแอปพลิเคชัน (KUNurse Lab Apps)
+                  ศูนย์รวมแอปพลิเคชัน (KUNurse+ Lab Apps)
                 </h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
                   {accessibleApps.length} แอป

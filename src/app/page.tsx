@@ -41,6 +41,12 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'CALENDAR' | 'ANALYTICS'>('CALENDAR');
   const [currentTerm, setCurrentTerm] = useState<any>(null);
 
+  useEffect(() => {
+    if (currentUser?.role === 'USER') {
+      setActiveTab('ANALYTICS');
+    }
+  }, [currentUser?.role]);
+
   const accessibleApps = getSubAppsForUser(currentUser?.role, {
     isTeacher,
     isOfficer,

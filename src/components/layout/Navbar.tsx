@@ -33,7 +33,7 @@ interface NavbarProps {
 }
 
 export default function Navbar({ onToggleMobileMenu, isMobileMenuOpen }: NavbarProps = {}) {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, isOfficer, isAdmin, logout } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isAppLauncherOpen, setIsAppLauncherOpen] = useState(false);
@@ -123,15 +123,17 @@ export default function Navbar({ onToggleMobileMenu, isMobileMenuOpen }: NavbarP
           <span>Supabase Cloud</span>
         </div>
 
-        {/* Quick Lab Store POS Button */}
-        <Link
-          href="/pos"
-          className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-teal-600 to-indigo-600 hover:from-teal-500 hover:to-indigo-500 text-white text-xs font-black shadow-sm transition cursor-pointer"
-          title="จุดเบิกจ่ายด่วน Lab Store POS (สแกนบาร์โค้ดยืม-เบิกทันใจ)"
-        >
-          <Store className="w-3.5 h-3.5 text-amber-300" />
-          <span className="hidden sm:inline">Lab Store (POS)</span>
-        </Link>
+        {/* Quick Lab Store POS Button (Staff Only) */}
+        {(isOfficer || isAdmin) && (
+          <Link
+            href="/pos"
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-teal-600 to-indigo-600 hover:from-teal-500 hover:to-indigo-500 text-white text-xs font-black shadow-sm transition cursor-pointer"
+            title="จุดเบิกจ่ายด่วน Lab Store POS (สแกนบาร์โค้ดยืม-เบิกทันใจ)"
+          >
+            <Store className="w-3.5 h-3.5 text-amber-300" />
+            <span className="hidden sm:inline">Lab Store (POS)</span>
+          </Link>
+        )}
 
         {/* 9-Dots Sub-Apps Launcher Button */}
         <button

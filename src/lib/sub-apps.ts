@@ -145,7 +145,7 @@ export const SUB_APPS: Record<SubAppId, SubAppConfig> = {
         label: 'จุดเบิกจ่ายด่วนหน้าร้าน (POS)',
         href: '/pos',
         icon: Store,
-        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'USER'],
+        roles: ['ADMIN', 'OFFICER'],
       },
       {
         label: 'ศูนย์จ่ายพัสดุเคาน์เตอร์',
@@ -240,13 +240,13 @@ export const SUB_APPS: Record<SubAppId, SubAppConfig> = {
       badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
       switcherActive: 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30',
     },
-    allowedRoles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'USER'],
+    allowedRoles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER'],
     items: [
       {
         label: 'ศูนย์อนุมัติคำขอทุกประเภท',
         href: '/approvals',
         icon: CheckSquare,
-        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'USER'],
+        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER'],
       },
     ],
   },
@@ -414,12 +414,56 @@ export function getSubAppsForUser(
       return isAdmin || isOfficer;
     }
     if (app.id === 'executive-analytics') {
-      return isAdmin || isExecutive || isTeacher || isOfficer;
+      return isAdmin || isExecutive || isTeacher || isOfficer || isApprover;
     }
     if (app.id === 'approvals-hub') {
-      return isAdmin || isApprover || isTeacher || isOfficer || role === 'USER';
+      return isAdmin || isApprover || isTeacher || isOfficer;
     }
     return app.allowedRoles.includes(role);
+  }).map((app) => {
+    const filteredItems = app.items.filter((item) => {
+      if (
+        item.href === '/pos' ||
+        item.href === '/dispense' ||
+        item.href === '/stock-in' ||
+        item.href === '/repack' ||
+        item.href === '/audit-logs' ||
+        item.href === '/settings/terms' ||
+        item.href === '/admin'
+      ) {
+        return isAdmin || isOfficer;
+      }
+      if (item.href === '/users' || item.href === '/settings/notifications') {
+        return isAdmin;
+      }
+      if (item.href === '/executive') {
+        return isAdmin || isExecutive;
+      }
+      if (item.href === '/approvals') {
+        return isAdmin || isApprover || isTeacher || isOfficer;
+      }
+      if (
+        item.href === '/reports' ||
+        item.href === '/courses' ||
+        item.href === '/schedule' ||
+        item.href === '/air-conditioning' ||
+        item.href === '/maintenance'
+      ) {
+        return isAdmin || isOfficer || isApprover || isTeacher || isExecutive;
+      }
+      return item.roles.includes(role);
+    });
+
+    const dynamicPrimaryHref =
+      app.id === 'executive-analytics' && !isAdmin && !isExecutive
+        ? '/reports'
+        : filteredItems[0]?.href || app.primaryHref;
+
+    return {
+      ...app,
+      primaryHref: dynamicPrimaryHref,
+      items: filteredItems,
+    };
   });
 }
 

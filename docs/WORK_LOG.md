@@ -17,6 +17,37 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-25] ควบคุมสิทธิ์การมองเห็นเมนูและยกระดับระบบติดตามประวัติคำขอสำหรับนิสิต (Role-Based Menu Visibility & Student Request Hub)
+- **หมวดหมู่**: Authorization / UX / Student Request History / Menu Security
+- **สิ่งที่ดำเนินการ**:
+  1. **ซ่อนปุ่มจุดบริการเบิกจ่ายด่วน (POS Quick Button) ใน Navbar**:
+     - ตรวจสอบสิทธิ์ `isOfficer || isAdmin` บน `src/components/layout/Navbar.tsx` ก่อนแสดงปุ่มลัด POS
+     - ป้องกันไม่ให้นิสิต (`USER`) หรืออาจารย์ที่ไม่มีหน้าที่คลังเห็นปุ่มลัดนี้
+  2. **ความปลอดภัยของระบบศูนย์รวมแอป (Sub-Apps Menu & Permission Filtering)**:
+     - ปรับปรุง `src/lib/sub-apps.ts`:
+       - เมนู `/pos` กำหนดสิทธิ์เฉพาะ `ADMIN` และ `OFFICER`
+       - โมดูล `approvals-hub` กำหนดสิทธิ์เฉพาะ `['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER']` (ตัดนิสิต `USER` ออก 100%)
+       - กรองเมนูย่อยระดับไอเทม (`items`) ตามบทบาทของผู้ใช้จริง เพื่อไม่ให้เมนูที่ไม่ได้รับอนุญาตปรากฏใน Sidebar
+       - ทำ Smart Role Redirection สำหรับ `executive-analytics`: ผู้ใช้ทั่วไป/อาจารย์ที่ไม่มีสิทธิ์เข้า `/executive` จะถูกนำทางไปยัง `/reports` โดยอัตโนมัติ
+     - ปรับปรุง `src/components/layout/Sidebar.tsx` ให้นำรายการเมนูที่ผ่านการกรองสิทธิ์แล้วมาแสดงผลอย่างถูกต้อง
+  3. **การปกป้องความเป็นส่วนตัวในหน้ารายการเบิก (`/requisitions`)**:
+     - เพิ่มฟังก์ชัน View Scope Toggle สำหรับเจ้าหน้าที่ (`ALL` / `MY`)
+     - สำหรับนิสิต (`USER`): ระบบจะกรองอัตโนมัติให้เห็นเฉพาะรายการคำขอเบิกของตนเองเท่านั้น พร้อมป้ายกำกับสถานะ `📌 แสดงเฉพาะรายการเบิกของท่าน (ชื่อนิสิต)` เช่นเดียวกับหน้ายืม-คืนอุปกรณ์ (`/borrow`)
+  4. **ศูนย์ติดตามประวัติคำขอและพิมพ์ใบสลิปสำหรับนิสิตในหน้าแรก (Student Request Hub & Slip Integration)**:
+     - ปรับหน้าแรก (`src/app/page.tsx`) ให้นิสิต (`USER`) เข้าถึงแท็บภาพรวมและประวัติคำขอของตนเองเป็นค่าเริ่มต้นอัตโนมัติ
+     - ปรับปรุง `src/components/dashboard/StudentDashboard.tsx` ให้นิสิตสามารถ:
+       - ดูประวัติคำขอยืมอุปกรณ์และประวัติคำขอเบิกวัสดุทั้งหมดของตนเองได้แบบครบวงจร
+       - สลับดูตามสถานะ (รออนุมัติ / อนุมัติแล้ว / รับของแล้ว / ส่งคืนแล้ว)
+       - กดดูและพิมพ์ใบสลิปคำขอ (Borrow Slip / Requisition Slip) พร้อม QR Code เพื่อนำไปยื่นรับของที่ห้องปฏิบัติการได้ทันที
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/components/layout/Navbar.tsx`
+  - `src/lib/sub-apps.ts`
+  - `src/components/layout/Sidebar.tsx`
+  - `src/app/requisitions/page.tsx`
+  - `src/app/page.tsx`
+  - `src/components/dashboard/StudentDashboard.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `node scripts/librarian-audit.mjs` ผ่าน 100%, `npx.cmd tsc --noEmit` ผ่าน 0 errors, `npm.cmd run build` ผ่าน 100% (92 routes)
+
 ### [2026-10-24] ปรับเปลี่ยนชื่อระบบศูนย์รวมแอปพลิเคชันเป็น "ศูนย์รวมแอปพลิเคชัน (KUNurse+ Lab Apps)"
 - **หมวดหมู่**: UI / Branding / Modular Suite Navigation
 - **สิ่งที่ดำเนินการ**:

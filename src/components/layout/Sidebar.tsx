@@ -86,7 +86,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
   // Detect current active Sub-App from pathname or preference
   const detectedAppId = detectSubAppFromPathname(pathname, preferredSubAppId);
   const activeAppId = detectedAppId || (preferredSubAppId && accessibleApps.some((a) => a.id === preferredSubAppId) ? preferredSubAppId : null);
-  const activeSubApp = activeAppId ? SUB_APPS[activeAppId] : null;
+  const activeSubApp = activeAppId ? accessibleApps.find((a) => a.id === activeAppId) || null : null;
 
   // Synchronize preferredSubAppId when navigating
   useEffect(() => {
@@ -283,15 +283,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
 
               {/* Sub-App Menu List */}
               <div className="space-y-1">
-                {activeSubApp.items
-                  .filter((item) => {
-                    if (item.href === '/executive') return isExecutive || isAdmin || item.roles.includes(userRole);
-                    if (item.href === '/approvals') return isApprover || isAdmin || isTeacher || isOfficer || item.roles.includes(userRole);
-                    if (item.href === '/audit-logs') return isAdmin || isOfficer;
-                    if (item.href === '/users' || item.href === '/settings/notifications') return isAdmin;
-                    return item.roles.includes(userRole);
-                  })
-                  .map((item) => {
+                {activeSubApp.items.map((item) => {
                     const isActive = pathname === item.href || (item.href !== '/' && item.href !== '/admin' && pathname.startsWith(item.href)) || (item.href === '/admin' && pathname === '/admin');
                     const isApprovals = item.href === '/approvals';
 

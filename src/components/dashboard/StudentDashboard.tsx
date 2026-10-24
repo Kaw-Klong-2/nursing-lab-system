@@ -24,6 +24,9 @@ import {
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import EditRequestModal from '@/components/requests/EditRequestModal';
 import { formatUserName, formatTeacherName, formatApproverDisplay, formatAcknowledgeDisplay } from '@/lib/user-utils';
+import BorrowSlipModal from '@/components/slips/BorrowSlipModal';
+import RequisitionSlipModal from '@/components/slips/RequisitionSlipModal';
+import { FileSpreadsheet } from 'lucide-react';
 
 interface StudentDashboardProps {
   embedded?: boolean;
@@ -32,7 +35,10 @@ interface StudentDashboardProps {
 export default function StudentDashboard({ embedded = false }: StudentDashboardProps) {
   const { currentUser } = useAuth();
   const [borrowRequests, setBorrowRequests] = useState<any[]>([]);
+  const [requisitions, setRequisitions] = useState<any[]>([]);
   const [practiceStats, setPracticeStats] = useState<any>(null);
+  const [selectedSlipBorrow, setSelectedSlipBorrow] = useState<any | null>(null);
+  const [selectedSlipRequisition, setSelectedSlipRequisition] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const [editingRequest, setEditingRequest] = useState<any | null>(null);
@@ -69,6 +75,13 @@ export default function StudentDashboard({ embedded = false }: StudentDashboardP
           setLoading(false);
         }
       }
+      const cachedReq = sessionStorage.getItem(`cached_requisitions_${currentUser.id}`);
+      if (cachedReq) {
+        const parsedReq = JSON.parse(cachedReq);
+        if (Array.isArray(parsedReq)) {
+          setRequisitions(parsedReq);
+        }
+      }
     } catch {}
 
     // 2. Fetch fresh in background
@@ -78,8 +91,9 @@ export default function StudentDashboard({ embedded = false }: StudentDashboardP
   const refetchData = async () => {
     if (!currentUser?.id) return;
     try {
-      const [borrowRes, practiceRes] = await Promise.all([
+      const [borrowRes, reqRes, practiceRes] = await Promise.all([
         fetch(`/api/borrow?userId=${currentUser.id}`),
+        fetch(`/api/requisitions?userId=${currentUser.id}`),
         fetch(`/api/practice/stats?userId=${currentUser.id}`),
       ]);
 
@@ -87,6 +101,11 @@ export default function StudentDashboard({ embedded = false }: StudentDashboardP
         const data = await borrowRes.json();
         setBorrowRequests(data);
         sessionStorage.setItem(`cached_borrows_${currentUser.id}`, JSON.stringify(data));
+      }
+      if (reqRes.ok) {
+        const rData = await reqRes.json();
+        setRequisitions(rData);
+        sessionStorage.setItem(`cached_requisitions_${currentUser.id}`, JSON.stringify(rData));
       }
       if (practiceRes.ok) {
         const pData = await practiceRes.json();
@@ -668,21 +687,33 @@ export default function StudentDashboard({ embedded = false }: StudentDashboardP
                       </div>
                     )}
 
-                    {/* Edit Request Button for Student in PENDING only */}
-                    {req.status === 'PENDING' && (
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
                       <button
                         type="button"
-                        onClick={() => {
-                          setEditingRequest(req);
-                          setShowEditModal(true);
-                        }}
-                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg border border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 text-[11px] font-bold transition cursor-pointer"
-                        title="แก้ไขรายการหรือรายละเอียดคำขอ"
+                        onClick={() => setSelectedSlipBorrow(req)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/60 text-teal-800 dark:text-teal-200 text-[11px] font-bold transition cursor-pointer"
+                        title="เปิดดูใบยืม-คืนพัสดุพร้อม QR Code"
                       >
-                        <Edit3 className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                        <span>แก้ไข</span>
+                        <QrCode className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                        <span>ใบยืม-คืน (Slip)</span>
                       </button>
-                    )}
+
+                      {/* Edit Request Button for Student in PENDING only */}
+                      {req.status === 'PENDING' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingRequest(req);
+                            setShowEditModal(true);
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 text-[11px] font-bold transition cursor-pointer"
+                          title="แก้ไขรายการหรือรายละเอียดคำขอ"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                          <span>แก้ไข</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -704,6 +735,106 @@ export default function StudentDashboard({ embedded = false }: StudentDashboardP
           }}
           initialData={editingRequest}
           requestType={editingRequest.requisitionRequest ? 'UNIFIED' : 'BORROW'}
+        />
+      )}
+
+      {/* My Requisitions Section */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
+        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-950/40">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+              รายการคำขอเบิกวัสดุสิ้นเปลืองของฉัน
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              แสดงเฉพาะคำขอเบิกเวชภัณฑ์และวัสดุฝึกปฏิบัติของท่าน พร้อมสถานะการอนุมัติและใบเบิก
+            </p>
+          </div>
+
+          <Link
+            href="/requisitions"
+            className="text-xs font-bold text-teal-700 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300 flex items-center gap-1 hover:underline"
+          >
+            ดูประวัติเบิกทั้งหมด <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        {requisitions.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-xs">
+            ยังไม่มีรายการขอเบิกวัสดุในขณะนี้
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {requisitions.slice(0, 5).map((r) => {
+              const isPending = r.status === 'PENDING';
+              const isApproved = r.status === 'APPROVED';
+              const isDispensed = r.status === 'DISPENSED';
+
+              return (
+                <div key={r.id} className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition">
+                  <div className="space-y-1.5 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-xs font-bold text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded border border-teal-200 dark:border-teal-800/60">
+                        {r.requestNumber}
+                      </span>
+                      {r.course && (
+                        <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                          วิชา {r.course.code} - {r.course.name}
+                        </span>
+                      )}
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          isPending
+                            ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800'
+                            : isApproved
+                            ? 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800'
+                            : isDispensed
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800'
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
+                        }`}
+                      >
+                        {isPending && 'รออาจารย์อนุมัติ'}
+                        {isApproved && 'อนุมัติแล้ว (รอรับของ)'}
+                        {isDispensed && 'จ่ายของแล้ว'}
+                        {!isPending && !isApproved && !isDispensed && r.status}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-slate-600 dark:text-slate-300">
+                      <span>วัสดุ {r.items?.length || 0} รายการ</span>
+                      {r.purpose && <span className="text-slate-400 ml-2">| วัตถุประสงค์: {r.purpose}</span>}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-start md:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSlipRequisition(r)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/60 text-teal-800 dark:text-teal-200 text-xs font-bold transition cursor-pointer"
+                      title="เปิดดูใบเบิกพัสดุพร้อม QR Code"
+                    >
+                      <QrCode className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                      <span>ใบเบิก (Slip)</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {selectedSlipBorrow && (
+        <BorrowSlipModal
+          borrow={selectedSlipBorrow}
+          onClose={() => setSelectedSlipBorrow(null)}
+        />
+      )}
+
+      {selectedSlipRequisition && (
+        <RequisitionSlipModal
+          requisition={selectedSlipRequisition}
+          onClose={() => setSelectedSlipRequisition(null)}
         />
       )}
 

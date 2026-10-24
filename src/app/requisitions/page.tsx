@@ -48,6 +48,8 @@ export default function RequisitionsPage() {
   const [isEditingAdvisor, setIsEditingAdvisor] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
+  const [viewScope, setViewScope] = useState<'ALL' | 'MY'>('ALL');
+  const isStaff = isOfficer || isApprover || isAdmin || isTeacher;
   const [academicTerms, setAcademicTerms] = useState<AcademicTermInfo[]>([]);
   const [selectedTermFilter, setSelectedTermFilter] = useState<string>('ALL');
   const [activeSlipRequisition, setActiveSlipRequisition] = useState<any | null>(null);
@@ -405,6 +407,11 @@ export default function RequisitionsPage() {
   };
 
   const filteredRequisitions = requisitions.filter((r) => {
+    // If not staff (e.g. student/general user) or if viewScope is 'MY', only show own requests
+    if (!isStaff || viewScope === 'MY') {
+      if (r.userId !== currentUser?.id) return false;
+    }
+
     const matchStatus = filterStatus === 'ALL' || r.status === filterStatus;
     if (!matchStatus) return false;
 
@@ -576,6 +583,39 @@ export default function RequisitionsPage() {
       {/* Filter Tabs & Export Action Bar */}
       <div className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
+          {/* View Scope (Toggle for Staff / Info pill for Student) */}
+          {isStaff ? (
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold mr-1">
+              <button
+                type="button"
+                onClick={() => setViewScope('ALL')}
+                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                  viewScope === 'ALL'
+                    ? 'bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300 shadow-sm font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                รายการทั้งหมดในระบบ
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewScope('MY')}
+                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                  viewScope === 'MY'
+                    ? 'bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300 shadow-sm font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                เฉพาะของฉัน
+              </button>
+            </div>
+          ) : (
+            <div className="text-xs font-medium text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-3 py-1.5 rounded-xl border border-teal-200/70 dark:border-teal-800 flex items-center gap-1.5 mr-1">
+              <span>📌</span>
+              <span>แสดงเฉพาะรายการเบิกของท่าน ({formatUserName(currentUser) || 'นิสิต'})</span>
+            </div>
+          )}
+
           {[
             { key: 'ALL', label: 'ทั้งหมด' },
             { key: 'PENDING', label: 'รออนุมัติ' },

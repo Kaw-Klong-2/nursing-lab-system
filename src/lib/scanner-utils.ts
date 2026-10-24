@@ -6,7 +6,7 @@
 export interface ParsedScanResult {
   raw: string;
   cleanCode: string;
-  detectedType: 'ASSET' | 'CONSUMABLE' | 'PRACTICE' | 'USER' | 'STORAGE' | 'STORAGE_ROOM' | 'UNKNOWN';
+  detectedType: 'ASSET' | 'CONSUMABLE' | 'PRACTICE' | 'USER' | 'STORAGE' | 'STORAGE_ROOM' | 'BORROW_SLIP' | 'UNKNOWN';
   itemCode?: string;
   lotNumber?: string;
 }
@@ -66,6 +66,29 @@ export function extractCleanCode(rawInput: string | null | undefined): ParsedSca
 
   if (isUrl) {
     try {
+      // 3.0 ตรวจสอบ URL ใบยืม-คืน /verify/borrow/[code]
+      const borrowVerifyMatch = text.match(/\/verify\/borrow\/(.+?)(?:[\?#]|$)/i);
+      if (borrowVerifyMatch && borrowVerifyMatch[1]) {
+        try {
+          const decoded = decodeURIComponent(borrowVerifyMatch[1]).trim();
+          return { raw: rawInput, cleanCode: decoded, detectedType: 'BORROW_SLIP' };
+        } catch {
+          return { raw: rawInput, cleanCode: borrowVerifyMatch[1].trim(), detectedType: 'BORROW_SLIP' };
+        }
+      }
+
+      // 3.0.1 ตรวจสอบ URL สลิปเอกสาร /verify/[code]
+      const verifyMatch = text.match(/\/verify\/(.+?)(?:[\?#]|$)/i);
+      if (verifyMatch && verifyMatch[1]) {
+        try {
+          const decoded = decodeURIComponent(verifyMatch[1]).trim();
+          const detected = decoded.startsWith('BR-') || decoded.startsWith('BOR-') ? 'BORROW_SLIP' : 'CONSUMABLE';
+          return { raw: rawInput, cleanCode: decoded, detectedType: detected };
+        } catch {
+          return { raw: rawInput, cleanCode: verifyMatch[1].trim(), detectedType: 'CONSUMABLE' };
+        }
+      }
+
       // 3.1 ตรวจสอบ URL ตู้จัดเก็บห้องแล็บ /storage/room/[code]
       const storageRoomMatch = text.match(/\/storage\/room\/(.+?)(?:[\?#]|$)/i);
       if (storageRoomMatch && storageRoomMatch[1]) {
@@ -180,7 +203,7 @@ export function extractCleanCode(rawInput: string | null | undefined): ParsedSca
 /**
  * วิเคราะห์ประเภทของรหัสจาก Prefix หรือ Pattern ของรหัสในระบบ
  */
-function detectTypeFromCode(code: string): 'ASSET' | 'CONSUMABLE' | 'PRACTICE' | 'USER' | 'STORAGE' | 'STORAGE_ROOM' | 'UNKNOWN' {
+function detectTypeFromCode(code: string): 'ASSET' | 'CONSUMABLE' | 'PRACTICE' | 'USER' | 'STORAGE' | 'STORAGE_ROOM' | 'BORROW_SLIP' | 'UNKNOWN' {
   if (!code) return 'UNKNOWN';
   const upper = code.toUpperCase();
 
@@ -198,6 +221,11 @@ function detectTypeFromCode(code: string): 'ASSET' | 'CONSUMABLE' | 'PRACTICE' |
     upper.startsWith('DRAWER-')
   ) {
     return 'STORAGE';
+  }
+
+  // Borrow / Requisition Slip
+  if (upper.startsWith('BR-') || upper.startsWith('BOR-')) {
+    return 'BORROW_SLIP';
   }
 
   // Practice Booking Token

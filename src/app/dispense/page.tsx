@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import BorrowSlipModal from '@/components/slips/BorrowSlipModal';
+import RequisitionSlipModal from '@/components/slips/RequisitionSlipModal';
 import {
   PackageCheck,
   ShieldAlert,
@@ -99,6 +101,7 @@ export default function DispenseCenterPage() {
   const [assignedAssets, setAssignedAssets] = useState<{ borrowItemId: string; assetId: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
+  const [activeSlipItem, setActiveSlipItem] = useState<QueueItem | null>(null);
 
   const fetchQueue = async () => {
     if (!currentUser?.id) return;
@@ -216,9 +219,11 @@ export default function DispenseCenterPage() {
         });
         const data = await res.json();
         if (res.ok) {
+          const justDispensed = activeItem;
           setActionSuccessMessage(`บันทึกจ่ายวัสดุสิ้นเปลืองเลขที่ ${activeItem.requestNumber} สำเร็จ`);
           setActiveItem(null);
           fetchQueue();
+          setActiveSlipItem(justDispensed);
         } else {
           alert(data.error || data.message || 'เกิดข้อผิดพลาดในการตัดสต็อกจ่ายของ');
         }
@@ -236,9 +241,11 @@ export default function DispenseCenterPage() {
         });
         const data = await res.json();
         if (res.ok) {
+          const justDispensed = activeItem;
           setActionSuccessMessage(`บันทึกส่งมอบครุภัณฑ์เลขที่ ${activeItem.requestNumber} สำเร็จ`);
           setActiveItem(null);
           fetchQueue();
+          setActiveSlipItem(justDispensed);
         } else {
           alert(data.error || data.message || 'เกิดข้อผิดพลาดในการส่งมอบครุภัณฑ์');
         }

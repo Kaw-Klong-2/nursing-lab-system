@@ -17,6 +17,42 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-24] พัฒนาระบบใบยืม-คืนอุปกรณ์และเบิกพัสดุ (Slips) พร้อม Smart QR Verification และระบบรับคืนวัสดุสิ้นเปลืองเหลือใช้ (Sub-Unit Surplus Restock)
+- **หมวดหมู่**: Borrow & Requisitions / Slips / Inventory / QR Code Engine
+- **สิ่งที่ดำเนินการ**:
+  1. **ระบบใบรายการยืม-คืนและเบิกพัสดุ (Formal Slips & Thermal Receipts)**:
+     - พัฒนา `BorrowSlipModal.tsx` รองรับการพิมพ์ 2 โหมด: ขนาด A4 ทางการ (มีหัวข้อคณะพยาบาลศาสตร์, เลขที่คำขอ, ข้อมูลนิสิต, ตารางครุภัณฑ์, ช่องตรวจรับคืน 3 สภาพ, ตารางลงนาม 3 ฝ่าย) และสลิปความร้อน 80mm
+     - พัฒนา `RequisitionSlipModal.tsx` สำหรับใบเบิกพัสดุและวัสดุสิ้นเปลืองทางการ (A4 & 80mm)
+     - เชื่อมต่อปุ่ม "ใบยืม-คืน (Slip)" และ "ใบเบิก (Slip)" ในหน้า `/borrow`, `/requisitions`, และ `/dispense` พร้อม Auto-prompt เสนอให้พิมพ์ทันทีหลังเจ้าหน้าที่กดจ่ายของ/ส่งมอบอุปกรณ์สำเร็จ
+  2. **ระบบสแกน QR Code ตรวจสอบและตรวจรับคืนด่วน (Smart QR Verification & Quick Return)**:
+     - สร้างหน้า `/verify/borrow/[code]/page.tsx` สำหรับตรวจสอบสถานะคำขอยืมแบบ Real-time พร้อมโหมดเจ้าหน้าที่ห้องแล็บ (`Quick Return`) ที่สามารถตรวจเช็คสภาพของและกดรับคืนได้ทันทีในคลิกเดียวจากมือถือหรือเบราว์เซอร์
+     - สร้างหน้า `/verify/[code]/page.tsx` รองรับการสแกนสลิปทุกรูปแบบในระบบ
+     - อัปเดต `scanner-utils.ts` ให้ตรวจจับ URL ประเภท `BORROW_SLIP` อัตโนมัติ
+  3. **ระบบรับคืนวัสดุสิ้นเปลืองเหลือใช้เข้าคลัง (Consumable Surplus Return & Restocking)**:
+     - ปรับปรุงโมเดล `RequisitionItem` ใน `prisma/schema.prisma` เพิ่ม `quantityReturned`, `returnCondition`, `returnedAt`, `returnNote`
+     - สร้าง API `POST /api/requisitions/return` รองรับการรับคืนทั้งหน่วยใหญ่และ **เศษหน่วยย่อย (Sub-units)** คืนเข้า `StockLot.openPackRemainder` / `piecesRemaining` พร้อมระบบทบเศษเป็นกล่องเต็มอัตโนมัติ (Auto-Pack Consolidation)
+     - ปรับลดต้นทุนค่าใช้จ่ายสุทธิของคำขอตามจริง (Pro-rata Fractional Cost Adjustment)
+     - รองรับการประเมินสภาพวัสดุ: ซองสมบูรณ์ (เข้าคลังหลัก), ซองเปิดแต่สะอาด (เข้าคลังฝึกหุ่น Sim Lab), ชำรุด/ทิ้ง (ไม่เพิ่มสต็อก)
+     - บันทึกความเคลื่อนไหว `StockTransaction` ประเภท `RETURN_RESTOCK`
+     - พัฒนา `ConsumableReturnModal.tsx` และเชื่อมต่อปุ่ม "🔄 รับคืนวัสดุเหลือใช้" ในหน้า `/requisitions` และระบบตรวจรับคืน One-Stop ในหน้า `/borrow`
+- **ไฟล์สำคัญที่เพิ่ม/แก้ไข**:
+  - `prisma/schema.prisma`
+  - `src/app/api/requisitions/return/route.ts` [NEW]
+  - `src/app/api/borrow/[id]/route.ts` [MODIFIED - added GET & surplus return support]
+  - `src/app/api/requisitions/[id]/route.ts` [MODIFIED - added GET]
+  - `src/components/slips/BorrowSlipModal.tsx` [NEW]
+  - `src/components/slips/RequisitionSlipModal.tsx` [NEW]
+  - `src/components/requisitions/ConsumableReturnModal.tsx` [NEW]
+  - `src/app/verify/borrow/[code]/page.tsx` [NEW]
+  - `src/app/verify/[code]/page.tsx` [NEW]
+  - `src/lib/scanner-utils.ts` [MODIFIED]
+  - `src/app/borrow/page.tsx` [MODIFIED]
+  - `src/app/requisitions/page.tsx` [MODIFIED]
+  - `src/app/dispense/page.tsx` [MODIFIED]
+- **ผลตรวจมาตรฐานบรรณารักษ์**:
+  - `npm run librarian:audit`: บังคับใช้คำว่า "นิสิต" ผ่าน 100%, UTF-8 ผ่าน 100%
+  - Next.js Production Build (`npm run build`): ผ่านสมบูรณ์ครบ 92 Routes (Exit code 0)
+
 ### [2026-10-24] ยกระดับความปลอดภัยการเข้าถึงหน้าจอด้วย Role Guard Hardening (Defense-in-Depth)
 - **หมวดหมู่**: Security / Authorization / Defense-in-Depth
 - **สิ่งที่ดำเนินการ**:

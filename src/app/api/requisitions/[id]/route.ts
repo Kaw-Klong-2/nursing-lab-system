@@ -732,3 +732,84 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json({ error: error.message || 'Dispense failed' }, { status: 500 });
   }
 }
+
+
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const decoded = decodeURIComponent(id).trim();
+
+    const requisition = await prisma.requisitionRequest.findFirst({
+      where: {
+        OR: [
+          { id: decoded },
+          { requestNumber: decoded },
+        ],
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            prefix: true,
+            studentId: true,
+            role: true,
+            department: true,
+            email: true,
+            phone: true,
+          },
+        },
+        course: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            instructorName: true,
+          },
+        },
+        approver: {
+          select: {
+            id: true,
+            name: true,
+            prefix: true,
+            role: true,
+          },
+        },
+        items: {
+          include: {
+            item: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+                unit: true,
+                usageUnit: true,
+                conversionRatio: true,
+                category: true,
+              },
+            },
+          },
+        },
+        borrowRequest: {
+          include: {
+            items: {
+              include: {
+                item: true,
+                asset: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!requisition) {
+      return NextResponse.json({ error: 'ไม่พบข้อมูลคำขอเบิกพัสดุ' }, { status: 404 });
+    }
+
+    return NextResponse.json(requisition);
+  } catch (error: any) {
+    console.error('Fetch requisition request error:', error);
+    return NextResponse.json({ error: 'เกิดข้อผิดพลาดในการดึงข้อมูลคำขอเบิก' }, { status: 500 });
+  }
+}

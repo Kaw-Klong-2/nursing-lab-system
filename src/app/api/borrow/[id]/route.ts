@@ -56,6 +56,132 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     };
 
     if (action === 'ACKNOWLEDGE') {
+      // Process linked requisition surplus returns if provided
+      const { requisitionReturns } = body;
+      if (requisitionReturns && Array.isArray(requisitionReturns) && requisitionReturns.length > 0 && borrow.requisitionRequestId) {
+        try {
+          const linkedReq = await prisma.requisitionRequest.findUnique({
+            where: { id: borrow.requisitionRequestId },
+            include: {
+              items: {
+                include: {
+                  item: {
+                    include: {
+                      stockLots: {
+                        where: { quantityRemaining: { gte: 0 } },
+                        orderBy: [{ expiryDate: 'desc' }, { receivedDate: 'desc' }],
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          });
+
+          if (linkedReq && linkedReq.status === 'DISPENSED') {
+            for (const rRet of requisitionReturns) {
+              const reqItem = linkedReq.items.find((i) => i.id === rRet.requisitionItemId || i.id === rRet.id);
+              if (!reqItem) continue;
+
+              const retQty = Math.max(0, Number(rRet.quantity) || 0);
+              if (retQty <= 0) continue;
+
+              const maxCanReturn = Math.max(0, reqItem.quantityDispensed - (reqItem.quantityReturned || 0));
+              const actualRet = Math.min(retQty, maxCanReturn);
+              if (actualRet <= 0) continue;
+
+              const condition = rRet.condition || 'SEALED_INTACT';
+              const rNote = rRet.note ? String(rRet.note).trim() : '';
+              const itemRatio = Number(reqItem.item.conversionRatio) > 0 ? Number(reqItem.item.conversionRatio) : 1;
+              const isSub = reqItem.isSubUnit === true || rRet.isSubUnit === true;
+
+              let lineDeduct = 0;
+              if (isSub && itemRatio > 1) {
+                lineDeduct = actualRet * (reqItem.unitCost / itemRatio);
+              } else {
+                lineDeduct = actualRet * reqItem.unitCost;
+              }
+
+              const newQtyReturned = (reqItem.quantityReturned || 0) + actualRet;
+              const remainingDisp = Math.max(0, reqItem.quantityDispensed - newQtyReturned);
+              const newLineTotal = isSub && itemRatio > 1 ? remainingDisp * (reqItem.unitCost / itemRatio) : remainingDisp * reqItem.unitCost;
+
+              await prisma.requisitionItem.update({
+                where: { id: reqItem.id },
+                data: {
+                  quantityReturned: newQtyReturned,
+                  returnCondition: condition,
+                  returnedAt: new Date(),
+                  returnNote: rNote ? (reqItem.returnNote ? `${reqItem.returnNote} | ${rNote}` : rNote) : reqItem.returnNote,
+                  totalCost: newLineTotal,
+                },
+              });
+
+              if (condition === 'SEALED_INTACT' || condition === 'UNSEALED_USABLE_SIM') {
+                const targetLot = reqItem.item.stockLots?.[0];
+                if (targetLot) {
+                  const pSize = Number(targetLot.packSize) > 0 ? Number(targetLot.packSize) : itemRatio;
+                  let addedPacks = 0;
+
+                  if (isSub && pSize > 1) {
+                    const currentOpen = targetLot.openPackRemainder || 0;
+                    const newOpen = currentOpen + actualRet;
+                    addedPacks = Math.floor(newOpen / pSize);
+                    const remainder = newOpen % pSize;
+
+                    await prisma.stockLot.update({
+                      where: { id: targetLot.id },
+                      data: {
+                        quantityRemaining: targetLot.quantityRemaining + addedPacks,
+                        piecesRemaining: (targetLot.piecesRemaining || 0) + actualRet,
+                        openPackRemainder: remainder,
+                      },
+                    });
+                  } else {
+                    addedPacks = actualRet;
+                    await prisma.stockLot.update({
+                      where: { id: targetLot.id },
+                      data: {
+                        quantityRemaining: targetLot.quantityRemaining + actualRet,
+                        piecesRemaining: (targetLot.piecesRemaining || 0) + (actualRet * pSize),
+                      },
+                    });
+                  }
+
+
+
+                  await prisma.stockTransaction.create({
+                    data: {
+                      itemId: reqItem.itemId,
+                      lotId: targetLot.id,
+                      type: 'RETURN_RESTOCK',
+                      quantity: actualRet,
+                      unitCost: isSub && itemRatio > 1 ? reqItem.unitCost / itemRatio : reqItem.unitCost,
+                      totalCost: lineDeduct,
+                      courseId: linkedReq.courseId,
+                      referenceNumber: linkedReq.requestNumber,
+                      createdById: userId || borrow.userId,
+                      note: `รับคืนวัสดุเหลือใช้พร้อมอุปกรณ์ตามคำขอยืม ${borrow.requestNumber} [${reqItem.item.name} x ${actualRet}]${rNote ? ` - ${rNote}` : ''}`,
+                    },
+                  });
+                }
+              }
+            }
+
+            const allReqItems = await prisma.requisitionItem.findMany({
+              where: { requisitionRequestId: linkedReq.id },
+            });
+            const newReqCost = allReqItems.reduce((acc, it) => acc + (it.totalCost || 0), 0);
+            await prisma.requisitionRequest.update({
+              where: { id: linkedReq.id },
+              data: { totalCost: newReqCost },
+            });
+          }
+        } catch (e) {
+          console.error('Failed to process requisition returns in borrow return:', e);
+        }
+      }
+
       const updated = await prisma.borrowRequest.update({
         where: { id },
         data: {
@@ -905,5 +1031,104 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   } catch (error: any) {
     console.error('Borrow update error:', error);
     return NextResponse.json({ error: error.message || 'Update failed' }, { status: 500 });
+  }
+}
+
+
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const decoded = decodeURIComponent(id).trim();
+
+    const borrow = await prisma.borrowRequest.findFirst({
+      where: {
+        OR: [
+          { id: decoded },
+          { requestNumber: decoded },
+        ],
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            prefix: true,
+            studentId: true,
+            role: true,
+            department: true,
+            email: true,
+            phone: true,
+          },
+        },
+        course: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            instructorName: true,
+          },
+        },
+        approver: {
+          select: {
+            id: true,
+            name: true,
+            prefix: true,
+            role: true,
+          },
+        },
+        items: {
+          include: {
+            item: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+                category: true,
+                unit: true,
+                imageUrl: true,
+              },
+            },
+            asset: {
+              select: {
+                id: true,
+                assetCode: true,
+                govAssetCode: true,
+                serialNumber: true,
+                status: true,
+                condition: true,
+                location: true,
+              },
+            },
+          },
+        },
+        requisitionRequest: {
+          include: {
+            items: {
+              include: {
+                item: {
+                  select: {
+                    id: true,
+                    name: true,
+                    code: true,
+                    unit: true,
+                    usageUnit: true,
+                    conversionRatio: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!borrow) {
+      return NextResponse.json({ error: 'ไม่พบข้อมูลคำขอยืมครุภัณฑ์' }, { status: 404 });
+    }
+
+    return NextResponse.json(borrow);
+  } catch (error: any) {
+    console.error('Fetch borrow request error:', error);
+    return NextResponse.json({ error: 'เกิดข้อผิดพลาดในการดึงข้อมูลคำขอยืม' }, { status: 500 });
   }
 }

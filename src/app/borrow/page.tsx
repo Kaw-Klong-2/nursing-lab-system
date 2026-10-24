@@ -31,8 +31,10 @@ import {
   Info,
   FileText,
   Bell,
+  Printer,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import BorrowSlipModal from '@/components/slips/BorrowSlipModal';
 import UnifiedRequestModal from '@/components/requests/UnifiedRequestModal';
 import EditRequestModal from '@/components/requests/EditRequestModal';
 import NewAllocationModal from '@/components/borrow/NewAllocationModal';
@@ -48,6 +50,8 @@ export default function BorrowPage() {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [viewScope, setViewScope] = useState<'ALL' | 'MY'>('ALL');
+  const [activeSlipBorrow, setActiveSlipBorrow] = useState<any | null>(null);
+  const [reqSurplusReturns, setReqSurplusReturns] = useState<{ id: string; quantity: number | ''; condition: string }[]>([]);
 
   // New Request Modal
   const [showNewModal, setShowNewModal] = useState(false);
@@ -414,6 +418,12 @@ export default function BorrowPage() {
                   .map((i) => ({ borrowItemId: i.id, assetId: i.assetId }))
               : undefined,
           requisitionItemAdjustments: actionType === 'CHECKOUT' ? checkoutReqItems : undefined,
+          requisitionReturns:
+            actionType === 'RETURN'
+              ? reqSurplusReturns
+                  .filter((r) => typeof r.quantity === 'number' && r.quantity > 0)
+                  .map((r) => ({ requisitionItemId: r.id, quantity: r.quantity, condition: r.condition }))
+              : undefined,
         }),
       });
 
@@ -425,7 +435,13 @@ export default function BorrowPage() {
         setItemReturns([]);
         setCheckoutBorrowItems([]);
         setCheckoutReqItems([]);
+        setReqSurplusReturns([]);
+        const checkedOutReq = activeBorrowForAction;
+        const wasCheckout = actionType === 'CHECKOUT';
         fetchBorrowData();
+        if (wasCheckout && checkedOutReq) {
+          setActiveSlipBorrow(checkedOutReq);
+        }
       } else {
         const err = await res.json();
         alert(err.error || 'Action failed');
@@ -759,6 +775,17 @@ export default function BorrowPage() {
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-teal-50 to-indigo-50 dark:from-teal-950/60 dark:to-indigo-950/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                       <Sparkles className="w-3 h-3 text-indigo-600 dark:text-indigo-400" /> คำขอรวม One-Stop
                     </span>
+                  )}
+                  {(req.status === 'APPROVED' || req.status === 'BORROWED' || req.status === 'RETURNED_COMPLETE' || req.status === 'RETURNED_WITH_ISSUE') && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveSlipBorrow(req)}
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg border border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 text-teal-800 dark:text-teal-200 text-[11px] font-bold transition cursor-pointer shadow-xs"
+                      title="ดูและพิมพ์ใบรายการยืม-คืน (A4/80mm) พร้อม QR Code"
+                    >
+                      <Printer className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+                      <span>ใบยืม-คืน (Slip)</span>
+                    </button>
                   )}
                   {req.status === 'PENDING' && (currentUser?.id === req.userId || isOfficer || isAdmin) && (
                     <button
@@ -2323,6 +2350,60 @@ export default function BorrowPage() {
                   </div>
                 </div>
 
+                {activeBorrowForAction.requisitionRequest?.items?.length > 0 && (
+                  <div className="p-3.5 rounded-2xl bg-teal-50/50 dark:bg-teal-950/30 border border-teal-200/80 dark:border-teal-900/60 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-teal-950 dark:text-teal-200 flex items-center gap-1.5">
+                        <Boxes className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                        <span>รับคืนวัสดุสิ้นเปลืองเหลือใช้ (ถ้ามี):</span>
+                      </span>
+                      <span className="text-[10px] text-teal-700 dark:text-teal-300">
+                        (ระบุเฉพาะชิ้นที่นำมาคืน)
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {activeBorrowForAction.requisitionRequest.items.map((rIt: any) => {
+                        const currentQty = reqSurplusReturns.find((r) => r.id === rIt.id)?.quantity ?? '';
+                        const maxCan = Math.max(0, rIt.quantityDispensed - (rIt.quantityReturned || 0));
+                        return (
+                          <div key={rIt.id} className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-teal-100 dark:border-teal-900/60 flex items-center justify-between gap-2 text-xs">
+                            <div>
+                              <div className="font-bold text-slate-800 dark:text-slate-200">{rIt.item?.name}</div>
+                              <div className="text-[10px] text-slate-500">จ่ายไป: {rIt.quantityDispensed} {rIt.requestedUnit || rIt.item?.unit} (คืนได้สูงสุด {maxCan})</div>
+                            </div>
+                            {maxCan > 0 ? (
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-slate-500">คืน:</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={maxCan}
+                                  value={currentQty}
+                                  onChange={(e) => {
+                                    const val = e.target.value === '' ? '' : Math.min(maxCan, Math.max(0, parseInt(e.target.value, 10) || 0));
+                                    setReqSurplusReturns((prev) => {
+                                      const existing = prev.find((p) => p.id === rIt.id);
+                                      if (existing) {
+                                        return prev.map((p) => (p.id === rIt.id ? { ...p, quantity: val } : p));
+                                      }
+                                      return [...prev, { id: rIt.id, quantity: val, condition: 'SEALED_INTACT' }];
+                                    });
+                                  }}
+                                  placeholder="0"
+                                  className="w-16 px-2 py-1 text-center font-bold text-xs bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg"
+                                />
+                                <span className="text-[10px] text-slate-500">{rIt.requestedUnit || rIt.item?.unit}</span>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-emerald-600 font-bold">✓ คืนครบแล้ว</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     หมายเหตุภาพรวมการตรวจรับคืน (ถ้ามี)
@@ -2368,6 +2449,14 @@ export default function BorrowPage() {
           isOpen={showUnifiedModal}
           onClose={() => setShowUnifiedModal(false)}
           onSuccess={fetchBorrowData}
+        />
+      )}
+
+      {/* Borrow Slip Modal */}
+      {activeSlipBorrow && (
+        <BorrowSlipModal
+          borrow={activeSlipBorrow}
+          onClose={() => setActiveSlipBorrow(null)}
         />
       )}
 

@@ -31,6 +31,8 @@ import {
   Bell,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import RequisitionSlipModal from '@/components/slips/RequisitionSlipModal';
+import ConsumableReturnModal from '@/components/requisitions/ConsumableReturnModal';
 import UnifiedRequestModal from '@/components/requests/UnifiedRequestModal';
 import EditRequestModal from '@/components/requests/EditRequestModal';
 import { formatUserName, formatTeacherName, formatApproverDisplay, formatAcknowledgeDisplay } from '@/lib/user-utils';
@@ -48,6 +50,8 @@ export default function RequisitionsPage() {
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [academicTerms, setAcademicTerms] = useState<AcademicTermInfo[]>([]);
   const [selectedTermFilter, setSelectedTermFilter] = useState<string>('ALL');
+  const [activeSlipRequisition, setActiveSlipRequisition] = useState<any | null>(null);
+  const [activeReturnRequisition, setActiveReturnRequisition] = useState<any | null>(null);
 
   // New Requisition Modal State
   const [showNewModal, setShowNewModal] = useState(false);
@@ -1634,6 +1638,26 @@ export default function RequisitionsPage() {
           isOpen={showUnifiedModal}
           onClose={() => setShowUnifiedModal(false)}
           onSuccess={fetchRequisitions}
+        />
+      )}
+
+      {/* Requisition Slip Modal */}
+      {activeSlipRequisition && (
+        <RequisitionSlipModal
+          requisition={activeSlipRequisition}
+          onClose={() => setActiveSlipRequisition(null)}
+        />
+      )}
+
+      {/* Consumable Return Modal */}
+      {activeReturnRequisition && (
+        <ConsumableReturnModal
+          requisition={activeReturnRequisition}
+          currentUserId={currentUser?.id}
+          onClose={() => setActiveReturnRequisition(null)}
+          onSuccess={() => {
+            fetchRequisitions();
+          }}
         />
       )}
 

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import {
   RefreshCw,
@@ -621,12 +622,19 @@ export default function BorrowPage() {
             </button>
           ) : (
             <>
-              <button
-                onClick={() => setShowUnifiedModal(true)}
+              <Link
+                href="/borrow/request"
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 via-teal-700 to-indigo-600 hover:from-teal-500 hover:to-indigo-500 text-white text-xs font-black shadow-lg shadow-teal-600/25 transition cursor-pointer ring-2 ring-teal-400/30"
               >
                 <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
-                <span>ยื่นคำขอเบิก-ยืมพัสดุ (One-Stop)</span>
+                <span>+ ยื่นคำขอเบิก-ยืมพัสดุ (หน้าเต็มจอ)</span>
+              </Link>
+              <button
+                onClick={() => setShowUnifiedModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-teal-200 dark:border-teal-800/60 bg-teal-50/50 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/50 text-teal-800 dark:text-teal-200 text-xs font-semibold transition cursor-pointer shadow-sm"
+                title="เปิด Popup ยื่นคำขอเบิก-ยืมพัสดุแบบเดิม"
+              >
+                <span>เปิด Popup ด่วน</span>
               </button>
               <button
                 onClick={() => {

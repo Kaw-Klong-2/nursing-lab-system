@@ -17,6 +17,37 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-25] แยกฟอร์มการทำงานที่มีความซับซ้อนสูงเป็นหน้าเว็บเต็มจอ (Dedicated Pages) และปรับแต่ง Mobile Bottom Sheet
+- **หมวดหมู่**: UI/UX Architecture / Mobile Optimization / Standalone Forms
+- **สิ่งที่ดำเนินการ**:
+  1. **สร้างหน้าเว็บเต็มจอสำหรับฟอร์มซับซ้อน 3 หน้าหลัก (Golden Rule of Form vs Modal)**:
+     - **`/practice/book` ([src/app/practice/book/page.tsx](file:///d:/LAB-system/src/app/practice/book/page.tsx))**: หน้ายื่นคำขอจองรอบฝึกปฏิบัติการ พร้อมแผงค้นหาและดึงเพื่อนร่วมกลุ่มนิสิต (Group Companions) ตัวเลือกชุดฝึกปฏิบัติการ (Practice Kit) ตัวเลือกรายวิชาและอาจารย์ผู้รับรอง รองรับการบันทึกแบบร่างอัตโนมัติ (`sessionStorage`)
+     - **`/borrow/request` ([src/app/borrow/request/page.tsx](file:///d:/LAB-system/src/app/borrow/request/page.tsx))**: หน้ายื่นคำขอยืมครุภัณฑ์คงทนและขอเบิกวัสดุสิ้นเปลือง (Unified Request) แบบเต็มจอ รองรับการสลับหน่วยย่อย คำนวณมูลค่าประมาณการ และระบบบันทึกแบบร่างอัตโนมัติ
+     - **`/maintenance/report` ([src/app/maintenance/report/page.tsx](file:///d:/LAB-system/src/app/maintenance/report/page.tsx))**: หน้าเปิดใบแจ้งซ่อมครุภัณฑ์และรายงานปัญหา รองรับการเปิดกล้องถ่ายภาพความเสียหายจากมือถือโดยตรง พร้อมตัวเลือกระดับความเร่งด่วนและอาการเสียที่พบบ่อย (Quick Symptoms) ป้องกันปัญหาหน้าเว็บรีเฟรชเมื่อเปิดกล้อง
+  2. **เชื่อมโยงจุดเรียกใช้งานและปรับปรุง Breadcrumb**:
+     - อัปเดตตารางรอบเวลาใน [src/app/practice/page.tsx](file:///d:/LAB-system/src/app/practice/page.tsx) ให้ปุ่ม *"จองรอบนี้"* เชื่อมต่อไปยัง `/practice/book?slotId=...`
+     - เพิ่มปุ่ม *"ยื่นคำขอเบิก-ยืมพัสดุ (หน้าเต็มจอ)"* ใน [src/app/borrow/page.tsx](file:///d:/LAB-system/src/app/borrow/page.tsx) และ [src/components/dashboard/StudentDashboard.tsx](file:///d:/LAB-system/src/components/dashboard/StudentDashboard.tsx)
+     - เพิ่มปุ่ม *"เปิดใบแจ้งซ่อม (หน้าใหม่)"* ใน [src/app/maintenance/page.tsx](file:///d:/LAB-system/src/app/maintenance/page.tsx) และหน้าสแกน QR ครุภัณฑ์ [src/app/asset/[code]/page.tsx](file:///d:/LAB-system/src/app/asset/[code]/page.tsx)
+     - อัปเดต [src/components/layout/SubAppBreadcrumbBar.tsx](file:///d:/LAB-system/src/components/layout/SubAppBreadcrumbBar.tsx) ให้แสดงชื่อหน้าย่อยใน Breadcrumb trail อัตโนมัติ
+  3. **ปรับแต่ง Modal ตรวจสอบระยะสั้น (<10 วินาที) ให้เป็น Mobile Bottom Sheet**:
+     - ปรับแต่ง [src/components/slips/BorrowSlipModal.tsx](file:///d:/LAB-system/src/components/slips/BorrowSlipModal.tsx), [src/components/slips/RequisitionSlipModal.tsx](file:///d:/LAB-system/src/components/slips/RequisitionSlipModal.tsx), และ QR เข้าห้องแล็บ ให้แสดงผลแบบ Bottom Sheet (`items-end sm:items-center`, มุมมน `rounded-t-3xl`, พร้อม Drag Handle บนมือถือ)
+- **ไฟล์สำคัญที่แก้ไข/เพิ่มใหม่**:
+  - `src/app/practice/book/page.tsx` (ใหม่)
+  - `src/app/borrow/request/page.tsx` (ใหม่)
+  - `src/app/maintenance/report/page.tsx` (ใหม่)
+  - `src/components/layout/SubAppBreadcrumbBar.tsx`
+  - `src/app/practice/page.tsx`
+  - `src/app/borrow/page.tsx`
+  - `src/app/maintenance/page.tsx`
+  - `src/app/asset/[code]/page.tsx`
+  - `src/components/dashboard/StudentDashboard.tsx`
+  - `src/components/slips/BorrowSlipModal.tsx`
+  - `src/components/slips/RequisitionSlipModal.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**:
+  - `tsc --noEmit`: ผ่าน 0 errors
+  - `npm run build`: คอมไพล์ผ่านสมบูรณ์ 96/96 routes
+  - `npm run librarian:audit`: ผ่านมาตรฐานคำว่า **"นิสิต"** และ UTF-8 100%
+
 ### [2026-10-25] พัฒนาแถบระบุพิกัดระบบงานและสลับแอปด่วน (SubAppBreadcrumbBar & Quick Switcher)
 - **หมวดหมู่**: UI/UX Enhancement / Contextual Navigation / Sub-App Suite
 - **สิ่งที่ดำเนินการ**:

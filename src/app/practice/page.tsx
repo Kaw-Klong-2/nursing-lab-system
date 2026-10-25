@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import QRCode from 'qrcode';
 import {
@@ -1786,13 +1787,13 @@ export default function PracticePage() {
                           {/* Footer Actions */}
                           <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
                             {isOpen && !isFull && (
-                              <button
-                                onClick={() => handleOpenBookingModal(slot)}
+                              <Link
+                                href={`/practice/book?slotId=${slot.id}`}
                                 className="w-full py-2 px-3 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs shadow-md shadow-teal-600/20 transition cursor-pointer flex items-center justify-center gap-1.5"
                               >
                                 <Sparkles className="w-3.5 h-3.5" />
                                 <span>ขอยื่นจองรอบนี้</span>
-                              </button>
+                              </Link>
                             )}
 
                             {canManageSlots && (
@@ -2181,13 +2182,12 @@ export default function PracticePage() {
 
                                   {/* Student Booking */}
                                   {isOpen && !isFull && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenBookingModal(slot)}
+                                    <Link
+                                      href={`/practice/book?slotId=${slot.id}`}
                                       className="px-2.5 py-1 text-xs font-bold text-white bg-teal-600 hover:bg-teal-500 rounded-lg shadow-xs transition"
                                     >
                                       จอง
-                                    </button>
+                                    </Link>
                                   )}
 
                                   {/* Staff Controls */}
@@ -4266,9 +4266,11 @@ export default function PracticePage() {
 
       {/* MODAL: QR CODE CARD FOR STUDENT (DARK-MODE PROOF & ANTI-GLARE) */}
       {activeBookingForQr && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-          {/* Main Modal Card */}
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-sm w-full p-6 shadow-2xl text-center space-y-4 relative border border-slate-100 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn">
+          {/* Main Modal Card / Mobile Bottom Sheet */}
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl max-w-sm w-full p-6 shadow-2xl text-center space-y-4 relative border border-slate-100 dark:border-slate-800 pb-8 sm:pb-6">
+            {/* Mobile Drag Handle */}
+            <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mb-2 sm:hidden" />
             <button
               onClick={() => {
                 setActiveBookingForQr(null);

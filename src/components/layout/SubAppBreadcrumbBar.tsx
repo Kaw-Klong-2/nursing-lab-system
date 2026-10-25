@@ -58,6 +58,9 @@ export default function SubAppBreadcrumbBar() {
 
   // Dynamic route fallback labels
   const getPageTitle = () => {
+    if (pathname === '/practice/book') return 'จองรอบฝึกปฏิบัติการ';
+    if (pathname === '/borrow/request') return 'ยื่นคำขอยืมครุภัณฑ์ & เบิกวัสดุ';
+    if (pathname === '/maintenance/report') return 'เปิดใบแจ้งซ่อมครุภัณฑ์';
     if (activeItem) return activeItem.label;
     if (pathname === '/') return 'ภาพรวมห้องปฏิบัติการพยาบาล (All Apps Hub)';
     if (pathname.startsWith('/asset/')) return 'รายละเอียดข้อมูลครุภัณฑ์';

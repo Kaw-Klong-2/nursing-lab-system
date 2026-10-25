@@ -843,6 +843,13 @@ export default function MaintenanceDashboardPage() {
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-teal-600' : ''}`} />
           </button>
+          <Link
+            href="/maintenance/report"
+            className="px-3.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+          >
+            <Camera className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            <span>+ เปิดใบแจ้งซ่อม (หน้าใหม่)</span>
+          </Link>
           {isStaff && (
             <>
               <button

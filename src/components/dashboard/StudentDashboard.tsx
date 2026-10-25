@@ -254,18 +254,18 @@ export default function StudentDashboard({ embedded = false }: StudentDashboardP
 
           <div className="relative z-10 flex flex-wrap items-center gap-2.5">
             <Link
-              href="/borrow"
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition shadow-md shadow-teal-600/25 cursor-pointer"
+              href="/borrow/request"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-indigo-600 hover:from-teal-500 hover:to-indigo-500 text-white text-xs font-bold transition shadow-md shadow-teal-600/25 cursor-pointer"
             >
               <PlusCircle className="w-4 h-4" />
-              <span>ยื่นขอยืมอุปกรณ์ฝึกซ้อม</span>
+              <span>ยื่นขอยืม-เบิกพัสดุ (หน้าใหม่)</span>
             </Link>
             <Link
-              href="/requisitions"
+              href="/borrow"
               className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700 transition shadow-sm cursor-pointer"
             >
-              <Layers className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-              <span>ขอเบิกวัสดุฝึกปฏิบัติ</span>
+              <Package className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+              <span>รายการคำขอยืม-คืน</span>
             </Link>
           </div>
         </div>

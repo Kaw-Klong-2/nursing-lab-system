@@ -689,16 +689,24 @@ export default function PublicAssetPage() {
 
             {/* Action Buttons */}
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+              <Link
+                href={`/maintenance/report?assetId=${asset.id}&code=${encodeURIComponent(asset.assetCode)}`}
+                className="w-full py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white border border-amber-600 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20"
+              >
+                <Camera className="w-4 h-4" />
+                <span>📢 แจ้งปัญหา / ถ่ายรูปแจ้งซ่อม (หน้าเต็มจอ)</span>
+              </Link>
+
               <button
                 type="button"
                 onClick={() => {
                   setReportSuccessCode(null);
                   setReportModalOpen(true);
                 }}
-                className="w-full py-2.5 rounded-2xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                className="w-full py-2 rounded-2xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs font-medium transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                <span>📢 แจ้งปัญหา / พบอุปกรณ์ชำรุด (ส่งเรื่องทันที)</span>
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                <span>แจ้งปัญหาด่วนผ่าน Popup แบบย่อ</span>
               </button>
 
               {currentUser ? (

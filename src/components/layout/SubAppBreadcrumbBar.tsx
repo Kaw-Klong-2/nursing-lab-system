@@ -75,10 +75,49 @@ export default function SubAppBreadcrumbBar() {
 
   return (
     <>
-      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/70 dark:border-slate-800/80 px-3 sm:px-4 md:px-6 py-2 transition-colors duration-200">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          {/* Left Side: Breadcrumb Path */}
-          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 min-w-0 flex-wrap">
+      {/* 
+        Breadcrumb Bar: 
+        - Desktop/Tablet (sm:block): Full trail with sub-app, page title & launcher button
+        - Mobile (hidden on sm): Minimal single-line compact pill, saving vertical space
+      */}
+      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/70 dark:border-slate-800/80 px-3 sm:px-4 md:px-6 py-1.5 sm:py-2 transition-colors duration-200">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+          {/* Mobile View (sm:hidden): Compact Single Line */}
+          <div className="flex sm:hidden items-center gap-1.5 min-w-0 text-xs flex-1">
+            <Link
+              href="/"
+              className="p-1 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition shrink-0"
+              title="หน้าหลัก"
+            >
+              <Home className="w-3.5 h-3.5" />
+            </Link>
+
+            {activeSubApp && (
+              <>
+                <ChevronRight className="w-3 h-3 text-slate-300 dark:text-slate-600 shrink-0" />
+                <button
+                  type="button"
+                  onClick={() => setIsLauncherOpen(true)}
+                  className="inline-flex items-center gap-1 font-bold text-slate-700 dark:text-slate-300 shrink-0 hover:text-teal-600 dark:hover:text-teal-400"
+                >
+                  <span className="text-xs">{activeSubApp.emoji}</span>
+                  <span className="truncate max-w-[100px]">{activeSubApp.shortName}</span>
+                </button>
+              </>
+            )}
+
+            {!isHome && (
+              <>
+                <ChevronRight className="w-3 h-3 text-slate-300 dark:text-slate-600 shrink-0" />
+                <span className="font-bold text-slate-900 dark:text-white truncate">
+                  {getPageTitle()}
+                </span>
+              </>
+            )}
+          </div>
+
+          {/* Desktop/Tablet View (hidden on mobile, sm:flex): Full Trail */}
+          <nav aria-label="Breadcrumb" className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 min-w-0 flex-wrap">
             {/* 1. Home Hub Link */}
             <Link
               href="/"
@@ -88,7 +127,7 @@ export default function SubAppBreadcrumbBar() {
               title="กลับสู่หน้าภาพรวมหลัก (Home Hub)"
             >
               <Home className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline">หน้าหลัก</span>
+              <span>หน้าหลัก</span>
             </Link>
 
             {/* 2. Sub-App Identity (If inside a Sub-App) */}
@@ -102,7 +141,7 @@ export default function SubAppBreadcrumbBar() {
                   title="คลิกเพื่อสลับแอปพลิเคชัน"
                 >
                   <span className="text-sm shrink-0">{activeSubApp.emoji}</span>
-                  <span className="truncate max-w-[130px] sm:max-w-none">{activeSubApp.shortName}</span>
+                  <span>{activeSubApp.shortName}</span>
                 </button>
               </>
             )}
@@ -111,7 +150,7 @@ export default function SubAppBreadcrumbBar() {
             {!isHome && (
               <>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 shrink-0" />
-                <span className="font-bold text-slate-900 dark:text-white truncate max-w-[160px] sm:max-w-[260px] md:max-w-none">
+                <span className="font-bold text-slate-900 dark:text-white truncate max-w-[260px] md:max-w-none">
                   {getPageTitle()}
                 </span>
               </>
@@ -119,7 +158,7 @@ export default function SubAppBreadcrumbBar() {
           </nav>
 
           {/* Right Side: Quick Sub-App Switcher Pill & Sibling Tabs */}
-          <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             {/* Quick Sibling Page Pills for Current Sub-App (Horizontal Quick Nav) */}
             {activeSubApp && activeSubApp.items.length > 1 && (
               <div className="hidden lg:flex items-center gap-1 pr-2 border-r border-slate-200 dark:border-slate-800">
@@ -142,11 +181,11 @@ export default function SubAppBreadcrumbBar() {
               </div>
             )}
 
-            {/* Quick Switch Sub-App Button */}
+            {/* Quick Switch Sub-App Button (Desktop only, mobile uses bottom menu) */}
             <button
               type="button"
               onClick={() => setIsLauncherOpen(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200/90 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 shadow-2xs transition active:scale-95 cursor-pointer"
+              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200/90 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 shadow-2xs transition active:scale-95 cursor-pointer"
               title="เปิดศูนย์รวมแอปพลิเคชันเพื่อสลับระบบงาน"
             >
               <ArrowLeftRight className="w-3 h-3 text-teal-600 dark:text-teal-400" />

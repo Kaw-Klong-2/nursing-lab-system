@@ -260,7 +260,7 @@ function MaintenanceReportContent() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 md:py-10 pb-32">
+    <div className="max-w-4xl mx-auto px-4 py-6 md:py-10 pb-36 md:pb-24">
       {/* Top Header */}
       <div className="flex items-center justify-between gap-4 mb-6">
         <Link
@@ -583,12 +583,12 @@ function MaintenanceReportContent() {
           </div>
         </div>
 
-        {/* Sticky Mobile Bottom Bar */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-30 shadow-lg">
-          <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
+        {/* Sticky Mobile Bottom Bar (Above Mobile BottomNav) */}
+        <div className="fixed bottom-[58px] md:bottom-0 left-0 right-0 p-3 sm:p-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-30 shadow-lg">
+          <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
             <Link
               href="/maintenance"
-              className="px-5 py-3 rounded-2xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="px-4 sm:px-5 py-2.5 sm:py-3 rounded-2xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs sm:text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
               ยกเลิก
             </Link>
@@ -596,7 +596,7 @@ function MaintenanceReportContent() {
             <button
               type="submit"
               disabled={submitting || !selectedAsset}
-              className="flex-1 sm:flex-none sm:min-w-[260px] px-6 py-3.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-2xl font-bold text-sm shadow-md shadow-amber-600/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+              className="flex-1 sm:flex-none sm:min-w-[260px] px-5 sm:px-6 py-2.5 sm:py-3.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-2xl font-bold text-xs sm:text-sm shadow-md shadow-amber-600/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
             >
               {submitting ? (
                 <>
@@ -604,7 +604,7 @@ function MaintenanceReportContent() {
                 </>
               ) : (
                 <>
-                  <Wrench className="w-5 h-5" /> ยืนยันการส่งใบแจ้งซ่อม
+                  <Wrench className="w-4 h-4 sm:w-5 sm:h-5" /> ยืนยันการส่งใบแจ้งซ่อม
                 </>
               )}
             </button>

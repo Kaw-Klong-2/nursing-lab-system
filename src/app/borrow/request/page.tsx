@@ -249,7 +249,7 @@ function BorrowRequestContent() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 md:py-10 pb-32">
+    <div className="max-w-4xl mx-auto px-4 py-6 md:py-10 pb-36 md:pb-24">
       {/* Header */}
       <div className="flex items-center justify-between gap-4 mb-6">
         <Link
@@ -463,22 +463,27 @@ function BorrowRequestContent() {
           </div>
         </div>
 
-        {/* SECTION 2: Equipment Borrow Rows */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+        {/* SECTION 2: Equipment Borrow Rows (BLUE THEME) */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 border-2 border-blue-200 dark:border-blue-900/60 shadow-sm space-y-6">
+          <div className="flex flex-wrap items-center justify-between border-b border-blue-100 dark:border-blue-900/40 pb-4 gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-900">
+              <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/70 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-800">
                 2
               </div>
               <div>
-                <h2 className="text-lg font-bold text-slate-800 dark:text-white">รายการครุภัณฑ์ที่ต้องการยืม (Equipment)</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">ต้องส่งคืนหลังเสร็จสิ้นการฝึกปฏิบัติ</p>
+                <h2 className="text-base sm:text-lg font-black text-blue-900 dark:text-blue-200 flex items-center gap-2">
+                  <Package className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  รายการครุภัณฑ์ที่ต้องการยืม (Equipment)
+                </h2>
+                <p className="text-xs text-blue-700 dark:text-blue-400">
+                  ✓ เป็นของใช้แล้วต้องนำมาส่งคืนห้องปฏิบัติการ เช่น หุ่นฝึก, ชุดตรวจ, เครื่องวัดความดัน
+                </p>
               </div>
             </div>
             <button
               type="button"
               onClick={() => setBorrowItems([...borrowItems, { itemId: '', quantity: '' }])}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-2xl text-xs font-bold transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-2xl text-xs font-bold transition-colors shadow-xs"
             >
               <Plus className="w-4 h-4" /> เพิ่มครุภัณฑ์
             </button>
@@ -493,7 +498,7 @@ function BorrowRequestContent() {
               return (
                 <div
                   key={idx}
-                  className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl"
+                  className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 p-3.5 bg-blue-50/40 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/50 rounded-2xl"
                 >
                   <div className="flex-1">
                     <select
@@ -504,7 +509,7 @@ function BorrowRequestContent() {
                         if (!newRows[idx].quantity) newRows[idx].quantity = 1;
                         setBorrowItems(newRows);
                       }}
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">-- เลือกครุภัณฑ์ --</option>
                       {equipmentList.map((eq) => (
@@ -528,12 +533,12 @@ function BorrowRequestContent() {
                           newRows[idx].quantity = e.target.value;
                           setBorrowItems(newRows);
                         }}
-                        className={`w-full px-3 py-2.5 rounded-xl border text-xs text-center font-bold bg-white dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500 ${
+                        className={`w-full px-3 py-2.5 rounded-xl border text-xs text-center font-bold bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 ${
                           isOverStock ? 'border-red-500 text-red-600' : 'border-slate-300 dark:border-slate-700'
                         }`}
                       />
                     </div>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 w-12 text-center">
+                    <span className="text-xs text-blue-900 dark:text-blue-300 w-12 text-center font-bold">
                       {selectedEq?.unit || 'ชิ้น'}
                     </span>
                     <button
@@ -551,16 +556,21 @@ function BorrowRequestContent() {
           </div>
         </div>
 
-        {/* SECTION 3: Consumables Requisition Rows */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+        {/* SECTION 3: Consumables Requisition Rows (TEAL / EMERALD THEME) */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 border-2 border-teal-200 dark:border-teal-900/60 shadow-sm space-y-6">
+          <div className="flex flex-wrap items-center justify-between border-b border-teal-100 dark:border-teal-900/40 pb-4 gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-900">
+              <div className="w-10 h-10 rounded-2xl bg-teal-50 dark:bg-teal-950/70 flex items-center justify-center text-teal-600 dark:text-teal-400 font-bold border border-teal-200 dark:border-teal-800">
                 3
               </div>
               <div>
-                <h2 className="text-lg font-bold text-slate-800 dark:text-white">รายการวัสดุสิ้นเปลืองที่ขอเบิก (Consumables)</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">เวชภัณฑ์และวัสดุใช้แล้วหมดไป ไม่ต้องส่งคืน</p>
+                <h2 className="text-base sm:text-lg font-black text-teal-900 dark:text-teal-200 flex items-center gap-2">
+                  <Boxes className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                  รายการวัสดุสิ้นเปลืองที่ขอเบิก (Consumables)
+                </h2>
+                <p className="text-xs text-teal-700 dark:text-teal-400">
+                  ✓ เป็นพัสดุใช้แล้วหมดไป เช่น ถุงมือ, สำลี, เข็มฉีดยา <strong className="underline">ไม่ต้องนำส่งคืน</strong>
+                </p>
               </div>
             </div>
             <button
@@ -571,7 +581,7 @@ function BorrowRequestContent() {
                   { itemId: '', quantity: '', isSubUnit: false, requestedUnit: '' },
                 ])
               }
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-2xl text-xs font-bold transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-2xl text-xs font-bold transition-colors shadow-sm shadow-teal-600/20"
             >
               <Plus className="w-4 h-4" /> เพิ่มวัสดุสิ้นเปลือง
             </button>
@@ -586,7 +596,7 @@ function BorrowRequestContent() {
               return (
                 <div
                   key={idx}
-                  className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl"
+                  className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 p-3.5 bg-teal-50/40 dark:bg-teal-950/20 border border-teal-200/80 dark:border-teal-900/50 rounded-2xl"
                 >
                   <div className="flex-1">
                     <select
@@ -598,7 +608,7 @@ function BorrowRequestContent() {
                         newRows[idx].isSubUnit = false;
                         setRequisitionItems(newRows);
                       }}
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium focus:ring-2 focus:ring-teal-500"
                     >
                       <option value="">-- เลือกวัสดุสิ้นเปลือง --</option>
                       {consumablesList.map((con) => (
@@ -621,7 +631,7 @@ function BorrowRequestContent() {
                           newRows[idx].quantity = e.target.value;
                           setRequisitionItems(newRows);
                         }}
-                        className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs text-center font-bold bg-white dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500"
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs text-center font-bold bg-white dark:bg-slate-800 focus:ring-2 focus:ring-teal-500"
                       />
                     </div>
 
@@ -635,12 +645,12 @@ function BorrowRequestContent() {
                           newRows[idx].requestedUnit = newRows[idx].isSubUnit ? selectedCon?.usageUnit : selectedCon?.unit;
                           setRequisitionItems(newRows);
                         }}
-                        className="px-2.5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50"
+                        className="px-2.5 py-2 bg-white dark:bg-slate-800 border border-teal-300 dark:border-teal-700 rounded-xl text-xs font-bold text-teal-700 dark:text-teal-300 hover:bg-teal-50 shadow-2xs"
                       >
                         {row.isSubUnit ? selectedCon?.usageUnit : selectedCon?.unit} ⇄
                       </button>
                     ) : (
-                      <span className="text-xs text-slate-500 dark:text-slate-400 w-12 text-center">
+                      <span className="text-xs text-teal-900 dark:text-teal-300 w-12 text-center font-bold">
                         {selectedCon?.unit || 'ชิ้น'}
                       </span>
                     )}
@@ -660,12 +670,12 @@ function BorrowRequestContent() {
           </div>
         </div>
 
-        {/* Sticky Mobile Bottom Bar */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-30 shadow-lg">
-          <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
+        {/* Sticky Mobile Bottom Bar (Positioned above Mobile BottomNav) */}
+        <div className="fixed bottom-[58px] md:bottom-0 left-0 right-0 p-3 sm:p-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-30 shadow-lg">
+          <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
             <Link
               href="/borrow"
-              className="px-5 py-3 rounded-2xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="px-4 sm:px-5 py-2.5 sm:py-3 rounded-2xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs sm:text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
               ยกเลิก
             </Link>
@@ -673,7 +683,7 @@ function BorrowRequestContent() {
             <button
               type="submit"
               disabled={submitting || (validBorrowCount === 0 && validReqCount === 0)}
-              className="flex-1 sm:flex-none sm:min-w-[260px] px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-2xl font-bold text-sm shadow-md shadow-indigo-600/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+              className="flex-1 sm:flex-none sm:min-w-[260px] px-5 sm:px-6 py-2.5 sm:py-3.5 bg-gradient-to-r from-teal-600 via-teal-700 to-indigo-600 hover:from-teal-700 hover:to-indigo-700 text-white rounded-2xl font-bold text-xs sm:text-sm shadow-md shadow-teal-600/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
             >
               {submitting ? (
                 <>
@@ -681,7 +691,7 @@ function BorrowRequestContent() {
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="w-5 h-5" /> ยื่นคำขอยืม-เบิก ({validBorrowCount + validReqCount} รายการ)
+                  <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" /> ยื่นคำขอยืม-เบิก ({validBorrowCount + validReqCount} รายการ)
                 </>
               )}
             </button>

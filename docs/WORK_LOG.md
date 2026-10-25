@@ -17,6 +17,30 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-25] แก้ไขข้อผิดพลาด Client-side Exception เมื่อเข้าสู่หน้าเมนูของแอดมิน (/admin) และเพิ่ม Error Boundaries
+- **หมวดหมู่**: Bug Fix / Admin Hub / Resilience & Error Boundary
+- **สิ่งที่ดำเนินการ**:
+  1. **แก้ไข Fatal Runtime Exception ใน [src/app/admin/page.tsx](file:///d:/LAB-system/src/app/admin/page.tsx)**:
+     - ตรวจพบว่าการ์ด *"พัสดุใกล้หมดคลัง"* มีการเรนเดอร์ `{stats?.lowStockItems || 0}` ลงใน JSX child โดยตรง ซึ่งใน API `/api/dashboard` ส่งค่า `lowStockItems` กลับมาเป็น Array of Objects (`Array<{ id, code, name, ... }>`) ทำให้ React โยนข้อผิดพลาด `Objects are not valid as a React child` เมื่อมีพัสดุต่ำกว่าเกณฑ์ ส่งผลให้หน้าจอหลุดเป็น Client-side Exception ทันที
+     - แก้ไขให้ตรวจสอบและดึงขนาดอาเรย์ `.length` มาแสดงผลอย่างถูกต้อง: `{Array.isArray(stats?.lowStockItems) ? stats.lowStockItems.length : (stats?.lowStockItems || 0)}`
+     - เชื่อมโยงฟิลด์สถิติให้ถูกต้องตรงกับ API: ฟิลด์ครุภัณฑ์ที่กำลังถูกยืมใช้ `{stats?.borrowedAssets ?? stats?.activeBorrows ?? 0}` และฟิลด์ครุภัณฑ์ส่งซ่อมบำรุงใช้ `stats?.maintenanceAssets`
+     - ปรับปรุงการตรวจสอบ `loading` และ unmount cleanup flag ป้องกันการค้างของ Spinner
+  2. **เพิ่ม Error Boundary ดักจับข้อผิดพลาดทั่วทั้งระบบ**:
+     - สร้าง [src/app/admin/error.tsx](file:///d:/LAB-system/src/app/admin/error.tsx) เป็น Error Boundary เฉพาะหน้าแอดมิน พร้อมปุ่ม *"ลองใหม่อีกครั้ง (Retry)"* และปุ่ม *"กลับสู่ภาพรวมห้องแล็บ"*
+     - สร้าง [src/app/error.tsx](file:///d:/LAB-system/src/app/error.tsx) เป็น Global Error Boundary ระดับ Root สำหรับดักจับและกู้คืนความผิดพลาดในทุกโมดูล
+  3. **เสริมความปลอดภัยการจัดรูปแบบวันที่ใน [src/app/settings/notifications/page.tsx](file:///d:/LAB-system/src/app/settings/notifications/page.tsx)**:
+     - เพิ่มฟังก์ชัน `formatBroadcastDate()` พร้อม `try...catch` และการตรวจสอบ `isNaN` เพื่อป้องกันปัญหาการแปลงวันที่ในเบราว์เซอร์มือถือ
+- **ไฟล์สำคัญที่แก้ไข/เพิ่มใหม่**:
+  - `src/app/admin/page.tsx`
+  - `src/app/admin/error.tsx` (ใหม่)
+  - `src/app/error.tsx` (ใหม่)
+  - `src/app/settings/notifications/page.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**:
+  - `tsc --noEmit`: ผ่าน 0 errors
+  - `npm run build`: คอมไพล์ผ่าน 93/93 routes
+  - `npm run librarian:audit`: ผ่านมาตรฐานคำว่า **"นิสิต"** และ UTF-8 100%
+
+
 ### [2026-10-25] พัฒนาระบบส่งข้อความประกาศ & ตั้งเวลาแจ้งเตือนล่วงหน้า และระบบจองรอบฝึกปฏิบัติการพร้อมเพื่อนร่วมกลุ่ม
 - **หมวดหมู่**: Messaging & Push Notifications / Practice Group Booking / Student Engagement
 - **สิ่งที่ดำเนินการ**:

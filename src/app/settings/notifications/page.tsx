@@ -134,6 +134,17 @@ export default function NotificationSettingsPage() {
     }
   }, [isLoading, canManage, router]);
 
+  const formatBroadcastDate = (dateVal: any) => {
+    if (!dateVal) return '-';
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return '-';
+      return d.toLocaleString('th-TH');
+    } catch {
+      return String(dateVal);
+    }
+  };
+
   // Fetch Templates
   const fetchTemplates = async () => {
     try {
@@ -1082,12 +1093,12 @@ export default function NotificationSettingsPage() {
                         <div className="flex flex-wrap items-center gap-2">
                           {isScheduled && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
-                              <Clock className="w-3 h-3" /> รอส่ง: {b.scheduledAt ? new Date(b.scheduledAt).toLocaleString('th-TH') : '-'}
+                              <Clock className="w-3 h-3" /> รอส่ง: {formatBroadcastDate(b.scheduledAt)}
                             </span>
                           )}
                           {isSent && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3" /> ส่งแล้ว: {b.sentAt ? new Date(b.sentAt).toLocaleString('th-TH') : '-'}
+                              <CheckCircle2 className="w-3 h-3" /> ส่งแล้ว: {formatBroadcastDate(b.sentAt)}
                             </span>
                           )}
                           {isCancelled && (

@@ -37,24 +37,33 @@ export default function AdminConsolePage() {
   }, [isLoading, isOfficer, isAdmin, router]);
 
   useEffect(() => {
+    let isMounted = true;
     async function fetchStats() {
       try {
         const res = await fetch('/api/dashboard');
-        if (res.ok) {
+        if (res.ok && isMounted) {
           const data = await res.json();
           setStats(data);
         }
       } catch (err) {
         console.error('Failed to fetch console stats:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
 
     if (isOfficer || isAdmin) {
       fetchStats();
+    } else if (!isLoading) {
+      setLoading(false);
     }
-  }, [isOfficer, isAdmin]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOfficer, isAdmin, isLoading]);
 
   if (isLoading || loading) {
     return (
@@ -116,8 +125,8 @@ export default function AdminConsolePage() {
       href: '/maintenance',
       icon: Wrench,
       emoji: '🔧',
-      badge: stats?.damagedItems ? `${stats.damagedItems} รายการส่งซ่อม` : 'ตรวจสภาพ',
-      badgeColor: stats?.damagedItems ? 'bg-rose-100 text-rose-800 border-rose-200' : 'bg-slate-100 text-slate-800 border-slate-200',
+      badge: (stats?.maintenanceAssets || stats?.damagedItems) ? `${stats?.maintenanceAssets || stats?.damagedItems} รายการส่งซ่อม` : 'ตรวจสภาพ',
+      badgeColor: (stats?.maintenanceAssets || stats?.damagedItems) ? 'bg-rose-100 text-rose-800 border-rose-200' : 'bg-slate-100 text-slate-800 border-slate-200',
       color: 'slate',
     },
   ];
@@ -216,7 +225,7 @@ export default function AdminConsolePage() {
             <Boxes className="w-4 h-4 text-blue-500" />
           </div>
           <div className="text-2xl font-black text-slate-900 dark:text-white">
-            {stats?.activeBorrows || 0}
+            {stats?.borrowedAssets ?? stats?.activeBorrows ?? 0}
           </div>
           <span className="text-[10px] text-slate-400 block">ชิ้นที่นิสิต/อาจารย์กำลังยืม</span>
         </div>
@@ -227,7 +236,7 @@ export default function AdminConsolePage() {
             <AlertTriangle className="w-4 h-4 text-rose-500" />
           </div>
           <div className="text-2xl font-black text-slate-900 dark:text-white">
-            {stats?.lowStockItems || 0}
+            {Array.isArray(stats?.lowStockItems) ? stats.lowStockItems.length : (stats?.lowStockItems || 0)}
           </div>
           <span className="text-[10px] text-slate-400 block">รายการต่ำกว่าจุดสั่งซื้อ</span>
         </div>

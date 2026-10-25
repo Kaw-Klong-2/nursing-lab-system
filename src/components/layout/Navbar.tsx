@@ -108,9 +108,10 @@ export default function Navbar({ onToggleMobileMenu, isMobileMenuOpen }: NavbarP
                 ระบบบริหารจัดการห้องปฏิบัติการพยาบาล
               </span>
             </h1>
-            <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1">
-              <Building2 className="w-3 h-3 text-teal-600 dark:text-teal-400" />
-              <span>คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์</span>
+            <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1 truncate">
+              <Building2 className="w-3 h-3 text-teal-600 dark:text-teal-400 shrink-0" />
+              <span className="hidden sm:inline">คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์</span>
+              <span className="sm:hidden truncate">คณะพยาบาลศาสตร์ มก.</span>
             </p>
           </div>
         </Link>
@@ -139,17 +140,17 @@ export default function Navbar({ onToggleMobileMenu, isMobileMenuOpen }: NavbarP
         <button
           type="button"
           onClick={() => setIsAppLauncherOpen(true)}
-          className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 text-xs font-bold transition border border-slate-200 dark:border-slate-700 shadow-xs cursor-pointer flex-shrink-0"
+          className="inline-flex items-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 text-xs font-bold transition border border-slate-200 dark:border-slate-700 shadow-xs cursor-pointer flex-shrink-0"
           title="ศูนย์รวมแอปพลิเคชัน (KUNurse+ Lab Apps)"
         >
           <span className="text-base leading-none">㗊</span>
           <span className="hidden sm:inline">แอปพลิเคชัน</span>
         </button>
 
-        {/* Quick QR Scanner Button */}
+        {/* Quick QR Scanner Button (Hidden on Mobile; accessible via floating center QR button in Bottom Nav) */}
         <button
           onClick={() => setIsScannerOpen(true)}
-          className="inline-flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/70 hover:bg-teal-100 dark:hover:bg-teal-900/80 text-teal-700 dark:text-teal-300 text-xs font-bold transition border border-teal-200 dark:border-teal-800 shadow-sm cursor-pointer flex-shrink-0"
+          className="hidden md:inline-flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/70 hover:bg-teal-100 dark:hover:bg-teal-900/80 text-teal-700 dark:text-teal-300 text-xs font-bold transition border border-teal-200 dark:border-teal-800 shadow-sm cursor-pointer flex-shrink-0"
           title="เปิดกล้องสแกน QR Code เพื่อดูข้อมูลครุภัณฑ์ทันที"
         >
           <Camera className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
@@ -159,8 +160,10 @@ export default function Navbar({ onToggleMobileMenu, isMobileMenuOpen }: NavbarP
         {/* Notification Bell */}
         <NotificationBell />
 
-        {/* Dark / Light Mode Toggle Button */}
-        <ThemeToggle />
+        {/* Dark / Light Mode Toggle Button (Hidden on Mobile to save 60px; accessible in Drawer & Profile) */}
+        <div className="hidden sm:flex items-center">
+          <ThemeToggle />
+        </div>
 
         {/* Current User Info, Profile Edit & Logout Button */}
         {currentUser ? (
@@ -178,23 +181,34 @@ export default function Navbar({ onToggleMobileMenu, isMobileMenuOpen }: NavbarP
             </div>
             <div className="hidden sm:block">{getRoleBadge(currentUser.role)}</div>
 
-            {/* In-app Edit Profile Button */}
+            {/* Mobile Single Avatar Trigger (แตะเปิด Profile Modal ทันที พร้อมปุ่มแก้ไขและออกจากระบบในตัว) */}
+            <button
+              type="button"
+              onClick={() => setIsProfileOpen(true)}
+              className="sm:hidden flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-tr from-teal-600 to-cyan-500 text-white font-bold text-xs shadow-xs border border-teal-200 dark:border-teal-700 active:scale-95 transition cursor-pointer shrink-0"
+              title={`โปรไฟล์: ${formatUserName(currentUser)}`}
+            >
+              {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+            </button>
+
+            {/* Desktop / Tablet In-app Edit Profile Button */}
             <button
               onClick={() => setIsProfileOpen(true)}
               title="แก้ไขข้อมูลส่วนตัว"
-              className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/70 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/80 text-xs font-bold transition cursor-pointer flex-shrink-0"
+              className="hidden sm:inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/70 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/80 text-xs font-bold transition cursor-pointer flex-shrink-0"
             >
               <UserCog className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-              <span className="hidden sm:inline">แก้ไขบัญชี</span>
+              <span>แก้ไขบัญชี</span>
             </button>
 
+            {/* Desktop / Tablet Logout Button */}
             <button
               onClick={() => logout()}
               title="ออกจากระบบ"
-              className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/80 text-xs font-bold transition cursor-pointer flex-shrink-0 shadow-sm"
+              className="hidden sm:inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/80 text-xs font-bold transition cursor-pointer flex-shrink-0 shadow-sm"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline sm:inline">ออก</span>
+              <span>ออก</span>
             </button>
           </div>
         ) : (

@@ -17,6 +17,28 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-25] พัฒนาแถบระบุพิกัดระบบงานและสลับแอปด่วน (SubAppBreadcrumbBar & Quick Switcher)
+- **หมวดหมู่**: UI/UX Enhancement / Contextual Navigation / Sub-App Suite
+- **สิ่งที่ดำเนินการ**:
+  1. **สร้างคอมโพเนนต์นำทางพิกัดระบบงาน [src/components/layout/SubAppBreadcrumbBar.tsx](file:///d:/LAB-system/src/components/layout/SubAppBreadcrumbBar.tsx)**:
+     - แสดง Breadcrumb Trail ระบุตำแหน่งระบบงานปัจจุบันอย่างชัดเจน เช่น `🏠 หน้าหลัก > 🏥 จองห้องแล็บ > ขอเข้าฝึกปฏิบัติด้วยตนเอง`
+     - ตรวจจับ Sub-App อัตโนมัติจาก URL Pathname และดึงชื่อสั้นพร้อม Emoji ประจำโมดูล
+     - มีปุ่ม **"สลับระบบ (Quick Switcher)"** แตะปุ๊บจะเปิดหน้าต่าง `AppLauncherModal` ให้เปลี่ยนโมดูลงานได้ทันที
+     - บนหน้าจอ Desktop/Tablet เพิ่มแท็บทางลัดไปยังหน้าย่อยในโมดูลเดียวกัน (Sibling Quick Tabs) ให้สลับงานได้ในคลิกเดียวโดยไม่ต้องเปิดเมนูซ้ำ
+  2. **เชื่อมต่อเข้ากับ [src/components/layout/AppLayout.tsx](file:///d:/LAB-system/src/components/layout/AppLayout.tsx)**:
+     - วางตำแหน่งไว้ด้านบนของพื้นที่เนื้อหาหลัก (`main`) เหนือเนื้อหาหน้าเว็บ
+     - แสดงผลสวยงามทั้งบนมือถือ (เต็มความกว้างจอ) และเดสก์ท็อป (อยู่ข้าง Sidebar)
+     - ซ่อนอัตโนมัติในหน้า Login และหน้าสาธารณะ (Public QR)
+- **ไฟล์สำคัญที่แก้ไข/เพิ่มใหม่**:
+  - `src/components/layout/SubAppBreadcrumbBar.tsx` (ใหม่)
+  - `src/components/layout/AppLayout.tsx`
+  - `LIBRARY_CATALOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**:
+  - `tsc --noEmit`: ผ่าน 0 errors
+  - `npm run build`: คอมไพล์ผ่าน 93/93 routes
+  - `npm run librarian:audit`: ผ่านมาตรฐานคำว่า **"นิสิต"** และ UTF-8 100%
+
+
 ### [2026-10-25] ปรับปรุงแถบนำทางด้านบน (Navbar) ให้รองรับการแสดงผลบนจอมือถือ ไม่ล้นขอบจอ
 - **หมวดหมู่**: UI/UX Polish / Mobile Responsive / Navigation Layout
 - **สิ่งที่ดำเนินการ**:

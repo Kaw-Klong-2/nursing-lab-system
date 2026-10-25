@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { ThemeProvider } from '@/lib/theme-context';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
+import SubAppBreadcrumbBar from './SubAppBreadcrumbBar';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import QrScannerModal from '@/components/qrcode/QrScannerModal';
 import SessionActivityWatcher from '@/components/auth/SessionActivityWatcher';
@@ -89,9 +90,12 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           mobileOpen={isMobileMenuOpen}
           onMobileClose={() => setIsMobileMenuOpen(false)}
         />
-        <main className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-8 pb-24 md:pb-8">
-          <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">{children}</div>
-        </main>
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+          <SubAppBreadcrumbBar />
+          <main className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-8 pb-24 md:pb-8">
+            <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">{children}</div>
+          </main>
+        </div>
       </div>
 
       {/* Mobile Bottom Navigation Bar (Thumb-friendly for Smartphones & Small Tablets) */}

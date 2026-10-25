@@ -37,7 +37,7 @@
 
 | โมดูล (Module) | หน้าจอ UI (`src/app/`) | จุดเชื่อมต่อ API (`src/app/api/`) | คอมโพเนนต์และไลบรารีหลัก (`src/components/`, `src/lib/`) | ตารางฐานข้อมูล (`prisma/schema.prisma`) |
 | :--- | :--- | :--- | :--- | :--- |
-| **1. แดชบอร์ดและภาพรวมผู้บริหาร (Dashboard & Executive)** | `/` (`page.tsx`), `/executive` | `/api/dashboard`, `/api/executive/stats` | `DashboardCharts.tsx`, `StudentDashboard.tsx`, `CourseBudgetDonut.tsx`, `module-theme.ts` | `ActivityLog`, `AcademicTerm`, `Course` |
+| **1. แดชบอร์ดและภาพรวมผู้บริหาร (Dashboard & Executive)** | `/` (`page.tsx`), `/executive` | `/api/dashboard`, `/api/executive/stats` | `DashboardCharts.tsx`, `StudentDashboard.tsx`, `CourseBudgetDonut.tsx`, `SubAppBreadcrumbBar.tsx`, `module-theme.ts` | `ActivityLog`, `AcademicTerm`, `Course` |
 | **2. คลังพัสดุ ครุภัณฑ์ และล็อตเวชภัณฑ์ (Inventory & Stock-In)** | `/inventory`, `/stock-in`, `/asset/[code]`, `/consumable/[...code]` | `/api/items/*`, `/api/categories/*`, `/api/stock/in`, `/api/inventory/reconcile`, `/api/consumables/public/[...code]` | `ConsumableDetailModal.tsx`, `AssetQrModal.tsx`, `ConsumableQrModal.tsx`, `BatchAssetStickerModal.tsx` | `Category`, `Item`, `EquipmentAsset`, `StockLot`, `StockTransaction`, `StockLotBox` |
 | **3. ตู้เก็บพัสดุและสถานที่จัดเก็บ (Storage & Cabinets)** | `/storage/[code]`, `/storage/room/[code]` | `/api/storage/locations/*`, `/api/storage/public/[code]`, `/api/storage/rooms/[code]` | `StorageManagementTab.tsx`, `CabinetFormModal.tsx`, `MobileCabinetAuditModal.tsx`, `AssignItemsModal.tsx` | `StorageLocation` |
 | **4. การแบ่งบรรจุและชุดสเตอร์ไรด์ (Repack & Sterile Packs)** | `/repack` | `/api/repack` | `BatchRepackStickerModal.tsx`, `BoxStickerModal.tsx` | `RepackRecord`, `RepackPackItem` |

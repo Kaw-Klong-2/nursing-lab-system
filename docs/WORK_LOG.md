@@ -17,6 +17,24 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-26] เพิ่มประสิทธิภาพการโหลดปุ่ม Google Sign-In ในหน้า Login ทันที (0ms Instant Hybrid Button)
+- **หมวดหมู่**: Performance / Auth UX / Google Identity Services
+- **สิ่งที่ดำเนินการ**:
+  1. **แก้ปัญหาปุ่มลงชื่อเข้าใช้ด้วย Google โหลดช้าและเป็นช่องว่างสีขาว**:
+     - สร้าง **Instant Native-Style Custom Google Button (0ms)** ด้วย Tailwind CSS พร้อมไอคอน Google 'G' สี่สีทางการ แสดงผลทันทีที่เปิดหน้าเว็บโดยไม่ต้องรอให้ iframe ของ Google GIS ดาวน์โหลดเสร็จ
+     - รองรับการแตะปุ่มทันที (`handleInstantGoogleClick`) หากสคริปต์โหลดเสร็จแล้วจะเรียก Google One Tap / Prompt ทันที หากกดตั้งแต่เสี้ยววินาทีแรกระบบจะแสดงสถานะหมุนสั้นๆ ป้องกันอาการปุ่มไม่ตอบสนอง
+     - เมื่อ iframe ของ Google GIS โหลดเสร็จสมบูรณ์ ระบบจะทำ Cross-fade สลับการแสดงผลอย่างราบรื่น (Smooth Transition)
+  2. **เพิ่ม Resource Hints ใน Root Layout**:
+     - เพิ่ม `<link rel="preconnect" href="https://accounts.google.com" />` และ `<link rel="dns-prefetch" ... />` ใน [src/app/layout.tsx](file:///d:/LAB-system/src/app/layout.tsx) เพื่อทำ DNS resolution และ TLS Handshake ล่วงหน้าตั้งแต่เปิดแอป
+     - เปลี่ยนกลยุทธ์การโหลดสคริปต์ GIS ใน [src/app/login/page.tsx](file:///d:/LAB-system/src/app/login/page.tsx) เป็น `beforeInteractive`
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/app/login/page.tsx`
+  - `src/app/layout.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**:
+  - `tsc --noEmit`: ผ่าน 0 errors
+  - `npm run build`: คอมไพล์ผ่านสมบูรณ์ 96/96 routes
+  - `npm run librarian:audit`: ผ่านมาตรฐานคำว่า **"นิสิต"** และ UTF-8 100%
+
 ### [2026-10-26] ปรับแต่งธีมสีแยกครุภัณฑ์-วัสดุ แก้ไขปุ่มล่างโดนบัง และปรับ Breadcrumb มือถือให้กะทัดรัด
 - **หมวดหมู่**: UI/UX Polish / Mobile Ergonomics / Color Coding
 - **สิ่งที่ดำเนินการ**:

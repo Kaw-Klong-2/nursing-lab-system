@@ -41,6 +41,8 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://accounts.google.com" />
         <link rel="dns-prefetch" href="https://accounts.google.com" />
+        <link rel="preload" href="https://accounts.google.com/gsi/client" as="script" />
+        <script src="https://accounts.google.com/gsi/client" async defer></script>
         <script
           dangerouslySetInnerHTML={{
             __html: `

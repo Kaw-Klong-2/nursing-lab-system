@@ -17,6 +17,25 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-26] แก้ไขปัญหาปุ่มเข้าสู่ระบบด้วย Google ค้างที่สถานะ "กำลังยืนยันตัวตนกับบัญชี Google..." (Preloaded Official GIS Button & PWA Popup Fix)
+- **หมวดหมู่**: Auth UX / Google Identity Services / PWA Compatibility
+- **สิ่งที่ดำเนินการ**:
+  1. **ย้ายการโหลดสคริปต์ Google Identity Services ไปไว้ใน Root Layout (`src/app/layout.tsx`)**:
+     - แก้ปัญหา `<Script strategy="beforeInteractive" />` ที่ใช้ในหน้าย่อย `/login` ไม่ได้ตามข้อกำหนดของ Next.js App Router ซึ่งทำให้ `window.google` ไม่ถูกโหลดและเกิดอาการค้างเมื่อกดปุ่มจำลอง
+     - เพิ่ม `<link rel="preload" href="https://accounts.google.com/gsi/client" as="script" />` และ `<script src="https://accounts.google.com/gsi/client" async defer></script>` ใน `<head>` ของ [`src/app/layout.tsx`](file:///d:/LAB-system/src/app/layout.tsx) ร่วมกับ `strategy="afterInteractive"` ในหน้า `/login` เพื่อให้สคริปต์พร้อมใช้งานทันทีตั้งแต่เปิดแอป
+  2. **ใช้ปุ่มจริงของ Google (`renderButton`) เป็นเลเยอร์รับการคลิกโดยตรง (`z-10`) พร้อม Instant Visual Placeholder**:
+     - ยกเลิก `handleInstantGoogleClick` ที่สั่ง `setGoogleSubmitting(true)` ก่อนที่ผู้ใช้จะเลือกบัญชี Google
+     - ให้โครงปุ่มจำลองแสดงเป็นเพียง Visual Placeholder (`pointer-events-none`) ในเสี้ยววินาทีแรก และให้ปุ่มจริงของ Google (`googleBtnContainerRef`) แสดงทับด้านบน (`z-10`) ทันทีที่วาดเสร็จ เพื่อให้ทุกการคลิกเปิดหน้าต่างเลือกบัญชี Google ได้ 100%
+  3. **ปรับโหมด PWA และเพิ่มระบบป้องกันหน้าค้างหลังยืนยันตัวตนสำเร็จ**:
+     - จำกัด `ux_mode: 'redirect'` เฉพาะบน iOS Standalone PWA (`window.navigator.standalone === true`) ส่วนบน Windows/Desktop PWA ให้ใช้โหมด Popup มาตรฐานของ Google ที่ส่ง Credential กลับมาได้ทันที
+     - เพิ่ม Fallback Redirect (`window.location.replace(dest)`) ภายใน 600ms หลัง `loginWithGoogle` สำเร็จ และ Safety Timeout 12 วินาทีป้องกันสถานะหมุนค้าง
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/app/layout.tsx`
+  - `src/app/login/page.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**:
+  - `tsc --noEmit`: ผ่าน 0 errors
+  - `npm run librarian:audit`: ผ่าน 100%
+
 ### [2026-10-26] เพิ่มประสิทธิภาพการโหลดปุ่ม Google Sign-In ในหน้า Login ทันที (0ms Instant Hybrid Button)
 - **หมวดหมู่**: Performance / Auth UX / Google Identity Services
 - **สิ่งที่ดำเนินการ**:

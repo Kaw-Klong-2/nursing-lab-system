@@ -2400,7 +2400,7 @@ export default function SchedulePage() {
               </div>
 
               {/* Sub-filter chips for selected day */}
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 sm:flex-wrap">
                 {[
                   { key: 'ALL', label: `ทั้งหมด (${selectedDateAllTasks.length})` },
                   { key: 'PICKUP', label: `📦 จ่ายของ (${selectedDateAllTasks.filter((t: any) => isPickupOnDate(t, selectedDate)).length})` },
@@ -2413,7 +2413,7 @@ export default function SchedulePage() {
                   <button
                     key={chip.key}
                     onClick={() => setDayTypeFilter(chip.key as any)}
-                    className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 whitespace-nowrap ${
                       dayTypeFilter === chip.key
                         ? 'bg-teal-600 text-white shadow-sm'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
@@ -2449,7 +2449,7 @@ export default function SchedulePage() {
           {/* Filter, Search & Layout Switch Bar */}
           <div className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             {/* Quick Filter Tabs */}
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 sm:flex-wrap">
               {[
                 { key: 'ALL', label: `ทั้งหมด (${activeQueueTasks.length})` },
                 { key: 'TODAY', label: `⚡ ต้องทำวันนี้ (${activeQueueTasks.filter((t: any) => t.isPickupToday || t.isReturnToday).length})` },
@@ -2463,7 +2463,7 @@ export default function SchedulePage() {
                 <button
                   key={tab.key}
                   onClick={() => setTimeFilter(tab.key as any)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1 shrink-0 whitespace-nowrap ${
                     timeFilter === tab.key
                       ? 'bg-teal-600 text-white shadow-sm'
                       : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-750'

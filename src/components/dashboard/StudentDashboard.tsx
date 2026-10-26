@@ -258,7 +258,7 @@ export default function StudentDashboard({ embedded = false }: StudentDashboardP
               className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-indigo-600 hover:from-teal-500 hover:to-indigo-500 text-white text-xs font-bold transition shadow-md shadow-teal-600/25 cursor-pointer"
             >
               <PlusCircle className="w-4 h-4" />
-              <span>ยื่นขอยืม-เบิกพัสดุ (หน้าใหม่)</span>
+              <span>ยื่นคำขอยืม-เบิกพัสดุ</span>
             </Link>
             <Link
               href="/borrow"

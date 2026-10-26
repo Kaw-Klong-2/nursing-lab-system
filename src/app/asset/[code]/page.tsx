@@ -694,7 +694,7 @@ export default function PublicAssetPage() {
                 className="w-full py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white border border-amber-600 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20"
               >
                 <Camera className="w-4 h-4" />
-                <span>📢 แจ้งปัญหา / ถ่ายรูปแจ้งซ่อม (หน้าเต็มจอ)</span>
+                <span>📢 แจ้งปัญหา / ถ่ายรูปแจ้งซ่อม</span>
               </Link>
 
               <button

@@ -17,6 +17,33 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-27] รวมศูนย์ปุ่มทำรายการสู่หน้าจอเต็มรูปแบบ ลบ Modal ซ้ำซ้อน และยกระดับ Mobile Admin UX พร้อมล้างข้อความ "(หน้าใหม่)" และ "(หน้าเต็มจอ)"
+- **หมวดหมู่**: Refactor UI / Mobile UX Optimization / Admin Bottom Sheet / Performance
+- **สิ่งที่ดำเนินการ**:
+  1. **ลบข้อความ "(หน้าใหม่)" และ "(หน้าเต็มจอ)" ทั่วทั้งระบบ**:
+     - ลบคำระบุว่า `(หน้าใหม่)` หรือ `(หน้าเต็มจอ)` ออกจากปุ่มและส่วนแสดงผลทั้งหมด (อาทิ `/asset/[code]`, `StudentDashboard`, `/maintenance`, `/borrow`, `/requisitions`) ให้เป็นชื่อปุ่มที่เป็นทางการ กระชับ และชัดเจน เช่น `+ ยื่นคำขอเบิก-ยืมพัสดุ`, `+ เปิดใบแจ้งซ่อม`, `📢 แจ้งปัญหา / ถ่ายรูปแจ้งซ่อม`
+  2. **รวมศูนย์ปุ่มยื่นคำขอและลบ Modal เก่าที่ซ้ำซ้อน (Dead Code Elimination)**:
+     - ใน `/borrow`, `/requisitions`, `/practice`: รวมปุ่มเป็นทางเข้าเดียวมุ่งสู่หน้าจอเต็มรูปแบบ `/borrow/request` และ `/practice/book` โดยตรง
+     - ลบโค้ด Form Modal ขนาดใหญ่ที่เลิกใช้งานแล้ว (`showNewModal`, `showUnifiedModal` ใน `/borrow` และ `showBookingModal` ใน `/practice`) ออกรวมกว่า 900 บรรทัด ลดขนาดหน้าและตัดภาระการเรียก API ดึงรายชื่ออาจารย์และนิสิตทั้งหมดตอนโหลดหน้าแรก
+  3. **ยกระดับ Mobile Admin Bottom Sheet พร้อม Sticky Action Footer**:
+     - ปรับ Modal จัดการหลังบ้านของเจ้าหน้าที่ใน `/borrow` (Check out & Return) และ `ConsumableReturnModal` ใน `/requisitions` ให้เป็น Full-Height Mobile Bottom Sheet (`items-end sm:items-center`, `rounded-t-3xl sm:rounded-3xl`, `max-h-[92dvh]`, มี Drag Handle บนมือถือ)
+     - ตรึง Action Footer ด้านล่าง (`shrink-0`) ไม่ให้ปุ่มยืนยันจ่าย/รับคืนถูกแป้นพิมพ์หรือขอบจอมือถือบัง
+  4. **ปรับปรุง Mobile Responsive Filter Tabs & Double Padding**:
+     - แก้ปัญหาแถบตัวกรองสถานะหักบรรทัดทับกันบนมือถือ โดยปรับเป็นแนวนอนแบบเลื่อนได้ราบรื่น (`overflow-x-auto no-scrollbar pb-1 sm:flex-wrap`) ใน `/borrow`, `/practice`, `/requisitions`, `/schedule`
+     - แก้ไข Double Padding ใน `/maintenance` ให้ขอบจอแสดงผลเต็มพื้นที่พอดีบนสมาร์ตโฟน
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/app/asset/[code]/page.tsx`
+  - `src/components/dashboard/StudentDashboard.tsx`
+  - `src/app/maintenance/page.tsx`
+  - `src/app/borrow/page.tsx`
+  - `src/app/practice/page.tsx`
+  - `src/app/requisitions/page.tsx`
+  - `src/app/schedule/page.tsx`
+  - `src/components/requisitions/ConsumableReturnModal.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**:
+  - `tsc --noEmit`: ผ่าน 0 errors
+  - `npm run librarian:audit`: ผ่าน 100% (คำศัพท์ "นิสิต" ครบถ้วน, UTF-8 สมบูรณ์)
+
 ### [2026-10-26] แก้ไขปัญหาปุ่มเข้าสู่ระบบด้วย Google ค้างที่สถานะ "กำลังยืนยันตัวตนกับบัญชี Google..." (Preloaded Official GIS Button & PWA Popup Fix)
 - **หมวดหมู่**: Auth UX / Google Identity Services / PWA Compatibility
 - **สิ่งที่ดำเนินการ**:

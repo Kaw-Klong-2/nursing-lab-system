@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import {
   useAuth } from '@/lib/auth-context';
@@ -560,29 +561,19 @@ export default function RequisitionsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            onClick={() => setShowUnifiedModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-indigo-600 hover:from-teal-500 hover:to-indigo-500 text-white text-xs font-black shadow-lg shadow-teal-600/25 transition cursor-pointer ring-2 ring-teal-400/30"
-          >
-            <Sparkles className="w-4 h-4 text-amber-300" />
-            <span>ยื่นคำขอรวม (เบิกวัสดุ + ยืมครุภัณฑ์)</span>
-          </button>
-          <button
-            onClick={() => {
-              resetNewReqForm();
-              setShowNewModal(true);
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold shadow-md transition cursor-pointer"
+          <Link
+            href="/borrow/request"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs font-black shadow-lg shadow-teal-600/25 transition cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>ขอเบิกเฉพาะวัสดุ</span>
-          </button>
+            <span>+ ยื่นคำขอเบิก-ยืมพัสดุ</span>
+          </Link>
         </div>
       </div>
 
       {/* Filter Tabs & Export Action Bar */}
       <div className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 sm:flex-wrap">
           {/* View Scope (Toggle for Staff / Info pill for Student) */}
           {isStaff ? (
             <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold mr-1">
@@ -1381,7 +1372,7 @@ export default function RequisitionsPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 shrink-0">
                 <button
                   type="button"
                   onClick={() => {
@@ -1410,8 +1401,10 @@ export default function RequisitionsPage() {
 
       {/* Modal: Confirm Dispense & Cut Stock */}
       {activeReqForDispense && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4 animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-xl w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[94vh] flex flex-col overflow-hidden border border-slate-100 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-2xl max-w-xl w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92dvh] sm:max-h-[94vh] flex flex-col overflow-hidden border border-slate-100 dark:border-slate-800">
+            {/* Mobile Drag Indicator */}
+            <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mb-1 sm:hidden shrink-0" />
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <PackageCheck className="w-5 h-5 text-teal-600 dark:text-teal-400" />

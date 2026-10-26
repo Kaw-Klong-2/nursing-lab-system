@@ -130,23 +130,7 @@ export default function PracticePage() {
   // Slot Detail Modal (Opened directly when clicking a slot pill on calendar)
   const [slotDetailModal, setSlotDetailModal] = useState<any>(null);
 
-  // Booking Modal State
-  const [showBookingModal, setShowBookingModal] = useState(false);
-  const [isEditingAdvisor, setIsEditingAdvisor] = useState(false);
-  const [slotForBooking, setSlotForBooking] = useState<any>(null);
-  const [allStudents, setAllStudents] = useState<any[]>([]);
-  const [selectedCompanions, setSelectedCompanions] = useState<any[]>([]);
-  const [companionSearchQuery, setCompanionSearchQuery] = useState('');
-  const [bookingForm, setBookingForm] = useState({
-    skillTopic: '',
-    isCustomSkill: false,
-    customSkillText: '',
-    objectives: '',
-    advisorName: '',
-    courseId: '',
-    practiceKitId: '',
-    additionalEquipment: '',
-  });
+
 
   // Slot Management Modal State (Close/Open Slot)
   const [slotToToggle, setSlotToToggle] = useState<any>(null);
@@ -214,7 +198,7 @@ export default function PracticePage() {
       const year = currentMonth.getFullYear();
       const month = currentMonth.getMonth() + 1;
 
-      const [slotsRes, roomsRes, bookingsRes, configRes, statsRes, coursesRes, kitsRes, usersRes, studentsRes] = await Promise.all([
+      const [slotsRes, roomsRes, bookingsRes, configRes, statsRes, coursesRes, kitsRes, usersRes] = await Promise.all([
         fetch(`/api/practice/slots?year=${year}&month=${month}`),
         fetch('/api/practice/rooms?includeInactive=true'),
         fetch(`/api/practice/bookings${currentUser?.role === 'USER' && !isTeacher ? `?userId=${currentUser.id}` : ''}`),
@@ -223,13 +207,7 @@ export default function PracticePage() {
         fetch('/api/courses?compact=true'),
         fetch('/api/kits'),
         fetch('/api/users?role=APPROVER'),
-        fetch('/api/users?role=USER'),
       ]);
-
-      if (studentsRes.ok) {
-        const sList = await studentsRes.json();
-        setAllStudents(Array.isArray(sList) ? sList : []);
-      }
 
       if (slotsRes.ok) setSlots(await slotsRes.json());
       if (roomsRes.ok) {
@@ -487,93 +465,7 @@ export default function PracticePage() {
     }
   };
 
-  // 2. Actions: Book Slot
-  const handleOpenBookingModal = (slot: any) => {
-    setSlotForBooking(slot);
-    const slotSkills = slot.availableSkills
-      ? slot.availableSkills.split(',').map((s: string) => s.trim()).filter(Boolean)
-      : [];
-    const defaultSkill = slotSkills.length > 0 ? slotSkills[0] : '';
-    
-    // Attempt to match practice kit
-    const matchedKit = practiceKits.find((k: any) =>
-      defaultSkill && (k.name.includes(defaultSkill) || defaultSkill.includes(k.name.slice(0, 5)))
-    );
 
-    setBookingForm({
-      skillTopic: defaultSkill,
-      isCustomSkill: slotSkills.length === 0,
-      customSkillText: '',
-      objectives: '',
-      advisorName: '',
-      courseId: '',
-      practiceKitId: matchedKit ? matchedKit.id : '',
-      additionalEquipment: '',
-    });
-    setSelectedCompanions([]);
-    setCompanionSearchQuery('');
-    setIsEditingAdvisor(false);
-    setShowBookingModal(true);
-  };
-
-  const handleSubmitBooking = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!slotForBooking || !currentUser) return;
-    setSubmitting(true);
-
-    try {
-      const finalSkill = bookingForm.isCustomSkill
-        ? bookingForm.customSkillText.trim()
-        : bookingForm.skillTopic;
-
-      if (!finalSkill) {
-        alert('กรุณาระบุหัตถการทางการพยาบาลที่ต้องการฝึกปฏิบัติ');
-        setSubmitting(false);
-        return;
-      }
-
-      if (currentUser?.role === 'USER' && !isTeacher && !bookingForm.advisorName?.trim()) {
-        alert('⚠️ เนื่องจากท่านเป็นนิสิต กรุณาระบุหรือเลือกอาจารย์ผู้รับรอง/อาจารย์ประจำวิชา (ไม่อนุญาตให้เว้นว่าง)');
-        setSubmitting(false);
-        return;
-      }
-
-      const res = await fetch('/api/practice/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: currentUser.id,
-          slotId: slotForBooking.id,
-          skillTopic: finalSkill,
-          objectives: bookingForm.objectives,
-          advisorName: bookingForm.advisorName ? formatTeacherName(bookingForm.advisorName) : null,
-          courseId: bookingForm.courseId || null,
-          practiceKitId: bookingForm.practiceKitId || null,
-          additionalEquipment: bookingForm.additionalEquipment || null,
-          companionUserIds: selectedCompanions.map((c: any) => c.id),
-        }),
-      });
-
-      if (res.ok) {
-        if (selectedCompanions.length > 0) {
-          alert(`ยื่นคำขอเข้าฝึกปฏิบัติการสำเร็จ (กลุ่ม ${selectedCompanions.length + 1} คน)! สมาชิกทุกคนจะได้รับ QR Code ประจำตัวหลังจากอาจารย์อนุมัติ`);
-        } else {
-          alert('ยื่นคำขอเข้าฝึกปฏิบัติด้วยตนเองสำเร็จ! รออาจารย์พิจารณาอนุมัติ');
-        }
-        setShowBookingModal(false);
-        setSelectedCompanions([]);
-        fetchData();
-        setActiveTab('BOOKINGS');
-      } else {
-        const err = await res.json();
-        alert(err.error || 'ยื่นคำขอไม่สำเร็จ');
-      }
-    } catch (err) {
-      alert('Network error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   // 3. Actions: Toggle Slot Open/Closed
   const handleToggleSlot = async () => {
@@ -1952,13 +1844,13 @@ export default function PracticePage() {
                         {/* Footer Actions */}
                         <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
                           {isOpen && !isFull && (
-                            <button
-                              onClick={() => handleOpenBookingModal(slot)}
+                            <Link
+                              href={`/practice/book?slotId=${slot.id}`}
                               className="w-full py-2 px-3 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs shadow-md shadow-teal-600/20 transition cursor-pointer flex items-center justify-center gap-1.5"
                             >
                               <Sparkles className="w-3.5 h-3.5" />
                               <span>ขอยื่นจองรอบเวลานี้</span>
-                            </button>
+                            </Link>
                           )}
 
                           {canManageSlots && (
@@ -2021,8 +1913,8 @@ export default function PracticePage() {
                   />
                 </div>
 
-                <div className="flex items-center gap-1.5 flex-wrap text-xs">
-                  <span className="text-slate-500 dark:text-slate-400 font-bold text-[11px] mr-1">สถานะ:</span>
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 sm:flex-wrap text-xs">
+                  <span className="text-slate-500 dark:text-slate-400 font-bold text-[11px] mr-1 shrink-0">สถานะ:</span>
                   {[
                     { id: 'ALL', label: 'ทั้งหมด' },
                     { id: 'OPEN', label: 'เปิดรับจอง' },
@@ -2032,7 +1924,7 @@ export default function PracticePage() {
                     <button
                       key={st.id}
                       onClick={() => setSlotStatusFilter(st.id as any)}
-                      className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer text-xs ${
+                      className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer text-xs shrink-0 whitespace-nowrap ${
                         slotStatusFilter === st.id
                           ? 'bg-teal-600 text-white shadow-sm'
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
@@ -2041,7 +1933,7 @@ export default function PracticePage() {
                       {st.label}
                     </button>
                   ))}
-                  <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500 ml-2">
+                  <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500 ml-2 shrink-0">
                     (พบ {tableFilteredSlots.length} รอบ)
                   </span>
                 </div>
@@ -2248,7 +2140,7 @@ export default function PracticePage() {
           <div className="space-y-3">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               {/* Status Tabs */}
-              <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <div className="flex items-center gap-1.5 p-1.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto no-scrollbar pb-1.5 sm:flex-wrap">
                 {[
                   { id: 'ALL', label: 'ทั้งหมด' },
                   { id: 'PENDING', label: 'รออาจารย์อนุมัติ' },
@@ -2262,7 +2154,7 @@ export default function PracticePage() {
                     <button
                       key={st.id}
                       onClick={() => setBookingStatusFilter(st.id)}
-                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5 ${
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                         bookingStatusFilter === st.id
                           ? 'bg-teal-600 text-white shadow-sm'
                           : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -3564,18 +3456,14 @@ export default function PracticePage() {
             <div className="pt-2 border-t border-slate-100 space-y-2">
               {/* Student Booking Button */}
               {slotDetailModal.isOpen && !slotDetailModal.isFull && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const slot = slotDetailModal;
-                    setSlotDetailModal(null);
-                    handleOpenBookingModal(slot);
-                  }}
+                <Link
+                  href={`/practice/book?slotId=${slotDetailModal.id}`}
+                  onClick={() => setSlotDetailModal(null)}
                   className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-bold text-xs shadow-md shadow-teal-600/20 transition cursor-pointer flex items-center justify-center gap-2"
                 >
                   <Sparkles className="w-4 h-4" />
                   <span>ขอยื่นจองรอบเวลานี้</span>
-                </button>
+                </Link>
               )}
 
               {/* Staff / Teacher Controls */}
@@ -3623,451 +3511,6 @@ export default function PracticePage() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: BOOKING FORM */}
-      {showBookingModal && slotForBooking && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-teal-600 dark:text-teal-400" />
-                  ยื่นคำขอเข้าฝึกปฏิบัติการด้วยตนเอง
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  {slotForBooking.room?.name} • {new Date(slotForBooking.date).toLocaleDateString('th-TH')} (เวลา {slotForBooking.startTime} - {slotForBooking.endTime} น.)
-                </p>
-              </div>
-              <button
-                onClick={() => setShowBookingModal(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitBooking} className="space-y-4">
-              {/* 1. Skill Selection: Pick from Slot's available skills OR Custom */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-700">
-                  หัตถการทางการพยาบาลที่ต้องการฝึกปฏิบัติ <span className="text-rose-500">*</span>
-                </label>
-
-                {(() => {
-                  const slotSkills = slotForBooking.availableSkills
-                    ? slotForBooking.availableSkills.split(',').map((s: string) => s.trim()).filter(Boolean)
-                    : [];
-
-                  return (
-                    <div className="space-y-2">
-                      {slotSkills.length > 0 ? (
-                        <div className="space-y-2">
-                          <span className="text-[11px] text-slate-500 block">
-                            💡 หัตถการที่เจ้าหน้าที่เปิดให้บริการในรอบนี้ (คลิกเพื่อเลือก):
-                          </span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {slotSkills.map((sk: string) => {
-                              const isSelected = !bookingForm.isCustomSkill && bookingForm.skillTopic === sk;
-                              return (
-                                <button
-                                  type="button"
-                                  key={sk}
-                                  onClick={() => {
-                                    // Auto-link to matching practice kit if found
-                                    const matched = practiceKits.find((k: any) =>
-                                      k.name.includes(sk) || sk.includes(k.name.slice(0, 5))
-                                    );
-                                    setBookingForm({
-                                      ...bookingForm,
-                                      skillTopic: sk,
-                                      isCustomSkill: false,
-                                      practiceKitId: matched ? matched.id : bookingForm.practiceKitId,
-                                    });
-                                  }}
-                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                                    isSelected
-                                      ? 'bg-teal-600 text-white shadow-sm ring-2 ring-teal-600/30'
-                                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                                  }`}
-                                >
-                                  {isSelected && <Check className="w-3 h-3" />}
-                                  <span>{sk}</span>
-                                </button>
-                              );
-                            })}
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setBookingForm({
-                                  ...bookingForm,
-                                  isCustomSkill: true,
-                                })
-                              }
-                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 ${
-                                bookingForm.isCustomSkill
-                                  ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-600/30'
-                                  : 'bg-slate-100 text-indigo-700 hover:bg-indigo-50 border border-dashed border-indigo-300'
-                              }`}
-                            >
-                              <Plus className="w-3 h-3" />
-                              <span>+ ระบุหัตถการอื่นเพิ่มเติม</span>
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {(slotSkills.length === 0 || bookingForm.isCustomSkill) && (
-                        <div className="space-y-1 animate-in fade-in duration-150">
-                          <input
-                            type="text"
-                            required
-                            placeholder="ระบุชื่อหัตถการที่ต้องการฝึก เช่น เจาะเลือด (Venipuncture), สวนล้างกระเพาะอาหาร"
-                            value={bookingForm.customSkillText}
-                            onChange={(e) =>
-                              setBookingForm({
-                                ...bookingForm,
-                                customSkillText: e.target.value,
-                                skillTopic: e.target.value,
-                              })
-                            }
-                            className="w-full bg-slate-50 border border-indigo-200 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                          />
-                          {slotSkills.length > 0 && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setBookingForm({
-                                  ...bookingForm,
-                                  isCustomSkill: false,
-                                  skillTopic: slotSkills[0] || '',
-                                })
-                              }
-                              className="text-[10px] text-slate-500 hover:text-slate-800 underline"
-                            >
-                              ← กลับไปเลือกหัตถการประจำรอบ
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* 2. Course & Advisor Selection */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    รายวิชาที่เกี่ยวข้อง
-                  </label>
-                  <select
-                    value={bookingForm.courseId}
-                    onChange={(e) => {
-                      const cid = e.target.value;
-                      const c = courses.find((x) => x.id === cid);
-                      setBookingForm({
-                        ...bookingForm,
-                        courseId: cid,
-                        advisorName: c?.instructorName ? formatTeacherName(c.instructorName) : '',
-                      });
-                    }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                  >
-                    <option value="">-- ฝึกอิสระ / นอกรายวิชา (OSCE) --</option>
-                    <optgroup label="เลือกรายวิชาในหลักสูตร">
-                      {courses.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          [{c.code}] {c.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-slate-700">
-                      {bookingForm.courseId ? 'อาจารย์ผู้รับทราบ / ที่ปรึกษา' : 'อาจารย์ที่ปรึกษาที่ให้คำรับรอง'} <span className="text-rose-500">*</span>
-                    </label>
-                    {bookingForm.courseId && (
-                      <button
-                        type="button"
-                        onClick={() => setIsEditingAdvisor(!isEditingAdvisor)}
-                        className="text-[11px] font-bold text-teal-600 hover:text-teal-700 flex items-center gap-1 cursor-pointer"
-                      >
-                        <Edit3 className="w-3 h-3" />
-                        <span>{isEditingAdvisor ? 'ซ่อนตัวเลือก' : 'แก้ไขอาจารย์'}</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {bookingForm.courseId && !isEditingAdvisor ? (
-                    <div className="p-2.5 bg-teal-50 border border-teal-200 rounded-xl text-xs flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <GraduationCap className="w-4 h-4 text-teal-600" />
-                        <span className="font-bold text-teal-900">{formatTeacherName(bookingForm.advisorName || 'อาจารย์ประจำวิชา')}</span>
-                        <span className="text-[10px] bg-teal-200/70 text-teal-800 px-1.5 py-0.5 rounded-md font-bold">
-                          ขึ้นให้อัตโนมัติ
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsEditingAdvisor(true)}
-                        className="text-[11px] font-bold text-teal-700 hover:underline cursor-pointer"
-                      >
-                        แก้ไขอาจารย์
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      <select
-                        required
-                        value={bookingForm.advisorName}
-                        onChange={(e) => setBookingForm({ ...bookingForm, advisorName: e.target.value })}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                      >
-                        <option value="">-- กรุณาเลือกอาจารย์ผู้รับรองจากรายชื่อ --</option>
-                        {bookingForm.advisorName && !teachers.some((t) => formatTeacherName(t) === bookingForm.advisorName || t.name === bookingForm.advisorName) && (
-                          <option value={bookingForm.advisorName}>
-                            {formatTeacherName(bookingForm.advisorName)} (อาจารย์ประจำวิชา)
-                          </option>
-                        )}
-                        {teachers.map((t) => {
-                          const formatted = formatTeacherName(t);
-                          return (
-                            <option key={t.id} value={formatted}>
-                              {formatted} ({t.department || 'คณะพยาบาลศาสตร์'})
-                            </option>
-                          );
-                        })}
-                      </select>
-                      {bookingForm.courseId && (
-                        <div className="flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const c = courses.find((x) => x.id === bookingForm.courseId);
-                              setBookingForm({ ...bookingForm, advisorName: formatTeacherName(c?.instructorName || '') });
-                              setIsEditingAdvisor(false);
-                            }}
-                            className="text-[10px] text-teal-700 hover:underline cursor-pointer"
-                          >
-                            ↺ กลับไปใช้อาจารย์ประจำวิชา ({formatTeacherName(courses.find((x) => x.id === bookingForm.courseId)?.instructorName)})
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* 3. Practice Kit & Additional Equipment */}
-              <div className="space-y-3 bg-slate-50/70 p-3.5 rounded-2xl border border-slate-200">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-slate-700">
-                      ชุดฝึกสำเร็จรูปที่ต้องการเบิกใช้ร่วม (Practice Kit)
-                    </label>
-                    <span className="text-[10px] text-slate-500">จับคู่ตามหัตถการให้อัตโนมัติ</span>
-                  </div>
-                  <select
-                    value={bookingForm.practiceKitId}
-                    onChange={(e) => setBookingForm({ ...bookingForm, practiceKitId: e.target.value })}
-                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                  >
-                    <option value="">-- ไม่มี / ใช้อุปกรณ์และหุ่นประจำห้องแล็บ --</option>
-                    {practiceKits.map((k) => (
-                      <option key={k.id} value={k.id}>
-                        {k.code}: {k.name} ({k.category})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    อุปกรณ์ที่ต้องการขอเพิ่มเติม (ถ้ามี)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="เช่น ขอแผ่นปิดแผล Hydrocolloid 1 แผ่น, เข็มผีเสื้อเบอร์ 24, ถุงมือเบอร์ S"
-                    value={bookingForm.additionalEquipment}
-                    onChange={(e) => setBookingForm({ ...bookingForm, additionalEquipment: e.target.value })}
-                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    เจ้าหน้าที่จะเตรียมอุปกรณ์เสริมนี้ไว้ให้พร้อมกับชุดฝึก
-                  </span>
-                </div>
-              </div>
-
-              {/* 4. Group Companions Picker (เพื่อนร่วมกลุ่มฝึก) */}
-              {(() => {
-                const maxCap = slotForBooking.maxCapacity || 6;
-                const booked = slotForBooking.bookedCount || 0;
-                const availableSeats = slotForBooking.availableSeats !== undefined ? slotForBooking.availableSeats : Math.max(0, maxCap - booked);
-                const currentParticipants = 1 + selectedCompanions.length;
-                const remainingSlots = Math.max(0, availableSeats - currentParticipants);
-                const canAddMore = remainingSlots > 0;
-
-                const searchTrimmed = companionSearchQuery.trim().toLowerCase();
-                const matchedStudents = searchTrimmed
-                  ? allStudents.filter((s: any) => {
-                      if (s.id === currentUser?.id) return false;
-                      if (selectedCompanions.some((c: any) => c.id === s.id)) return false;
-                      const sName = (s.name || '').toLowerCase();
-                      const sCode = (s.studentId || '').toLowerCase();
-                      return sName.includes(searchTrimmed) || sCode.includes(searchTrimmed);
-                    }).slice(0, 5)
-                  : [];
-
-                return (
-                  <div className="space-y-2.5 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <Users className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                          เพื่อนร่วมกลุ่มฝึก (ถ้ามี)
-                        </span>
-                      </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                        canAddMore
-                          ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                          : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-                      }`}>
-                        รวม {currentParticipants} คน (ว่างอีก {remainingSlots} ที่)
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      ท่านเป็นผู้เข้าฝึกหลัก (1 ที่นั่ง) สามารถเพิ่มเพื่อนร่วมกลุ่มได้ตามที่นั่งว่างในรอบนี้ โดยเพื่อนแต่ละคนจะได้ QR Code ประจำตัวแยกของตนเอง
-                    </p>
-
-                    {/* Selected Companion Chips */}
-                    {selectedCompanions.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {selectedCompanions.map((comp: any) => (
-                          <div
-                            key={comp.id}
-                            className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-xl bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 text-teal-900 dark:text-teal-200 text-xs font-medium"
-                          >
-                            <span>{formatUserName(comp)}</span>
-                            {comp.studentId && (
-                              <span className="text-[10px] text-teal-600 dark:text-teal-400 font-mono">
-                                ({comp.studentId})
-                              </span>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => setSelectedCompanions(selectedCompanions.filter((c: any) => c.id !== comp.id))}
-                              className="w-4 h-4 rounded-full hover:bg-teal-200/60 dark:hover:bg-teal-900 flex items-center justify-center text-teal-700 dark:text-teal-300 cursor-pointer ml-0.5"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Companion Search Input & Dropdown */}
-                    {canAddMore ? (
-                      <div className="relative pt-1">
-                        <div className="relative">
-                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                          <input
-                            type="text"
-                            placeholder="พิมพ์รหัสนิสิต หรือชื่อเพื่อนเพื่อเพิ่มเข้ากลุ่ม..."
-                            value={companionSearchQuery}
-                            onChange={(e) => setCompanionSearchQuery(e.target.value)}
-                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                          />
-                        </div>
-
-                        {matchedStudents.length > 0 && (
-                          <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-20 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
-                            {matchedStudents.map((st: any) => (
-                              <button
-                                key={st.id}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedCompanions([...selectedCompanions, st]);
-                                  setCompanionSearchQuery('');
-                                }}
-                                className="w-full px-3 py-2 text-left text-xs hover:bg-teal-50 dark:hover:bg-teal-950/40 flex items-center justify-between cursor-pointer transition"
-                              >
-                                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                                  {formatUserName(st)}
-                                </span>
-                                <span className="text-[11px] text-teal-600 dark:text-teal-400 font-mono">
-                                  {st.studentId || st.department || 'นิสิต'}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-xl px-3 py-1.5 flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span>จำนวนผู้เข้าฝึกครบตามที่นั่งว่างในรอบนี้แล้ว ({availableSeats} คน)</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  วัตถุประสงค์เพิ่มเติม (ถ้ามี)
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="เช่น เตรียมสอบ OSCE, ทบทวนขั้นตอนก่อนขึ้นฝึกคลินิก"
-                  value={bookingForm.objectives}
-                  onChange={(e) => setBookingForm({ ...bookingForm, objectives: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                ></textarea>
-              </div>
-
-              {config?.rulesNotice && (
-                <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-[11px] text-amber-800 space-y-1">
-                  <span className="font-bold flex items-center gap-1">
-                    <Info className="w-3.5 h-3.5 text-amber-600" /> ข้อตกลงการเข้าใช้ห้องแล็บ:
-                  </span>
-                  <p className="whitespace-pre-line leading-relaxed">{config.rulesNotice}</p>
-                </div>
-              )}
-
-              <div className="pt-2 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowBookingModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-teal-600/20 transition cursor-pointer flex items-center gap-1.5"
-                >
-                  {submitting ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>กำลังส่งคำขอจอง...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-4 h-4" />
-                      <span>ยืนยันยื่นคำขอจอง</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

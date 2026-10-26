@@ -805,7 +805,7 @@ export default function MaintenanceDashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/60 dark:bg-slate-950 p-4 sm:p-6 lg:p-8 font-sans space-y-6">
+    <div className="space-y-6 font-sans">
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="space-y-1">
@@ -848,7 +848,7 @@ export default function MaintenanceDashboardPage() {
             className="px-3.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
           >
             <Camera className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-            <span>+ เปิดใบแจ้งซ่อม (หน้าใหม่)</span>
+            <span>+ เปิดใบแจ้งซ่อม</span>
           </Link>
           {isStaff && (
             <>

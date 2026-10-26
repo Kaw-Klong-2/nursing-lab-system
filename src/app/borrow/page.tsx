@@ -36,7 +36,6 @@ import {
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import BorrowSlipModal from '@/components/slips/BorrowSlipModal';
-import UnifiedRequestModal from '@/components/requests/UnifiedRequestModal';
 import EditRequestModal from '@/components/requests/EditRequestModal';
 import NewAllocationModal from '@/components/borrow/NewAllocationModal';
 import BulkAllocationReturnModal from '@/components/borrow/BulkAllocationReturnModal';
@@ -54,40 +53,8 @@ export default function BorrowPage() {
   const [activeSlipBorrow, setActiveSlipBorrow] = useState<any | null>(null);
   const [reqSurplusReturns, setReqSurplusReturns] = useState<{ id: string; quantity: number | ''; condition: string }[]>([]);
 
-  // New Request Modal
-  const [showNewModal, setShowNewModal] = useState(false);
-  const [isEditingAdvisor, setIsEditingAdvisor] = useState(false);
-  const [showUnifiedModal, setShowUnifiedModal] = useState(false);
   const [editingRequest, setEditingRequest] = useState<any | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [instructors, setInstructors] = useState<any[]>([]);
-  const [newRequest, setNewRequest] = useState<{
-    courseId: string;
-    advisorName: string;
-    purpose: string;
-    borrowDate: string;
-    expectedReturnDate: string;
-    selectedItems: { itemId: string; quantity: number | string; categoryId?: string }[];
-  }>({
-    courseId: '',
-    advisorName: '',
-    purpose: '',
-    borrowDate: '',
-    expectedReturnDate: '',
-    selectedItems: [{ itemId: '', quantity: '' }],
-  });
-
-  const resetNewBorrowForm = () => {
-    setNewRequest({
-      courseId: '',
-      advisorName: '',
-      purpose: '',
-      borrowDate: '',
-      expectedReturnDate: '',
-      selectedItems: [{ itemId: '', quantity: '' }],
-    });
-    setIsEditingAdvisor(false);
-  };
 
   // Action Modals (Checkout & Return)
   const [activeBorrowForAction, setActiveBorrowForAction] = useState<any | null>(null);
@@ -215,12 +182,11 @@ export default function BorrowPage() {
     if (manual) setIsRefreshing(true);
     fetchAllocations();
     try {
-      const [borrowRes, itemsRes, consumablesRes, coursesRes, usersRes] = await Promise.all([
+      const [borrowRes, itemsRes, consumablesRes, coursesRes] = await Promise.all([
         fetch('/api/borrow'),
         fetch('/api/items?type=EQUIPMENT&compact=true'),
         fetch('/api/items?type=CONSUMABLE&compact=true'),
         fetch('/api/courses?compact=true'),
-        fetch('/api/users?role=INSTRUCTOR'),
       ]);
 
       if (borrowRes.ok) {
@@ -252,13 +218,6 @@ export default function BorrowPage() {
           try { sessionStorage.setItem('cached_borrow_courses', JSON.stringify(cData)); } catch {}
         }
       }
-      if (usersRes.ok) {
-        const uData = await usersRes.json();
-        if (Array.isArray(uData)) {
-          setInstructors(uData);
-          try { sessionStorage.setItem('cached_borrow_instructors', JSON.stringify(uData)); } catch {}
-        }
-      }
       setLastUpdated(new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err) {
       console.error(err);
@@ -274,7 +233,6 @@ export default function BorrowPage() {
       const cEq = sessionStorage.getItem('cached_borrow_equipment');
       const cCon = sessionStorage.getItem('cached_borrow_consumables');
       const cCourses = sessionStorage.getItem('cached_borrow_courses');
-      const cInst = sessionStorage.getItem('cached_borrow_instructors');
 
       if (cReqs) {
         try {
@@ -303,12 +261,6 @@ export default function BorrowPage() {
           if (Array.isArray(parsed)) setCourses(parsed);
         } catch {}
       }
-      if (cInst) {
-        try {
-          const parsed = JSON.parse(cInst);
-          if (Array.isArray(parsed)) setInstructors(parsed);
-        } catch {}
-      }
     } catch {}
 
     fetchBorrowData();
@@ -318,84 +270,6 @@ export default function BorrowPage() {
       if (s) setFilterStatus(s);
     }
   }, []);
-
-  const handleCreateRequest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUser) return;
-    setSubmitting(true);
-
-    try {
-      const validItems = newRequest.selectedItems.filter((i) => i.itemId);
-      if (validItems.length === 0) {
-        alert('กรุณาเลือกรายการครุภัณฑ์อย่างน้อย 1 รายการ');
-        setSubmitting(false);
-        return;
-      }
-
-      if (currentUser?.role === 'USER' && !isTeacher && !newRequest.advisorName?.trim()) {
-        alert('⚠️ เนื่องจากท่านเป็นนิสิต กรุณาระบุหรือเลือกอาจารย์ผู้รับทราบ/อาจารย์ประจำวิชา (ไม่อนุญาตให้เว้นว่าง)');
-        setSubmitting(false);
-        return;
-      }
-
-      // Pre-validation: ensure quantity is entered and >= 1
-      for (const reqItem of validItems) {
-        const q = Number(reqItem.quantity);
-        if (!q || q < 1) {
-          alert('กรุณาระบุจำนวนครุภัณฑ์ที่ต้องการยืมให้ถูกต้อง (อย่างน้อย 1)');
-          setSubmitting(false);
-          return;
-        }
-      }
-
-      // Pre-validation: ensure requested quantity does not exceed available assets
-      for (const reqItem of validItems) {
-        const eq = equipmentList.find((e) => e.id === reqItem.itemId);
-        const q = Number(reqItem.quantity);
-        if (eq) {
-          if (eq.currentStock <= 0) {
-            alert(`ไม่สามารถขอยืมได้: ครุภัณฑ์ "${eq.name}" ไม่มีอุปกรณ์ที่พร้อมใช้งานในขณะนี้`);
-            setSubmitting(false);
-            return;
-          }
-          if (q > eq.currentStock) {
-            alert(
-              `ไม่สามารถขอยืมเกินจำนวนพร้อมใช้ได้: ครุภัณฑ์ "${eq.name}" มีพร้อมให้ยืมเพียง ${eq.currentStock} ${eq.unit || 'ชิ้น'} (ท่านระบุ ${q} ${eq.unit || 'ชิ้น'})`
-            );
-            setSubmitting(false);
-            return;
-          }
-        }
-      }
-
-      const res = await fetch('/api/borrow', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: currentUser.id,
-          courseId: newRequest.courseId || null,
-          advisorName: newRequest.advisorName ? formatTeacherName(newRequest.advisorName) : null,
-          purpose: newRequest.purpose,
-          borrowDate: newRequest.borrowDate,
-          expectedReturnDate: newRequest.expectedReturnDate,
-          items: validItems.map((i: any) => ({ ...i, quantity: Number(i.quantity) })),
-        }),
-      });
-
-      if (res.ok) {
-        resetNewBorrowForm();
-        setShowNewModal(false);
-        fetchBorrowData();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Failed to create request');
-      }
-    } catch (err) {
-      alert('Network error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const handleActionSubmit = async () => {
     if (!activeBorrowForAction || !actionType) return;
@@ -627,26 +501,8 @@ export default function BorrowPage() {
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 via-teal-700 to-indigo-600 hover:from-teal-500 hover:to-indigo-500 text-white text-xs font-black shadow-lg shadow-teal-600/25 transition cursor-pointer ring-2 ring-teal-400/30"
               >
                 <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
-                <span>+ ยื่นคำขอเบิก-ยืมพัสดุ (หน้าเต็มจอ)</span>
+                <span>+ ยื่นคำขอเบิก-ยืมพัสดุ</span>
               </Link>
-              <button
-                onClick={() => setShowUnifiedModal(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-teal-200 dark:border-teal-800/60 bg-teal-50/50 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/50 text-teal-800 dark:text-teal-200 text-xs font-semibold transition cursor-pointer shadow-sm"
-                title="เปิด Popup ยื่นคำขอเบิก-ยืมพัสดุแบบเดิม"
-              >
-                <span>เปิด Popup ด่วน</span>
-              </button>
-              <button
-                onClick={() => {
-                  resetNewBorrowForm();
-                  setShowNewModal(true);
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-200 text-xs font-medium transition cursor-pointer shadow-sm"
-                title="ยื่นคำขอแบบเดิมเฉพาะครุภัณฑ์"
-              >
-                <Plus className="w-3.5 h-3.5 text-slate-400" />
-                <span>ยืมเฉพาะครุภัณฑ์</span>
-              </button>
             </>
           )}
         </div>
@@ -688,7 +544,7 @@ export default function BorrowPage() {
           {/* Filter Tabs & Scope */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm transition-colors">
         {/* Status Tabs */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 sm:flex-wrap">
           {[
             { key: 'ALL', label: 'ทั้งหมด' },
             { key: 'PENDING', label: 'รออนุมัติ' },
@@ -1440,421 +1296,12 @@ export default function BorrowPage() {
       </div>
     )}
 
-      {/* Modal: New Borrow Request */}
-      {showNewModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <RefreshCw className="w-5 h-5 text-teal-600 dark:text-teal-400" />
-                ยื่นคำขอยืมครุภัณฑ์ทางการพยาบาล
-              </h3>
-              <button
-                onClick={() => {
-                  resetNewBorrowForm();
-                  setShowNewModal(false);
-                }}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateRequest} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  รายวิชาที่ใช้ (หรือกิจกรรมการเรียนการสอน)
-                </label>
-                <select
-                  value={newRequest.courseId}
-                  onChange={(e) => {
-                    const cid = e.target.value;
-                    const cMatch = courses.find((c) => c.id === cid);
-                    setNewRequest({
-                      ...newRequest,
-                      courseId: cid,
-                      advisorName: cMatch ? formatTeacherName(cMatch.instructorName) : (newRequest.advisorName ? formatTeacherName(newRequest.advisorName) : ''),
-                    });
-                  }}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                >
-                  <option value="">-- ไม่ระบุรายวิชา (ฝึกทักษะทั่วไป / ซ้อมอิสระนอกหลักสูตร) --</option>
-                  <optgroup label="เลือกรายวิชาในหลักสูตร">
-                    {courses.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        [{c.code}] {c.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-
-              {/* Instructor / Advisor notification box for students with Edit Dropdown */}
-              {newRequest.courseId ? (
-                <div className="p-3 rounded-xl bg-teal-50/80 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 text-xs space-y-2">
-                  <div className="flex items-center justify-between font-bold text-teal-900 dark:text-teal-200">
-                    <div className="flex items-center gap-1.5">
-                      <GraduationCap className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-                      <span>อาจารย์ผู้รับทราบ / ที่ปรึกษา:</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-teal-700 dark:text-teal-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md border border-teal-200 dark:border-teal-800 shadow-xs">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-                        <span>ขึ้นให้อัตโนมัติ</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setIsEditingAdvisor(!isEditingAdvisor)}
-                        className="text-[11px] font-bold text-teal-700 hover:text-teal-800 dark:text-teal-300 flex items-center gap-1 cursor-pointer bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md border border-teal-200 dark:border-teal-800 shadow-xs"
-                      >
-                        <Edit3 className="w-3 h-3" />
-                        <span>{isEditingAdvisor ? 'ซ่อนตัวเลือก' : 'แก้ไขอาจารย์'}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {!isEditingAdvisor ? (
-                    <div className="text-teal-900 dark:text-teal-200 font-bold pl-5 text-sm flex items-center justify-between">
-                      <span>{formatTeacherName(newRequest.advisorName || courses.find((c) => c.id === newRequest.courseId)?.instructorName || 'อาจารย์ผู้รับผิดชอบรายวิชา')}</span>
-                    </div>
-                  ) : (
-                    <div className="space-y-1.5 pl-1 pt-1">
-                      <select
-                        value={newRequest.advisorName}
-                        onChange={(e) => setNewRequest({ ...newRequest, advisorName: e.target.value })}
-                        className="w-full bg-white dark:bg-slate-950 border border-teal-400 dark:border-teal-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-teal-500/20"
-                      >
-                        <option value="">-- กรุณาเลือกอาจารย์ผู้รับทราบจากรายชื่อ --</option>
-                        {newRequest.advisorName && !instructors.some((ins) => formatTeacherName(ins) === newRequest.advisorName || ins.name === newRequest.advisorName) && (
-                          <option value={newRequest.advisorName}>
-                            {formatTeacherName(newRequest.advisorName)} (อาจารย์ประจำรายวิชา)
-                          </option>
-                        )}
-                        {instructors.map((ins) => {
-                          const formatted = formatTeacherName(ins);
-                          return (
-                            <option key={ins.id} value={formatted}>
-                              {formatted} ({ins.department || 'อาจารย์พยาบาล'})
-                            </option>
-                          );
-                        })}
-                      </select>
-                      <div className="flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const c = courses.find((x) => x.id === newRequest.courseId);
-                            setNewRequest({ ...newRequest, advisorName: formatTeacherName(c?.instructorName || '') });
-                            setIsEditingAdvisor(false);
-                          }}
-                          className="text-[10px] text-teal-700 dark:text-teal-300 hover:underline cursor-pointer"
-                        >
-                          ↺ กลับไปใช้อาจารย์ประจำวิชา ({formatTeacherName(courses.find((x) => x.id === newRequest.courseId)?.instructorName)})
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  <p className="text-[11px] text-teal-700 dark:text-teal-400 pl-5">
-                    ✓ ระบบจะแจ้งให้อาจารย์ผู้รับทราบตรวจสอบสำหรับการฝึกปฏิบัติตามหลักสูตร
-                  </p>
-                </div>
-              ) : (
-                // Case 2: Not in course -> Select teacher / advisor
-                <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs space-y-2">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-200">
-                    <GraduationCap className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                    <span>อาจารย์ผู้รับทราบ / อาจารย์ที่ปรึกษาการฝึกซ้อม *</span>
-                  </div>
-                  <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                    เนื่องจากไม่ได้นำไปใช้ในรายวิชา กรุณาเลือกอาจารย์ผู้รับทราบเพื่อให้เจ้าหน้าที่ตรวจสอบก่อนส่งมอบ
-                  </p>
-                  <div className="space-y-1.5">
-                    <select
-                      value={newRequest.advisorName}
-                      onChange={(e) => setNewRequest({ ...newRequest, advisorName: e.target.value })}
-                      className="w-full bg-white dark:bg-slate-950 border border-amber-300 dark:border-amber-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-amber-500/20"
-                    >
-                      <option value="">-- กรุณาเลือกอาจารย์ผู้รับทราบในระบบ --</option>
-                      {instructors.map((ins) => {
-                        const formatted = formatTeacherName(ins);
-                        return (
-                          <option key={ins.id} value={formatted}>
-                            {formatted} ({ins.department || 'อาจารย์พยาบาล'})
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    วันและเวลาที่ต้องการรับของ *
-                  </label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={newRequest.borrowDate}
-                    onChange={(e) => setNewRequest({ ...newRequest, borrowDate: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                  />
-                  <span className="text-[10px] text-slate-400">ระบุวันและเวลาที่จะมารับอุปกรณ์ที่ห้องแล็บ</span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    วันและเวลาที่กำหนดส่งคืน *
-                  </label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={newRequest.expectedReturnDate}
-                    onChange={(e) =>
-                      setNewRequest({ ...newRequest, expectedReturnDate: e.target.value })
-                    }
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                  />
-                  <span className="text-[10px] text-slate-400">ระบุวันและเวลาที่จะนำอุปกรณ์มาส่งคืน</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  วัตถุประสงค์และสถานที่ใช้งาน *
-                </label>
-                <textarea
-                  rows={2}
-                  required
-                  placeholder="เช่น ฝึกหัตถการแทงเส้นและตรวจสัญญาณชีพ ห้อง Lab 2"
-                  value={newRequest.purpose}
-                  onChange={(e) => setNewRequest({ ...newRequest, purpose: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                />
-              </div>
-
-              {/* Items Selection */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-slate-700">
-                    เลือกครุภัณฑ์ที่ต้องการยืม <span className="text-rose-500">*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNewRequest((prev) => ({
-                        ...prev,
-                        selectedItems: [...prev.selectedItems, { itemId: '', quantity: '', categoryId: '' } as any],
-                      }));
-                    }}
-                    className="text-xs font-bold text-teal-600 hover:text-teal-700 flex items-center gap-1 cursor-pointer"
-                  >
-                    + เพิ่มรายการยืม
-                  </button>
-                </div>
-                <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
-                  {newRequest.selectedItems.map((sItem: any, idx: number) => {
-                    // Extract unique categories from equipmentList
-                    const categoryMap = new Map<string, string>();
-                    equipmentList.forEach((eq: any) => {
-                      if (eq.category?.name) {
-                        categoryMap.set(eq.category.id || eq.category.name, eq.category.name);
-                      }
-                    });
-                    const selectedCat = sItem.categoryId || '';
-                    const filteredEquipments = selectedCat
-                      ? equipmentList.filter((eq: any) => (eq.category?.id === selectedCat || eq.category?.name === selectedCat))
-                      : equipmentList;
-
-                    const chosenEq = equipmentList.find((eq: any) => eq.id === sItem.itemId);
-                    const isOutOfStock = chosenEq && chosenEq.currentStock <= 0;
-                    const isOverStock = chosenEq && chosenEq.currentStock > 0 && sItem.quantity !== '' && Number(sItem.quantity) > chosenEq.currentStock;
-
-                    return (
-                      <div key={idx} className={`p-2.5 rounded-xl border space-y-2 transition ${
-                        isOutOfStock || isOverStock
-                          ? 'bg-rose-50/70 border-rose-300'
-                          : 'bg-slate-50 border-slate-200'
-                      }`}>
-                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                          {/* 1. Category Filter Dropdown */}
-                          <div className="sm:col-span-4">
-                            <select
-                              value={selectedCat}
-                              onChange={(e) => {
-                                const catVal = e.target.value;
-                                setNewRequest((prev: any) => {
-                                  const updated = [...prev.selectedItems];
-                                  updated[idx].categoryId = catVal;
-                                  // Reset selected item if current item is not in this category
-                                  if (catVal && updated[idx].itemId) {
-                                    const it = equipmentList.find((x) => x.id === updated[idx].itemId);
-                                    if (it && (it.category?.id !== catVal && it.category?.name !== catVal)) {
-                                      updated[idx].itemId = '';
-                                    }
-                                  }
-                                  return { ...prev, selectedItems: updated };
-                                });
-                              }}
-                              className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-300 font-medium focus:ring-2 focus:ring-teal-500/20"
-                            >
-                              <option value="">-- ทุกหมวดหมู่ --</option>
-                              {Array.from(categoryMap.entries()).map(([id, name]) => (
-                                <option key={id} value={id}>
-                                  📁 {name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          {/* 2. Item Dropdown */}
-                          <div className="sm:col-span-5">
-                            <select
-                              value={sItem.itemId}
-                              required
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                const it = equipmentList.find((x) => x.id === val);
-                                setNewRequest((prev: any) => {
-                                  const updated = [...prev.selectedItems];
-                                  updated[idx].itemId = val;
-                                  if (it?.category?.id) {
-                                    updated[idx].categoryId = it.category.id;
-                                  }
-                                  // Auto-adjust quantity if exceeding new item's available count
-                                  if (it && it.currentStock > 0 && updated[idx].quantity !== '' && Number(updated[idx].quantity) > it.currentStock) {
-                                    updated[idx].quantity = it.currentStock;
-                                  }
-                                  return { ...prev, selectedItems: updated };
-                                });
-                              }}
-                              className={`w-full bg-white dark:bg-slate-950 border rounded-lg px-2.5 py-1.5 text-xs font-medium focus:ring-2 ${
-                                isOutOfStock
-                                  ? 'border-rose-400 text-rose-800 dark:text-rose-300'
-                                  : 'border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:ring-teal-500/20'
-                              }`}
-                            >
-                              <option value="">-- กรุณาเลือกครุภัณฑ์ ({filteredEquipments.length} รายการ) --</option>
-                              {filteredEquipments.map((eq) => {
-                                const avail = eq.availableStock ?? eq.currentStock;
-                                const isReserved = eq.reservedStock > 0;
-                                return (
-                                  <option key={eq.id} value={eq.id}>
-                                    {eq.name} (พร้อมให้ยืม {avail} {eq.unit}){isReserved ? ` [รอส่งมอบ ${eq.reservedStock}]` : ''}{avail <= 0 ? ' [คิวเต็ม]' : ''}
-                                  </option>
-                                );
-                              })}
-                            </select>
-                          </div>
-
-                          {/* 3. Quantity & Remove button */}
-                          <div className="sm:col-span-3 flex items-center gap-1.5">
-                            <input
-                              type="number"
-                              min="1"
-                              max={chosenEq ? Math.max(1, chosenEq.currentStock) : undefined}
-                              value={sItem.quantity}
-                              onChange={(e) => {
-                                const raw = e.target.value;
-                                const val = raw === '' ? '' : Math.max(1, parseInt(raw, 10));
-                                setNewRequest((prev: any) => {
-                                  const updated = [...prev.selectedItems];
-                                  updated[idx].quantity = val;
-                                  return { ...prev, selectedItems: updated };
-                                });
-                              }}
-                              className={`w-full bg-white dark:bg-slate-950 border rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-800 dark:text-slate-100 ${
-                                isOverStock || isOutOfStock
-                                  ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300'
-                                  : 'border-slate-300 dark:border-slate-700'
-                              }`}
-                              placeholder="กรุณากรอกจำนวน"
-                            />
-                            {newRequest.selectedItems.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setNewRequest((prev: any) => ({
-                                    ...prev,
-                                    selectedItems: prev.selectedItems.filter((_: any, i: number) => i !== idx),
-                                  }));
-                                }}
-                                className="p-1.5 text-slate-400 hover:text-rose-500 transition cursor-pointer"
-                                title="ลบแถวนี้"
-                              >
-                                ✕
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Real-time Availability Information / Alert */}
-                        {chosenEq && (
-                          <div className="mt-1 pt-1 border-t border-slate-200/60 flex flex-wrap items-center justify-between text-[11px] gap-1">
-                            {isOutOfStock ? (
-                              <span className="text-rose-700 font-bold flex items-center gap-1">
-                                <AlertTriangle className="w-3.5 h-3.5 text-rose-600 flex-shrink-0" />
-                                {chosenEq.physicalStock > 0 && chosenEq.reservedStock > 0
-                                  ? `มีในคลัง ${chosenEq.physicalStock} ${chosenEq.unit || 'ชิ้น'} แต่ถูกจองรอส่งมอบแล้ว ${chosenEq.reservedStock} (ไม่เหลือพร้อมให้ยืม)`
-                                  : `ครุภัณฑ์นี้ไม่มีเครื่องพร้อมใช้งานในขณะนี้ ไม่สามารถขอยืมได้`}
-                              </span>
-                            ) : isOverStock ? (
-                              <span className="text-rose-700 font-bold flex items-center gap-1">
-                                <AlertTriangle className="w-3.5 h-3.5 text-rose-600 flex-shrink-0" />
-                                ขอยืมเกินยอดพร้อมใช้ (พร้อมให้ยืม {chosenEq.currentStock} จากคลัง {chosenEq.physicalStock ?? chosenEq.currentStock} {chosenEq.unit || 'ชิ้น'}{chosenEq.reservedStock ? ` | รอส่งมอบ ${chosenEq.reservedStock}` : ''})
-                              </span>
-                            ) : (
-                              <span className="text-emerald-700 font-medium flex items-center gap-1.5">
-                                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
-                                พร้อมให้ยืม: <strong className="font-bold text-slate-900">{chosenEq.currentStock} {chosenEq.unit || 'ชิ้น'}</strong>
-                                {chosenEq.reservedStock > 0 && (
-                                  <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded-md font-semibold">
-                                    คลัง {chosenEq.physicalStock} | รอส่งมอบ {chosenEq.reservedStock}
-                                  </span>
-                                )}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => {
-                    resetNewBorrowForm();
-                    setShowNewModal(false);
-                  }}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-md shadow-teal-600/20 transition disabled:opacity-50"
-                >
-                  <span className="inline-flex items-center gap-1.5">
-                    {submitting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                    <span>{submitting ? 'กำลังส่งคำขอยืมครุภัณฑ์...' : 'ส่งคำขอยืมครุภัณฑ์'}</span>
-                  </span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Checkout / Return Action */}
+      {/* Modal: Checkout / Return Action (Mobile Bottom Sheet + Sticky Footer) */}
       {activeBorrowForAction && actionType && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4 animate-fadeIn">
-          <div className={`bg-white dark:bg-slate-900 rounded-2xl w-full p-4 sm:p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4 max-h-[94vh] flex flex-col overflow-hidden ${actionType === 'CHECKOUT' ? 'max-w-2xl' : 'max-w-md'}`}>
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn">
+          <div className={`bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl w-full p-4 sm:p-6 shadow-2xl border-t sm:border border-slate-200 dark:border-slate-800 space-y-3.5 max-h-[92dvh] sm:max-h-[90vh] flex flex-col overflow-hidden ${actionType === 'CHECKOUT' ? 'max-w-2xl' : 'max-w-md'}`}>
+            {/* Mobile Drag Handle */}
+            <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto sm:hidden shrink-0" />
             <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               {actionType === 'CHECKOUT' ? (
                 <>
@@ -2625,7 +2072,7 @@ export default function BorrowPage() {
               </div>
             )}
 
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -2647,15 +2094,6 @@ export default function BorrowPage() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Unified Request Modal (All-in-One: Borrow & Requisition) */}
-      {showUnifiedModal && (
-        <UnifiedRequestModal
-          isOpen={showUnifiedModal}
-          onClose={() => setShowUnifiedModal(false)}
-          onSuccess={fetchBorrowData}
-        />
       )}
 
       {/* Borrow Slip Modal */}

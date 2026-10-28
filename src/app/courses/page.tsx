@@ -28,11 +28,10 @@ import {
   X,
   Check,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { formatUserName, formatTeacherName, getExporterSignatureInfo } from '@/lib/user-utils';
 import { formatTermName, toLegacySemesterCode } from '@/lib/academicTerm';
-import { ORG_CONFIG } from '@/lib/constants/organization';
 
 export default function CoursesPage() {
   const router = useRouter();
@@ -318,18 +317,11 @@ export default function CoursesPage() {
 
   const selectedCourse = courses.find((c: any) => c.id === selectedCourseId) || filteredCourses[0] || courses[0];
 
-  // Export Cost Report as formatted Excel (.xlsx)
-  const handleExportExcel = () => {
+  // Export Cost Report as formatted Excel (.xlsx) with explicit gridline borders
+  const handleExportExcel = async () => {
     if (!selectedCourse) return;
 
     const termThai = formatTermName(selectedCourse.semester);
-    const dateStr = new Date().toLocaleDateString('th-TH', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
     const exporterInfo = getExporterSignatureInfo(currentUser);
     const coordinatorName = selectedCourse.instructorName
       ? formatTeacherName(selectedCourse.instructorName)
@@ -340,84 +332,165 @@ export default function CoursesPage() {
     const costPerStudent = Number((selectedCourse.costPerStudent || 0).toFixed(2));
     const studentCount = Number(selectedCourse.studentCount || 0);
 
-    const rows: any[][] = [
-      ['', ORG_CONFIG.FULL_ORG_NAME],
-      ['', 'รายงานสรุปการใช้วัสดุสิ้นเปลืองและต้นทุนประจำรายวิชา'],
-      ['', `ข้อมูล ณ วันที่: ${dateStr} น.`],
-      [],
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Nursing Lab System';
+    const sheetName = `รายงานต้นทุน_${selectedCourse.code}_${selectedCourse.academicYear}`.slice(0, 31);
+    const ws = wb.addWorksheet(sheetName);
+
+    // Column widths
+    ws.columns = [
+      { width: 4 },  // A: Margin
+      { width: 8 },  // B: ลำดับ
+      { width: 20 }, // C: รหัสวัสดุ / หัวข้อ
+      { width: 45 }, // D: รายการวัสดุสิ้นเปลือง / ชื่อวิชา
+      { width: 16 }, // E: จำนวนที่ใช้ / หน่วย
+      { width: 12 }, // F: หน่วยนับ
+      { width: 18 }, // G: รวม (บาท)
+    ];
+
+    // Row 1: Report Title (No organization, no date/time)
+    const titleRow = ws.addRow(['', 'รายงานสรุปการใช้วัสดุสิ้นเปลืองและต้นทุนประจำรายวิชา']);
+    ws.mergeCells('B1:G1');
+    titleRow.getCell(2).font = { name: 'Sarabun', size: 14, bold: true };
+    titleRow.getCell(2).alignment = { horizontal: 'center', vertical: 'middle' };
+    titleRow.height = 28;
+
+    // Row 2: Empty
+    ws.addRow([]);
+
+    // Rows 3-8: Course Metadata Block
+    const metaData = [
       ['', '', 'รหัสวิชา', selectedCourse.code],
       ['', '', 'ชื่อวิชา', selectedCourse.name],
       ['', '', 'ภาคเรียน/ปีการศึกษา', `${termThai}/${selectedCourse.academicYear}`],
       ['', '', 'จำนวนนิสิต', studentCount, 'คน'],
       ['', '', 'ยอดใช้วัสดุจริงรวม', totalExpense, 'บาท'],
       ['', '', 'ต้นทุนเฉลี่ยต่อนิสิต', costPerStudent, 'บาท/คน'],
-      [],
-      ['', 'ลำดับ', 'รหัสวัสดุ', 'รายการวัสดุสิ้นเปลือง', 'จำนวนที่ใช้', 'หน่วยนับ', 'รวม (บาท)'],
     ];
 
-    const dataStartRow = 13; // 1-based index in Excel
-    items.forEach((item: any, idx: number) => {
-      const itemCost = Number((item.totalCost || 0).toFixed(2));
-      rows.push([
-        '',
-        idx + 1,
-        item.code,
-        item.name,
-        item.totalQuantity,
-        item.unit,
-        itemCost,
-      ]);
+    metaData.forEach((r, idx) => {
+      const row = ws.addRow(r);
+      row.getCell(3).font = { name: 'Sarabun', bold: true, color: { argb: 'FF334155' } };
+      row.getCell(4).font = { name: 'Sarabun', bold: idx >= 3 };
+      if (idx === 3) row.getCell(4).numFmt = '#,##0';
+      if (idx === 4 || idx === 5) row.getCell(4).numFmt = '#,##0.00';
+    });
+
+    // Row 9: Empty
+    ws.addRow([]);
+
+    // Row 10: Table Header with Borders
+    const headerRow = ws.addRow(['', 'ลำดับ', 'รหัสวัสดุ', 'รายการวัสดุสิ้นเปลือง', 'จำนวนที่ใช้', 'หน่วยนับ', 'รวม (บาท)']);
+    headerRow.height = 24;
+    for (let c = 2; c <= 7; c++) {
+      const cell = headerRow.getCell(c);
+      cell.font = { name: 'Sarabun', bold: true, color: { argb: 'FF0F172A' } };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF1F5F9' },
+      };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+        left: { style: 'thin', color: { argb: 'FF94A3B8' } },
+        bottom: { style: 'medium', color: { argb: 'FF475569' } },
+        right: { style: 'thin', color: { argb: 'FF94A3B8' } },
+      };
+      cell.alignment = {
+        horizontal: c === 2 || c === 5 || c === 6 ? 'center' : c === 7 ? 'right' : 'left',
+        vertical: 'middle',
+      };
+    }
+
+    // Rows 11..(10 + N): Items with explicit Gridline Borders
+    const dataStartRow = 11;
+    items.forEach((it: any, idx: number) => {
+      const itemCost = Number((it.totalCost || 0).toFixed(2));
+      const row = ws.addRow(['', idx + 1, it.code, it.name, it.totalQuantity, it.unit, itemCost]);
+      row.height = 20;
+
+      for (let c = 2; c <= 7; c++) {
+        const cell = row.getCell(c);
+        cell.font = { name: 'Sarabun' };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        };
+        cell.alignment = {
+          horizontal: c === 2 || c === 6 ? 'center' : c === 5 ? 'center' : c === 7 ? 'right' : 'left',
+          vertical: 'middle',
+        };
+        if (c === 7) cell.numFmt = '#,##0.00';
+      }
     });
 
     const dataEndRow = dataStartRow + items.length - 1;
 
-    // Total Summary Row with Excel formula (if items exist)
-    if (items.length > 0) {
-      rows.push([
-        '',
-        '',
-        '',
-        'รวมมูลค่าวัสดุสิ้นเปลืองที่ใช้ทั้งสิ้น',
-        '',
-        '',
-        { f: `SUM(G${dataStartRow}:G${dataEndRow})` },
-      ]);
-    } else {
-      rows.push(['', '', '', 'รวมมูลค่าวัสดุสิ้นเปลืองที่ใช้ทั้งสิ้น', '', '', 0]);
+    // Total Summary Row with Formula and Double Bottom Border
+    const totalRow = ws.addRow([
+      '',
+      '',
+      '',
+      'รวมมูลค่าวัสดุสิ้นเปลืองที่ใช้ทั้งสิ้น',
+      '',
+      '',
+      items.length > 0 ? { formula: `SUM(G${dataStartRow}:G${dataEndRow})` } : 0,
+    ]);
+    totalRow.height = 24;
+    for (let c = 2; c <= 7; c++) {
+      const cell = totalRow.getCell(c);
+      cell.font = { name: 'Sarabun', bold: true };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+        bottom: { style: 'double', color: { argb: 'FF475569' } },
+        left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      };
+      if (c === 4) cell.alignment = { horizontal: 'right', vertical: 'middle' };
+      if (c === 7) {
+        cell.numFmt = '#,##0.00';
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+      }
     }
 
-    rows.push([]);
-    rows.push(['', 'ผู้รายงาน']);
-    rows.push([]);
-    rows.push(['', '', 'ลงชื่อ .................................................', '', 'ลงชื่อ .................................................']);
-    rows.push(['', '', `(${exporterInfo.name})`, '', `(${coordinatorName})`]);
-    rows.push(['', '', exporterInfo.position, '', 'อาจารย์ผู้ประสานงานรายวิชา']);
-    rows.push(['', '', 'วันที่ ........./........./.............', '', 'วันที่ ........./........./.............']);
+    // Row: Empty
+    ws.addRow([]);
 
-    const ws = XLSX.utils.aoa_to_sheet(rows);
+    // Signature Block (Rows 13+N .. 18+N)
+    const reporterHeaderRow = ws.addRow(['', 'ผู้รายงาน']);
+    reporterHeaderRow.getCell(2).font = { name: 'Sarabun', bold: true };
 
-    // Column widths for optimal visibility in Excel
-    ws['!cols'] = [
-      { wch: 3 },  // Col A: Margin
-      { wch: 8 },  // Col B: ลำดับ / ผู้รายงาน
-      { wch: 22 }, // Col C: รหัสวิชา / รหัสวัสดุ / ลายเซ็นผู้รายงาน
-      { wch: 45 }, // Col D: ชื่อวิชา / รายการวัสดุสิ้นเปลือง
-      { wch: 20 }, // Col E: จำนวนที่ใช้ / ลายเซ็นอาจารย์
-      { wch: 12 }, // Col F: หน่วยนับ
-      { wch: 18 }, // Col G: รวม (บาท)
-    ];
+    ws.addRow([]);
+    const signRow = ws.addRow(['', '', 'ลงชื่อ .................................................', '', 'ลงชื่อ .................................................']);
+    signRow.getCell(3).alignment = { horizontal: 'center' };
+    signRow.getCell(5).alignment = { horizontal: 'center' };
 
-    // Merge top header rows
-    ws['!merges'] = [
-      { s: { r: 0, c: 1 }, e: { r: 0, c: 6 } },
-      { s: { r: 1, c: 1 }, e: { r: 1, c: 6 } },
-      { s: { r: 2, c: 1 }, e: { r: 2, c: 6 } },
-    ];
+    const nameRow = ws.addRow(['', '', `(${exporterInfo.name})`, '', `(${coordinatorName})`]);
+    nameRow.getCell(3).alignment = { horizontal: 'center' };
+    nameRow.getCell(5).alignment = { horizontal: 'center' };
+    nameRow.getCell(3).font = { name: 'Sarabun', bold: true };
+    nameRow.getCell(5).font = { name: 'Sarabun', bold: true };
 
-    const wb = XLSX.utils.book_new();
-    const sheetName = `รายงานต้นทุน_${selectedCourse.code}_${selectedCourse.academicYear}`.slice(0, 31);
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    XLSX.writeFile(wb, `รายงานต้นทุน_${selectedCourse.code}_${selectedCourse.academicYear}.xlsx`);
+    const posRow = ws.addRow(['', '', exporterInfo.position, '', 'อาจารย์ผู้ประสานงานรายวิชา']);
+    posRow.getCell(3).alignment = { horizontal: 'center' };
+    posRow.getCell(5).alignment = { horizontal: 'center' };
+
+    const dateRow = ws.addRow(['', '', 'วันที่ ........./........./.............', '', 'วันที่ ........./........./.............']);
+    dateRow.getCell(3).alignment = { horizontal: 'center' };
+    dateRow.getCell(5).alignment = { horizontal: 'center' };
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `รายงานต้นทุน_${selectedCourse.code}_${selectedCourse.academicYear}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // CSV Export for the selected course materials breakdown
@@ -425,13 +498,6 @@ export default function CoursesPage() {
     if (!selectedCourse) return;
 
     const termThai = formatTermName(selectedCourse.semester);
-    const dateStr = new Date().toLocaleDateString('th-TH', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
     const exporterInfo = getExporterSignatureInfo(currentUser);
     const coordinatorName = selectedCourse.instructorName
       ? formatTeacherName(selectedCourse.instructorName)
@@ -443,9 +509,7 @@ export default function CoursesPage() {
     const studentCount = Number(selectedCourse.studentCount || 0);
 
     let csvContent = '\uFEFF'; // UTF-8 BOM for Excel in Thai
-    csvContent += `,${ORG_CONFIG.FULL_ORG_NAME},,,,,\n`;
     csvContent += `,รายงานสรุปการใช้วัสดุสิ้นเปลืองและต้นทุนประจำรายวิชา,,,,,\n`;
-    csvContent += `,ข้อมูล ณ วันที่: ${dateStr} น.,,,,,\n`;
     csvContent += `,,,,,,,\n`;
 
     csvContent += `,,รหัสวิชา,${selectedCourse.code},,,\n`;
@@ -485,13 +549,6 @@ export default function CoursesPage() {
     if (!selectedCourse) return;
 
     const termThai = formatTermName(selectedCourse.semester);
-    const dateStr = new Date().toLocaleDateString('th-TH', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
     const exporterInfo = getExporterSignatureInfo(currentUser);
     const coordinatorName = selectedCourse.instructorName
       ? formatTeacherName(selectedCourse.instructorName)
@@ -508,13 +565,13 @@ export default function CoursesPage() {
     const itemsRows = items
       .map(
         (it: any, idx: number) => `
-        <tr style="border-bottom: 1px solid #e2e8f0;">
-          <td style="padding: 6px 8px; text-align: center;">${idx + 1}</td>
-          <td style="padding: 6px 8px; font-family: monospace; color: #475569; font-size: 11px;">${it.code}</td>
-          <td style="padding: 6px 8px; font-weight: 600; color: #0f172a;">${it.name}</td>
-          <td style="padding: 6px 8px; text-align: center; font-weight: bold;">${it.totalQuantity}</td>
-          <td style="padding: 6px 8px; text-align: center;">${it.unit}</td>
-          <td style="padding: 6px 8px; text-align: right; font-weight: bold; color: ${it.totalCost > 0 ? '#0f172a' : '#64748b'};">
+        <tr style="border-bottom: 1px solid #cbd5e1;">
+          <td style="padding: 6px 8px; text-align: center; border: 1px solid #94a3b8;">${idx + 1}</td>
+          <td style="padding: 6px 8px; font-family: monospace; color: #334155; font-size: 11px; border: 1px solid #94a3b8;">${it.code}</td>
+          <td style="padding: 6px 8px; font-weight: 600; color: #0f172a; border: 1px solid #94a3b8;">${it.name}</td>
+          <td style="padding: 6px 8px; text-align: center; font-weight: bold; border: 1px solid #94a3b8;">${it.totalQuantity}</td>
+          <td style="padding: 6px 8px; text-align: center; border: 1px solid #94a3b8;">${it.unit}</td>
+          <td style="padding: 6px 8px; text-align: right; font-weight: bold; color: ${it.totalCost > 0 ? '#0f172a' : '#64748b'}; border: 1px solid #94a3b8;">
             ฿${Number(it.totalCost || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             ${it.totalCost === 0 ? '<span style="font-size: 9.5px; color: #64748b; font-weight: normal; display: block;">(ไม่คิดมูลค่า)</span>' : ''}
           </td>
@@ -561,20 +618,10 @@ export default function CoursesPage() {
               text-align: center;
             }
             .header-container h1 {
-              font-size: 14.5px;
+              font-size: 15px;
               font-weight: 800;
-              color: #0f766e;
-              margin: 0 0 3px 0;
-            }
-            .header-container h2 {
-              font-size: 13px;
-              font-weight: 700;
-              color: #1e293b;
-              margin: 0 0 3px 0;
-            }
-            .header-container .date-info {
-              font-size: 10.5px;
-              color: #64748b;
+              color: #0f172a;
+              margin: 0;
             }
             .meta-grid {
               display: grid;
@@ -616,10 +663,14 @@ export default function CoursesPage() {
             }
             th {
               background-color: #f1f5f9;
-              color: #334155;
+              color: #1e293b;
               font-weight: 700;
               padding: 6px 8px;
-              border-bottom: 1.5px solid #cbd5e1;
+              border: 1px solid #94a3b8;
+              text-align: center;
+            }
+            td {
+              border: 1px solid #cbd5e1;
             }
             .signatures-grid {
               display: grid;
@@ -646,9 +697,7 @@ export default function CoursesPage() {
         <body>
           <div class="print-page-wrapper">
             <div class="header-container">
-              <h1>${ORG_CONFIG.FULL_ORG_NAME}</h1>
-              <h2>รายงานสรุปการใช้วัสดุสิ้นเปลืองและต้นทุนประจำรายวิชา</h2>
-              <div class="date-info">ข้อมูล ณ วันที่: ${dateStr} น.</div>
+              <h1>รายงานสรุปการใช้วัสดุสิ้นเปลืองและต้นทุนประจำรายวิชา</h1>
             </div>
 
             <div class="meta-grid">
@@ -681,12 +730,12 @@ export default function CoursesPage() {
                 </tr>
               </thead>
               <tbody>
-                ${itemsRows || '<tr><td colspan="6" style="text-align: center; padding: 12px; color: #64748b;">ไม่มีรายการวัสดุที่ใช้</td></tr>'}
+                ${itemsRows || '<tr><td colspan="6" style="text-align: center; padding: 12px; color: #64748b; border: 1px solid #cbd5e1;">ไม่มีรายการวัสดุที่ใช้</td></tr>'}
               </tbody>
               <tfoot>
                 <tr style="border-top: 2px solid #0f766e; font-weight: bold; background-color: #f8fafc;">
-                  <td colspan="5" style="text-align: right; padding: 7px 8px;">รวมมูลค่าวัสดุสิ้นเปลืองที่ใช้ทั้งสิ้น:</td>
-                  <td style="text-align: right; padding: 7px 8px; color: #047857; font-size: 12px;">
+                  <td colspan="5" style="text-align: right; padding: 7px 8px; border: 1px solid #94a3b8;">รวมมูลค่าวัสดุสิ้นเปลืองที่ใช้ทั้งสิ้น:</td>
+                  <td style="text-align: right; padding: 7px 8px; color: #047857; font-size: 12px; border: 1px solid #94a3b8;">
                     ฿${totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                 </tr>

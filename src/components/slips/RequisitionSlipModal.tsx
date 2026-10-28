@@ -100,38 +100,115 @@ export default function RequisitionSlipModal({ requisition, onClose }: Requisiti
           <meta charset="utf-8" />
           <title>ใบเบิกจ่ายพัสดุและวัสดุสิ้นเปลือง - ${requisition.requestNumber}</title>
           <style>
-            @page { size: A4 portrait; margin: 12mm 15mm; }
-            body {
+            *, *::before, *::after {
+              box-sizing: border-box;
+            }
+            @page {
+              size: A4 portrait;
+              margin: 8mm 10mm; /* Safe print margin >= 0.8cm, strictly >= 0.5cm */
+            }
+            html, body {
               font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, sans-serif;
-              font-size: 12px;
+              font-size: 11.5px;
               line-height: 1.4;
               color: #0f172a;
-              margin: 0; padding: 0;
+              margin: 0;
+              padding: 0;
+              background-color: #ffffff;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .print-page-wrapper {
+              box-sizing: border-box;
+              width: 100%;
+              max-width: 100%;
+              padding: 2mm 3mm;
             }
             .header-container {
-              display: flex; justify-content: space-between; align-items: flex-start;
-              border-bottom: 2px solid #0f766e; padding-bottom: 8px; margin-bottom: 12px;
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              border-bottom: 2px solid #0f766e;
+              padding-bottom: 8px;
+              margin-bottom: 12px;
             }
-            .title-section h1 { font-size: 16px; font-weight: 800; color: #0f766e; margin: 0 0 2px 0; }
-            .title-section h2 { font-size: 12px; font-weight: 600; color: #334155; margin: 0; }
-            .qr-box { text-align: center; }
-            .qr-box img { width: 75px; height: 75px; display: block; margin: 0 auto; }
+            .title-section h1 {
+              font-size: 15px;
+              font-weight: 800;
+              color: #0f766e;
+              margin: 0 0 2px 0;
+            }
+            .title-section h2 {
+              font-size: 11.5px;
+              font-weight: 600;
+              color: #334155;
+              margin: 0;
+            }
+            .qr-box {
+              text-align: center;
+              flex-shrink: 0;
+            }
+            .qr-box img {
+              width: 72px;
+              height: 72px;
+              display: block;
+              margin: 0 auto;
+            }
             .meta-grid {
-              display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 16px;
-              background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
-              padding: 10px 14px; margin-bottom: 14px; font-size: 11.5px;
+              display: grid;
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+              gap: 5px 14px;
+              background-color: #f8fafc;
+              border: 1px solid #e2e8f0;
+              border-radius: 8px;
+              padding: 8px 12px;
+              margin-bottom: 12px;
+              font-size: 11px;
             }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 11.5px; }
-            th { background-color: #f1f5f9; color: #334155; font-weight: 700; padding: 6px 8px; border-bottom: 1.5px solid #cbd5e1; }
+            table {
+              width: 100%;
+              table-layout: fixed;
+              border-collapse: collapse;
+              word-break: break-word;
+              overflow-wrap: break-word;
+              margin-bottom: 14px;
+              font-size: 11px;
+            }
+            tr {
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+            th {
+              background-color: #f1f5f9;
+              color: #334155;
+              font-weight: 700;
+              padding: 5px 6px;
+              border-bottom: 1.5px solid #cbd5e1;
+            }
             .signatures-grid {
-              display: grid; grid-template-columns: repeat(2, 1fr); gap: 30px;
-              margin-top: 30px; text-align: center; font-size: 11px;
+              display: grid;
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+              gap: 24px;
+              margin-top: 20px;
+              text-align: center;
+              font-size: 10.5px;
+              page-break-inside: avoid;
+              break-inside: avoid;
             }
-            .signature-block { border: 1px dashed #cbd5e1; border-radius: 8px; padding: 14px 10px; }
-            .sign-line { margin-top: 30px; border-top: 1px dotted #94a3b8; padding-top: 4px; }
+            .signature-block {
+              border: 1px dashed #cbd5e1;
+              border-radius: 8px;
+              padding: 10px 8px;
+            }
+            .sign-line {
+              margin-top: 26px;
+              border-top: 1px dotted #94a3b8;
+              padding-top: 4px;
+            }
           </style>
         </head>
         <body>
+          <div class="print-page-wrapper">
           <div class="header-container">
             <div class="title-section">
               <h1>ห้องปฏิบัติการพยาบาลศาสตร์ คณะพยาบาลศาสตร์</h1>
@@ -142,7 +219,7 @@ export default function RequisitionSlipModal({ requisition, onClose }: Requisiti
             </div>
             <div class="qr-box">
               ${qrUrl ? `<img src="${qrUrl}" alt="QR" />` : ''}
-              <span style="font-size: 9px; color: #64748b;">สแกนตรวจสอบ</span>
+              <span style="font-size: 8.5px; color: #64748b;">สแกนตรวจสอบ</span>
             </div>
           </div>
 
@@ -154,16 +231,24 @@ export default function RequisitionSlipModal({ requisition, onClose }: Requisiti
             <div style="grid-column: span 2;"><b>วัตถุประสงค์:</b> ${requisition.purpose || '-'}</div>
           </div>
 
-          <div style="font-size: 12.5px; font-weight: bold; color: #0f766e; margin-bottom: 6px;">📦 รายการวัสดุสิ้นเปลืองที่ตัดจ่าย:</div>
-          <table>
+          <div style="font-size: 12px; font-weight: bold; color: #0f766e; margin-bottom: 6px;">📦 รายการวัสดุสิ้นเปลืองที่ตัดจ่าย:</div>
+          <table style="width: 100%; table-layout: fixed;">
+            <colgroup>
+              <col style="width: 32px;" />
+              <col style="width: auto;" />
+              <col style="width: 80px;" />
+              <col style="width: 85px;" />
+              <col style="width: 85px;" />
+              <col style="width: 95px;" />
+            </colgroup>
             <thead>
               <tr>
-                <th style="width: 35px; text-align: center;">ลำดับ</th>
+                <th style="text-align: center;">ลำดับ</th>
                 <th style="text-align: left;">รายการพัสดุ</th>
-                <th style="width: 90px; text-align: center;">ขอเบิก</th>
-                <th style="width: 100px; text-align: center;">จ่ายจริง</th>
-                <th style="width: 90px; text-align: right;">ราคา/หน่วย</th>
-                <th style="width: 100px; text-align: right;">รวมต้นทุน</th>
+                <th style="text-align: center;">ขอเบิก</th>
+                <th style="text-align: center;">จ่ายจริง</th>
+                <th style="text-align: right;">ราคา/หน่วย</th>
+                <th style="text-align: right;">รวมต้นทุน</th>
               </tr>
             </thead>
             <tbody>
@@ -171,8 +256,8 @@ export default function RequisitionSlipModal({ requisition, onClose }: Requisiti
             </tbody>
             <tfoot>
               <tr style="border-top: 2px solid #0f766e; font-weight: bold;">
-                <td colspan="5" style="text-align: right; padding: 8px;">มูลค่าต้นทุนรวมสุทธิ:</td>
-                <td style="text-align: right; padding: 8px; color: #047857; font-size: 13px;">
+                <td colspan="5" style="text-align: right; padding: 6px 8px;">มูลค่าต้นทุนรวมสุทธิ:</td>
+                <td style="text-align: right; padding: 6px 8px; color: #047857; font-size: 12px;">
                   ฿${requisition.totalCost?.toLocaleString('th-TH', { minimumFractionDigits: 2 }) || '0.00'} บาท
                 </td>
               </tr>
@@ -193,6 +278,7 @@ export default function RequisitionSlipModal({ requisition, onClose }: Requisiti
               <div style="font-size: 10px; color: #64748b; margin-top: 2px;">เจ้าหน้าที่ผู้จ่ายพัสดุ</div>
               <div style="font-size: 9.5px; color: #94a3b8; margin-top: 4px;">วันที่ ......./......./...........</div>
             </div>
+          </div>
           </div>
 
           <script>

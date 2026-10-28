@@ -196,49 +196,184 @@ export default function EditRequestModal({
   const showBorrowSection = requestType === 'BORROW' || requestType === 'UNIFIED' || borrowItems.length > 0;
   const showReqSection = requestType === 'REQUISITION' || requestType === 'UNIFIED' || requisitionItems.length > 0;
 
+  // Auto-sync categoryId and requestedUnit when master lists load
+  useEffect(() => {
+    if (equipmentList.length > 0) {
+      setBorrowItems((prev) =>
+        prev.map((it) => {
+          if (!it.categoryId && it.itemId) {
+            const match = equipmentList.find((e) => e.id === it.itemId);
+            if (match?.categoryId || match?.category?.id) {
+              return { ...it, categoryId: match.category?.id || match.categoryId };
+            }
+          }
+          return it;
+        })
+      );
+    }
+  }, [equipmentList]);
+
+  useEffect(() => {
+    if (consumablesList.length > 0) {
+      setRequisitionItems((prev) =>
+        prev.map((it) => {
+          if (it.itemId) {
+            const match = consumablesList.find((c) => c.id === it.itemId);
+            const updated = { ...it };
+            if (!updated.categoryId && (match?.categoryId || match?.category?.id)) {
+              updated.categoryId = match.category?.id || match.categoryId;
+            }
+            if (!updated.requestedUnit && match) {
+              updated.requestedUnit = updated.isSubUnit ? (match.usageUnit || 'ชิ้น') : match.unit;
+            }
+            return updated;
+          }
+          return it;
+        })
+      );
+    }
+  }, [consumablesList]);
+
+  // Memoized category lists for category pre-filtering
+  const consumableCategories = React.useMemo(() => {
+    const map = new Map<string, { id: string; name: string; count: number }>();
+    consumablesList.forEach((c) => {
+      const catId = c.category?.id || c.categoryId || 'OTHER';
+      const catName = c.category?.name || 'วัสดุทั่วไป / อื่นๆ';
+      if (!map.has(catId)) {
+        map.set(catId, { id: catId, name: catName, count: 0 });
+      }
+      map.get(catId)!.count += 1;
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'th'));
+  }, [consumablesList]);
+
+  const equipmentCategories = React.useMemo(() => {
+    const map = new Map<string, { id: string; name: string; count: number }>();
+    equipmentList.forEach((eq) => {
+      const catId = eq.category?.id || eq.categoryId || 'OTHER';
+      const catName = eq.category?.name || 'ครุภัณฑ์ทั่วไป / อื่นๆ';
+      if (!map.has(catId)) {
+        map.set(catId, { id: catId, name: catName, count: 0 });
+      }
+      map.get(catId)!.count += 1;
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'th'));
+  }, [equipmentList]);
+
   // Handlers for borrow items
   const handleAddBorrowItem = () => {
-    setBorrowItems([...borrowItems, { itemId: '', quantity: '' }]);
+    setBorrowItems((prev) => [...prev, { itemId: '', quantity: '' }]);
   };
 
   const handleRemoveBorrowItem = (index: number) => {
-    setBorrowItems(borrowItems.filter((_, i) => i !== index));
+    setBorrowItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleBorrowCategoryChange = (index: number, categoryId: string) => {
+    setBorrowItems((prev) => {
+      const updated = [...prev];
+      const current = { ...updated[index], categoryId };
+      if (categoryId && current.itemId) {
+        const match = equipmentList.find((e) => e.id === current.itemId);
+        const itemCatId = match?.category?.id || match?.categoryId || '';
+        if (itemCatId && itemCatId !== categoryId) {
+          current.itemId = '';
+          current.quantity = '';
+        }
+      }
+      updated[index] = current;
+      return updated;
+    });
   };
 
   const handleBorrowItemChange = (index: number, field: string, value: any) => {
-    const updated = [...borrowItems];
-    updated[index] = { ...updated[index], [field]: value };
-    if (field === 'itemId') {
-      const match = equipmentList.find((e) => e.id === value);
-      if (match?.categoryId) updated[index].categoryId = match.categoryId;
-    }
-    setBorrowItems(updated);
+    setBorrowItems((prev) => {
+      const updated = [...prev];
+      const current = { ...updated[index], [field]: value };
+      if (field === 'itemId') {
+        const match = equipmentList.find((e) => e.id === value);
+        if (match?.categoryId || match?.category?.id) {
+          current.categoryId = match.category?.id || match.categoryId;
+        }
+      }
+      updated[index] = current;
+      return updated;
+    });
   };
 
   // Handlers for requisition items
   const handleAddRequisitionItem = () => {
-    setRequisitionItems([
-      ...requisitionItems,
+    setRequisitionItems((prev) => [
+      ...prev,
       { itemId: '', quantity: '', isSubUnit: false, requestedUnit: '' },
     ]);
   };
 
   const handleRemoveRequisitionItem = (index: number) => {
-    setRequisitionItems(requisitionItems.filter((_, i) => i !== index));
+    setRequisitionItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleRequisitionCategoryChange = (index: number, categoryId: string) => {
+    setRequisitionItems((prev) => {
+      const updated = [...prev];
+      const current = { ...updated[index], categoryId };
+      if (categoryId && current.itemId) {
+        const match = consumablesList.find((c) => c.id === current.itemId);
+        const itemCatId = match?.category?.id || match?.categoryId || '';
+        if (itemCatId && itemCatId !== categoryId) {
+          current.itemId = '';
+          current.quantity = '';
+          current.isSubUnit = false;
+          current.requestedUnit = '';
+        }
+      }
+      updated[index] = current;
+      return updated;
+    });
   };
 
   const handleRequisitionItemChange = (index: number, field: string, value: any) => {
-    const updated = [...requisitionItems];
-    updated[index] = { ...updated[index], [field]: value };
-    if (field === 'itemId') {
-      const match = consumablesList.find((c) => c.id === value);
-      if (match) {
-        updated[index].categoryId = match.categoryId || '';
-        updated[index].isSubUnit = false;
-        updated[index].requestedUnit = match.unit;
+    setRequisitionItems((prev) => {
+      const updated = [...prev];
+      const current = { ...updated[index], [field]: value };
+      if (field === 'itemId') {
+        const match = consumablesList.find((c) => c.id === value);
+        if (match) {
+          current.categoryId = match.category?.id || match.categoryId || current.categoryId || '';
+          current.isSubUnit = false;
+          current.requestedUnit = match.unit;
+        }
       }
-    }
-    setRequisitionItems(updated);
+      updated[index] = current;
+      return updated;
+    });
+  };
+
+  // Atomic toggle for Sub-Unit (การเบิกแบบย่อย)
+  const handleToggleSubUnit = (index: number, isSub: boolean) => {
+    setRequisitionItems((prev) => {
+      const updated = [...prev];
+      const item = updated[index];
+      const match = consumablesList.find((c) => c.id === item.itemId);
+      const unitName = isSub ? (match?.usageUnit || 'ชิ้น') : (match?.unit || 'หน่วย');
+      const ratio = Number(match?.conversionRatio) > 0 ? Number(match?.conversionRatio) : 1;
+      const totalPieces = (match?.currentStock || 0) * ratio + (match?.openPackRemainder || 0);
+      const maxAllowed = isSub ? totalPieces : (match?.currentStock || 0);
+
+      let newQty = item.quantity;
+      if (newQty !== '' && maxAllowed > 0 && Number(newQty) > maxAllowed) {
+        newQty = maxAllowed;
+      }
+
+      updated[index] = {
+        ...item,
+        isSubUnit: isSub,
+        requestedUnit: unitName,
+        quantity: newQty,
+      };
+      return updated;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -591,6 +726,9 @@ export default function EditRequestModal({
 
               <div className="space-y-2">
                 {borrowItems.map((item, idx) => {
+                  const filteredEquipment = item.categoryId
+                    ? equipmentList.filter((e) => (e.category?.id || e.categoryId) === item.categoryId)
+                    : equipmentList;
                   const matchEq = equipmentList.find((e) => e.id === item.itemId);
                   const availCount = matchEq?.availableAssets?.length ?? matchEq?.currentStock ?? 0;
                   const isOver = item.itemId && Number(item.quantity) > availCount;
@@ -598,48 +736,75 @@ export default function EditRequestModal({
                   return (
                     <div
                       key={idx}
-                      className="flex flex-col sm:flex-row items-start sm:items-center gap-2 p-3 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 shadow-sm"
+                      className="p-3 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 shadow-sm space-y-2"
                     >
-                      <div className="flex-1 w-full">
-                        <select
-                          value={item.itemId}
-                          onChange={(e) => handleBorrowItemChange(idx, 'itemId', e.target.value)}
-                          className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                        >
-                          <option value="">-- เลือกครุภัณฑ์ --</option>
-                          {equipmentList.map((eq) => (
-                            <option key={eq.id} value={eq.id}>
-                              {eq.name} (พร้อมใช้ {eq.availableAssets?.length ?? eq.currentStock} {eq.unit})
-                            </option>
-                          ))}
-                        </select>
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                        {/* Category Dropdown */}
+                        <div className="sm:col-span-4">
+                          <select
+                            value={item.categoryId || ''}
+                            onChange={(e) => handleBorrowCategoryChange(idx, e.target.value)}
+                            className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 font-medium"
+                          >
+                            <option value="">📁 ทุกหมวดครุภัณฑ์ ({equipmentList.length})</option>
+                            {equipmentCategories.map((cat) => (
+                              <option key={cat.id} value={cat.id}>
+                                📁 {cat.name} ({cat.count})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Equipment Item Dropdown */}
+                        <div className="sm:col-span-5">
+                          <select
+                            value={item.itemId}
+                            onChange={(e) => handleBorrowItemChange(idx, 'itemId', e.target.value)}
+                            className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-medium"
+                          >
+                            <option value="">-- เลือกครุภัณฑ์ ({filteredEquipment.length}) --</option>
+                            {filteredEquipment.map((eq) => (
+                              <option key={eq.id} value={eq.id}>
+                                {eq.name} (พร้อมใช้ {eq.availableAssets?.length ?? eq.currentStock} {eq.unit})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Quantity & Delete */}
+                        <div className="sm:col-span-3 flex items-center justify-end gap-2 w-full">
+                          <input
+                            type="number"
+                            min="1"
+                            max={availCount > 0 ? availCount : undefined}
+                            placeholder="จำนวน"
+                            value={item.quantity}
+                            onChange={(e) => handleBorrowItemChange(idx, 'quantity', e.target.value)}
+                            className={`w-20 text-xs p-2 rounded-xl border text-center font-bold ${
+                              isOver
+                                ? 'border-rose-500 bg-rose-50 text-rose-700'
+                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200'
+                            }`}
+                          />
+                          <span className="text-xs text-slate-500 min-w-[32px]">
+                            {matchEq?.unit || 'ชิ้น'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveBorrowItem(idx)}
+                            className="p-2 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                            title="ลบแถว"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <input
-                          type="number"
-                          min="1"
-                          placeholder="จำนวน"
-                          value={item.quantity}
-                          onChange={(e) => handleBorrowItemChange(idx, 'quantity', e.target.value)}
-                          className={`w-24 text-xs p-2.5 rounded-xl border text-center font-bold ${
-                            isOver
-                              ? 'border-rose-500 bg-rose-50 text-rose-700'
-                              : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200'
-                          }`}
-                        />
-                        <span className="text-xs text-slate-500 min-w-[36px]">
-                          {matchEq?.unit || 'ชิ้น'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveBorrowItem(idx)}
-                          className="p-2 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
-                          title="ลบแถว"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      {matchEq && isOver && (
+                        <div className="text-[11px] text-rose-600 font-bold pl-1">
+                          ⚠️ ระบุเกินจำนวนพร้อมใช้ (มีพร้อมใช้ {availCount} {matchEq.unit})
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -667,8 +832,12 @@ export default function EditRequestModal({
 
               <div className="space-y-2">
                 {requisitionItems.map((item, idx) => {
+                  const filteredConsumables = item.categoryId
+                    ? consumablesList.filter((c) => (c.category?.id || c.categoryId) === item.categoryId)
+                    : consumablesList;
                   const matchCons = consumablesList.find((c) => c.id === item.itemId);
                   const ratio = Number(matchCons?.conversionRatio) > 0 ? Number(matchCons?.conversionRatio) : 1;
+                  const canSubUnit = !!(matchCons && ratio > 1 && matchCons.usageUnit);
                   const totalPieces = (matchCons?.currentStock || 0) * ratio + (matchCons?.openPackRemainder || 0);
                   const isSub = Boolean(item.isSubUnit);
                   const maxAllowed = isSub ? totalPieces : matchCons?.currentStock || 0;
@@ -677,114 +846,125 @@ export default function EditRequestModal({
                   return (
                     <div
                       key={idx}
-                      className="p-3 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 shadow-sm space-y-2"
+                      className="p-3 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 shadow-sm space-y-2.5"
                     >
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                        <div className="flex-1 w-full">
+                      {/* Step 1: Category & Item Selectors */}
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                        <div className="sm:col-span-4">
+                          <label className="block text-[10px] font-bold text-slate-400 mb-0.5 sm:hidden">
+                            หมวดหมู่วัสดุ:
+                          </label>
                           <select
-                            value={item.itemId}
-                            onChange={(e) => handleRequisitionItemChange(idx, 'itemId', e.target.value)}
-                            className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                            value={item.categoryId || ''}
+                            onChange={(e) => handleRequisitionCategoryChange(idx, e.target.value)}
+                            className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 font-medium"
                           >
-                            <option value="">-- เลือกวัสดุสิ้นเปลือง --</option>
-                            {consumablesList.map((con) => (
-                              <option key={con.id} value={con.id}>
-                                {con.name} (สต็อก: {con.currentStock} {con.unit}
-                                {con.conversionRatio > 1
-                                  ? ` | ${con.currentStock * con.conversionRatio + (con.openPackRemainder || 0)} ${con.usageUnit}`
-                                  : ''}
-                                )
+                            <option value="">📁 ทุกหมวดวัสดุ ({consumablesList.length})</option>
+                            {consumableCategories.map((cat) => (
+                              <option key={cat.id} value={cat.id}>
+                                📁 {cat.name} ({cat.count})
                               </option>
                             ))}
                           </select>
                         </div>
 
-                        <div className="flex items-center gap-2 w-full sm:w-auto">
-                          <input
-                            type="number"
-                            min="1"
-                            placeholder="จำนวน"
-                            value={item.quantity}
-                            onChange={(e) => handleRequisitionItemChange(idx, 'quantity', e.target.value)}
-                            className={`w-24 text-xs p-2.5 rounded-xl border text-center font-bold ${
-                              isOver
-                                ? 'border-rose-500 bg-rose-50 text-rose-700'
-                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200'
-                            }`}
-                          />
-
-                          {/* Sub-unit toggle pills if convertible */}
-                          {matchCons && ratio > 1 ? (
-                            <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  handleRequisitionItemChange(idx, 'isSubUnit', false);
-                                  handleRequisitionItemChange(idx, 'requestedUnit', matchCons.unit);
-                                }}
-                                className={`px-2 py-1 text-[11px] font-bold rounded-lg transition ${
-                                  !isSub
-                                    ? 'bg-emerald-600 text-white shadow-xs'
-                                    : 'text-slate-600 hover:text-slate-900'
-                                }`}
-                              >
-                                📦 {matchCons.unit}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  handleRequisitionItemChange(idx, 'isSubUnit', true);
-                                  handleRequisitionItemChange(idx, 'requestedUnit', matchCons.usageUnit || 'ชิ้น');
-                                }}
-                                className={`px-2 py-1 text-[11px] font-bold rounded-lg transition ${
-                                  isSub
-                                    ? 'bg-amber-600 text-white shadow-xs'
-                                    : 'text-slate-600 hover:text-slate-900'
-                                }`}
-                              >
-                                ✨ {matchCons.usageUnit || 'ชิ้น'} (ย่อย)
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-slate-500 min-w-[36px]">
-                              {matchCons?.unit || 'หน่วย'}
-                            </span>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveRequisitionItem(idx)}
-                            className="p-2 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
-                            title="ลบแถว"
+                        <div className="sm:col-span-8">
+                          <label className="block text-[10px] font-bold text-slate-400 mb-0.5 sm:hidden">
+                            รายการวัสดุ:
+                          </label>
+                          <select
+                            value={item.itemId}
+                            onChange={(e) => handleRequisitionItemChange(idx, 'itemId', e.target.value)}
+                            className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-medium"
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                            <option value="">-- เลือกวัสดุสิ้นเปลือง ({filteredConsumables.length}) --</option>
+                            {filteredConsumables.map((con) => {
+                              const r = Number(con.conversionRatio) > 0 ? Number(con.conversionRatio) : 1;
+                              const subText =
+                                r > 1 && con.usageUnit
+                                  ? ` | ${con.currentStock * r + (con.openPackRemainder || 0)} ${con.usageUnit}`
+                                  : '';
+                              return (
+                                <option key={con.id} value={con.id}>
+                                  {con.name} (สต็อก: {con.currentStock} {con.unit}{subText})
+                                </option>
+                              );
+                            })}
+                          </select>
                         </div>
                       </div>
 
-                      {/* Stock availability indicator */}
+                      {/* Step 2: Quantity, Sub-unit Selector & Stock Indicator */}
                       {matchCons && (
-                        <div className="text-[11px] text-slate-500 pl-1 flex items-center justify-between">
-                          <span>
-                            พร้อมเบิก:{' '}
-                            <strong className="text-slate-700 dark:text-slate-300">
-                              {matchCons.currentStock} {matchCons.unit}
-                            </strong>
-                            {ratio > 1 && (
-                              <span>
-                                {' '}(รวมเศษเปิด:{' '}
-                                <strong className="text-amber-600 dark:text-amber-400">
-                                  {totalPieces} {matchCons.usageUnit || 'ชิ้น'}
-                                </strong>
-                                )
-                              </span>
-                            )}
-                          </span>
-                          {isOver && (
-                            <span className="text-rose-600 font-bold">
-                              ⚠️ ระบุเกินสต็อกพร้อมใช้
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">จำนวน:</span>
+                            <input
+                              type="number"
+                              min="1"
+                              max={maxAllowed > 0 ? maxAllowed : undefined}
+                              placeholder="จำนวน"
+                              value={item.quantity}
+                              onChange={(e) => handleRequisitionItemChange(idx, 'quantity', e.target.value)}
+                              className={`w-20 text-xs p-2 rounded-xl border text-center font-bold ${
+                                isOver
+                                  ? 'border-rose-500 bg-rose-50 text-rose-700'
+                                  : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200'
+                              }`}
+                            />
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 min-w-[36px]">
+                              {isSub ? (matchCons.usageUnit || 'ชิ้น') : (matchCons.unit || 'หน่วย')}
+                            </span>
+                          </div>
+
+                          {/* Sub-Unit Toggle Buttons */}
+                          {canSubUnit ? (
+                            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900/90 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleSubUnit(idx, false)}
+                                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
+                                  !isSub
+                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                }`}
+                              >
+                                📦 เบิกยก {matchCons.unit}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleSubUnit(idx, true)}
+                                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
+                                  isSub
+                                    ? 'bg-amber-600 text-white shadow-xs'
+                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                }`}
+                              >
+                                ✨ เบิกแบบย่อย ({matchCons.usageUnit})
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">
+                              (ไม่มีการแตกหน่วยย่อย)
                             </span>
                           )}
+
+                          {/* Stock and Remove */}
+                          <div className="flex items-center gap-3 ml-auto">
+                            <span className={`text-[11px] ${isOver ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
+                              {isSub
+                                ? `พร้อมเบิกย่อย: ${totalPieces} ${matchCons.usageUnit}`
+                                : `พร้อมเบิก: ${matchCons.currentStock} ${matchCons.unit}`}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveRequisitionItem(idx)}
+                              className="p-1.5 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                              title="ลบแถว"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>

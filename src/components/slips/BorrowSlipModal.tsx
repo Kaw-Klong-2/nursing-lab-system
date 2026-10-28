@@ -118,17 +118,29 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
           <meta charset="utf-8" />
           <title>ใบรายการยืม-คืนอุปกรณ์ - ${borrow.requestNumber}</title>
           <style>
+            *, *::before, *::after {
+              box-sizing: border-box;
+            }
             @page {
               size: A4 portrait;
-              margin: 12mm 15mm;
+              margin: 8mm 10mm; /* Safe print margin >= 0.8cm, strictly >= 0.5cm */
             }
-            body {
+            html, body {
               font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              font-size: 12px;
+              font-size: 11.5px;
               line-height: 1.4;
               color: #0f172a;
               margin: 0;
               padding: 0;
+              background-color: #ffffff;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .print-page-wrapper {
+              box-sizing: border-box;
+              width: 100%;
+              max-width: 100%;
+              padding: 2mm 3mm;
             }
             .header-container {
               display: flex;
@@ -139,62 +151,67 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
               margin-bottom: 12px;
             }
             .title-section h1 {
-              font-size: 16px;
+              font-size: 15px;
               font-weight: 800;
               color: #0f766e;
               margin: 0 0 2px 0;
             }
             .title-section h2 {
-              font-size: 12px;
+              font-size: 11.5px;
               font-weight: 600;
               color: #334155;
               margin: 0;
             }
             .qr-box {
               text-align: center;
+              flex-shrink: 0;
             }
             .qr-box img {
-              width: 75px;
-              height: 75px;
+              width: 72px;
+              height: 72px;
               display: block;
               margin: 0 auto;
             }
             .qr-box span {
-              font-size: 9px;
+              font-size: 8.5px;
               color: #64748b;
               display: block;
               margin-top: 2px;
             }
             .meta-grid {
               display: grid;
-              grid-template-columns: repeat(2, 1fr);
-              gap: 6px 16px;
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+              gap: 5px 14px;
               background-color: #f8fafc;
               border: 1px solid #e2e8f0;
               border-radius: 8px;
-              padding: 10px 14px;
-              margin-bottom: 14px;
-              font-size: 11.5px;
+              padding: 8px 12px;
+              margin-bottom: 12px;
+              font-size: 11px;
             }
             .meta-item {
               display: flex;
               gap: 4px;
+              overflow: hidden;
+              text-overflow: ellipsis;
             }
             .meta-label {
               color: #64748b;
               font-weight: 600;
-              min-width: 90px;
+              min-width: 85px;
+              flex-shrink: 0;
             }
             .meta-value {
               font-weight: 700;
               color: #1e293b;
+              word-break: break-word;
             }
             .due-highlight {
               grid-column: span 2;
               background-color: #fff1f2;
               border: 1px solid #fecdd3;
               color: #be123c;
-              padding: 6px 10px;
+              padding: 5px 10px;
               border-radius: 6px;
               font-weight: bold;
               display: flex;
@@ -202,9 +219,12 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
             }
             table {
               width: 100%;
+              table-layout: fixed;
               border-collapse: collapse;
-              margin-bottom: 14px;
-              font-size: 11.5px;
+              word-break: break-word;
+              overflow-wrap: break-word;
+              margin-bottom: 12px;
+              font-size: 11px;
             }
             tr {
               page-break-inside: avoid;
@@ -214,14 +234,14 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
               background-color: #f1f5f9;
               color: #334155;
               font-weight: 700;
-              padding: 6px 8px;
+              padding: 5px 6px;
               border-bottom: 1.5px solid #cbd5e1;
             }
             .section-title {
-              font-size: 12.5px;
+              font-size: 12px;
               font-weight: 800;
               color: #0f766e;
-              margin: 10px 0 6px 0;
+              margin: 8px 0 5px 0;
               display: flex;
               align-items: center;
               gap: 6px;
@@ -232,37 +252,38 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
               background-color: #f0fdf4;
               border: 1px solid #bbf7d0;
               border-radius: 6px;
-              padding: 8px 12px;
-              font-size: 10.5px;
+              padding: 6px 10px;
+              font-size: 10px;
               color: #166534;
-              margin-bottom: 18px;
-              line-height: 1.45;
+              margin-bottom: 14px;
+              line-height: 1.4;
               page-break-inside: avoid;
               break-inside: avoid;
             }
             .signatures-grid {
               display: grid;
-              grid-template-columns: repeat(3, 1fr);
-              gap: 16px;
-              margin-top: 15px;
+              grid-template-columns: repeat(3, minmax(0, 1fr));
+              gap: 12px;
+              margin-top: 12px;
               text-align: center;
-              font-size: 11px;
+              font-size: 10.5px;
               page-break-inside: avoid;
               break-inside: avoid;
             }
             .signature-block {
               border: 1px dashed #cbd5e1;
               border-radius: 8px;
-              padding: 12px 8px 8px 8px;
+              padding: 10px 6px 6px 6px;
             }
             .sign-line {
-              margin-top: 30px;
+              margin-top: 26px;
               border-top: 1px dotted #94a3b8;
               padding-top: 4px;
             }
           </style>
         </head>
         <body>
+          <div class="print-page-wrapper">
           <div class="header-container">
             <div class="title-section">
               <h1>ห้องปฏิบัติการพยาบาลศาสตร์ คณะพยาบาลศาสตร์</h1>
@@ -306,15 +327,23 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
           </div>
 
           <div class="section-title">🩺 รายการครุภัณฑ์คงทนที่ยืม (ต้องนำส่งคืนห้องปฏิบัติการ)</div>
-          <table>
+          <table style="width: 100%; table-layout: fixed;">
+            <colgroup>
+              <col style="width: 32px;" />
+              <col style="width: 110px;" />
+              <col style="width: auto;" />
+              <col style="width: 55px;" />
+              <col style="width: 85px;" />
+              <col style="width: 140px;" />
+            </colgroup>
             <thead>
               <tr>
-                <th style="width: 35px; text-align: center;">ลำดับ</th>
-                <th style="width: 130px; text-align: left;">รหัสประจำชิ้น (Asset ID)</th>
+                <th style="text-align: center;">ลำดับ</th>
+                <th style="text-align: left;">รหัสประจำชิ้น</th>
                 <th style="text-align: left;">รายการอุปกรณ์</th>
-                <th style="width: 80px; text-align: center;">จำนวน</th>
-                <th style="width: 100px; text-align: center;">สภาพตอนส่งมอบ</th>
-                <th style="width: 190px; text-align: center;">ผลการตรวจรับคืน</th>
+                <th style="text-align: center;">จำนวน</th>
+                <th style="text-align: center;">สภาพตอนส่งมอบ</th>
+                <th style="text-align: center;">ผลการตรวจรับคืน</th>
               </tr>
             </thead>
             <tbody>
@@ -326,12 +355,17 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
             reqItemsRows
               ? `
             <div class="section-title">📦 รายการวัสดุสิ้นเปลืองที่จ่ายร่วม (ตัดสต็อกแล้ว)</div>
-            <table>
+            <table style="width: 100%; table-layout: fixed;">
+              <colgroup>
+                <col style="width: 32px;" />
+                <col style="width: auto;" />
+                <col style="width: 100px;" />
+              </colgroup>
               <thead>
                 <tr>
-                  <th style="width: 35px; text-align: center;">ลำดับ</th>
+                  <th style="text-align: center;">ลำดับ</th>
                   <th style="text-align: left;">รายการพัสดุ</th>
-                  <th style="width: 120px; text-align: center;">จำนวนที่จ่าย</th>
+                  <th style="text-align: center;">จำนวนที่จ่าย</th>
                 </tr>
               </thead>
               <tbody>
@@ -369,6 +403,7 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
               <div style="font-size: 10px; color: #64748b; margin-top: 2px;">เจ้าหน้าที่ผู้ตรวจรับคืนอุปกรณ์</div>
               <div style="font-size: 9.5px; color: #94a3b8; margin-top: 4px;">วันที่ ......./......./...........</div>
             </div>
+          </div>
           </div>
 
           <script>

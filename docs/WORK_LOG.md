@@ -17,6 +17,30 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-28] ระบบเลือกหมวดหมู่วัสดุ/ครุภัณฑ์, แก้ไขการเบิกแบบย่อย และปรับระยะขอบการพิมพ์ A4 (Category Pre-Filter, Sub-Unit Dispense & Safe Print Margins Fix)
+- **หมวดหมู่**: Requests / Slips & Printing / Consumables / Equipment / Inventory
+- **สิ่งที่ดำเนินการ**:
+  1. **ระบบเลือกหมวดหมู่นำหน้า (Category Pre-Filter)**:
+     - เพิ่ม Dropdown หมวดหมู่ทั้งในส่วนวัสดุสิ้นเปลือง (`consumableCategories`) และครุภัณฑ์ (`equipmentCategories`) ใน `EditRequestModal`
+     - กรองรายการให้เหลือเฉพาะในหมวดหมู่ที่เลือกทันที ช่วยให้แอดมินไม่ต้องเลื่อนหาจากรายการทั้งหมดกว่า 100+ รายการ
+     - ดึงหมวดหมู่เดิมอัตโนมัติเมื่อเปิดแก้ไขรายการที่มีอยู่
+  2. **แก้ไขการเลือกเบิกแบบย่อย (Sub-Unit Selection Fix)**:
+     - แก้ไขข้อผิดพลาด State Closure ด้วย **Atomic Functional State Update (`handleToggleSubUnit`)**
+     - อัปเดต `isSubUnit: true/false` และ `requestedUnit` พร้อมกันในคราวเดียว ไม่มีการทับซ้อนข้อมูล
+     - แสดงปุ่มสลับ `📦 เบิกยกหน่วยหลัก` และ `✨ เบิกแบบย่อย` ชัดเจน พร้อมคำนวณเพดานสต็อกสูงสุดและยอดคงเหลือย่อยแบบ Real-time
+  3. **ปรับระยะขอบการพิมพ์เอกสาร A4 ป้องกันขอบตก (A4 Print Safe Margins >= 0.5 cm)**:
+     - สถาปัตยกรรม **Dual-Layer Safe Margins**:
+       - Layer 1: `@page { size: A4 portrait; margin: 8mm 10mm; }` (ระยะขอบ 0.8 - 1.0 cm ไม่ต่ำกว่า 0.5 cm ตามข้อกำหนด)
+       - Layer 2: ครอบเนื้อหาด้วย `.print-page-wrapper` พร้อม `box-sizing: border-box; padding: 2mm 3mm;` ป้องกันกรณี Browser Print Dialog ถูกตั้งค่าเป็น `Margins: None`
+     - กำหนด `table-layout: fixed;` พร้อม `<colgroup>` ล็อคความกว้างคอลัมน์และตัดคำอัตโนมัติ ไม่ให้ตารางล้นขอบแนวนอน
+     - ปรับใช้ทั้งใน `BorrowSlipModal.tsx` (ใบรายการยืม-คืนอุปกรณ์) และ `RequisitionSlipModal.tsx` (ใบเบิกจ่ายพัสดุและวัสดุสิ้นเปลือง)
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/components/requests/EditRequestModal.tsx`
+  - `src/components/slips/BorrowSlipModal.tsx`
+  - `src/components/slips/RequisitionSlipModal.tsx`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100% (คำว่า "นิสิต" ถูกต้อง 100%, UTF-8 ถูกต้อง 100%, TypeScript 0 errors)
+
 ### [2026-10-28] ระบบแก้ไขข้อมูลขั้นสูงเฉพาะแอดมินและการซิงค์สต็อก 2 ทิศทางอัตโนมัติ (Admin-Only Override & Two-Way Delta Stock Sync)
 - **หมวดหมู่**: Admin Controls / Requisitions / Borrowing / Inventory Management / Mobile UX
 - **สิ่งที่ดำเนินการ**:

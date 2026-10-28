@@ -22,6 +22,7 @@ import {
   PackageCheck,
   Check,
   AlertCircle,
+  RotateCcw,
   GraduationCap,
   Sparkles,
   Package,
@@ -307,6 +308,31 @@ export default function RequisitionsPage() {
       alert('Error connecting to server');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleRevertDispense = async (reqId: string, reqNum: string) => {
+    if (!confirm(`⚠️ ยืนยันการถอยสถานะใบเบิก ${reqNum} กลับเป็น "อนุมัติแล้ว (รอจ่าย)" หรือไม่?\n\nระบบจะดึงสต็อกทุกรายการในใบนี้กลับคืนเข้าคลังอัตโนมัติ`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/requisitions/${reqId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'REVERT_DISPENSE',
+          userId: currentUser?.id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'เกิดข้อผิดพลาดในการถอยสถานะ');
+        return;
+      }
+      alert('✅ ถอยสถานะใบเบิกและคืนสต็อกเข้าคลังเรียบร้อยแล้ว');
+      fetchRequisitions();
+    } catch (err: any) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
     }
   };
 
@@ -705,18 +731,25 @@ export default function RequisitionsPage() {
                       <Sparkles className="w-3 h-3 text-indigo-600 dark:text-indigo-400" /> คำขอรวม One-Stop
                     </span>
                   )}
-                  {req.status === 'PENDING' && (currentUser?.id === req.userId || isOfficer || isAdmin) && (
+                  {((req.status === 'PENDING' && (currentUser?.id === req.userId || isOfficer || isAdmin)) ||
+                    (['APPROVED', 'DISPENSED'].includes(req.status) && isAdmin)) && (
                     <button
                       type="button"
                       onClick={() => {
                         setEditingRequest(req);
                         setShowEditModal(true);
                       }}
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg border border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 text-[11px] font-bold transition cursor-pointer"
-                      title="แก้ไขรายการหรือรายละเอียดคำขอ"
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg border text-[11px] font-bold transition cursor-pointer ${
+                        req.status === 'DISPENSED'
+                          ? 'border-teal-300 dark:border-teal-700/60 bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/60 text-teal-800 dark:text-teal-200'
+                          : req.status === 'APPROVED'
+                          ? 'border-emerald-300 dark:border-emerald-700/60 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200'
+                          : 'border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200'
+                      }`}
+                      title={req.status === 'DISPENSED' ? 'แอดมินปรับเพิ่ม/ลดรายการหรือแก้ไขหัวเอกสาร' : 'แก้ไขรายการหรือรายละเอียดคำขอ'}
                     >
-                      <Edit3 className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                      <span>แก้ไข</span>
+                      <Edit3 className="w-3 h-3" />
+                      <span>{req.status === 'DISPENSED' ? 'แก้ไข/ปรับรายการ' : 'แก้ไข'}</span>
                     </button>
                   )}
                 </div>
@@ -925,6 +958,47 @@ export default function RequisitionsPage() {
                     <PackageCheck className="w-4 h-4" />
                     <span>จ่ายของและตัดสต็อก FIFO (Dispense)</span>
                   </button>
+                </div>
+              )}
+
+              {/* Action Buttons for Dispensed Requisition (Admin / Officer) */}
+              {req.status === 'DISPENSED' && (
+                <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setActiveReturnRequisition(req)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 text-teal-800 dark:text-teal-200 text-xs font-bold transition cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                    <span>รับคืนวัสดุเหลือใช้</span>
+                  </button>
+
+                  {isAdmin && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingRequest(req);
+                          setShowEditModal(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 text-amber-800 dark:text-amber-200 text-xs font-bold transition cursor-pointer"
+                        title="แอดมินแก้ไขข้อมูลหรือปรับเพิ่ม/ลดรายการในใบนี้"
+                      >
+                        <Edit3 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                        <span>แก้ไข/ปรับรายการ (แอดมิน)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRevertDispense(req.id, req.requestNumber)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-700 dark:text-rose-300 text-xs font-bold transition cursor-pointer"
+                        title="ถอยสถานะกลับเป็นรอจ่าย และดึงสต็อกกลับเข้าคลัง"
+                      >
+                        <AlertCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                        <span>ถอยสถานะจ่ายของ (แอดมิน)</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>

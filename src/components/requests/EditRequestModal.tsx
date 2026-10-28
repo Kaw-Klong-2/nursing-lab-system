@@ -39,6 +39,8 @@ export default function EditRequestModal({
 }: EditRequestModalProps) {
   const { currentUser, isTeacher } = useAuth();
   const isStudent = currentUser?.role === 'USER' && !isTeacher;
+  const isAdmin = currentUser?.role === 'ADMIN';
+  const [resetToPending, setResetToPending] = useState(false);
 
   const [loadingItems, setLoadingItems] = useState(false);
   const [equipmentList, setEquipmentList] = useState<any[]>([]);
@@ -119,7 +121,7 @@ export default function EditRequestModal({
       if (linkedReq && linkedReq.items) {
         const rItems = linkedReq.items.map((it: any) => ({
           itemId: it.itemId,
-          quantity: it.quantityRequested || 1,
+          quantity: initialData.status === 'DISPENSED' || initialData.requisitionRequest?.status === 'DISPENSED' ? (it.quantityDispensed ?? it.quantityRequested ?? 1) : (it.quantityRequested || 1),
           isSubUnit: Boolean(it.isSubUnit),
           requestedUnit: it.requestedUnit || '',
           categoryId: it.item?.categoryId || '',
@@ -133,7 +135,7 @@ export default function EditRequestModal({
       setDateNeeded(formatDateLocal(initialData.dateNeeded));
       const rItems = (initialData.items || []).map((it: any) => ({
         itemId: it.itemId,
-        quantity: it.quantityRequested || 1,
+        quantity: initialData.status === 'DISPENSED' || initialData.requisitionRequest?.status === 'DISPENSED' ? (it.quantityDispensed ?? it.quantityRequested ?? 1) : (it.quantityRequested || 1),
         isSubUnit: Boolean(it.isSubUnit),
         requestedUnit: it.requestedUnit || '',
         categoryId: it.item?.categoryId || '',
@@ -296,6 +298,8 @@ export default function EditRequestModal({
           dateNeeded: dateNeeded ? new Date(dateNeeded).toISOString() : undefined,
           borrowItems: validBorrow,
           requisitionItems: validReq,
+          keepApprovalStatus: !resetToPending,
+          resetToPending,
         }),
       });
 
@@ -310,7 +314,7 @@ export default function EditRequestModal({
         return;
       }
 
-      alert('✅ บันทึกการแก้ไขคำขอเรียบร้อยแล้ว สถานะถูกปรับเป็น "รออนุมัติ"');
+      alert(data.message || '✅ บันทึกการแก้ไขคำขอเรียบร้อยแล้ว');
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -321,8 +325,10 @@ export default function EditRequestModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl max-w-4xl w-full max-h-[92dvh] sm:max-h-[92vh] flex flex-col border border-slate-200 dark:border-slate-800 overflow-hidden">
+        {/* Mobile Drag Indicator */}
+        <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto my-2 sm:hidden shrink-0" />
         {/* Header */}
         <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-amber-600 via-amber-700 to-amber-800 text-white">
           <div className="flex items-center gap-3">
@@ -349,6 +355,47 @@ export default function EditRequestModal({
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Admin Banners */}
+        {isAdmin && initialData.status === 'APPROVED' && (
+          <div className="bg-emerald-50 dark:bg-emerald-950/50 border-b border-emerald-200 dark:border-emerald-800 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs shrink-0">
+            <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-200 font-semibold">
+              <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>⚡ โหมดแอดมิน: แก้ไขคำขอที่อนุมัติแล้ว (ระบบจะคงสถานะ &quot;อนุมัติแล้ว&quot; ไว้ตามเดิม ไม่ต้องรออนุมัติซ้ำ)</span>
+            </div>
+            <label className="flex items-center gap-2 text-slate-700 dark:text-slate-300 font-medium cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={resetToPending}
+                onChange={(e) => setResetToPending(e.target.checked)}
+                className="rounded text-amber-600 focus:ring-amber-500"
+              />
+              <span>ต้องการรีเซ็ตสถานะเป็น &quot;รออนุมัติ&quot; ใหม่</span>
+            </label>
+          </div>
+        )}
+
+        {isAdmin && (initialData.status === 'DISPENSED' || initialData.requisitionRequest?.status === 'DISPENSED') && (
+          <div className="bg-teal-50 dark:bg-teal-950/50 border-b border-teal-200 dark:border-teal-800 p-3 sm:p-4 text-xs text-teal-900 dark:text-teal-200 space-y-1 shrink-0">
+            <div className="flex items-center gap-2 font-bold text-teal-800 dark:text-teal-300">
+              <Sparkles className="w-4 h-4 text-teal-600 shrink-0" />
+              <span>⚡ โหมดแอดมิน: ปรับปรุงรายการในใบเบิกที่จ่ายของแล้ว (Two-Way Stock Sync)</span>
+            </div>
+            <p className="text-[11px] text-teal-700 dark:text-teal-300/80 leading-relaxed">
+              • <b>➕ เพิ่มรายการ / เพิ่มจำนวน</b>: ระบบจะตัดสต็อก FIFO และบวกต้นทุนเพิ่มเข้าใบเบิกให้อัตโนมัติ<br />
+              • <b>➖ ลดจำนวน / 🗑️ ลบรายการออก</b>: ระบบจะดึงสต็อกกลับเข้าคลัง และปรับลดยอดต้นทุนให้อัตโนมัติทันที
+            </p>
+          </div>
+        )}
+
+        {isAdmin && (initialData.status === 'BORROWED' || initialData.borrowRequest?.status === 'BORROWED') && (
+          <div className="bg-indigo-50 dark:bg-indigo-950/50 border-b border-indigo-200 dark:border-indigo-800 p-3 sm:p-4 text-xs text-indigo-900 dark:text-indigo-200 space-y-1 shrink-0">
+            <div className="flex items-center gap-2 font-bold text-indigo-800 dark:text-indigo-300">
+              <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+              <span>⚡ โหมดแอดมิน: แก้ไขข้อมูลคำขอยืมที่กำลังยืม (เลื่อนวันนัดคืน / ปรับเปลี่ยนครุภัณฑ์)</span>
+            </div>
+          </div>
+        )}
 
 
 
@@ -749,7 +796,7 @@ export default function EditRequestModal({
         </form>
 
         {/* Footer Actions */}
-        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 flex items-center justify-between gap-3">
+        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 flex items-center justify-between gap-3 shrink-0">
           <div className="text-xs text-slate-500">
               <span>ตรวจสอบข้อมูลให้ถูกต้องก่อนกดบันทึก</span>
           </div>

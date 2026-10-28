@@ -17,6 +17,31 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-28] ระบบแก้ไขข้อมูลขั้นสูงเฉพาะแอดมินและการซิงค์สต็อก 2 ทิศทางอัตโนมัติ (Admin-Only Override & Two-Way Delta Stock Sync)
+- **หมวดหมู่**: Admin Controls / Requisitions / Borrowing / Inventory Management / Mobile UX
+- **สิ่งที่ดำเนินการ**:
+  1. **สิทธิ์เฉพาะแอดมิน (`role === 'ADMIN'`)**:
+     - ปลดล็อกให้แอดมินแก้ไขคำขอได้ทุกสถานะ (`APPROVED`, `DISPENSED`, `BORROWED`) ผ่านหน้าต่างเดียว โดยเจ้าหน้าที่แล็บ (`OFFICER`) และนิสิต/อาจารย์จะยังคงแก้ไขได้เฉพาะตอน `PENDING` ตามเดิม
+  2. **ระบบซิงค์สต็อก 2 ทิศทางอัตโนมัติ (Two-Way Delta Stock Sync) ในใบที่จ่ายแล้ว (`DISPENSED`)**:
+     - **เพิ่มรายการ / เพิ่มจำนวน**: ตัดสต็อกเพิ่มตาม FIFO และบวกต้นทุนเข้าใบเบิกอัตโนมัติ
+     - **ลดจำนวน / ลบรายการออก**: ดึงสต็อกส่วนต่างกลับคืนเข้า Lot เดิม คืนสถานะกล่องเป็นพร้อมใช้ และหักลดต้นทุนรวมทันที
+     - **เปลี่ยนรายวิชา**: ซิงค์ `courseId` ใน `StockTransaction` ของใบเบิกนั้นทั้งหมดให้อัตโนมัติเพื่อความถูกต้องของงบประมาณ
+  3. **คงสถานะอนุมัติเดิม (`keepApprovalStatus`)**:
+     - เมื่อแอดมินแก้ไขใบสถานะ `APPROVED` ระบบจะคงสถานะอนุมัติเดิมไว้โดยไม่ต้องให้อาจารย์กดอนุมัติซ้ำ (พร้อมตัวเลือกหากต้องการรีเซ็ตเป็นรออนุมัติ)
+  4. **ปุ่มถอยสถานะจ่ายของ (`REVERT_DISPENSE`)**:
+     - เพิ่มปุ่มเฉพาะแอดมินบนการ์ดใบเบิกสถานะ `DISPENSED` สำหรับดึงสต็อกทุกรายการกลับคืนเข้าคลังและถอยสถานะใบเบิกกลับเป็น `APPROVED` ในคลิกเดียว
+  5. **Mobile Bottom Sheet UX**:
+     - ปรับ `EditRequestModal` ให้เป็น Mobile Bottom Sheet พร้อม Drag Handle และ Sticky Footer ไม่ให้ปุ่มบันทึกถูกบดบัง
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/app/api/requests/edit/route.ts`
+  - `src/app/api/requisitions/[id]/route.ts`
+  - `src/components/requests/EditRequestModal.tsx`
+  - `src/app/requisitions/page.tsx`
+  - `src/app/borrow/page.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**:
+  - `tsc --noEmit`: ผ่าน 0 errors
+  - `npm run librarian:audit`: ผ่าน 100% (คำศัพท์ "นิสิต" ครบถ้วน, UTF-8 สมบูรณ์)
+
 ### [2026-10-27] เพิ่มรายการพัสดุและตัดสต็อกย้อนหลังในใบเบิก REQ-20261017-012 (Osce Exam Requisition Update)
 - **หมวดหมู่**: Requisition / Inventory / Stock Transactions
 - **สิ่งที่ดำเนินการ**:

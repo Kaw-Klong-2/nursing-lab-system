@@ -679,18 +679,25 @@ export default function BorrowPage() {
                       <span>ใบยืม-คืน (Slip)</span>
                     </button>
                   )}
-                  {req.status === 'PENDING' && (currentUser?.id === req.userId || isOfficer || isAdmin) && (
+                  {((req.status === 'PENDING' && (currentUser?.id === req.userId || isOfficer || isAdmin)) ||
+                    (['APPROVED', 'BORROWED'].includes(req.status) && isAdmin)) && (
                     <button
                       type="button"
                       onClick={() => {
                         setEditingRequest(req);
                         setShowEditModal(true);
                       }}
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg border border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 text-[11px] font-bold transition cursor-pointer"
-                      title="แก้ไขรายการหรือรายละเอียดคำขอ"
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg border text-[11px] font-bold transition cursor-pointer ${
+                        req.status === 'BORROWED'
+                          ? 'border-indigo-300 dark:border-indigo-700/60 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200'
+                          : req.status === 'APPROVED'
+                          ? 'border-emerald-300 dark:border-emerald-700/60 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200'
+                          : 'border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200'
+                      }`}
+                      title={req.status === 'BORROWED' ? 'แอดมินแก้ไขวันนัดคืนหรือรายการครุภัณฑ์' : 'แก้ไขรายการหรือรายละเอียดคำขอ'}
                     >
-                      <Edit3 className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                      <span>แก้ไข</span>
+                      <Edit3 className="w-3 h-3" />
+                      <span>{req.status === 'BORROWED' ? 'แก้ไข/เลื่อนวันคืน' : 'แก้ไข'}</span>
                     </button>
                   )}
                 </div>

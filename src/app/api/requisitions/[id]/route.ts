@@ -270,6 +270,119 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return respondUpdated(updated);
     }
 
+    if (action === 'REVERT_DISPENSE') {
+      if (!userId) {
+        return NextResponse.json({ error: 'ไม่พบข้อมูลผู้ใช้งาน' }, { status: 401 });
+      }
+      const adminUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+      if (adminUser?.role !== 'ADMIN') {
+        return NextResponse.json(
+          { error: 'เฉพาะผู้ดูแลระบบ (ADMIN) เท่านั้นที่สามารถถอยสถานะการจ่ายพัสดุได้' },
+          { status: 403 }
+        );
+      }
+
+      if (requisition.status !== 'DISPENSED') {
+        return NextResponse.json(
+          { error: 'สามารถถอยสถานะได้เฉพาะคำขอที่อยู่ในสถานะ "จ่ายของแล้ว (DISPENSED)" เท่านั้น' },
+          { status: 400 }
+        );
+      }
+
+      await prisma.$transaction(async (tx) => {
+        // Return stock for all dispensed items
+        for (const reqItem of requisition.items) {
+          const qtyDispensed = reqItem.quantityDispensed || 0;
+          if (qtyDispensed <= 0) continue;
+
+          let targetLot: any = await tx.stockLot.findFirst({
+            where: { itemId: reqItem.itemId },
+            orderBy: [{ expiryDate: 'desc' }, { receivedDate: 'desc' }],
+          });
+
+          if (targetLot) {
+            const itemRatio = Number(reqItem.item?.conversionRatio) > 0 ? Number(reqItem.item?.conversionRatio) : 1;
+            const pSize = Number(targetLot.packSize) > 0 ? Number(targetLot.packSize) : itemRatio;
+            const isSub = reqItem.isSubUnit === true;
+
+            if (isSub && pSize > 1) {
+              const currentOpen = targetLot.openPackRemainder || 0;
+              const newOpen = currentOpen + qtyDispensed;
+              const consolidated = Math.floor(newOpen / pSize);
+              const remainder = newOpen % pSize;
+              const newQty = targetLot.quantityRemaining + consolidated;
+              const newPieces = (targetLot.piecesRemaining || 0) + qtyDispensed;
+
+              await tx.stockLot.update({
+                where: { id: targetLot.id },
+                data: {
+                  quantityRemaining: newQty,
+                  piecesRemaining: newPieces,
+                  openPackRemainder: remainder,
+                },
+              });
+            } else {
+              const newQty = targetLot.quantityRemaining + qtyDispensed;
+              const newPieces = (targetLot.piecesRemaining || 0) + (qtyDispensed * pSize);
+
+              await tx.stockLot.update({
+                where: { id: targetLot.id },
+                data: {
+                  quantityRemaining: newQty,
+                  piecesRemaining: newPieces,
+                },
+              });
+            }
+
+            await tx.stockTransaction.create({
+              data: {
+                itemId: reqItem.itemId,
+                lotId: targetLot.id,
+                type: 'RETURN_RESTOCK',
+                quantity: qtyDispensed,
+                unitCost: reqItem.unitCost,
+                totalCost: reqItem.totalCost,
+                courseId: requisition.courseId,
+                referenceNumber: requisition.requestNumber,
+                createdById: userId,
+                note: `แอดมินถอยสถานะการจ่ายพัสดุ (Revert Dispense) คืนคำขอ ${requisition.requestNumber} กลับเป็นรอจ่าย`,
+              },
+            });
+          }
+
+          await tx.requisitionItem.update({
+            where: { id: reqItem.id },
+            data: {
+              quantityDispensed: 0,
+            },
+          });
+        }
+
+        await tx.requisitionRequest.update({
+          where: { id },
+          data: {
+            status: 'APPROVED',
+            dispensedAt: null,
+            officerId: null,
+            dispenseNote: null,
+          },
+        });
+      });
+
+      logActivity({
+        userId,
+        action: 'UPDATE',
+        entityType: 'REQUISITION',
+        entityId: requisition.id,
+        details: `แอดมินถอยสถานะการจ่ายพัสดุ (Revert Dispense) คำขอเลขที่ ${requisition.requestNumber}`,
+      });
+
+      return respondUpdated({ success: true, message: 'ถอยสถานะการจ่ายพัสดุกลับเป็นอนุมัติแล้วเรียบร้อย' });
+    }
+
     if (action === 'DISPENSE') {
       if (requisition.status === 'DISPENSED') {
         return NextResponse.json(

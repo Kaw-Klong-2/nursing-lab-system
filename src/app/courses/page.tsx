@@ -28,9 +28,11 @@ import {
   X,
   Check,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
-import { formatUserName, formatTeacherName } from '@/lib/user-utils';
+import { formatUserName, formatTeacherName, getExporterSignatureInfo } from '@/lib/user-utils';
 import { formatTermName, toLegacySemesterCode } from '@/lib/academicTerm';
+import { ORG_CONFIG } from '@/lib/constants/organization';
 
 export default function CoursesPage() {
   const router = useRouter();
@@ -316,27 +318,158 @@ export default function CoursesPage() {
 
   const selectedCourse = courses.find((c: any) => c.id === selectedCourseId) || filteredCourses[0] || courses[0];
 
+  // Export Cost Report as formatted Excel (.xlsx)
+  const handleExportExcel = () => {
+    if (!selectedCourse) return;
+
+    const termThai = formatTermName(selectedCourse.semester);
+    const dateStr = new Date().toLocaleDateString('th-TH', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const exporterInfo = getExporterSignatureInfo(currentUser);
+    const coordinatorName = selectedCourse.instructorName
+      ? formatTeacherName(selectedCourse.instructorName)
+      : 'อาจารย์ผู้ประสานงานรายวิชา';
+
+    const items = selectedCourse.itemsUsed || [];
+    const totalExpense = Number((selectedCourse.totalExpense || 0).toFixed(2));
+    const costPerStudent = Number((selectedCourse.costPerStudent || 0).toFixed(2));
+    const studentCount = Number(selectedCourse.studentCount || 0);
+
+    const rows: any[][] = [
+      ['', ORG_CONFIG.FULL_ORG_NAME],
+      ['', 'รายงานสรุปการใช้วัสดุสิ้นเปลืองและต้นทุนประจำรายวิชา'],
+      ['', `ข้อมูล ณ วันที่: ${dateStr} น.`],
+      [],
+      ['', '', 'รหัสวิชา', selectedCourse.code],
+      ['', '', 'ชื่อวิชา', selectedCourse.name],
+      ['', '', 'ภาคเรียน/ปีการศึกษา', `${termThai}/${selectedCourse.academicYear}`],
+      ['', '', 'จำนวนนิสิต', studentCount, 'คน'],
+      ['', '', 'ยอดใช้วัสดุจริงรวม', totalExpense, 'บาท'],
+      ['', '', 'ต้นทุนเฉลี่ยต่อนิสิต', costPerStudent, 'บาท/คน'],
+      [],
+      ['', 'ลำดับ', 'รหัสวัสดุ', 'รายการวัสดุสิ้นเปลือง', 'จำนวนที่ใช้', 'หน่วยนับ', 'รวม (บาท)'],
+    ];
+
+    const dataStartRow = 13; // 1-based index in Excel
+    items.forEach((item: any, idx: number) => {
+      const itemCost = Number((item.totalCost || 0).toFixed(2));
+      rows.push([
+        '',
+        idx + 1,
+        item.code,
+        item.name,
+        item.totalQuantity,
+        item.unit,
+        itemCost,
+      ]);
+    });
+
+    const dataEndRow = dataStartRow + items.length - 1;
+
+    // Total Summary Row with Excel formula (if items exist)
+    if (items.length > 0) {
+      rows.push([
+        '',
+        '',
+        '',
+        'รวมมูลค่าวัสดุสิ้นเปลืองที่ใช้ทั้งสิ้น',
+        '',
+        '',
+        { f: `SUM(G${dataStartRow}:G${dataEndRow})` },
+      ]);
+    } else {
+      rows.push(['', '', '', 'รวมมูลค่าวัสดุสิ้นเปลืองที่ใช้ทั้งสิ้น', '', '', 0]);
+    }
+
+    rows.push([]);
+    rows.push(['', 'ผู้รายงาน']);
+    rows.push([]);
+    rows.push(['', '', 'ลงชื่อ .................................................', '', 'ลงชื่อ .................................................']);
+    rows.push(['', '', `(${exporterInfo.name})`, '', `(${coordinatorName})`]);
+    rows.push(['', '', exporterInfo.position, '', 'อาจารย์ผู้ประสานงานรายวิชา']);
+    rows.push(['', '', 'วันที่ ........./........./.............', '', 'วันที่ ........./........./.............']);
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // Column widths for optimal visibility in Excel
+    ws['!cols'] = [
+      { wch: 3 },  // Col A: Margin
+      { wch: 8 },  // Col B: ลำดับ / ผู้รายงาน
+      { wch: 22 }, // Col C: รหัสวิชา / รหัสวัสดุ / ลายเซ็นผู้รายงาน
+      { wch: 45 }, // Col D: ชื่อวิชา / รายการวัสดุสิ้นเปลือง
+      { wch: 20 }, // Col E: จำนวนที่ใช้ / ลายเซ็นอาจารย์
+      { wch: 12 }, // Col F: หน่วยนับ
+      { wch: 18 }, // Col G: รวม (บาท)
+    ];
+
+    // Merge top header rows
+    ws['!merges'] = [
+      { s: { r: 0, c: 1 }, e: { r: 0, c: 6 } },
+      { s: { r: 1, c: 1 }, e: { r: 1, c: 6 } },
+      { s: { r: 2, c: 1 }, e: { r: 2, c: 6 } },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const sheetName = `รายงานต้นทุน_${selectedCourse.code}_${selectedCourse.academicYear}`.slice(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    XLSX.writeFile(wb, `รายงานต้นทุน_${selectedCourse.code}_${selectedCourse.academicYear}.xlsx`);
+  };
+
   // CSV Export for the selected course materials breakdown
   const handleExportCSV = () => {
     if (!selectedCourse) return;
 
-    let csvContent = '\uFEFF'; // UTF-8 BOM for Excel in Thai
-    csvContent += `รายงานสรุปการใช้วัสดุและต้นทุนประจำรายวิชา\n`;
-    csvContent += `รหัสวิชา,${selectedCourse.code}\n`;
-    csvContent += `ชื่อวิชา,${selectedCourse.name}\n`;
     const termThai = formatTermName(selectedCourse.semester);
-    csvContent += `ภาคเรียน/ปีการศึกษา,${termThai}/${selectedCourse.academicYear}\n`;
-    csvContent += `จำนวนนิสิต,${selectedCourse.studentCount || 0} คน\n`;
-    csvContent += `งบประมาณที่ได้รับจัดสรร,${selectedCourse.allocatedBudget}\n`;
-    csvContent += `ยอดใช้วัสดุจริงรวม,${selectedCourse.totalExpense}\n`;
-    csvContent += `ต้นทุนเฉลี่ยต่อนิสิต,${selectedCourse.costPerStudent || 0} บาท/คน\n`;
-    csvContent += `งบประมาณคงเหลือ,${selectedCourse.remainingBudget}\n\n`;
-
-    csvContent += `ลำดับ,รหัสวัสดุ,รายการวัสดุสิ้นเปลือง,จำนวนที่ใช้ไป,หน่วยนับ,ต้นทุนรวม (บาท)\n`;
-
-    selectedCourse.itemsUsed.forEach((item: any, idx: number) => {
-      csvContent += `${idx + 1},${item.code},"${item.name}",${item.totalQuantity},${item.unit},${item.totalCost.toFixed(2)}\n`;
+    const dateStr = new Date().toLocaleDateString('th-TH', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
+    const exporterInfo = getExporterSignatureInfo(currentUser);
+    const coordinatorName = selectedCourse.instructorName
+      ? formatTeacherName(selectedCourse.instructorName)
+      : 'อาจารย์ผู้ประสานงานรายวิชา';
+
+    const items = selectedCourse.itemsUsed || [];
+    const totalExpense = Number((selectedCourse.totalExpense || 0).toFixed(2));
+    const costPerStudent = Number((selectedCourse.costPerStudent || 0).toFixed(2));
+    const studentCount = Number(selectedCourse.studentCount || 0);
+
+    let csvContent = '\uFEFF'; // UTF-8 BOM for Excel in Thai
+    csvContent += `,${ORG_CONFIG.FULL_ORG_NAME},,,,,\n`;
+    csvContent += `,รายงานสรุปการใช้วัสดุสิ้นเปลืองและต้นทุนประจำรายวิชา,,,,,\n`;
+    csvContent += `,ข้อมูล ณ วันที่: ${dateStr} น.,,,,,\n`;
+    csvContent += `,,,,,,,\n`;
+
+    csvContent += `,,รหัสวิชา,${selectedCourse.code},,,\n`;
+    csvContent += `,,ชื่อวิชา,"${selectedCourse.name}",,,\n`;
+    csvContent += `,,ภาคเรียน/ปีการศึกษา,${termThai}/${selectedCourse.academicYear},,,\n`;
+    csvContent += `,,จำนวนนิสิต,${studentCount},คน,,\n`;
+    csvContent += `,,ยอดใช้วัสดุจริงรวม,${totalExpense},บาท,,\n`;
+    csvContent += `,,ต้นทุนเฉลี่ยต่อนิสิต,${costPerStudent},บาท/คน,,\n`;
+    csvContent += `,,,,,,,\n`;
+
+    csvContent += `,ลำดับ,รหัสวัสดุ,รายการวัสดุสิ้นเปลือง,จำนวนที่ใช้,หน่วยนับ,รวม (บาท)\n`;
+
+    items.forEach((item: any, idx: number) => {
+      const cost = Number((item.totalCost || 0).toFixed(2));
+      csvContent += `,${idx + 1},${item.code},"${item.name}",${item.totalQuantity},${item.unit},${cost}\n`;
+    });
+
+    csvContent += `,,,รวมมูลค่าวัสดุสิ้นเปลืองที่ใช้ทั้งสิ้น,,,${totalExpense}\n`;
+    csvContent += `,,,,,,,\n`;
+    csvContent += `,ผู้รายงาน,,,,,,\n`;
+    csvContent += `,,ลงชื่อ .................................................,,ลงชื่อ .................................................,,\n`;
+    csvContent += `,,(${exporterInfo.name}),,(${coordinatorName}),,\n`;
+    csvContent += `,,${exporterInfo.position},,อาจารย์ผู้ประสานงานรายวิชา,,\n`;
+    csvContent += `,,วันที่ ........./........./.............,,วันที่ ........./........./.............,,\n`;
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -349,7 +482,257 @@ export default function CoursesPage() {
   };
 
   const handlePrint = () => {
-    window.print();
+    if (!selectedCourse) return;
+
+    const termThai = formatTermName(selectedCourse.semester);
+    const dateStr = new Date().toLocaleDateString('th-TH', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const exporterInfo = getExporterSignatureInfo(currentUser);
+    const coordinatorName = selectedCourse.instructorName
+      ? formatTeacherName(selectedCourse.instructorName)
+      : 'อาจารย์ผู้ประสานงานรายวิชา';
+
+    const items = selectedCourse.itemsUsed || [];
+    const totalExpense = Number((selectedCourse.totalExpense || 0).toFixed(2));
+    const costPerStudent = Number((selectedCourse.costPerStudent || 0).toFixed(2));
+    const studentCount = Number(selectedCourse.studentCount || 0);
+
+    const printWindow = window.open('', '_blank', 'width=900,height=800');
+    if (!printWindow) return;
+
+    const itemsRows = items
+      .map(
+        (it: any, idx: number) => `
+        <tr style="border-bottom: 1px solid #e2e8f0;">
+          <td style="padding: 6px 8px; text-align: center;">${idx + 1}</td>
+          <td style="padding: 6px 8px; font-family: monospace; color: #475569; font-size: 11px;">${it.code}</td>
+          <td style="padding: 6px 8px; font-weight: 600; color: #0f172a;">${it.name}</td>
+          <td style="padding: 6px 8px; text-align: center; font-weight: bold;">${it.totalQuantity}</td>
+          <td style="padding: 6px 8px; text-align: center;">${it.unit}</td>
+          <td style="padding: 6px 8px; text-align: right; font-weight: bold; color: ${it.totalCost > 0 ? '#0f172a' : '#64748b'};">
+            ฿${Number(it.totalCost || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            ${it.totalCost === 0 ? '<span style="font-size: 9.5px; color: #64748b; font-weight: normal; display: block;">(ไม่คิดมูลค่า)</span>' : ''}
+          </td>
+        </tr>
+      `
+      )
+      .join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="th">
+        <head>
+          <meta charset="utf-8" />
+          <title>รายงานต้นทุนวัสดุ - [${selectedCourse.code}] ${selectedCourse.name}</title>
+          <style>
+            *, *::before, *::after {
+              box-sizing: border-box;
+            }
+            @page {
+              size: A4 portrait;
+              margin: 8mm 10mm; /* Safe print margin >= 0.8cm, strictly >= 0.5cm */
+            }
+            html, body {
+              font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, sans-serif;
+              font-size: 11.5px;
+              line-height: 1.4;
+              color: #0f172a;
+              margin: 0;
+              padding: 0;
+              background-color: #ffffff;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .print-page-wrapper {
+              box-sizing: border-box;
+              width: 100%;
+              max-width: 100%;
+              padding: 2mm 3mm;
+            }
+            .header-container {
+              border-bottom: 2px solid #0f766e;
+              padding-bottom: 8px;
+              margin-bottom: 12px;
+              text-align: center;
+            }
+            .header-container h1 {
+              font-size: 14.5px;
+              font-weight: 800;
+              color: #0f766e;
+              margin: 0 0 3px 0;
+            }
+            .header-container h2 {
+              font-size: 13px;
+              font-weight: 700;
+              color: #1e293b;
+              margin: 0 0 3px 0;
+            }
+            .header-container .date-info {
+              font-size: 10.5px;
+              color: #64748b;
+            }
+            .meta-grid {
+              display: grid;
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+              gap: 6px 14px;
+              background-color: #f8fafc;
+              border: 1px solid #e2e8f0;
+              border-radius: 8px;
+              padding: 9px 12px;
+              margin-bottom: 14px;
+              font-size: 11px;
+            }
+            .meta-item {
+              display: flex;
+              align-items: baseline;
+              gap: 6px;
+            }
+            .meta-label {
+              font-weight: 600;
+              color: #475569;
+              min-width: 110px;
+            }
+            .meta-value {
+              font-weight: 700;
+              color: #0f172a;
+            }
+            table {
+              width: 100%;
+              table-layout: fixed;
+              border-collapse: collapse;
+              word-break: break-word;
+              overflow-wrap: break-word;
+              margin-bottom: 14px;
+              font-size: 11px;
+            }
+            tr {
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+            th {
+              background-color: #f1f5f9;
+              color: #334155;
+              font-weight: 700;
+              padding: 6px 8px;
+              border-bottom: 1.5px solid #cbd5e1;
+            }
+            .signatures-grid {
+              display: grid;
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+              gap: 28px;
+              margin-top: 24px;
+              text-align: center;
+              font-size: 10.5px;
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+            .signature-block {
+              border: 1px dashed #cbd5e1;
+              border-radius: 8px;
+              padding: 12px 10px;
+            }
+            .sign-line {
+              margin-top: 28px;
+              border-top: 1px dotted #94a3b8;
+              padding-top: 5px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="print-page-wrapper">
+            <div class="header-container">
+              <h1>${ORG_CONFIG.FULL_ORG_NAME}</h1>
+              <h2>รายงานสรุปการใช้วัสดุสิ้นเปลืองและต้นทุนประจำรายวิชา</h2>
+              <div class="date-info">ข้อมูล ณ วันที่: ${dateStr} น.</div>
+            </div>
+
+            <div class="meta-grid">
+              <div class="meta-item"><span class="meta-label">รหัสวิชา:</span> <span class="meta-value">${selectedCourse.code}</span></div>
+              <div class="meta-item"><span class="meta-label">ชื่อวิชา:</span> <span class="meta-value">${selectedCourse.name}</span></div>
+              <div class="meta-item"><span class="meta-label">ภาคเรียน/ปีการศึกษา:</span> <span class="meta-value">${termThai}/${selectedCourse.academicYear}</span></div>
+              <div class="meta-item"><span class="meta-label">อาจารย์ผู้ประสานงาน:</span> <span class="meta-value">${coordinatorName}</span></div>
+              <div class="meta-item"><span class="meta-label">จำนวนนิสิต:</span> <span class="meta-value">${studentCount} คน</span></div>
+              <div class="meta-item"><span class="meta-label">ยอดใช้วัสดุจริงรวม:</span> <span class="meta-value" style="color: #047857;">฿${totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</span></div>
+              <div class="meta-item" style="grid-column: span 2;"><span class="meta-label">ต้นทุนเฉลี่ยต่อนิสิต:</span> <span class="meta-value" style="color: #4338ca; font-size: 12px;">฿${costPerStudent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท/คน</span></div>
+            </div>
+
+            <table style="width: 100%; table-layout: fixed;">
+              <colgroup>
+                <col style="width: 36px;" />
+                <col style="width: 110px;" />
+                <col style="width: auto;" />
+                <col style="width: 80px;" />
+                <col style="width: 70px;" />
+                <col style="width: 110px;" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th style="text-align: center;">ลำดับ</th>
+                  <th style="text-align: left;">รหัสวัสดุ</th>
+                  <th style="text-align: left;">รายการวัสดุสิ้นเปลือง</th>
+                  <th style="text-align: center;">จำนวนที่ใช้</th>
+                  <th style="text-align: center;">หน่วยนับ</th>
+                  <th style="text-align: right;">รวม (บาท)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsRows || '<tr><td colspan="6" style="text-align: center; padding: 12px; color: #64748b;">ไม่มีรายการวัสดุที่ใช้</td></tr>'}
+              </tbody>
+              <tfoot>
+                <tr style="border-top: 2px solid #0f766e; font-weight: bold; background-color: #f8fafc;">
+                  <td colspan="5" style="text-align: right; padding: 7px 8px;">รวมมูลค่าวัสดุสิ้นเปลืองที่ใช้ทั้งสิ้น:</td>
+                  <td style="text-align: right; padding: 7px 8px; color: #047857; font-size: 12px;">
+                    ฿${totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+
+            <div class="signatures-grid">
+              <div class="signature-block">
+                <div style="font-weight: bold; color: #475569; margin-bottom: 2px;">ผู้รายงาน</div>
+                <div class="sign-line">
+                  (${exporterInfo.name})
+                </div>
+                <div style="color: #64748b; margin-top: 2px; font-weight: 500;">
+                  ${exporterInfo.position}
+                </div>
+                <div style="color: #94a3b8; font-size: 9.5px; margin-top: 6px;">
+                  วันที่: .......... / .......... / ................
+                </div>
+              </div>
+
+              <div class="signature-block">
+                <div style="font-weight: bold; color: #475569; margin-bottom: 2px;">อาจารย์ผู้ประสานงานรายวิชา</div>
+                <div class="sign-line">
+                  (${coordinatorName})
+                </div>
+                <div style="color: #64748b; margin-top: 2px; font-weight: 500;">
+                  อาจารย์ผู้ประสานงานรายวิชา
+                </div>
+                <div style="color: #94a3b8; font-size: 9.5px; margin-top: 6px;">
+                  วันที่: .......... / .......... / ................
+                </div>
+              </div>
+            </div>
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
   };
 
   if (loading) {
@@ -384,20 +767,37 @@ export default function CoursesPage() {
             <BarChart3 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
             <span>รายงานภาพรวมคณะ</span>
           </a>
+          {/* Export Excel (.xlsx) */}
+          <button
+            onClick={handleExportExcel}
+            disabled={!selectedCourse}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800 shadow-sm transition cursor-pointer disabled:opacity-50"
+            title="ส่งออกรายงานต้นทุนประจำรายวิชานี้เป็นไฟล์ Excel (.xlsx) ตามแบบฟอร์มทางการ"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>ส่งออก Excel (.xlsx)</span>
+          </button>
+
+          {/* Export CSV */}
           <button
             onClick={handleExportCSV}
             disabled={!selectedCourse}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700 shadow-sm transition cursor-pointer disabled:opacity-50"
+            title="ส่งออกรายงานต้นทุนประจำรายวิชานี้เป็นไฟล์ CSV (UTF-8)"
           >
             <Download className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-            <span>Export Excel (CSV)</span>
+            <span>CSV</span>
           </button>
+
+          {/* Print A4 Official Slip */}
           <button
             onClick={handlePrint}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700 shadow-sm transition cursor-pointer"
+            disabled={!selectedCourse}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700 shadow-sm transition cursor-pointer disabled:opacity-50"
+            title="พิมพ์รายงานต้นทุนประจำรายวิชาลงบนกระดาษ A4 รูปแบบทางการ"
           >
             <Printer className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-            <span>พิมพ์รายงาน</span>
+            <span>พิมพ์รายงาน A4</span>
           </button>
           {(isAdmin || isOfficer || isTeacher) && (
             <button

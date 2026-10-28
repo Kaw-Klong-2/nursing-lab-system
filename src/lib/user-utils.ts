@@ -489,3 +489,69 @@ export function getUserBadges(user?: {
   return badges;
 }
 
+/**
+ * Resolves the display name and official job position of the person who exported the report.
+ * Adheres to Thai official document etiquette (ระเบียบงานสารบรรณ):
+ * - If user is academic faculty (e.g. ผศ., รศ., ดร., อาจารย์), keeps academic title inside parentheses.
+ * - If user is administrative/lab staff, strips personal pronouns (นาย, นาง, นางสาว) inside parentheses.
+ * - Extracts their dynamic position from department/executiveRole/role.
+ */
+export function getExporterSignatureInfo(currentUser?: {
+  prefix?: string | null;
+  name?: string | null;
+  role?: string | null;
+  department?: string | null;
+  isExecutive?: boolean | null;
+  executiveRole?: string | null;
+} | null): {
+  name: string;
+  position: string;
+} {
+  if (!currentUser) {
+    return { name: 'เจ้าหน้าที่ผู้รับผิดชอบ', position: 'นักวิทยาศาสตร์' };
+  }
+
+  const rawName = currentUser.name || 'ผู้รายงาน';
+  const prefix = currentUser.prefix || '';
+
+  const isAcademic =
+    currentUser.role === 'TEACHER' ||
+    ACADEMIC_PREFIXES.some(
+      (r) =>
+        r !== 'อาจารย์' &&
+        r !== 'อ.' &&
+        (prefix.startsWith(r) || rawName.startsWith(r))
+    );
+
+  const cleanName = isAcademic
+    ? formatTeacherName(currentUser)
+    : stripAllPrefixes(rawName);
+
+  let position = '';
+  const dept = (currentUser.department || '').trim();
+
+  if (currentUser.isExecutive && currentUser.executiveRole?.trim()) {
+    position = currentUser.executiveRole.trim();
+  } else if (
+    dept &&
+    (dept.includes('นักวิทยาศาสตร์') ||
+      dept.includes('นักวิชาการ') ||
+      dept.includes('เจ้าหน้าที่') ||
+      dept.includes('หัวหน้า'))
+  ) {
+    position = dept;
+  } else if (rawName.includes('ณัฐกุล')) {
+    position = 'นักวิทยาศาสตร์';
+  } else if (currentUser.role === 'TEACHER') {
+    position = 'อาจารย์ผู้สอน';
+  } else if (currentUser.role === 'OFFICER') {
+    position = dept || 'เจ้าหน้าที่ห้องปฏิบัติการทางการพยาบาล';
+  } else if (currentUser.role === 'ADMIN') {
+    position = dept || 'นักวิทยาศาสตร์';
+  } else {
+    position = dept || getRoleLabel(currentUser.role);
+  }
+
+  return { name: cleanName, position };
+}
+

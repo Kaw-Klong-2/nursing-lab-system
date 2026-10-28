@@ -63,12 +63,21 @@ export default function EditRequestModal({
 
   // Items State
   const [borrowItems, setBorrowItems] = useState<
-    { itemId: string; quantity: number | string; categoryId?: string }[]
+    {
+      itemId: string;
+      quantity: number | string;
+      originalQuantity?: number | string;
+      isOriginal?: boolean;
+      categoryId?: string;
+    }[]
   >([]);
   const [requisitionItems, setRequisitionItems] = useState<
     {
       itemId: string;
       quantity: number | string;
+      originalQuantity?: number | string;
+      originalIsSubUnit?: boolean;
+      isOriginal?: boolean;
       categoryId?: string;
       isSubUnit?: boolean;
       requestedUnit?: string;
@@ -112,35 +121,53 @@ export default function EditRequestModal({
       const bItems = (initialData.items || []).map((it: any) => ({
         itemId: it.itemId,
         quantity: it.quantity || 1,
+        originalQuantity: it.quantity || 1,
+        isOriginal: true,
         categoryId: it.item?.categoryId || '',
       }));
-      setBorrowItems(bItems.length > 0 ? bItems : [{ itemId: '', quantity: '' }]);
+      setBorrowItems(bItems.length > 0 ? bItems : [{ itemId: '', quantity: '', isOriginal: false }]);
 
       // Check if unified with linked requisition
       const linkedReq = initialData.requisitionRequest;
       if (linkedReq && linkedReq.items) {
-        const rItems = linkedReq.items.map((it: any) => ({
-          itemId: it.itemId,
-          quantity: initialData.status === 'DISPENSED' || initialData.requisitionRequest?.status === 'DISPENSED' ? (it.quantityDispensed ?? it.quantityRequested ?? 1) : (it.quantityRequested || 1),
-          isSubUnit: Boolean(it.isSubUnit),
-          requestedUnit: it.requestedUnit || '',
-          categoryId: it.item?.categoryId || '',
-        }));
-        setRequisitionItems(rItems.length > 0 ? rItems : [{ itemId: '', quantity: '', isSubUnit: false, requestedUnit: '' }]);
+        const rItems = linkedReq.items.map((it: any) => {
+          const origQty = initialData.status === 'DISPENSED' || initialData.requisitionRequest?.status === 'DISPENSED'
+            ? (it.quantityDispensed ?? it.quantityRequested ?? 1)
+            : (it.quantityRequested || 1);
+          return {
+            itemId: it.itemId,
+            quantity: origQty,
+            originalQuantity: origQty,
+            originalIsSubUnit: Boolean(it.isSubUnit),
+            isOriginal: true,
+            isSubUnit: Boolean(it.isSubUnit),
+            requestedUnit: it.requestedUnit || '',
+            categoryId: it.item?.categoryId || '',
+          };
+        });
+        setRequisitionItems(rItems.length > 0 ? rItems : [{ itemId: '', quantity: '', isOriginal: false, isSubUnit: false, requestedUnit: '' }]);
       } else {
         setRequisitionItems([]);
       }
     } else {
       // Pure REQUISITION
       setDateNeeded(formatDateLocal(initialData.dateNeeded));
-      const rItems = (initialData.items || []).map((it: any) => ({
-        itemId: it.itemId,
-        quantity: initialData.status === 'DISPENSED' || initialData.requisitionRequest?.status === 'DISPENSED' ? (it.quantityDispensed ?? it.quantityRequested ?? 1) : (it.quantityRequested || 1),
-        isSubUnit: Boolean(it.isSubUnit),
-        requestedUnit: it.requestedUnit || '',
-        categoryId: it.item?.categoryId || '',
-      }));
-      setRequisitionItems(rItems.length > 0 ? rItems : [{ itemId: '', quantity: '', isSubUnit: false, requestedUnit: '' }]);
+      const rItems = (initialData.items || []).map((it: any) => {
+        const origQty = initialData.status === 'DISPENSED' || initialData.requisitionRequest?.status === 'DISPENSED'
+          ? (it.quantityDispensed ?? it.quantityRequested ?? 1)
+          : (it.quantityRequested || 1);
+        return {
+          itemId: it.itemId,
+          quantity: origQty,
+          originalQuantity: origQty,
+          originalIsSubUnit: Boolean(it.isSubUnit),
+          isOriginal: true,
+          isSubUnit: Boolean(it.isSubUnit),
+          requestedUnit: it.requestedUnit || '',
+          categoryId: it.item?.categoryId || '',
+        };
+      });
+      setRequisitionItems(rItems.length > 0 ? rItems : [{ itemId: '', quantity: '', isOriginal: false, isSubUnit: false, requestedUnit: '' }]);
 
       // Check if unified with linked borrow
       const linkedBorrow = initialData.borrowRequest;
@@ -150,9 +177,11 @@ export default function EditRequestModal({
         const bItems = linkedBorrow.items.map((it: any) => ({
           itemId: it.itemId,
           quantity: it.quantity || 1,
+          originalQuantity: it.quantity || 1,
+          isOriginal: true,
           categoryId: it.item?.categoryId || '',
         }));
-        setBorrowItems(bItems.length > 0 ? bItems : [{ itemId: '', quantity: '' }]);
+        setBorrowItems(bItems.length > 0 ? bItems : [{ itemId: '', quantity: '', isOriginal: false }]);
       } else {
         setBorrowItems([]);
       }
@@ -261,9 +290,48 @@ export default function EditRequestModal({
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'th'));
   }, [equipmentList]);
 
+  // Delta Summary stats
+  const deltaStats = React.useMemo(() => {
+    let originalUnchanged = 0;
+    let itemsToAdd = 0;
+    let itemsToReduce = 0;
+
+    borrowItems.filter((b) => b.itemId).forEach((b) => {
+      if (!b.isOriginal) {
+        itemsToAdd++;
+      } else {
+        const diff = Number(b.quantity || 0) - Number(b.originalQuantity || 0);
+        if (diff === 0) originalUnchanged++;
+        else if (diff > 0) itemsToAdd++;
+        else itemsToReduce++;
+      }
+    });
+
+    requisitionItems.filter((r) => r.itemId).forEach((r) => {
+      const match = consumablesList.find((c) => c.id === r.itemId);
+      const ratio = Number(match?.conversionRatio) > 0 ? Number(match?.conversionRatio) : 1;
+      if (!r.isOriginal) {
+        itemsToAdd++;
+      } else {
+        const origPieces = r.originalIsSubUnit
+          ? Number(r.originalQuantity || 0)
+          : Number(r.originalQuantity || 0) * ratio;
+        const curPieces = r.isSubUnit
+          ? Number(r.quantity || 0)
+          : Number(r.quantity || 0) * ratio;
+        const diff = curPieces - origPieces;
+        if (diff === 0) originalUnchanged++;
+        else if (diff > 0) itemsToAdd++;
+        else itemsToReduce++;
+      }
+    });
+
+    return { originalUnchanged, itemsToAdd, itemsToReduce };
+  }, [borrowItems, requisitionItems, consumablesList]);
+
   // Handlers for borrow items
   const handleAddBorrowItem = () => {
-    setBorrowItems((prev) => [...prev, { itemId: '', quantity: '' }]);
+    setBorrowItems((prev) => [...prev, { itemId: '', quantity: '', isOriginal: false }]);
   };
 
   const handleRemoveBorrowItem = (index: number) => {
@@ -306,7 +374,7 @@ export default function EditRequestModal({
   const handleAddRequisitionItem = () => {
     setRequisitionItems((prev) => [
       ...prev,
-      { itemId: '', quantity: '', isSubUnit: false, requestedUnit: '' },
+      { itemId: '', quantity: '', isOriginal: false, isSubUnit: false, requestedUnit: '' },
     ]);
   };
 
@@ -730,14 +798,51 @@ export default function EditRequestModal({
                     ? equipmentList.filter((e) => (e.category?.id || e.categoryId) === item.categoryId)
                     : equipmentList;
                   const matchEq = equipmentList.find((e) => e.id === item.itemId);
-                  const availCount = matchEq?.availableAssets?.length ?? matchEq?.currentStock ?? 0;
-                  const isOver = item.itemId && Number(item.quantity) > availCount;
+                  const shelfAvail = matchEq?.availableAssets?.length ?? matchEq?.currentStock ?? 0;
+                  const alreadyHeldQty = item.isOriginal ? Number(item.originalQuantity || 1) : 0;
+                  const effectiveAvail = shelfAvail + alreadyHeldQty;
+                  const isOver = item.itemId && Number(item.quantity) > effectiveAvail;
+                  const currentQty = Number(item.quantity || 0);
+                  const origQty = item.isOriginal ? Number(item.originalQuantity || 0) : 0;
+                  const diff = currentQty - origQty;
 
                   return (
                     <div
                       key={idx}
                       className="p-3 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 shadow-sm space-y-2"
                     >
+                      {/* Status Badge header for clarity */}
+                      <div className="flex items-center justify-between gap-2 pb-1 border-b border-slate-100 dark:border-slate-700/60 flex-wrap">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {item.isOriginal ? (
+                            diff === 0 ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                📌 รายการเดิม (คงเดิม ไม่ตัดสต็อกเพิ่ม)
+                              </span>
+                            ) : diff > 0 ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300">
+                                ➕ ปรับเพิ่ม (+{diff} {matchEq?.unit || 'ชิ้น'} จะตัดสต็อกเพิ่ม)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300">
+                                ➖ ปรับลด (-{Math.abs(diff)} {matchEq?.unit || 'ชิ้น'} จะคืนเข้าคลัง)
+                              </span>
+                            )
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-300">
+                              ✨ รายการเพิ่มใหม่ (+{item.quantity || 1} {matchEq?.unit || 'ชิ้น'} จะตัดสต็อกใหม่)
+                            </span>
+                          )}
+                        </div>
+                        {matchEq && (
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                            {item.isOriginal && alreadyHeldQty > 0
+                              ? `(ถือครองอยู่แล้ว ${alreadyHeldQty} + ในคลังว่าง ${shelfAvail})`
+                              : `(ในคลังว่าง ${shelfAvail} ${matchEq.unit})`}
+                          </span>
+                        )}
+                      </div>
+
                       <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
                         {/* Category Dropdown */}
                         <div className="sm:col-span-4">
@@ -776,7 +881,7 @@ export default function EditRequestModal({
                           <input
                             type="number"
                             min="1"
-                            max={availCount > 0 ? availCount : undefined}
+                            max={effectiveAvail > 0 ? effectiveAvail : undefined}
                             placeholder="จำนวน"
                             value={item.quantity}
                             onChange={(e) => handleBorrowItemChange(idx, 'quantity', e.target.value)}
@@ -802,7 +907,7 @@ export default function EditRequestModal({
 
                       {matchEq && isOver && (
                         <div className="text-[11px] text-rose-600 font-bold pl-1">
-                          ⚠️ ระบุเกินจำนวนพร้อมใช้ (มีพร้อมใช้ {availCount} {matchEq.unit})
+                          ⚠️ ระบุเกินโควตาสูงสุด (ถือครองอยู่แล้ว {alreadyHeldQty} + ในคลังมีเพิ่มอีก {shelfAvail} {matchEq.unit})
                         </div>
                       )}
                     </div>
@@ -838,16 +943,59 @@ export default function EditRequestModal({
                   const matchCons = consumablesList.find((c) => c.id === item.itemId);
                   const ratio = Number(matchCons?.conversionRatio) > 0 ? Number(matchCons?.conversionRatio) : 1;
                   const canSubUnit = !!(matchCons && ratio > 1 && matchCons.usageUnit);
-                  const totalPieces = (matchCons?.currentStock || 0) * ratio + (matchCons?.openPackRemainder || 0);
+                  const shelfPieces = (matchCons?.currentStock || 0) * ratio + (matchCons?.openPackRemainder || 0);
+                  const alreadyHeldPieces = item.isOriginal
+                    ? (item.originalIsSubUnit ? Number(item.originalQuantity || 0) : Number(item.originalQuantity || 0) * ratio)
+                    : 0;
+                  const effectiveTotalPieces = shelfPieces + alreadyHeldPieces;
                   const isSub = Boolean(item.isSubUnit);
-                  const maxAllowed = isSub ? totalPieces : matchCons?.currentStock || 0;
+                  const maxAllowed = isSub ? effectiveTotalPieces : Math.floor(effectiveTotalPieces / ratio);
                   const isOver = item.itemId && Number(item.quantity) > maxAllowed;
+
+                  const currentPieces = isSub ? Number(item.quantity || 0) : Number(item.quantity || 0) * ratio;
+                  const diffPieces = currentPieces - alreadyHeldPieces;
 
                   return (
                     <div
                       key={idx}
                       className="p-3 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 shadow-sm space-y-2.5"
                     >
+                      {/* Status Badge header for clarity */}
+                      <div className="flex items-center justify-between gap-2 pb-1 border-b border-slate-100 dark:border-slate-700/60 flex-wrap">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {item.isOriginal ? (
+                            diffPieces === 0 ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                📌 รายการเดิม (คงเดิม ไม่ตัดสต็อกเพิ่ม)
+                              </span>
+                            ) : diffPieces > 0 ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300">
+                                ➕ ปรับเพิ่ม (+{isSub ? `${diffPieces} ${matchCons?.usageUnit || 'ชิ้น'}` : `${Math.round(diffPieces / ratio)} ${matchCons?.unit || 'หน่วย'}`} จะตัดสต็อกเพิ่ม)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300">
+                                ➖ ปรับลด (-{isSub ? `${Math.abs(diffPieces)} ${matchCons?.usageUnit || 'ชิ้น'}` : `${Math.round(Math.abs(diffPieces) / ratio)} ${matchCons?.unit || 'หน่วย'}`} จะคืนเข้าคลัง)
+                              </span>
+                            )
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-300">
+                              ✨ รายการเพิ่มใหม่ (+{item.quantity || 1} {isSub ? (matchCons?.usageUnit || 'ชิ้น') : (matchCons?.unit || 'หน่วย')} จะตัดสต็อกใหม่)
+                            </span>
+                          )}
+                        </div>
+                        {matchCons && (
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                            {item.isOriginal && alreadyHeldPieces > 0
+                              ? isSub
+                                ? `(ถือครองอยู่แล้ว ${alreadyHeldPieces} + ในคลังว่าง ${shelfPieces} ${matchCons.usageUnit})`
+                                : `(ถือครองอยู่แล้ว ${item.originalQuantity} + ในคลังว่าง ${matchCons.currentStock} ${matchCons.unit})`
+                              : isSub
+                              ? `(ในคลังว่าง ${shelfPieces} ${matchCons.usageUnit})`
+                              : `(ในคลังว่าง ${matchCons.currentStock} ${matchCons.unit})`}
+                          </span>
+                        )}
+                      </div>
+
                       {/* Step 1: Category & Item Selectors */}
                       <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
                         <div className="sm:col-span-4">
@@ -953,8 +1101,8 @@ export default function EditRequestModal({
                           <div className="flex items-center gap-3 ml-auto">
                             <span className={`text-[11px] ${isOver ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
                               {isSub
-                                ? `พร้อมเบิกย่อย: ${totalPieces} ${matchCons.usageUnit}`
-                                : `พร้อมเบิก: ${matchCons.currentStock} ${matchCons.unit}`}
+                                ? `พร้อมเบิกย่อย: ${effectiveTotalPieces} ${matchCons.usageUnit}`
+                                : `พร้อมเบิก: ${Math.floor(effectiveTotalPieces / ratio)} ${matchCons.unit}`}
                             </span>
                             <button
                               type="button"
@@ -967,6 +1115,12 @@ export default function EditRequestModal({
                           </div>
                         </div>
                       )}
+
+                      {matchCons && isOver && (
+                        <div className="text-[11px] text-rose-600 font-bold pl-1">
+                          ⚠️ ระบุเกินโควตาสูงสุด (ถือครองอยู่แล้ว {isSub ? `${alreadyHeldPieces} ${matchCons.usageUnit}` : `${Math.floor(alreadyHeldPieces / ratio)} ${matchCons.unit}`} + ในคลังมีเพิ่มอีก {isSub ? `${shelfPieces} ${matchCons.usageUnit}` : `${matchCons.currentStock} ${matchCons.unit}`})
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -974,6 +1128,33 @@ export default function EditRequestModal({
             </div>
           )}
         </form>
+
+        {/* Delta Summary Bar */}
+        <div className="px-5 py-3 bg-amber-50/70 dark:bg-amber-950/30 border-t border-amber-200/80 dark:border-amber-800/50 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+              <span>📊 สรุปการแก้ไข:</span>
+            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-semibold text-[11px]">
+                📌 รายการเดิมคงที่: <b>{deltaStats.originalUnchanged}</b>
+              </span>
+              {deltaStats.itemsToAdd > 0 && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-300 font-semibold text-[11px]">
+                  ➕ เพิ่มรายการ/ปรับขึ้น: <b>{deltaStats.itemsToAdd}</b>
+                </span>
+              )}
+              {deltaStats.itemsToReduce > 0 && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-300 font-semibold text-[11px]">
+                  ➖ ปรับลด/คืนคลัง: <b>{deltaStats.itemsToReduce}</b>
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+            *ระบบจะปรับปรุงเฉพาะส่วนต่าง (Delta) ไม่สร้างรายการซ้ำซ้อน
+          </div>
+        </div>
 
         {/* Footer Actions */}
         <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 flex items-center justify-between gap-3 shrink-0">

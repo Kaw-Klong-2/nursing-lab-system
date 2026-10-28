@@ -17,6 +17,38 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-28] ระบบคำนวณระยะเวลาเกินกำหนดแม่นยำ (Overdue Precision Fix) และระบบแสดงสถานะส่วนต่างสินค้าในหน้าแก้ไขคำขอ (Delta Clarity & Stock Quota Fix)
+- **หมวดหมู่**: Requests / Borrowing / Notifications / Overdue System / Inventory / Admin UX
+- **สิ่งที่ดำเนินการ**:
+  1. **ระบบคำนวณและแสดงผลการเกินกำหนดอย่างแม่นยำ (Overdue Precision Fix)**:
+     - พัฒนาฟังก์ชันกลาง `formatOverdueDuration(dueDateInput, nowInput)` ใน `src/lib/date-time-utils.ts`
+     - ยกเลิกการปัดเศษแบบหยาบ `Math.ceil(diffHours / 24)` ซึ่งทำให้เพิ่งเกินกำหนด 1 ชม. 14 นาที ถูกแสดงเป็น "เกินกำหนด 1 วัน"
+     - แสดงผลตามช่วงเวลาจริง:
+       - เกินไม่ถึง 1 ชม. (1-59 นาที): `เกินกำหนด X นาที`
+       - เกิน 1-23 ชม.: `เกินกำหนด X ชม.`
+       - เกิน 24 ชม. ขึ้นไป: `เกินกำหนด X วัน` (และ `X วัน Y ชม.` ในกรณีละเอียด)
+     - เชื่อมต่อทุกจุดในระบบ: หน้าจัดการการยืม (`borrow/page.tsx`), หน้ารายละเอียดการยืม (`verify/borrow/[code]/page.tsx`), แดชบอร์ดนิสิต (`StudentDashboard.tsx`), ระบบแจ้งเตือน (`check-system/route.ts`), และ Cron Job (`cron/reminders/route.ts`)
+  2. **ระบบแสดงสถานะส่วนต่างสินค้าและความชัดเจนในการแก้ไขคำขอ (Delta Clarity & Stock Quota Fix)**:
+     - ตอบข้อสงสัยและให้ความมั่นใจแก่ผู้ใช้: การกดบันทึกในหน้าต่างแก้ไขคำขอ (`EditRequestModal`) **ไม่ใช่การเพิ่มซ้ำซ้อน** แต่เป็นการอัปเดตเฉพาะส่วนต่าง (Delta)
+     - **แก้ปัญหาแจ้งเตือนสต็อกเท็จ (False Red Warning Fix)**: รายการเดิมที่นิสิต/อาจารย์ถือครองอยู่แล้ว (`alreadyHeldQty` / `alreadyHeldPieces`) จะถูกนำมารวมกับสต็อกที่เหลือในคลัง (`effectiveAvail = shelfAvail + alreadyHeld`) ทำให้ไม่ติดเตือนสีแดง `⚠️ ระบุเกินจำนวนพร้อมใช้ (มีพร้อมใช้ 0 ชุด)` เมื่อบันทึกคงเดิม
+     - **แถบป้ายสถานะรายแถว (Row Status Badges)**:
+       - `📌 รายการเดิม (คงเดิม ไม่ตัดสต็อกเพิ่ม)`
+       - `➕ ปรับเพิ่ม (จะตัดสต็อกเพิ่ม)`
+       - `➖ ปรับลด (จะคืนเข้าคลัง)`
+       - `✨ รายการเพิ่มใหม่ (จะตัดสต็อกใหม่)`
+     - **แถบสรุปส่วนต่างก่อนบันทึก (Delta Summary Bar)**: แสดงสถิติการเปลี่ยนแปลงโดยรวมอย่างชัดเจนเหนือปุ่มบันทึก
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/lib/date-time-utils.ts`
+  - `src/app/borrow/page.tsx`
+  - `src/app/verify/borrow/[code]/page.tsx`
+  - `src/components/dashboard/StudentDashboard.tsx`
+  - `src/app/api/notifications/check-system/route.ts`
+  - `src/app/api/cron/reminders/route.ts`
+  - `src/components/requests/EditRequestModal.tsx`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100% (คำว่า "นิสิต" ถูกต้อง 100%, UTF-8 ถูกต้อง 100%, TypeScript 0 errors)
+
+
 ### [2026-10-28] ระบบเลือกหมวดหมู่วัสดุ/ครุภัณฑ์, แก้ไขการเบิกแบบย่อย และปรับระยะขอบการพิมพ์ A4 (Category Pre-Filter, Sub-Unit Dispense & Safe Print Margins Fix)
 - **หมวดหมู่**: Requests / Slips & Printing / Consumables / Equipment / Inventory
 - **สิ่งที่ดำเนินการ**:

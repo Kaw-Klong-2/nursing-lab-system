@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { notifyRoles, createNotification } from '@/lib/notifications';
 import { formatUserName } from '@/lib/user-utils';
-import { getBangkokStartOfDay, getBangkokEndOfDay } from '@/lib/date-time-utils';
+import { getBangkokStartOfDay, getBangkokEndOfDay, formatOverdueDuration } from '@/lib/date-time-utils';
 
 /**
  * ตรวจสอบความปลอดภัยของคำขอ Cron หรือสิทธิ์ของผู้เรียกใช้
@@ -115,10 +115,8 @@ async function processReminders(type: string = 'all') {
     for (const b of overdueBorrows) {
       const itemNames = b.items.map((i) => i.item?.name).filter(Boolean).join(', ') || 'ครุภัณฑ์ห้องปฏิบัติการ';
       const studentName = formatUserName(b.user) || 'นิสิต';
-      const overdueDays = Math.max(
-        1,
-        Math.floor((now.getTime() - new Date(b.expectedReturnDate).getTime()) / (24 * 60 * 60 * 1000))
-      );
+      const overdueInfo = formatOverdueDuration(b.expectedReturnDate, now);
+      const overdueDays = overdueInfo.diffDays;
 
       // บันทึกลงรายการสำหรับสรุปส่งเจ้าหน้าที่
       overdueBorrowsList.push({
@@ -127,7 +125,7 @@ async function processReminders(type: string = 'all') {
         userId: b.userId,
         studentName,
         itemNames,
-        overdueDays,
+        overdueDays: overdueDays || 1,
       });
 
       // ตรวจสอบ Anti-spam Cooldown: หากเคยแจ้งเตือนในวันนี้แล้ว (ตั้งแต่ 00:00 น.) จะไม่ส่งซ้ำ
@@ -148,8 +146,8 @@ async function processReminders(type: string = 'all') {
           // ส่ง In-App + Web Push ให้นิสิต
           await createNotification({
             userId: b.userId,
-            title: `⚠️ ครุภัณฑ์ค้างส่งคืนเกินกำหนด (${overdueDays} วัน)`,
-            message: `คำขอเลขที่ ${b.requestNumber} (${itemNames}) เกินกำหนดส่งคืนแล้ว (เกินกำหนดมาแล้ว ${overdueDays} วัน) กรุณานำส่งคืนที่ห้องปฏิบัติการพยาบาลโดยด่วน`,
+            title: `⚠️ ครุภัณฑ์ค้างส่งคืนเกินกำหนด (${overdueInfo.shortLabel})`,
+            message: `คำขอเลขที่ ${b.requestNumber} (${itemNames}) ${overdueInfo.label} กรุณานำส่งคืนที่ห้องปฏิบัติการพยาบาลโดยด่วน`,
             type: 'DUE_REMINDER',
             priority: 'URGENT',
             linkUrl: '/borrow',

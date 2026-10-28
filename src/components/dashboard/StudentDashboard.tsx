@@ -26,6 +26,7 @@ import EditRequestModal from '@/components/requests/EditRequestModal';
 import { formatUserName, formatTeacherName, formatApproverDisplay, formatAcknowledgeDisplay } from '@/lib/user-utils';
 import BorrowSlipModal from '@/components/slips/BorrowSlipModal';
 import RequisitionSlipModal from '@/components/slips/RequisitionSlipModal';
+import { formatOverdueDuration } from '@/lib/date-time-utils';
 import { FileSpreadsheet } from 'lucide-react';
 
 interface StudentDashboardProps {
@@ -131,6 +132,17 @@ export default function StudentDashboard({ embedded = false }: StudentDashboardP
       return { label: 'รอเจ้าหน้าที่/อาจารย์อนุมัติ', color: 'bg-amber-100 text-amber-800 border-amber-200', days: 0, state: 'pending' };
     }
 
+    const overdue = formatOverdueDuration(expectedReturnDateStr);
+    if (overdue.isOverdue) {
+      return {
+        label: `${overdue.label}! กรุณานำส่งคืนห้องปฏิบัติการ`,
+        color: 'bg-rose-500 text-white animate-pulse shadow-rose-500/20',
+        badgeBg: 'bg-rose-50 text-rose-700 border-rose-200',
+        days: -overdue.diffDays,
+        state: 'overdue'
+      };
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const returnDate = new Date(expectedReturnDateStr);
@@ -139,15 +151,7 @@ export default function StudentDashboard({ embedded = false }: StudentDashboardP
     const diffTime = returnDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    if (diffDays < 0) {
-      return {
-        label: `เกินกำหนดคืน ${Math.abs(diffDays)} วัน! กรุณานำส่งคืนห้องแล็บ`,
-        color: 'bg-rose-500 text-white animate-pulse shadow-rose-500/20',
-        badgeBg: 'bg-rose-50 text-rose-700 border-rose-200',
-        days: diffDays,
-        state: 'overdue'
-      };
-    } else if (diffDays === 0) {
+    if (diffDays === 0) {
       return {
         label: 'ครบกำหนดส่งคืน "วันนี้" (ภายใน 16:30 น.)',
         color: 'bg-amber-500 text-white font-bold',

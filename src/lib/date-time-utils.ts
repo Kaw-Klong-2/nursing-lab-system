@@ -106,3 +106,75 @@ export function formatBangkokDateTime(
     ...options,
   });
 }
+
+export interface OverdueDurationInfo {
+  isOverdue: boolean;
+  diffMs: number;
+  diffMinutes: number;
+  diffHours: number;
+  diffDays: number;
+  label: string;       // เช่น "เกินกำหนด 1 ชม.", "เกินกำหนด 2 วัน", "เกินกำหนด 15 นาที"
+  shortLabel: string;  // เช่น "1 ชม.", "2 วัน", "15 นาที"
+}
+
+/**
+ * คำนวณและแสดงผลระยะเวลาเกินกำหนด (Overdue Duration) อย่างแม่นยำตามเวลาจริง
+ * - เกินกำหนด < 1 ชม. (< 60 นาที): แสดงเป็นนาที เช่น "เกินกำหนด 15 นาที"
+ * - เกินกำหนด 1–23 ชม. (ยังไม่ครบวันเต็ม): แสดงเป็นชั่วโมง เช่น "เกินกำหนด 1 ชม."
+ * - เกินกำหนด >= 24 ชม. (ครบวันเต็ม): คำนวณวันเต็ม Math.floor(hours / 24) เช่น "เกินกำหนด 1 วัน", "เกินกำหนด 1 วัน 2 ชม."
+ */
+export function formatOverdueDuration(
+  dueDateInput: Date | string,
+  nowInput: Date | string = new Date()
+): OverdueDurationInfo {
+  const due = typeof dueDateInput === 'string' ? new Date(dueDateInput).getTime() : dueDateInput.getTime();
+  const now = typeof nowInput === 'string' ? new Date(nowInput).getTime() : nowInput.getTime();
+  const diffMs = now - due;
+
+  if (diffMs <= 0 || isNaN(diffMs)) {
+    return {
+      isOverdue: false,
+      diffMs: 0,
+      diffMinutes: 0,
+      diffHours: 0,
+      diffDays: 0,
+      label: 'ยังไม่เกินกำหนด',
+      shortLabel: 'ตรงเวลา',
+    };
+  }
+
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffHours / 24);
+  const remainingHours = diffHours % 24;
+
+  let label = '';
+  let shortLabel = '';
+
+  if (diffMinutes < 60) {
+    const mins = Math.max(1, diffMinutes);
+    label = `เกินกำหนด ${mins} นาที`;
+    shortLabel = `${mins} นาที`;
+  } else if (diffHours < 24) {
+    label = `เกินกำหนด ${diffHours} ชม.`;
+    shortLabel = `${diffHours} ชม.`;
+  } else {
+    if (remainingHours > 0) {
+      label = `เกินกำหนด ${diffDays} วัน ${remainingHours} ชม.`;
+      shortLabel = `${diffDays} วัน ${remainingHours} ชม.`;
+    } else {
+      label = `เกินกำหนด ${diffDays} วัน`;
+      shortLabel = `${diffDays} วัน`;
+    }
+  }
+
+  return {
+    isOverdue: true,
+    diffMs,
+    diffMinutes,
+    diffHours,
+    diffDays,
+    label,
+    shortLabel,
+  };
+}

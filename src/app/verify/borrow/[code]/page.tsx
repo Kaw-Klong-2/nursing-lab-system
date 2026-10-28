@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import BorrowSlipModal from '@/components/slips/BorrowSlipModal';
+import { formatOverdueDuration } from '@/lib/date-time-utils';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -168,10 +169,8 @@ export default function BorrowSlipVerificationPage() {
   }
 
   // Calculate overdue status
-  const nowTime = new Date().getTime();
-  const dueTime = new Date(borrow.expectedReturnDate).getTime();
-  const isOverdue = borrow.status === 'BORROWED' && dueTime < nowTime;
-  const overdueDays = isOverdue ? Math.ceil((nowTime - dueTime) / (1000 * 60 * 60 * 24)) : 0;
+  const overdueInfo = formatOverdueDuration(borrow.expectedReturnDate);
+  const isOverdue = borrow.status === 'BORROWED' && overdueInfo.isOverdue;
 
   // Status Badge Helper
   const getStatusBadge = () => {
@@ -196,7 +195,7 @@ export default function BorrowSlipVerificationPage() {
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 animate-pulse">
             <Clock className="w-3.5 h-3.5" />
-            <span>เกินกำหนดส่งคืน {overdueDays} วัน (OVERDUE)</span>
+            <span>{overdueInfo.label} (OVERDUE)</span>
           </span>
         );
       }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { notifyRoles, createNotification, processScheduledBroadcasts } from '@/lib/notifications';
+import { formatOverdueDuration } from '@/lib/date-time-utils';
 
 export async function POST() {
   try {
@@ -105,13 +106,13 @@ export async function POST() {
 
       if (!recentAlert) {
         const itemNames = b.items.map((i) => i.item?.name).filter(Boolean).join(', ');
-        const overdueDays = Math.max(1, Math.floor((now.getTime() - new Date(b.expectedReturnDate).getTime()) / (24 * 60 * 60 * 1000)));
+        const overdueInfo = formatOverdueDuration(b.expectedReturnDate, now);
 
         // Notify student
         await createNotification({
           userId: b.userId,
-          title: `⚠️ ครุภัณฑ์ค้างส่งคืนเกินกำหนด (${overdueDays} วัน)`,
-          message: `รายการยืมเลขที่ ${b.requestNumber} (${itemNames}) ครบกำหนดส่งคืนแล้ว (เกินกำหนดมาแล้ว ${overdueDays} วัน) กรุณานำส่งคืนที่ห้องแล็บโดยด่วน`,
+          title: `⚠️ ครุภัณฑ์ค้างส่งคืนเกินกำหนด (${overdueInfo.shortLabel})`,
+          message: `รายการยืมเลขที่ ${b.requestNumber} (${itemNames}) ครบกำหนดส่งคืนแล้ว (${overdueInfo.label}) กรุณานำส่งคืนที่ห้องปฏิบัติการโดยด่วน`,
           type: 'DUE_REMINDER',
           priority: 'URGENT',
           linkUrl: '/borrow',
@@ -121,8 +122,8 @@ export async function POST() {
 
         // Notify officers
         await notifyRoles(['OFFICER', 'ADMIN'], {
-          title: `🔴 ครุภัณฑ์ค้างส่งคืนเกินกำหนด (${overdueDays} วัน)`,
-          message: `นิสิต ${b.user?.name || 'ไม่ระบุชื่อ'} ค้างส่งคืนคำขอ ${b.requestNumber} (${itemNames}) เกินกำหนดมาแล้ว ${overdueDays} วัน`,
+          title: `🔴 ครุภัณฑ์ค้างส่งคืนเกินกำหนด (${overdueInfo.shortLabel})`,
+          message: `นิสิต ${b.user?.name || 'ไม่ระบุชื่อ'} ค้างส่งคืนคำขอ ${b.requestNumber} (${itemNames}) ${overdueInfo.label}`,
           type: 'DUE_REMINDER',
           priority: 'HIGH',
           linkUrl: '/borrow',

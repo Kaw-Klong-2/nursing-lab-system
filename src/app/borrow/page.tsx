@@ -41,6 +41,7 @@ import NewAllocationModal from '@/components/borrow/NewAllocationModal';
 import BulkAllocationReturnModal from '@/components/borrow/BulkAllocationReturnModal';
 import { formatUserName, formatTeacherName, formatApproverDisplay, formatAcknowledgeDisplay } from '@/lib/user-utils';
 import { formatLocationDisplay } from '@/lib/location-utils';
+import { formatOverdueDuration } from '@/lib/date-time-utils';
 
 export default function BorrowPage() {
   const { currentUser, isOfficer, isApprover, isAdmin, isTeacher } = useAuth();
@@ -773,17 +774,18 @@ export default function BorrowPage() {
                         {new Date(req.expectedReturnDate).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })} น.
                       </span>
                       {req.status === 'BORROWED' && (() => {
+                        const overdue = formatOverdueDuration(req.expectedReturnDate);
+                        if (overdue.isOverdue) {
+                          return (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 animate-pulse ml-1">
+                              🔴 {overdue.label}
+                            </span>
+                          );
+                        }
                         const now = new Date().getTime();
                         const due = new Date(req.expectedReturnDate).getTime();
                         const diffHours = (due - now) / (1000 * 60 * 60);
-                        if (diffHours < 0) {
-                          const overdueDays = Math.ceil(Math.abs(diffHours) / 24);
-                          return (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 animate-pulse ml-1">
-                              🔴 เกินกำหนด {overdueDays} วัน
-                            </span>
-                          );
-                        } else if (diffHours <= 24) {
+                        if (diffHours <= 24) {
                           return (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 ml-1">
                               🟠 ครบกำหนดภายใน 24 ชม.

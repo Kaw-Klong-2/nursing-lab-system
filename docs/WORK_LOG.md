@@ -17,6 +17,29 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-29] แก้ไขตัดคำว่า "สำนักงานเลขานุการ" ออกจากตำแหน่งผู้ลงนามรายงานต้นทุน, ลบ Hardcode ชื่อบุคคลทั้งหมด และแก้ไขปัญหาตัวหนังสือล้นตัดช่อง (Print & Excel Text Wrapping)
+- **หมวดหมู่**: Courses / Reports / Cost Analytics / Excel Export / Print Formatting / Code Hygiene / User Parser
+- **สิ่งที่ดำเนินการ**:
+  1. **สกัดตำแหน่งงานจริงแบบ Dynamic (Dynamic Position Parser) & ตัด "สำนักงานเลขานุการ" ออก**:
+     - เพิ่มฟังก์ชัน `formatUserPositionTitle(dept, role, isExecutive, executiveRole)` ใน `src/lib/user-utils.ts` แยกวิเคราะห์สตริงสังกัดแบบมีคอมมาคั่น (เช่น `"สำนักงานเลขานุการ, นักวิทยาศาสตร์"`) โดยคัดกรองชื่อหน่วยงาน/สำนักงาน/ภาควิชาออก และดึงเฉพาะชื่อตำแหน่งงานจริง (`นักวิทยาศาสตร์`, `นักวิชาการพัสดุ`, `อาจารย์`, `หัวหน้าภาควิชา`, ฯลฯ)
+     - ตัดคำว่า "สำนักงานเลขานุการ" ออกจากบล็อกลงนามทั้งใน Excel (.xlsx) และหน้าพิมพ์ (Print View) ได้ตำแหน่ง `นักวิทยาศาสตร์` สะอาดตรงตามจริง
+  2. **ล้างการ Hardcode ชื่อบุคคลเฉพาะตัว ("ณัฐกุล", "ปรเมศวร์", "วราชัย") ออกจาก Codebase 100%**:
+     - ลบเงื่อนไข `fullName.includes('ณัฐกุล')` ใน `getExporterSignatureInfo`
+     - ลบชื่อบุคคลในฟังก์ชัน `isStaffUser` ใน `src/lib/user-utils.ts` โดยใช้การตรวจสอบ `role` และคีย์เวิร์ดวิชาชีพมาตรฐานแทน
+     - ลบ `{ name: { contains: 'ณัฐกุล' } }` ใน `src/app/api/users/route.ts` ไม่ผูกติดกับชื่อคนอีกต่อไป
+  3. **แก้ไขปัญหาตัวหนังสือโดนตัดช่องในหน้าพิมพ์ (Print View Text Overflow Fix)**:
+     - ปรับสัดส่วน `<colgroup>`: ลดขนาดคอลัมน์รหัสวัสดุจาก `110px` เหลือ `85px` และกระจายพื้นที่ให้คอลัมน์ชื่อรายการวัสดุสิ้นเปลืองได้กว้างเต็มที่บนหน้า A4
+     - เพิ่ม CSS `word-break: break-word`, `overflow-wrap: break-word`, `white-space: normal` และ `line-height: 1.35` ทุกเซลล์ตาราง
+  4. **เปิด Wrap Text และขยายความกว้างคอลัมน์ใน Excel (.xlsx)**:
+     - ตั้งค่า `wrapText: true` ใน `alignment` ของทุกเซลล์ใน `handleExportExcel`
+     - ขยายความกว้างคอลัมน์ D (รายการวัสดุ) จาก 45 เป็น 52 และปรับความสูงแถวเป็น 24 ให้ข้อความขึ้นบรรทัดใหม่อัตโนมัติ ไม่โดนตัดขอบ
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/lib/user-utils.ts`
+  - `src/app/api/users/route.ts`
+  - `src/app/courses/page.tsx`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100% (คำว่า "นิสิต" ถูกต้อง 100%, UTF-8 ถูกต้อง 100%, TypeScript `npx tsc --noEmit` 0 errors)
+
 ### [2026-10-28] ปรับแต่งแบบฟอร์มรายงานต้นทุน: เพิ่มเส้นตาราง Excel (ExcelJS Borders), ตัดชื่อหน่วยงาน/วันที่เวลาออก, คงคำนำหน้าชื่อผู้รายงาน (ไม่ตัด นาย/นางสาว) และดึงตำแหน่งจริงของผู้กดส่งออก
 - **หมวดหมู่**: Courses / Reports / Cost Analytics / Excel Export / ExcelJS / Print Formatting
 - **สิ่งที่ดำเนินการ**:

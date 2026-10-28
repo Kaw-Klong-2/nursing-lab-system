@@ -49,7 +49,6 @@ export async function GET(req: Request) {
       ];
       whereCondition.NOT = [
         { department: { contains: 'นักวิทยาศาสตร์' } },
-        { name: { contains: 'ณัฐกุล' } },
       ];
     } else if (role) {
       whereCondition.role = role;

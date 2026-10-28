@@ -341,9 +341,9 @@ export default function CoursesPage() {
     ws.columns = [
       { width: 4 },  // A: Margin
       { width: 8 },  // B: ลำดับ
-      { width: 20 }, // C: รหัสวัสดุ / หัวข้อ
-      { width: 45 }, // D: รายการวัสดุสิ้นเปลือง / ชื่อวิชา
-      { width: 16 }, // E: จำนวนที่ใช้ / หน่วย
+      { width: 16 }, // C: รหัสวัสดุ / หัวข้อ
+      { width: 52 }, // D: รายการวัสดุสิ้นเปลือง / ชื่อวิชา
+      { width: 15 }, // E: จำนวนที่ใช้ / หน่วย
       { width: 12 }, // F: หน่วยนับ
       { width: 18 }, // G: รวม (บาท)
     ];
@@ -399,15 +399,16 @@ export default function CoursesPage() {
       cell.alignment = {
         horizontal: c === 2 || c === 5 || c === 6 ? 'center' : c === 7 ? 'right' : 'left',
         vertical: 'middle',
+        wrapText: true,
       };
     }
 
-    // Rows 11..(10 + N): Items with explicit Gridline Borders
+    // Rows 11..(10 + N): Items with explicit Gridline Borders & WrapText
     const dataStartRow = 11;
     items.forEach((it: any, idx: number) => {
       const itemCost = Number((it.totalCost || 0).toFixed(2));
       const row = ws.addRow(['', idx + 1, it.code, it.name, it.totalQuantity, it.unit, itemCost]);
-      row.height = 20;
+      row.height = 24;
 
       for (let c = 2; c <= 7; c++) {
         const cell = row.getCell(c);
@@ -421,6 +422,7 @@ export default function CoursesPage() {
         cell.alignment = {
           horizontal: c === 2 || c === 6 ? 'center' : c === 5 ? 'center' : c === 7 ? 'right' : 'left',
           vertical: 'middle',
+          wrapText: true,
         };
         if (c === 7) cell.numFmt = '#,##0.00';
       }
@@ -448,10 +450,10 @@ export default function CoursesPage() {
         left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
         right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
       };
-      if (c === 4) cell.alignment = { horizontal: 'right', vertical: 'middle' };
+      if (c === 4) cell.alignment = { horizontal: 'right', vertical: 'middle', wrapText: true };
       if (c === 7) {
         cell.numFmt = '#,##0.00';
-        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        cell.alignment = { horizontal: 'right', vertical: 'middle', wrapText: true };
       }
     }
 
@@ -566,14 +568,14 @@ export default function CoursesPage() {
       .map(
         (it: any, idx: number) => `
         <tr style="border-bottom: 1px solid #cbd5e1;">
-          <td style="padding: 6px 8px; text-align: center; border: 1px solid #94a3b8;">${idx + 1}</td>
-          <td style="padding: 6px 8px; font-family: monospace; color: #334155; font-size: 11px; border: 1px solid #94a3b8;">${it.code}</td>
-          <td style="padding: 6px 8px; font-weight: 600; color: #0f172a; border: 1px solid #94a3b8;">${it.name}</td>
-          <td style="padding: 6px 8px; text-align: center; font-weight: bold; border: 1px solid #94a3b8;">${it.totalQuantity}</td>
-          <td style="padding: 6px 8px; text-align: center; border: 1px solid #94a3b8;">${it.unit}</td>
-          <td style="padding: 6px 8px; text-align: right; font-weight: bold; color: ${it.totalCost > 0 ? '#0f172a' : '#64748b'}; border: 1px solid #94a3b8;">
+          <td style="padding: 6px 6px; text-align: center; border: 1px solid #94a3b8; word-break: break-word;">${idx + 1}</td>
+          <td style="padding: 6px 6px; font-family: monospace; color: #334155; font-size: 10.5px; border: 1px solid #94a3b8; word-break: break-all;">${it.code}</td>
+          <td style="padding: 6px 8px; font-weight: 600; color: #0f172a; border: 1px solid #94a3b8; word-break: break-word; overflow-wrap: break-word; line-height: 1.35;">${it.name}</td>
+          <td style="padding: 6px 6px; text-align: center; font-weight: bold; border: 1px solid #94a3b8; word-break: break-word;">${it.totalQuantity}</td>
+          <td style="padding: 6px 6px; text-align: center; border: 1px solid #94a3b8; word-break: break-word;">${it.unit}</td>
+          <td style="padding: 6px 6px; text-align: right; font-weight: bold; color: ${it.totalCost > 0 ? '#0f172a' : '#64748b'}; border: 1px solid #94a3b8; white-space: nowrap;">
             ฿${Number(it.totalCost || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            ${it.totalCost === 0 ? '<span style="font-size: 9.5px; color: #64748b; font-weight: normal; display: block;">(ไม่คิดมูลค่า)</span>' : ''}
+            ${it.totalCost === 0 ? '<span style="font-size: 9px; color: #64748b; font-weight: normal; display: block;">(ไม่คิดมูลค่า)</span>' : ''}
           </td>
         </tr>
       `
@@ -654,6 +656,7 @@ export default function CoursesPage() {
               border-collapse: collapse;
               word-break: break-word;
               overflow-wrap: break-word;
+              white-space: normal;
               margin-bottom: 14px;
               font-size: 11px;
             }
@@ -665,12 +668,16 @@ export default function CoursesPage() {
               background-color: #f1f5f9;
               color: #1e293b;
               font-weight: 700;
-              padding: 6px 8px;
+              padding: 6px 6px;
               border: 1px solid #94a3b8;
               text-align: center;
+              word-break: break-word;
             }
             td {
               border: 1px solid #cbd5e1;
+              word-break: break-word;
+              overflow-wrap: break-word;
+              white-space: normal;
             }
             .signatures-grid {
               display: grid;
@@ -712,12 +719,12 @@ export default function CoursesPage() {
 
             <table style="width: 100%; table-layout: fixed;">
               <colgroup>
-                <col style="width: 36px;" />
-                <col style="width: 110px;" />
+                <col style="width: 32px;" />
+                <col style="width: 85px;" />
                 <col style="width: auto;" />
-                <col style="width: 80px;" />
-                <col style="width: 70px;" />
-                <col style="width: 110px;" />
+                <col style="width: 65px;" />
+                <col style="width: 60px;" />
+                <col style="width: 95px;" />
               </colgroup>
               <thead>
                 <tr>

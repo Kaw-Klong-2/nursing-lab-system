@@ -101,10 +101,7 @@ export function isStaffUser(
       s.includes('เจ้าหน้าที่') ||
       s.includes('ผู้ดูแลระบบ') ||
       s.includes('นักวิทยาศาสตร์') ||
-      s.includes('นักวิชาการ') ||
-      s.includes('ณัฐกุล') ||
-      s.includes('ปรเมศวร์') ||
-      s.includes('วราชัย')
+      s.includes('นักวิชาการ')
     );
   }
   const role = user.role || '';
@@ -120,9 +117,6 @@ export function isStaffUser(
     name.includes('ผู้ดูแลระบบ') ||
     name.includes('นักวิทยาศาสตร์') ||
     name.includes('นักวิชาการ') ||
-    name.includes('ณัฐกุล') ||
-    name.includes('ปรเมศวร์') ||
-    name.includes('วราชัย') ||
     email.includes('admin') ||
     email.includes('officer')
   );
@@ -495,6 +489,73 @@ export function getUserBadges(user?: {
  * - Keeps academic title for faculty (e.g. ผศ., รศ., ดร., อาจารย์).
  * - Extracts their dynamic position without agency/organization names.
  */
+/**
+ * Formats a clean professional job position title from department/role data.
+ * Automatically splits multi-part department strings (e.g. "สำนักงานเลขานุการ, นักวิทยาศาสตร์")
+ * and extracts the true functional position, stripping organizational prefix bodies.
+ */
+export function formatUserPositionTitle(
+  dept?: string | null,
+  role?: string | null,
+  isExecutive?: boolean | null,
+  executiveRole?: string | null
+): string {
+  if (isExecutive && executiveRole?.trim()) {
+    return executiveRole.trim();
+  }
+
+  const rawDept = (dept || '').trim();
+  if (rawDept) {
+    // If separated by comma or slash (e.g. "สำนักงานเลขานุการ, นักวิทยาศาสตร์" or "ภาควิชาการพยาบาลพื้นฐาน, อาจารย์")
+    const parts = rawDept
+      .split(/[,/]/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+
+    if (parts.length > 1) {
+      // Find candidate position among segments (ignore administrative division prefixes if another part exists)
+      const nonAgencyPart = parts.find(
+        (p) =>
+          !p.startsWith('สำนักงาน') &&
+          !p.startsWith('ภาควิชา') &&
+          !p.startsWith('คณะ') &&
+          !p.startsWith('ศูนย์')
+      );
+      if (nonAgencyPart) {
+        return nonAgencyPart;
+      }
+      // If all parts look like agencies or none matches, take the last segment
+      return parts[parts.length - 1];
+    }
+
+    // Single segment: check if it contains a known position keyword with agency
+    if (rawDept.includes('นักวิทยาศาสตร์')) return 'นักวิทยาศาสตร์';
+    if (rawDept.includes('นักวิชาการพัสดุ')) return 'นักวิชาการพัสดุ';
+    if (rawDept.includes('นักวิชาการคอมพิวเตอร์')) return 'นักวิชาการคอมพิวเตอร์';
+    if (rawDept.includes('นักวิชาการเงินและบัญชี')) return 'นักวิชาการเงินและบัญชี';
+    if (rawDept.includes('นักวิชาการศึกษา')) return 'นักวิชาการศึกษา';
+    if (rawDept.includes('นักวิชาการ')) return 'นักวิชาการ';
+    if (rawDept.includes('หัวหน้าสำนักงานเลขานุการ')) return 'หัวหน้าสำนักงานเลขานุการ';
+
+    // If it's pure agency without position suffix, e.g. "สำนักงานเลขานุการ"
+    if (rawDept === 'สำนักงานเลขานุการ' || rawDept.startsWith('คณะ')) {
+      if (role === 'ADMIN') return 'นักวิทยาศาสตร์';
+      if (role === 'OFFICER') return 'เจ้าหน้าที่ห้องปฏิบัติการพยาบาล';
+    }
+
+    return rawDept;
+  }
+
+  // Fallback by role
+  if (role === 'TEACHER') return 'อาจารย์ผู้สอน';
+  if (role === 'OFFICER') return 'เจ้าหน้าที่ห้องปฏิบัติการพยาบาล';
+  if (role === 'ADMIN') return 'นักวิทยาศาสตร์';
+  return getRoleLabel(role);
+}
+
+/**
+ * Gets clean name and position title for report exporters/signers without organizational prefixes.
+ */
 export function getExporterSignatureInfo(currentUser?: {
   prefix?: string | null;
   name?: string | null;
@@ -512,31 +573,12 @@ export function getExporterSignatureInfo(currentUser?: {
 
   // Format full name with prefix intact (ไม่ตัด นาย/นาง/นางสาว)
   const fullName = formatUserName(currentUser) || currentUser.name || 'ผู้รายงาน';
-
-  let position = '';
-  const dept = (currentUser.department || '').trim();
-
-  if (currentUser.isExecutive && currentUser.executiveRole?.trim()) {
-    position = currentUser.executiveRole.trim();
-  } else if (
-    dept &&
-    (dept.includes('นักวิทยาศาสตร์') ||
-      dept.includes('นักวิชาการ') ||
-      dept.includes('เจ้าหน้าที่') ||
-      dept.includes('หัวหน้า'))
-  ) {
-    position = dept;
-  } else if (fullName.includes('ณัฐกุล')) {
-    position = 'นักวิทยาศาสตร์';
-  } else if (currentUser.role === 'TEACHER') {
-    position = 'อาจารย์ผู้สอน';
-  } else if (currentUser.role === 'OFFICER') {
-    position = dept || 'เจ้าหน้าที่ห้องปฏิบัติการพยาบาล';
-  } else if (currentUser.role === 'ADMIN') {
-    position = dept || 'นักวิทยาศาสตร์';
-  } else {
-    position = dept || getRoleLabel(currentUser.role);
-  }
+  const position = formatUserPositionTitle(
+    currentUser.department,
+    currentUser.role,
+    currentUser.isExecutive,
+    currentUser.executiveRole
+  );
 
   return { name: fullName, position };
 }

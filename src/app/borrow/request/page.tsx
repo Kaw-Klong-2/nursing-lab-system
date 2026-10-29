@@ -25,6 +25,7 @@ import {
   ShoppingCart,
   ChevronRight,
   RotateCcw,
+  Edit3,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 
@@ -326,15 +327,9 @@ function BorrowRequestContent() {
                 onChange={(e) => {
                   const cId = e.target.value;
                   setCourseId(cId);
-                  const selC = courses.find((c) => c.id === cId);
-                  if (selC?.instructorName) {
-                    // Normalize instructor name: match against instructors list
-                    const rawName = selC.instructorName.trim();
-                    const cleanName = rawName.replace(/^(อาจารย์|อ\.|ผศ\.|รศ\.|ศ\.|ดร\.)\s*/g, '').trim();
-                    const matched = instructors.find(
-                      (ins) => ins.name === rawName || ins.name === cleanName || rawName.includes(ins.name)
-                    );
-                    setAdvisorName(matched ? matched.name : formatTeacherName(rawName));
+                  const selectedCourse = courses.find((c) => c.id === cId);
+                  if (selectedCourse?.instructorName) {
+                    setAdvisorName(formatTeacherName(selectedCourse.instructorName));
                     setIsEditingAdvisor(false);
                   } else if (!cId) {
                     setAdvisorName('');
@@ -342,10 +337,10 @@ function BorrowRequestContent() {
                 }}
                 className="w-full px-4 py-3 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500"
               >
-                <option value="">-- ไม่ระบุรายวิชา (ฝึกปฏิบัติส่วนบุคคล) --</option>
+                <option value="">-- ไม่ระบุรายวิชา (ฝึกปฏิบัติส่วนบุคคล/กิจกรรมอื่น) --</option>
                 {courses.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.code} {c.name} {c.instructorName ? `(${formatTeacherName(c.instructorName)})` : ''}
+                    {c.code} {c.name} ({formatTeacherName(c.instructorName || 'อ.ผู้รับผิดชอบ')})
                   </option>
                 ))}
               </select>
@@ -353,50 +348,84 @@ function BorrowRequestContent() {
 
             {/* Advisor */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-                <GraduationCap className="w-3.5 h-3.5 text-indigo-500" /> อาจารย์ผู้รับรอง / ประจำวิชา {isStudent && <span className="text-rose-500">*</span>}
-              </label>
-
-              {isEditingAdvisor ? (
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    required={isStudent}
-                    placeholder="ระบุชื่ออาจารย์ (เช่น อ.ดร. นันทนา)"
-                    value={advisorName}
-                    onChange={(e) => setAdvisorName(e.target.value)}
-                    className="flex-1 px-4 py-3 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500"
-                  />
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <GraduationCap className="w-3.5 h-3.5 text-indigo-500" /> อาจารย์ผู้รับทราบ / ประจำวิชา {isStudent && <span className="text-rose-500">*</span>}
+                </label>
+                {courseId && (
                   <button
                     type="button"
-                    onClick={() => setIsEditingAdvisor(false)}
-                    className="px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-2xl text-xs font-bold hover:bg-slate-200"
+                    onClick={() => setIsEditingAdvisor(!isEditingAdvisor)}
+                    className="text-[11px] font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 flex items-center gap-1 cursor-pointer"
                   >
-                    เลือกจากรายชื่อ
+                    <Edit3 className="w-3 h-3" />
+                    <span>{isEditingAdvisor ? 'ซ่อนตัวเลือก' : 'แก้ไขอาจารย์'}</span>
+                  </button>
+                )}
+              </div>
+
+              {courseId && !isEditingAdvisor ? (
+                <div className="flex items-center justify-between bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 rounded-2xl px-4 py-2.5 text-xs">
+                  <div className="flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+                    <span className="font-bold text-teal-900 dark:text-teal-200 text-sm">
+                      {formatTeacherName(advisorName || courses.find((c) => c.id === courseId)?.instructorName || 'อาจารย์ผู้รับผิดชอบ')}
+                    </span>
+                    <span className="text-[10px] bg-teal-200/60 dark:bg-teal-900/60 text-teal-800 dark:text-teal-300 px-2 py-0.5 rounded-md font-bold">
+                      ขึ้นให้อัตโนมัติ
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingAdvisor(true)}
+                    className="text-xs font-bold text-teal-700 dark:text-teal-300 hover:underline cursor-pointer"
+                  >
+                    แก้ไขอาจารย์
                   </button>
                 </div>
               ) : (
-                <select
-                  value={advisorName}
-                  onChange={(e) => {
-                    if (e.target.value === '__CUSTOM__') {
-                      setIsEditingAdvisor(true);
-                      setAdvisorName('');
-                    } else {
-                      setAdvisorName(e.target.value);
-                    }
-                  }}
-                  required={isStudent}
-                  className="w-full px-4 py-3 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">-- เลือกอาจารย์ผู้รับรอง --</option>
-                  {instructors.map((ins) => (
-                    <option key={ins.id} value={ins.name}>
-                      {formatTeacherName(ins.name)}
-                    </option>
-                  ))}
-                  <option value="__CUSTOM__">+ ระบุชื่ออาจารย์ด้วยตนเอง</option>
-                </select>
+                <div className="space-y-1.5">
+                  <select
+                    required={isStudent}
+                    value={advisorName}
+                    onChange={(e) => setAdvisorName(e.target.value)}
+                    className={`w-full px-4 py-3 rounded-2xl border text-sm focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 ${
+                      isStudent && !advisorName
+                        ? 'border-amber-300 dark:border-amber-500 ring-1 ring-amber-200 dark:ring-amber-900/50'
+                        : 'border-slate-300 dark:border-slate-700'
+                    }`}
+                  >
+                    <option value="">-- กรุณาเลือกอาจารย์จากรายชื่อ --</option>
+                    {advisorName && !instructors.some((ins) => formatTeacherName(ins) === advisorName || ins.name === advisorName) && (
+                      <option value={advisorName}>
+                        {formatTeacherName(advisorName)} (อาจารย์ประจำรายวิชา)
+                      </option>
+                    )}
+                    {instructors.map((ins) => {
+                      const formatted = formatTeacherName(ins);
+                      return (
+                        <option key={ins.id} value={formatted}>
+                          {formatted} ({ins.department || 'อาจารย์พยาบาล'})
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {courseId && (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const sc = courses.find((c) => c.id === courseId);
+                          if (sc?.instructorName) setAdvisorName(formatTeacherName(sc.instructorName));
+                          setIsEditingAdvisor(false);
+                        }}
+                        className="text-[11px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline cursor-pointer"
+                      >
+                        ↺ กลับไปใช้อาจารย์ประจำวิชา ({formatTeacherName(courses.find((c) => c.id === courseId)?.instructorName)})
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 

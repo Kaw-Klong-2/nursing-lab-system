@@ -385,7 +385,12 @@ export async function GET(
       include: {
         category: true,
         stockLots: {
-          where: { quantityRemaining: { gt: 0 } },
+          where: {
+            OR: [
+              { quantityRemaining: { gt: 0 } },
+              { openPackRemainder: { gt: 0 } },
+            ],
+          },
           orderBy: { expiryDate: 'asc' },
           include: {
             boxes: {

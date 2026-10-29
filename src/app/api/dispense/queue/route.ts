@@ -73,12 +73,19 @@ export async function GET(req: Request) {
                   },
                 },
                 stockLots: {
-                  where: { quantityRemaining: { gt: 0 } },
+                  where: {
+                    OR: [
+                      { quantityRemaining: { gt: 0 } },
+                      { openPackRemainder: { gt: 0 } },
+                    ],
+                  },
                   orderBy: { expiryDate: 'asc' },
                   select: {
                     id: true,
                     lotNumber: true,
                     quantityRemaining: true,
+                    openPackRemainder: true,
+                    packSize: true,
                     expiryDate: true,
                     unitCost: true,
                   },

@@ -2134,16 +2134,22 @@ export default function InventoryPage() {
                                                   <span className="font-bold text-slate-900 dark:text-slate-100">
                                                     {lot.quantityRemaining}
                                                   </span>{' '}
-                                                  <span className="text-slate-500 text-xs">{lot.packageUnit || item.unit}</span>
+                                                  <span className="text-slate-500 text-xs">
+                                                    {lot.packageUnit || item.unit}
+                                                    {lot.quantityRemaining === 0 && lot.openPackRemainder > 0 ? ' (เปิดใช้แล้ว)' : ''}
+                                                  </span>
                                                 </div>
                                                 {(lot.packSize > 1 || (item.conversionRatio && item.conversionRatio > 1)) && (
                                                   <div className="text-[10px] text-teal-700 dark:text-teal-400 font-bold mt-0.5">
                                                     {lot.packSize || item.conversionRatio} {item.usageUnit || 'ชิ้น'}/{lot.packageUnit || item.unit}
-                                                    {' '}• รวม {((lot.piecesRemaining ?? (lot.quantityRemaining * (lot.packSize || item.conversionRatio || 1)))).toLocaleString()} {item.usageUnit || 'ชิ้น'}
+                                                    {' '}• รวม {(
+                                                      (lot.quantityRemaining || 0) * (lot.packSize || item.conversionRatio || 1) +
+                                                      (lot.openPackRemainder || 0)
+                                                    ).toLocaleString()} {item.usageUnit || 'ชิ้น'}
                                                   </div>
                                                 )}
                                                 {lot.openPackRemainder > 0 && (
-                                                  <span className="mt-1 inline-block px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-bold text-[10px] border border-purple-200">
+                                                  <span className="mt-1 inline-block px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 font-bold text-[10px] border border-purple-200 dark:border-purple-800">
                                                     + เศษเปิด {lot.openPackRemainder} {item.usageUnit || 'ชิ้น'}
                                                   </span>
                                                 )}

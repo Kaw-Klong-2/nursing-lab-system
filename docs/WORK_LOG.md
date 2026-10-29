@@ -17,6 +17,29 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-29] แก้ไขปัญหาการแสดงผลสต็อกวัสดุสิ้นเปลืองไม่ตรงกับยอดคงเหลือจริง กรณีล็อตเปิดใช้แล้วเหลือแต่เศษ (`openPackRemainder > 0`, `quantityRemaining = 0`)
+- **หมวดหมู่**: Inventory / Stock Lots / Consumables / Requisitions / Borrow / Dispense Queue
+- **สิ่งที่ดำเนินการ**:
+  1. **ปรับเงื่อนไขดึงข้อมูลล็อตคงคลังครอบคลุมทุกล็อตที่มีเศษเปิดใช้ (`OR: [{ quantityRemaining: { gt: 0 } }, { openPackRemainder: { gt: 0 } }]`)**:
+     - แก้ไขใน `src/app/api/items/route.ts` (ทั้งโหมด `lite` และโหมดเต็ม), `src/app/api/consumables/public/[...code]/route.ts`, `src/app/api/inventory/reconcile/route.ts`, `src/app/api/requisitions/route.ts`, `src/app/api/borrow/route.ts`, `src/app/api/requests/unified/route.ts`, `src/app/api/requests/edit/route.ts`, และ `src/app/api/dispense/queue/route.ts`
+     - แก้ปัญหาที่ล็อตซึ่งถูกเปิดกล่องสุดท้ายใช้จน `quantityRemaining === 0` (แต่ยังมีเศษเหลืออยู่ใน `openPackRemainder > 0`) ถูกกรองทิ้งไม่แสดงผล
+  2. **ปรับสูตรคำนวณจำนวนชิ้นย่อยรวม (`totalPhysicalPieces`) ให้แม่นยำ 100% ทุกล็อต**:
+     - ใช้สูตร `(lot.quantityRemaining * pSize) + lot.openPackRemainder` เสมอ ไม่บวก `openPackRemainder` ซ้ำซ้อน
+  3. **ปรับการแสดงผลตารางล็อตย่อยในหน้าคลังพัสดุ (`src/app/inventory/page.tsx`)**:
+     - แสดงสถานะ `0 แพ๊ค (เปิดใช้แล้ว)` พร้อมป้าย `+ เศษเปิด X ใบ` และคำนวณรวมชิ้นย่อยถูกต้องตรงตามจริง (เช่น `CS-FEED-BAG` แสดงครบทั้ง 2 ล็อต รวม 290 ใบ)
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/app/api/items/route.ts`
+  - `src/app/api/consumables/public/[...code]/route.ts`
+  - `src/app/api/inventory/reconcile/route.ts`
+  - `src/app/api/requisitions/route.ts`
+  - `src/app/api/borrow/route.ts`
+  - `src/app/api/requests/unified/route.ts`
+  - `src/app/api/requests/edit/route.ts`
+  - `src/app/api/dispense/queue/route.ts`
+  - `src/app/inventory/page.tsx`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100% (คำว่า "นิสิต" ถูกต้อง 100%, UTF-8 ถูกต้อง 100%, TypeScript `npx tsc --noEmit` 0 errors)
+
 ### [2026-10-29] ปรับระยะขอบหน้าพิมพ์และไฟล์ Excel รายงานสรุปต้นทุนรายวิชาให้กว้างขึ้น สบายตาขึ้น (Print & Excel Margin Increase)
 - **หมวดหมู่**: Courses / Reports / Cost Analytics / Print Layout / Excel Export
 - **สิ่งที่ดำเนินการ**:

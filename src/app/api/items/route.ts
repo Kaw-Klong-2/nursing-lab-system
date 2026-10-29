@@ -7,11 +7,7 @@ function computeConsumableStock(lots: any[], defaultRatio: number, reservedPiece
   const physicalOpen = lots.reduce((sum, lot) => sum + (lot.openPackRemainder || 0), 0);
   const totalPhysicalPieces = lots.reduce((sum, lot) => {
     const pSize = Number(lot.packSize) > 0 ? Number(lot.packSize) : defaultRatio;
-    const pPieces = lot.quantityRemaining > 0
-      ? (typeof lot.piecesRemaining === 'number' && lot.piecesRemaining <= lot.quantityRemaining * pSize
-          ? lot.piecesRemaining
-          : lot.quantityRemaining * pSize)
-      : 0;
+    const pPieces = Math.max(0, (lot.quantityRemaining || 0) * pSize);
     return sum + pPieces + (lot.openPackRemainder || 0);
   }, 0);
 
@@ -185,13 +181,19 @@ export async function GET(req: Request) {
             orderBy: { sequenceNumber: 'asc' },
           },
           stockLots: {
-            where: { quantityRemaining: { gt: 0 } },
+            where: {
+              OR: [
+                { quantityRemaining: { gt: 0 } },
+                { openPackRemainder: { gt: 0 } },
+              ],
+            },
             select: {
               id: true,
               lotNumber: true,
               expiryDate: true,
               receivedDate: true,
               packSize: true,
+              piecesRemaining: true,
               quantityRemaining: true,
               openPackRemainder: true,
               brand: true,
@@ -320,7 +322,12 @@ export async function GET(req: Request) {
           orderBy: { sequenceNumber: 'asc' },
         },
         stockLots: {
-          where: { quantityRemaining: { gt: 0 } },
+          where: {
+            OR: [
+              { quantityRemaining: { gt: 0 } },
+              { openPackRemainder: { gt: 0 } },
+            ],
+          },
           orderBy: [
             { expiryDate: 'asc' },
             { receivedDate: 'asc' },

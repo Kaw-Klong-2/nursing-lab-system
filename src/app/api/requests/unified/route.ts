@@ -127,7 +127,12 @@ export async function POST(req: Request) {
           where: { id: { in: reqItemIds } },
           include: {
             stockLots: {
-              where: { quantityRemaining: { gt: 0 } },
+              where: {
+                OR: [
+                  { quantityRemaining: { gt: 0 } },
+                  { openPackRemainder: { gt: 0 } },
+                ],
+              },
               orderBy: [
                 { expiryDate: 'asc' },
                 { receivedDate: 'asc' },
@@ -175,11 +180,7 @@ export async function POST(req: Request) {
         const ratio = Number(itemRecord.conversionRatio) > 0 ? Number(itemRecord.conversionRatio) : 1;
         const totalPhysicalPieces = validLots.reduce((sum: number, lot: any) => {
           const pSize = Number(lot.packSize) > 0 ? Number(lot.packSize) : ratio;
-          const pPieces = lot.quantityRemaining > 0
-            ? (typeof lot.piecesRemaining === 'number' && lot.piecesRemaining <= lot.quantityRemaining * pSize
-                ? lot.piecesRemaining
-                : lot.quantityRemaining * pSize)
-            : 0;
+          const pPieces = (lot.quantityRemaining || 0) * pSize;
           return sum + pPieces + (lot.openPackRemainder || 0);
         }, 0);
         const reservedPieces = reservedPiecesMap.get(it.itemId) || 0;

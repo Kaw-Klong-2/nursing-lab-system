@@ -164,7 +164,12 @@ export async function PUT(req: Request) {
         where: { id: { in: reqItemIds } },
         include: {
           stockLots: {
-            where: { quantityRemaining: { gt: 0 } },
+            where: {
+              OR: [
+                { quantityRemaining: { gt: 0 } },
+                { openPackRemainder: { gt: 0 } },
+              ],
+            },
             orderBy: [{ expiryDate: 'asc' }, { receivedDate: 'asc' }, { createdAt: 'asc' }],
           },
         },

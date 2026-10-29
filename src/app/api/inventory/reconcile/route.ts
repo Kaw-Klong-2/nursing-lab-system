@@ -120,7 +120,12 @@ export async function POST(req: Request) {
           where: { id: itemId },
           include: {
             stockLots: {
-              where: { quantityRemaining: { gt: 0 } },
+              where: {
+                OR: [
+                  { quantityRemaining: { gt: 0 } },
+                  { openPackRemainder: { gt: 0 } },
+                ],
+              },
               orderBy: { expiryDate: 'asc' },
             },
             assets: true,

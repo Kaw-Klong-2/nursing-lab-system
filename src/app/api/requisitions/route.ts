@@ -45,7 +45,12 @@ export async function GET(req: Request) {
               include: {
                 storageLocation: true,
                 stockLots: {
-                  where: { quantityRemaining: { gt: 0 } },
+                  where: {
+                    OR: [
+                      { quantityRemaining: { gt: 0 } },
+                      { openPackRemainder: { gt: 0 } },
+                    ],
+                  },
                   orderBy: [
                     { expiryDate: 'asc' },
                     { receivedDate: 'asc' },
@@ -147,11 +152,7 @@ export async function POST(req: Request) {
 
       const totalPhysicalPieces = itemRecord.stockLots.reduce((sum, lot) => {
         const pSize = Number(lot.packSize) > 0 ? Number(lot.packSize) : ratio;
-        const pPieces = lot.quantityRemaining > 0
-          ? (typeof lot.piecesRemaining === 'number' && lot.piecesRemaining <= lot.quantityRemaining * pSize
-              ? lot.piecesRemaining
-              : lot.quantityRemaining * pSize)
-          : 0;
+        const pPieces = Math.max(0, (lot.quantityRemaining || 0) * pSize);
         return sum + pPieces + (lot.openPackRemainder || 0);
       }, 0);
       const totalAvailablePieces = Math.max(0, totalPhysicalPieces - reservedPieces);

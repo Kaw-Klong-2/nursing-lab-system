@@ -17,6 +17,20 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-29] ปรับระยะขอบหน้าพิมพ์และไฟล์ Excel รายงานสรุปต้นทุนรายวิชาให้กว้างขึ้น สบายตาขึ้น (Print & Excel Margin Increase)
+- **หมวดหมู่**: Courses / Reports / Cost Analytics / Print Layout / Excel Export
+- **สิ่งที่ดำเนินการ**:
+  - **ปรับระยะขอบหน้าพิมพ์ (Print View @page)** ใน `src/app/courses/page.tsx`:
+    - ขยายระยะขอบ `@page` จากเดิม `margin: 8mm 10mm` เป็น `margin: 12mm 15mm` (บน-ล่าง 1.2 ซม., ซ้าย-ขวา 1.5 ซม.) เว้นระยะขอบกระดาษ A4 ได้กว้างและโปร่งตามากขึ้น ไม่ชิดขอบกระดาษ
+    - ปรับ padding ภายในคอนเทนเนอร์พิมพ์ `.print-page-wrapper` เป็น `4mm 2mm`
+  - **ปรับการตั้งค่าขอบหน้ากระดาษและระยะคอลัมน์ใน ExcelJS (.xlsx)**:
+    - เพิ่ม `ws.pageSetup` กำหนดระยะขอบสำหรับการพิมพ์จาก Excel (`margins: { left: 0.6, right: 0.6, top: 0.6, bottom: 0.6 }`) พร้อมตั้งค่า `fitToWidth: 1`
+    - ขยายความกว้างของคอลัมน์ A (Margin column) จาก 4 เป็น 5 เพื่อเว้นระยะจากขอบซ้ายในตาราง Excel ให้ดูสบายตายิ่งขึ้น
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/app/courses/page.tsx`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100%
+
 ### [2026-10-29] เพิ่มบันทึกการเปิดแอร์สอบประเมินผล OSCE วิชา ป.พฐ 01980222 (10 ห้องปฏิบัติการ)
 - **หมวดหมู่**: Air Conditioning / Operation Logs / Rooms / OSCE Examination
 - **สิ่งที่ดำเนินการ**:

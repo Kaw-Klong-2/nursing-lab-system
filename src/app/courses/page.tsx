@@ -337,11 +337,28 @@ export default function CoursesPage() {
     const sheetName = `รายงานต้นทุน_${selectedCourse.code}_${selectedCourse.academicYear}`.slice(0, 31);
     const ws = wb.addWorksheet(sheetName);
 
+    // Page Setup and Margins for printing in Excel
+    ws.pageSetup = {
+      paperSize: 9, // A4
+      orientation: 'portrait',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      margins: {
+        left: 0.6,
+        right: 0.6,
+        top: 0.6,
+        bottom: 0.6,
+        header: 0.3,
+        footer: 0.3,
+      },
+    };
+
     // Column widths
     ws.columns = [
-      { width: 4 },  // A: Margin
+      { width: 5 },  // A: Margin (เว้นระยะขอบซ้าย)
       { width: 8 },  // B: ลำดับ
-      { width: 16 }, // C: รหัสวัสดุ / หัวข้อ
+      { width: 17 }, // C: รหัสวัสดุ / หัวข้อ
       { width: 52 }, // D: รายการวัสดุสิ้นเปลือง / ชื่อวิชา
       { width: 15 }, // E: จำนวนที่ใช้ / หน่วย
       { width: 12 }, // F: หน่วยนับ
@@ -594,7 +611,7 @@ export default function CoursesPage() {
             }
             @page {
               size: A4 portrait;
-              margin: 8mm 10mm; /* Safe print margin >= 0.8cm, strictly >= 0.5cm */
+              margin: 12mm 15mm; /* ขอบกระดาษ A4 เว้นระยะสบายตา (บน-ล่าง 12mm, ซ้าย-ขวา 15mm) */
             }
             html, body {
               font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -611,7 +628,7 @@ export default function CoursesPage() {
               box-sizing: border-box;
               width: 100%;
               max-width: 100%;
-              padding: 2mm 3mm;
+              padding: 4mm 2mm;
             }
             .header-container {
               border-bottom: 2px solid #0f766e;

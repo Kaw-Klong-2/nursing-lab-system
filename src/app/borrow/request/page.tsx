@@ -26,6 +26,7 @@ import {
   ChevronRight,
   RotateCcw,
   Edit3,
+  AlertTriangle,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 
@@ -58,8 +59,8 @@ function BorrowRequestContent() {
   const [expectedReturnDate, setExpectedReturnDate] = useState('');
 
   // Item Rows
-  const [borrowItems, setBorrowItems] = useState<{ itemId: string; quantity: number | string }[]>([
-    { itemId: '', quantity: '' },
+  const [borrowItems, setBorrowItems] = useState<{ itemId: string; quantity: number | string; categoryId?: string }[]>([
+    { itemId: '', quantity: '', categoryId: '' },
   ]);
   const [requisitionItems, setRequisitionItems] = useState<
     {
@@ -67,8 +68,9 @@ function BorrowRequestContent() {
       quantity: number | string;
       isSubUnit?: boolean;
       requestedUnit?: string;
+      categoryId?: string;
     }[]
-  >([{ itemId: '', quantity: '', isSubUnit: false, requestedUnit: '' }]);
+  >([{ itemId: '', quantity: '', isSubUnit: false, requestedUnit: '', categoryId: '' }]);
 
   const draftKey = `unified_borrow_request_draft_${currentUser?.id || 'guest'}`;
 
@@ -119,11 +121,13 @@ function BorrowRequestContent() {
           } catch {}
         } else if (preselectedItemId && isMounted) {
           // Pre-populate if passed from catalog
-          const isEq = eqData.some((e) => e.id === preselectedItemId);
+          const isEq = eqData.some((e: any) => e.id === preselectedItemId);
           if (isEq) {
-            setBorrowItems([{ itemId: preselectedItemId, quantity: 1 }]);
+            const it = eqData.find((e: any) => e.id === preselectedItemId);
+            setBorrowItems([{ itemId: preselectedItemId, quantity: 1, categoryId: it?.categoryId || it?.category?.id || '' }]);
           } else {
-            setRequisitionItems([{ itemId: preselectedItemId, quantity: 1, isSubUnit: false, requestedUnit: '' }]);
+            const it = conData.find((c: any) => c.id === preselectedItemId);
+            setRequisitionItems([{ itemId: preselectedItemId, quantity: 1, isSubUnit: false, requestedUnit: '', categoryId: it?.categoryId || it?.category?.id || '' }]);
           }
         }
       } catch (err) {
@@ -522,8 +526,8 @@ function BorrowRequestContent() {
             </div>
             <button
               type="button"
-              onClick={() => setBorrowItems([...borrowItems, { itemId: '', quantity: '' }])}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-2xl text-xs font-bold transition-colors shadow-xs"
+              onClick={() => setBorrowItems([...borrowItems, { itemId: '', quantity: '', categoryId: '' }])}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-2xl text-xs font-bold transition-colors shadow-xs cursor-pointer"
             >
               <Plus className="w-4 h-4" /> เพิ่มครุภัณฑ์
             </button>
@@ -531,65 +535,147 @@ function BorrowRequestContent() {
 
           <div className="space-y-3">
             {borrowItems.map((row, idx) => {
-              const selectedEq = equipmentList.find((e) => e.id === row.itemId);
-              const maxStock = selectedEq?.currentStock || 0;
-              const isOverStock = selectedEq && Number(row.quantity) > maxStock;
+              const categoryMap = new Map<string, string>();
+              equipmentList.forEach((eq) => {
+                if (eq.category?.name) categoryMap.set(eq.category.id || eq.category.name, eq.category.name);
+              });
+              const selectedCat = (row as any).categoryId || '';
+              const filteredList = selectedCat
+                ? equipmentList.filter((eq) => eq.category?.id === selectedCat || eq.category?.name === selectedCat)
+                : equipmentList;
+
+              const chosenEq = equipmentList.find((e) => e.id === row.itemId);
+              const isOutOfStock = chosenEq && chosenEq.currentStock <= 0;
+              const isOverStock = chosenEq && chosenEq.currentStock > 0 && row.quantity !== '' && Number(row.quantity) > chosenEq.currentStock;
 
               return (
                 <div
                   key={idx}
-                  className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 p-3.5 bg-blue-50/40 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/50 rounded-2xl"
+                  className={`p-3.5 rounded-2xl border transition ${
+                    isOutOfStock || isOverStock
+                      ? 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800'
+                      : 'bg-blue-50/30 dark:bg-slate-800/60 border-blue-200/80 dark:border-blue-900/50'
+                  }`}
                 >
-                  <div className="flex-1">
-                    <select
-                      value={row.itemId}
-                      onChange={(e) => {
-                        const newRows = [...borrowItems];
-                        newRows[idx].itemId = e.target.value;
-                        if (!newRows[idx].quantity) newRows[idx].quantity = 1;
-                        setBorrowItems(newRows);
-                      }}
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">-- เลือกครุภัณฑ์ --</option>
-                      {equipmentList.map((eq) => (
-                        <option key={eq.id} value={eq.id}>
-                          {eq.name} (คงเหลือ: {eq.currentStock} {eq.unit})
-                        </option>
-                      ))}
-                    </select>
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
+                    {/* หมวดหมู่ครุภัณฑ์ */}
+                    <div className="sm:col-span-4">
+                      <select
+                        value={selectedCat}
+                        onChange={(e) => {
+                          const catVal = e.target.value;
+                          const updated = [...borrowItems];
+                          (updated[idx] as any).categoryId = catVal;
+                          setBorrowItems(updated);
+                        }}
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">-- ทุกหมวดครุภัณฑ์ --</option>
+                        {Array.from(categoryMap.entries()).map(([id, name]) => (
+                          <option key={id} value={id}>📁 {name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* รายการครุภัณฑ์ */}
+                    <div className="sm:col-span-5">
+                      <select
+                        value={row.itemId}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const eq = equipmentList.find((x) => x.id === val);
+                          const updated = [...borrowItems];
+                          updated[idx].itemId = val;
+                          if (eq && (eq.category?.id || eq.category?.name)) {
+                            (updated[idx] as any).categoryId = eq.category.id || eq.category.name;
+                          }
+                          if (!updated[idx].quantity) updated[idx].quantity = 1;
+                          if (eq && eq.currentStock > 0 && row.quantity !== '' && Number(updated[idx].quantity) > eq.currentStock) {
+                            updated[idx].quantity = eq.currentStock;
+                          }
+                          setBorrowItems(updated);
+                        }}
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">-- เลือกครุภัณฑ์ ({filteredList.length}) --</option>
+                        {filteredList.map((eq) => {
+                          const avail = eq.availableStock ?? eq.currentStock;
+                          const isReserved = eq.reservedStock > 0;
+                          return (
+                            <option key={eq.id} value={eq.id}>
+                              {eq.name} (พร้อมให้ยืม {avail} {eq.unit}){isReserved ? ` [รอส่งมอบ ${eq.reservedStock}]` : ''}{avail <= 0 ? ' [คิวเต็ม]' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
+                    {/* จำนวน + หน่วย + ลบ */}
+                    <div className="sm:col-span-3 flex items-center gap-2">
+                      <div className="flex-1">
+                        <input
+                          type="number"
+                          min="1"
+                          max={chosenEq ? Math.max(1, chosenEq.currentStock) : undefined}
+                          placeholder="จำนวน"
+                          value={row.quantity}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            const val = raw === '' ? '' : Math.max(1, parseInt(raw, 10));
+                            const updated = [...borrowItems];
+                            updated[idx].quantity = val;
+                            setBorrowItems(updated);
+                          }}
+                          className={`w-full px-3 py-2 rounded-xl border text-xs text-center font-bold bg-white dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 ${
+                            isOverStock || isOutOfStock
+                              ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300'
+                              : 'border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100'
+                          }`}
+                        />
+                      </div>
+                      <span className="text-xs text-blue-900 dark:text-blue-300 min-w-12 text-center font-bold">
+                        {chosenEq?.unit || 'ชิ้น'}
+                      </span>
+                      {borrowItems.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setBorrowItems(borrowItems.filter((_, i) => i !== idx))}
+                          className="p-2 text-slate-400 hover:text-rose-500 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                          title="ลบรายการนี้"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <div className="w-28">
-                      <input
-                        type="number"
-                        min="1"
-                        max={maxStock || 99}
-                        placeholder="จำนวน"
-                        value={row.quantity}
-                        onChange={(e) => {
-                          const newRows = [...borrowItems];
-                          newRows[idx].quantity = e.target.value;
-                          setBorrowItems(newRows);
-                        }}
-                        className={`w-full px-3 py-2.5 rounded-xl border text-xs text-center font-bold bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 ${
-                          isOverStock ? 'border-red-500 text-red-600' : 'border-slate-300 dark:border-slate-700'
-                        }`}
-                      />
+                  {chosenEq && (
+                    <div className="mt-2 pt-1.5 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                      {isOutOfStock ? (
+                        <span className="text-rose-600 dark:text-rose-400 font-bold flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                          {chosenEq.physicalStock > 0 && chosenEq.reservedStock > 0
+                            ? `มีในคลัง ${chosenEq.physicalStock} ${chosenEq.unit} แต่ถูกจองรอส่งมอบแล้ว ${chosenEq.reservedStock} (ไม่เหลือพร้อมให้ยืม)`
+                            : `ไม่มีเครื่องพร้อมใช้งานในขณะนี้`}
+                        </span>
+                      ) : isOverStock ? (
+                        <span className="text-rose-600 dark:text-rose-400 font-bold flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                          ขอยืมเกินยอดพร้อมใช้ (พร้อมให้ยืม {chosenEq.currentStock} จากคลัง {chosenEq.physicalStock ?? chosenEq.currentStock} {chosenEq.unit}{chosenEq.reservedStock ? ` | รอส่งมอบ ${chosenEq.reservedStock}` : ''})
+                        </span>
+                      ) : (
+                        <span className="text-blue-700 dark:text-blue-300 font-medium flex items-center gap-1.5">
+                          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                          พร้อมให้ยืม: <strong className="font-bold text-slate-900 dark:text-slate-100">{chosenEq.currentStock} {chosenEq.unit}</strong>
+                          {chosenEq.reservedStock > 0 && (
+                            <span className="text-[10px] bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-1.5 py-0.5 rounded-md font-semibold">
+                              คลัง {chosenEq.physicalStock} | รอส่งมอบ {chosenEq.reservedStock}
+                            </span>
+                          )}
+                        </span>
+                      )}
                     </div>
-                    <span className="text-xs text-blue-900 dark:text-blue-300 w-12 text-center font-bold">
-                      {selectedEq?.unit || 'ชิ้น'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setBorrowItems(borrowItems.filter((_, i) => i !== idx))}
-                      disabled={borrowItems.length === 1 && !row.itemId}
-                      className="p-2 text-slate-400 hover:text-red-500 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-30 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  )}
                 </div>
               );
             })}
@@ -618,10 +704,10 @@ function BorrowRequestContent() {
               onClick={() =>
                 setRequisitionItems([
                   ...requisitionItems,
-                  { itemId: '', quantity: '', isSubUnit: false, requestedUnit: '' },
+                  { itemId: '', quantity: '', isSubUnit: false, requestedUnit: '', categoryId: '' },
                 ])
               }
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-2xl text-xs font-bold transition-colors shadow-sm shadow-teal-600/20"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-2xl text-xs font-bold transition-colors shadow-sm shadow-teal-600/20 cursor-pointer"
             >
               <Plus className="w-4 h-4" /> เพิ่มวัสดุสิ้นเปลือง
             </button>
@@ -629,81 +715,207 @@ function BorrowRequestContent() {
 
           <div className="space-y-3">
             {requisitionItems.map((row, idx) => {
-              const selectedCon = consumablesList.find((c) => c.id === row.itemId);
-              const ratio = Number(selectedCon?.conversionRatio) > 0 ? Number(selectedCon.conversionRatio) : 1;
-              const hasSubUnit = selectedCon?.usageUnit && selectedCon.usageUnit !== selectedCon.unit;
+              const categoryMap = new Map<string, string>();
+              consumablesList.forEach((c) => {
+                if (c.category?.name) categoryMap.set(c.category.id || c.category.name, c.category.name);
+              });
+              const selectedCat = (row as any).categoryId || '';
+              const filteredList = selectedCat
+                ? consumablesList.filter((c) => c.category?.id === selectedCat || c.category?.name === selectedCat)
+                : consumablesList;
+
+              const chosenItem = consumablesList.find((c) => c.id === row.itemId);
+              const ratio = Number(chosenItem?.conversionRatio) > 0 ? Number(chosenItem.conversionRatio) : 1;
+              const canSubUnit = !!(chosenItem && ratio > 1 && chosenItem.usageUnit && chosenItem.usageUnit !== chosenItem.unit);
+              const isSub = row.isSubUnit === true;
+              const availablePieces = chosenItem ? (chosenItem.currentStock * ratio) + (chosenItem.openPackRemainder || 0) : 0;
+              const maxStock = isSub ? availablePieces : (chosenItem?.currentStock || 0);
+              const isOutOfStock = chosenItem && maxStock <= 0;
+              const isOverStock = chosenItem && maxStock > 0 && row.quantity !== '' && Number(row.quantity) > maxStock;
+              const currentUnitLabel = isSub ? (chosenItem?.usageUnit || 'ชิ้น') : (chosenItem?.unit || 'หน่วย');
+              const costPerUnit = isSub ? (chosenItem?.unitCost || 0) / ratio : (chosenItem?.unitCost || 0);
 
               return (
                 <div
                   key={idx}
-                  className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 p-3.5 bg-teal-50/40 dark:bg-teal-950/20 border border-teal-200/80 dark:border-teal-900/50 rounded-2xl"
+                  className={`p-3.5 rounded-2xl border transition ${
+                    isOutOfStock || isOverStock
+                      ? 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800'
+                      : 'bg-teal-50/30 dark:bg-slate-800/60 border-teal-200/80 dark:border-teal-900/50'
+                  }`}
                 >
-                  <div className="flex-1">
-                    <select
-                      value={row.itemId}
-                      onChange={(e) => {
-                        const newRows = [...requisitionItems];
-                        newRows[idx].itemId = e.target.value;
-                        if (!newRows[idx].quantity) newRows[idx].quantity = 1;
-                        newRows[idx].isSubUnit = false;
-                        setRequisitionItems(newRows);
-                      }}
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium focus:ring-2 focus:ring-teal-500"
-                    >
-                      <option value="">-- เลือกวัสดุสิ้นเปลือง --</option>
-                      {consumablesList.map((con) => (
-                        <option key={con.id} value={con.id}>
-                          {con.name} (สต็อก: {con.currentStock} {con.unit})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <div className="w-24">
-                      <input
-                        type="number"
-                        min="1"
-                        placeholder="จำนวน"
-                        value={row.quantity}
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
+                    {/* หมวดหมู่วัสดุสิ้นเปลือง */}
+                    <div className="sm:col-span-4">
+                      <select
+                        value={selectedCat}
                         onChange={(e) => {
-                          const newRows = [...requisitionItems];
-                          newRows[idx].quantity = e.target.value;
-                          setRequisitionItems(newRows);
+                          const catVal = e.target.value;
+                          const updated = [...requisitionItems];
+                          (updated[idx] as any).categoryId = catVal;
+                          setRequisitionItems(updated);
                         }}
-                        className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs text-center font-bold bg-white dark:bg-slate-800 focus:ring-2 focus:ring-teal-500"
-                      />
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-teal-500"
+                      >
+                        <option value="">-- ทุกหมวดวัสดุ --</option>
+                        {Array.from(categoryMap.entries()).map(([id, name]) => (
+                          <option key={id} value={id}>📁 {name}</option>
+                        ))}
+                      </select>
                     </div>
 
-                    {/* Unit Switcher */}
-                    {hasSubUnit ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newRows = [...requisitionItems];
-                          newRows[idx].isSubUnit = !newRows[idx].isSubUnit;
-                          newRows[idx].requestedUnit = newRows[idx].isSubUnit ? selectedCon?.usageUnit : selectedCon?.unit;
-                          setRequisitionItems(newRows);
+                    {/* รายการวัสดุสิ้นเปลือง */}
+                    <div className="sm:col-span-5">
+                      <select
+                        value={row.itemId}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const it = consumablesList.find((x) => x.id === val);
+                          const updated = [...requisitionItems];
+                          updated[idx].itemId = val;
+                          if (it && (it.category?.id || it.category?.name)) {
+                            (updated[idx] as any).categoryId = it.category.id || it.category.name;
+                          }
+                          updated[idx].isSubUnit = false;
+                          updated[idx].requestedUnit = it?.unit || '';
+                          if (!updated[idx].quantity) updated[idx].quantity = 1;
+                          if (it && it.currentStock > 0 && row.quantity !== '' && Number(updated[idx].quantity) > it.currentStock) {
+                            updated[idx].quantity = it.currentStock;
+                          }
+                          setRequisitionItems(updated);
                         }}
-                        className="px-2.5 py-2 bg-white dark:bg-slate-800 border border-teal-300 dark:border-teal-700 rounded-xl text-xs font-bold text-teal-700 dark:text-teal-300 hover:bg-teal-50 shadow-2xs"
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-teal-500"
                       >
-                        {row.isSubUnit ? selectedCon?.usageUnit : selectedCon?.unit} ⇄
-                      </button>
-                    ) : (
-                      <span className="text-xs text-teal-900 dark:text-teal-300 w-12 text-center font-bold">
-                        {selectedCon?.unit || 'ชิ้น'}
-                      </span>
-                    )}
+                        <option value="">-- เลือกรายการวัสดุ ({filteredList.length}) --</option>
+                        {filteredList.map((c) => {
+                          const avail = c.availableStock ?? c.currentStock;
+                          const isReserved = c.reservedStock > 0;
+                          const r = Number(c.conversionRatio) > 0 ? Number(c.conversionRatio) : 1;
+                          const subNote = r > 1 && c.usageUnit ? ` [1 ${c.unit} = ${r} ${c.usageUnit}]` : '';
+                          return (
+                            <option key={c.id} value={c.id}>
+                              {c.name} (พร้อมเบิก: {avail} {c.unit}){subNote}{isReserved ? ` [รอจ่าย ${c.reservedStock}]` : ''}{avail <= 0 ? ' [คิวเต็ม/หมด]' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setRequisitionItems(requisitionItems.filter((_, i) => i !== idx))}
-                      disabled={requisitionItems.length === 1 && !row.itemId}
-                      className="p-2 text-slate-400 hover:text-red-500 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-30 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {/* จำนวน + หน่วย + Subunit Toggle + ลบ */}
+                    <div className="sm:col-span-3 flex flex-col gap-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <input
+                            type="number"
+                            min="1"
+                            max={chosenItem ? Math.max(1, maxStock) : undefined}
+                            placeholder="จำนวน"
+                            value={row.quantity}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const val = raw === '' ? '' : Math.max(1, parseInt(raw, 10));
+                              const updated = [...requisitionItems];
+                              updated[idx].quantity = val;
+                              setRequisitionItems(updated);
+                            }}
+                            className={`w-full px-3 py-2 rounded-xl border text-xs text-center font-bold bg-white dark:bg-slate-900 focus:ring-2 focus:ring-teal-500 ${
+                              isOverStock || isOutOfStock
+                                ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300'
+                                : 'border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100'
+                            }`}
+                          />
+                        </div>
+                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300 min-w-10 text-center">
+                          {currentUnitLabel}
+                        </span>
+                        {requisitionItems.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setRequisitionItems(requisitionItems.filter((_, i) => i !== idx))}
+                            className="p-2 text-slate-400 hover:text-rose-500 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                            title="ลบรายการนี้"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      {canSubUnit && (
+                        <div className="flex items-center justify-end gap-1 text-[10px]">
+                          <span className="text-slate-400 text-[9px]">หน่วย:</span>
+                          <div className="inline-flex rounded-md p-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = [...requisitionItems];
+                                updated[idx].isSubUnit = false;
+                                updated[idx].requestedUnit = chosenItem.unit;
+                                if (updated[idx].quantity !== '' && Number(updated[idx].quantity) > chosenItem.currentStock) {
+                                  updated[idx].quantity = chosenItem.currentStock;
+                                }
+                                setRequisitionItems(updated);
+                              }}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
+                                !isSub
+                                  ? 'bg-teal-600 text-white shadow-xs'
+                                  : 'text-slate-600 dark:text-slate-300 hover:text-teal-700'
+                              }`}
+                            >
+                              📦 {chosenItem.unit}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = [...requisitionItems];
+                                updated[idx].isSubUnit = true;
+                                updated[idx].requestedUnit = chosenItem.usageUnit;
+                                setRequisitionItems(updated);
+                              }}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
+                                isSub
+                                  ? 'bg-teal-600 text-white shadow-xs'
+                                  : 'text-slate-600 dark:text-slate-300 hover:text-teal-700'
+                              }`}
+                            >
+                              ✨ {chosenItem.usageUnit} (ย่อย)
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
+
+                  {chosenItem && (
+                    <div className="mt-2 pt-1.5 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                      {isOutOfStock ? (
+                        <span className="text-rose-600 dark:text-rose-400 font-bold flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                          {chosenItem.physicalStock > 0 && chosenItem.reservedStock > 0
+                            ? `มีในคลัง ${chosenItem.physicalStock} ${chosenItem.unit} แต่มีคำขอรอจ่ายแล้ว ${chosenItem.reservedStock} (ไม่เหลือพร้อมให้เบิก)`
+                            : `วัสดุนี้หมดในคลัง ไม่สามารถเบิกได้`}
+                        </span>
+                      ) : isOverStock ? (
+                        <span className="text-rose-600 dark:text-rose-400 font-bold flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                          ขอเกินยอดพร้อมเบิก (พร้อมขอ {maxStock} {currentUnitLabel})
+                        </span>
+                      ) : (
+                        <span className="text-teal-700 dark:text-teal-400 font-medium flex items-center gap-1.5">
+                          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                          พร้อมเบิก: <strong className="font-bold text-slate-900 dark:text-slate-100">{maxStock} {currentUnitLabel}</strong>
+                          {canSubUnit && (
+                            <span className="text-[10px] bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 px-1.5 py-0.5 rounded-md font-semibold">
+                              1 {chosenItem.unit} = {ratio} {chosenItem.usageUnit}
+                              {(chosenItem.openPackRemainder || 0) > 0 && ` | มีเศษเปิดอยู่ ${chosenItem.openPackRemainder} ${chosenItem.usageUnit}`}
+                            </span>
+                          )}
+                        </span>
+                      )}
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">
+                        ประมาณการ: ฿{(costPerUnit * (Number(row.quantity) || 0)).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               );
             })}

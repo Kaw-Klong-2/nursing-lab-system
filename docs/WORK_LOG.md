@@ -17,6 +17,18 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-29] แก้ไขฟังก์ชันเลือกรายวิชาในหน้าคำขอเบิก-ยืม (/borrow/request): ดึงชื่ออาจารย์ผู้รับผิดชอบขึ้นให้อัตโนมัติในช่องเลือกอาจารย์
+- **หมวดหมู่**: Borrow / Requests / Dedicated Page UX / Instructor Matching
+- **สิ่งที่ดำเนินการ**:
+  - แก้ไขใน `src/app/borrow/request/page.tsx`:
+    - ปรับปรุง `onChange` ของการเลือกรายวิชา ให้ทำชื่ออาจารย์ให้เป็นมาตรฐาน (Normalize Prefix ตัดคำนำหน้า "อาจารย์/อ./ผศ." เพื่อเทียบกับ `instructors.name`)
+    - ดึงชื่ออาจารย์ที่แมตช์ได้ไปเซ็ตลงใน `advisorName` อัตโนมัติ ทำให้ช่อง **อาจารย์ผู้รับรอง / ประจำวิชา** เปลี่ยนเป็นชื่ออาจารย์ประจำวิชาทันทีเหมือนหน้าต่าง Popup Modal
+    - เพิ่มการแสดงชื่ออาจารย์ผู้รับผิดชอบต่อท้ายชื่อวิชาใน Dropdown: `{code} {name} ({instructorName})`
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/app/borrow/request/page.tsx`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100%
+
 ### [2026-10-29] ปรับปรุงข้อมูลล็อต CS-FEED-BAG (เปลี่ยน 9999 เป็น อว 6501.38/0900) และรับเข้าล็อตใหม่ CS-IVC-24 (อว 6501.38/0900)
 - **หมวดหมู่**: Inventory / Stock Lots / Consumables / Requisitions / Upright Healthcare
 - **สิ่งที่ดำเนินการ**:

@@ -327,14 +327,25 @@ function BorrowRequestContent() {
                   const cId = e.target.value;
                   setCourseId(cId);
                   const selC = courses.find((c) => c.id === cId);
-                  if (selC?.instructorName) setAdvisorName(selC.instructorName);
+                  if (selC?.instructorName) {
+                    // Normalize instructor name: match against instructors list
+                    const rawName = selC.instructorName.trim();
+                    const cleanName = rawName.replace(/^(อาจารย์|อ\.|ผศ\.|รศ\.|ศ\.|ดร\.)\s*/g, '').trim();
+                    const matched = instructors.find(
+                      (ins) => ins.name === rawName || ins.name === cleanName || rawName.includes(ins.name)
+                    );
+                    setAdvisorName(matched ? matched.name : formatTeacherName(rawName));
+                    setIsEditingAdvisor(false);
+                  } else if (!cId) {
+                    setAdvisorName('');
+                  }
                 }}
                 className="w-full px-4 py-3 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="">-- ไม่ระบุรายวิชา (ฝึกปฏิบัติส่วนบุคคล) --</option>
                 {courses.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.code} {c.name}
+                    {c.code} {c.name} {c.instructorName ? `(${formatTeacherName(c.instructorName)})` : ''}
                   </option>
                 ))}
               </select>

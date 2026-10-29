@@ -448,35 +448,61 @@ function BorrowRequestContent() {
               />
             </div>
 
-            {/* Use Target & Dates */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                เป้าหมายการใช้งาน
+            {/* Selector: วัตถุประสงค์ความปลอดภัย (ฝึกกับหุ่น vs ใช้กับคนจริง) */}
+            <div className="md:col-span-2 space-y-2 pt-2 border-t border-slate-200/80 dark:border-slate-700/80">
+              <label className="block text-xs font-black text-slate-800 dark:text-slate-200">
+                เป้าหมายการนำไปใช้งาน (Safety & Clinical Target) <span className="text-rose-500">*</span>
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setUseTarget('SIMULATION')}
-                  className={`p-3 rounded-2xl border text-xs font-bold transition-all ${
+                  className={`p-3.5 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer ${
                     useTarget === 'SIMULATION'
-                      ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300'
-                      : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                      ? 'bg-teal-50/90 dark:bg-teal-950/50 border-teal-500 ring-2 ring-teal-500/20 text-teal-900 dark:text-teal-200 shadow-sm'
+                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-slate-600 dark:text-slate-300'
                   }`}
                 >
-                  🤖 หุ่นฝึกเสมือนจริง (Simulation)
+                  <span className="text-2xl shrink-0">🧪</span>
+                  <div className="space-y-1">
+                    <div className="font-bold text-xs flex items-center gap-1.5">
+                      <span>ฝึกปฏิบัติการกับหุ่นจำลอง</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-300 font-bold">Sim-Lab</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                      สำหรับฝึกหัตถการกับหุ่นพยาบาล (อนุญาตให้เบิกของหมดอายุเพื่อฝึกซ้ำได้)
+                    </p>
+                  </div>
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setUseTarget('HUMAN')}
-                  className={`p-3 rounded-2xl border text-xs font-bold transition-all ${
+                  className={`p-3.5 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer ${
                     useTarget === 'HUMAN'
-                      ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300'
-                      : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                      ? 'bg-rose-50/90 dark:bg-rose-950/50 border-rose-500 ring-2 ring-rose-500/20 text-rose-900 dark:text-rose-200 shadow-sm'
+                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-slate-600 dark:text-slate-300'
                   }`}
                 >
-                  👤 ฝึกปฏิบัติกับคนจริง (Human)
+                  <span className="text-2xl shrink-0">🧑‍⚕️</span>
+                  <div className="space-y-1">
+                    <div className="font-bold text-xs flex items-center gap-1.5">
+                      <span className="text-rose-700 dark:text-rose-400">ใช้งานกับคนจริง / คลินิก</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-900/60 text-rose-800 dark:text-rose-300 font-black">คนจริง</span>
+                    </div>
+                    <p className="text-[11px] text-rose-600/80 dark:text-rose-400/80 leading-tight">
+                      สำหรับใช้กับผู้ป่วยจริง (ระบบจะบล็อกและห้ามเบิกล็อตที่หมดอายุเด็ดขาด 100%)
+                    </p>
+                  </div>
                 </button>
               </div>
+
+              {useTarget === 'HUMAN' && (
+                <div className="p-3 bg-rose-100/70 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900/60 rounded-2xl text-rose-800 dark:text-rose-300 text-xs font-bold flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                  <span>มาตรการความปลอดภัยผู้ป่วย: ระบบจะจ่ายเฉพาะเวชภัณฑ์ที่ยังไม่หมดอายุเท่านั้น หากรายการใดหมดอายุแล้วจะไม่สามารถเบิกได้</span>
+                </div>
+              )}
             </div>
 
             {/* Borrow & Return Dates */}

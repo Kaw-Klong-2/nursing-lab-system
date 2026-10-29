@@ -25,6 +25,7 @@ import {
   Sparkles,
   Info,
   Check,
+  Edit3,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 
@@ -44,6 +45,7 @@ function PracticeBookingContent() {
   const [practiceKits, setPracticeKits] = useState<any[]>([]);
   const [instructors, setInstructors] = useState<any[]>([]);
   const [allStudents, setAllStudents] = useState<any[]>([]);
+  const [config, setConfig] = useState<any>(null);
 
   // Form State
   const [bookingForm, setBookingForm] = useState({
@@ -71,17 +73,19 @@ function PracticeBookingContent() {
     async function loadData() {
       setLoading(true);
       try {
-        const [coursesRes, kitsRes, instRes, usersRes] = await Promise.all([
+        const [coursesRes, kitsRes, instRes, usersRes, configRes] = await Promise.all([
           fetch('/api/courses?compact=true'),
           fetch('/api/kits'),
           fetch('/api/users?role=APPROVER'),
           fetch('/api/users?role=USER'),
+          fetch('/api/practice/config'),
         ]);
 
         if (coursesRes.ok && isMounted) setCourses(await coursesRes.json());
         if (kitsRes.ok && isMounted) setPracticeKits(await kitsRes.json());
         if (instRes.ok && isMounted) setInstructors(await instRes.json());
         if (usersRes.ok && isMounted) setAllStudents(await usersRes.json());
+        if (configRes.ok && isMounted) setConfig(await configRes.json());
 
         if (slotId) {
           const slotRes = await fetch(`/api/practice/slots?id=${slotId}`);
@@ -366,16 +370,13 @@ function PracticeBookingContent() {
                       type="button"
                       key={sk}
                       onClick={() => {
-                        setBookingForm({
-                          ...bookingForm,
+                        const matched = practiceKits.find((k) => k.name.includes(sk) || sk.includes(k.name.slice(0, 5)));
+                        setBookingForm((prev) => ({
+                          ...prev,
                           skillTopic: sk,
                           isCustomSkill: false,
-                        });
-                        // Auto-match Kit
-                        const matched = practiceKits.find((k) => k.name.includes(sk) || sk.includes(k.name.slice(0, 5)));
-                        if (matched) {
-                          setBookingForm((prev) => ({ ...prev, practiceKitId: matched.id }));
-                        }
+                          practiceKitId: matched ? matched.id : prev.practiceKitId,
+                        }));
                       }}
                       className={`flex items-center justify-between p-3.5 rounded-2xl border text-sm font-semibold transition-all text-left ${
                         isChecked
@@ -569,18 +570,27 @@ function PracticeBookingContent() {
                 onChange={(e) => {
                   const cId = e.target.value;
                   const selectedC = courses.find((c) => c.id === cId);
-                  setBookingForm((prev) => ({
-                    ...prev,
-                    courseId: cId,
-                    advisorName: selectedC?.instructorName || prev.advisorName,
-                  }));
+                  if (selectedC?.instructorName) {
+                    setBookingForm((prev) => ({
+                      ...prev,
+                      courseId: cId,
+                      advisorName: formatTeacherName(selectedC.instructorName),
+                    }));
+                    setIsEditingAdvisor(false);
+                  } else {
+                    setBookingForm((prev) => ({
+                      ...prev,
+                      courseId: cId,
+                      advisorName: cId ? prev.advisorName : '',
+                    }));
+                  }
                 }}
                 className="w-full px-4 py-3 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:ring-2 focus:ring-rose-500"
               >
                 <option value="">-- ไม่ระบุรายวิชา (ฝึกทักษะทั่วไป) --</option>
                 {courses.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.code} {c.name}
+                    {c.code} {c.name} ({formatTeacherName(c.instructorName || 'อ.ผู้รับผิดชอบ')})
                   </option>
                 ))}
               </select>
@@ -588,51 +598,85 @@ function PracticeBookingContent() {
 
             {/* Advisor Name */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-                <GraduationCap className="w-3.5 h-3.5 text-rose-500" /> อาจารย์ผู้รับรอง / ประจำวิชา {isStudent && <span className="text-rose-500">*</span>}
-              </label>
-
-              {isEditingAdvisor ? (
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    required={isStudent}
-                    placeholder="ระบุชื่ออาจารย์ (เช่น อ.ดร. นันทนา)"
-                    value={bookingForm.advisorName}
-                    onChange={(e) => setBookingForm({ ...bookingForm, advisorName: e.target.value })}
-                    className="flex-1 px-4 py-3 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:ring-2 focus:ring-rose-500"
-                  />
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <GraduationCap className="w-3.5 h-3.5 text-rose-500" /> อาจารย์ผู้รับทราบ / ประจำวิชา {isStudent && <span className="text-rose-500">*</span>}
+                </label>
+                {bookingForm.courseId && (
                   <button
                     type="button"
-                    onClick={() => setIsEditingAdvisor(false)}
-                    className="px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-2xl text-xs font-bold hover:bg-slate-200"
+                    onClick={() => setIsEditingAdvisor(!isEditingAdvisor)}
+                    className="text-[11px] font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 flex items-center gap-1 cursor-pointer"
                   >
-                    เลือกจากรายชื่อ
+                    <Edit3 className="w-3 h-3" />
+                    <span>{isEditingAdvisor ? 'ซ่อนตัวเลือก' : 'แก้ไขอาจารย์'}</span>
+                  </button>
+                )}
+              </div>
+
+              {bookingForm.courseId && !isEditingAdvisor ? (
+                <div className="flex items-center justify-between bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 rounded-2xl px-4 py-2.5 text-xs">
+                  <div className="flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+                    <span className="font-bold text-teal-900 dark:text-teal-200 text-sm">
+                      {formatTeacherName(bookingForm.advisorName || courses.find((c) => c.id === bookingForm.courseId)?.instructorName || 'อาจารย์ผู้รับผิดชอบ')}
+                    </span>
+                    <span className="text-[10px] bg-teal-200/60 dark:bg-teal-900/60 text-teal-800 dark:text-teal-300 px-2 py-0.5 rounded-md font-bold">
+                      ขึ้นให้อัตโนมัติ
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingAdvisor(true)}
+                    className="text-xs font-bold text-teal-700 dark:text-teal-300 hover:underline cursor-pointer"
+                  >
+                    แก้ไขอาจารย์
                   </button>
                 </div>
               ) : (
-                <div className="flex gap-2">
+                <div className="space-y-1.5">
                   <select
-                    value={bookingForm.advisorName}
-                    onChange={(e) => {
-                      if (e.target.value === '__CUSTOM__') {
-                        setIsEditingAdvisor(true);
-                        setBookingForm({ ...bookingForm, advisorName: '' });
-                      } else {
-                        setBookingForm({ ...bookingForm, advisorName: e.target.value });
-                      }
-                    }}
                     required={isStudent}
-                    className="flex-1 px-4 py-3 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:ring-2 focus:ring-rose-500"
+                    value={bookingForm.advisorName}
+                    onChange={(e) => setBookingForm((prev) => ({ ...prev, advisorName: e.target.value }))}
+                    className={`w-full px-4 py-3 rounded-2xl border text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 ${
+                      isStudent && !bookingForm.advisorName
+                        ? 'border-amber-300 dark:border-amber-500 ring-1 ring-amber-200 dark:ring-amber-900/50'
+                        : 'border-slate-300 dark:border-slate-700'
+                    }`}
                   >
-                    <option value="">-- เลือกอาจารย์ผู้รับรอง --</option>
-                    {instructors.map((ins) => (
-                      <option key={ins.id} value={ins.name}>
-                        {formatTeacherName(ins.name)}
+                    <option value="">-- กรุณาเลือกอาจารย์จากรายชื่อ --</option>
+                    {bookingForm.advisorName && !instructors.some((ins) => formatTeacherName(ins) === bookingForm.advisorName || ins.name === bookingForm.advisorName) && (
+                      <option value={bookingForm.advisorName}>
+                        {formatTeacherName(bookingForm.advisorName)} (อาจารย์ประจำรายวิชา)
                       </option>
-                    ))}
-                    <option value="__CUSTOM__">+ ระบุชื่ออาจารย์ด้วยตนเอง</option>
+                    )}
+                    {instructors.map((ins) => {
+                      const formatted = formatTeacherName(ins);
+                      return (
+                        <option key={ins.id} value={formatted}>
+                          {formatted} ({ins.department || 'คณะพยาบาลศาสตร์'})
+                        </option>
+                      );
+                    })}
                   </select>
+                  {bookingForm.courseId && (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const sc = courses.find((c) => c.id === bookingForm.courseId);
+                          if (sc?.instructorName) {
+                            setBookingForm((prev) => ({ ...prev, advisorName: formatTeacherName(sc.instructorName) }));
+                          }
+                          setIsEditingAdvisor(false);
+                        }}
+                        className="text-[11px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline cursor-pointer"
+                      >
+                        ↺ กลับไปใช้อาจารย์ประจำวิชา ({formatTeacherName(courses.find((c) => c.id === bookingForm.courseId)?.instructorName)})
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -671,6 +715,18 @@ function PracticeBookingContent() {
             </div>
           </div>
         </div>
+
+        {/* Lab Rules & Notice Agreement Banner */}
+        {config?.rulesNotice && (
+          <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-5 rounded-3xl text-xs text-amber-900 dark:text-amber-200 space-y-2">
+            <span className="font-bold flex items-center gap-1.5 text-sm text-amber-950 dark:text-amber-100">
+              <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" /> ข้อตกลงการเข้าใช้ห้องปฏิบัติการ:
+            </span>
+            <p className="whitespace-pre-line leading-relaxed pl-5 text-xs text-amber-800 dark:text-amber-300">
+              {config.rulesNotice}
+            </p>
+          </div>
+        )}
 
         {/* Sticky Mobile Bottom Bar & Action Buttons (Above Mobile BottomNav) */}
         <div className="fixed bottom-[58px] md:bottom-0 left-0 right-0 p-3 sm:p-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-30 shadow-lg">

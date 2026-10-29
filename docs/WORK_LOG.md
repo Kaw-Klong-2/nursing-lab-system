@@ -17,6 +17,26 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-29] กู้คืนและซิงค์ Logic / UI ของฟอร์มหน้าใหม่ให้สมบูรณ์เท่า Modal เดิม (/practice/book, /borrow/request, /asset/[code])
+- **หมวดหมู่**: UX Parity / Standalone Pages / Practice Booking / Clinical Safety / Direct Borrow Link
+- **สิ่งที่ดำเนินการ**:
+  - **หน้าจองรอบฝึกปฏิบัติการ (`/practice/book`)**:
+    - กู้คืนระบบล็อกชื่ออาจารย์ผู้รับผิดชอบอัตโนมัติ (Teal Auto-Box Card) พร้อมไอคอน `GraduationCap`, ป้าย `"ขึ้นให้อัตโนมัติ"`, ปุ่มแก้ไข และปุ่ม `"↺ กลับไปใช้อาจารย์ประจำวิชา (...)"`
+    - เพิ่มชื่ออาจารย์ประจำวิชาใน Dropdown เลือกรายวิชา: `{code} {name} ({instructorName})`
+    - กู้คืนข้อตกลงการเข้าใช้ห้องปฏิบัติการ (`rulesNotice`) จาก `/api/practice/config` แสดงในกล่องสีเหลืองอำพันให้นิสิตรับทราบ
+    - แก้ไขปัญหา race condition ของ state ตอนจับคู่ชุดฝึกปฏิบัติ (Practice Kit)
+  - **หน้ายื่นคำขอยืม-เบิกพัสดุ (`/borrow/request`)**:
+    - เติมเต็มการเลือกเป้าหมายการใช้งาน (Use Target: Sim-Lab vs Human) พร้อมคำอธิบายหัตถการกับหุ่น vs คนจริง
+    - เพิ่มแบนเนอร์สีแดงเตือนมาตรการความปลอดภัยผู้ป่วย (Patient Safety Alert) เมื่อเลือก "คนจริง" บล็อกเวชภัณฑ์หมดอายุ 100% เหมือน `UnifiedRequestModal`
+  - **หน้าสแกน QR ครุภัณฑ์ (`/asset/[code]`)**:
+    - ปรับปรุงปุ่ม "ทำเรื่องขอยืมอุปกรณ์ชิ้นนี้" ให้ลิงก์เข้าสู่ `/borrow/request?itemId=...` ตรงๆ เพื่อให้โหลดครุภัณฑ์ชิ้นนี้ขึ้นมาในฟอร์มทันที
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/app/practice/book/page.tsx`
+  - `src/app/borrow/request/page.tsx`
+  - `src/app/asset/[code]/page.tsx`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100%
+
 ### [2026-10-29] เพิ่มตัวเลือกหมวดหมู่ (Category Filter) และแถบสถานะสต็อกในรายการครุภัณฑ์และวัสดุสิ้นเปลือง (/borrow/request)
 - **หมวดหมู่**: Borrow / Requests / Dedicated Page UX / Category Filtering & Realtime Stock
 - **สิ่งที่ดำเนินการ**:

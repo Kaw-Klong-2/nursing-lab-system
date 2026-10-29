@@ -711,7 +711,7 @@ export default function PublicAssetPage() {
 
               {currentUser ? (
                 <Link
-                  href={`/borrow?assetCode=${encodeURIComponent(asset.assetCode)}`}
+                  href={`/borrow/request?itemId=${encodeURIComponent(asset.itemId || asset.item?.id || '')}`}
                   className={`w-full py-3 rounded-2xl text-xs font-bold text-white shadow-md transition flex items-center justify-center gap-2 ${
                     isAvailable
                       ? 'bg-teal-600 hover:bg-teal-500 shadow-teal-600/20'
@@ -723,7 +723,7 @@ export default function PublicAssetPage() {
                 </Link>
               ) : (
                 <Link
-                  href={`/login?redirect=/borrow?assetCode=${encodeURIComponent(asset.assetCode)}`}
+                  href={`/login?redirect=${encodeURIComponent(`/borrow/request?itemId=${asset.itemId || asset.item?.id || ''}`)}`}
                   className="w-full py-3 rounded-2xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-md shadow-teal-600/20 transition flex items-center justify-center gap-2"
                 >
                   <LogIn className="w-4 h-4" />

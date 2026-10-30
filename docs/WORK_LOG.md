@@ -17,6 +17,23 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-30] ยกระดับ AI Role-Based Data Intelligence (RBAC-Filtered Full System AI Brain)
+- **หมวดหมู่**: AI Architecture / Gemini 3.5 AI First Brain / RBAC Data Privacy / Prisma Aggregator
+- **สิ่งที่ดำเนินการ**:
+  - พัฒนาโมดูล `src/lib/chatbot-context-aggregator.ts` รวบรวมข้อมูลทั่วทั้งระบบ (Prisma Models: Rooms, Kits, Stock, Personal Bookings/Borrows, Teacher Courses & Budget, Staff Overdue & AC) แล้วกรอง WHERE ตามสิทธิ์ของผู้ใช้แต่ละคนแบบ Real-time
+  - อัปเกรด `src/lib/chatbot-gemini.ts` ให้เป็น AI-First Reasoning Brain นำ Context ข้อมูลจริงที่ผ่านการกรองสิทธิ์มาป้อนเป็น Grounding ให้ Gemini 3.5 Flash คิด วิเคราะห์ สังเคราะห์คำตอบเฉพาะบุคคล (Personalized Response) อย่างเป็นธรรมชาติ
+  - เสริมระบบความปลอดภัยของข้อมูล (Zero-Leakage RBAC Guardrails):
+    - **นิสิต (USER)**: ดูข้อมูลสาธารณะและคำขอของตนเองได้เต็มที่ แต่หากถามงบประมาณรายวิชาหรือถามรายชื่อคนค้างคืนพัสดุ AI จะปฏิเสธอย่างสุภาพทันทีว่าสงวนสิทธิ์สำหรับอาจารย์ผู้สอน/เจ้าหน้าที่
+    - **อาจารย์ (APPROVER / TEACHER)**: เข้าถึงคำขอที่รออนุมัติของนิสิต และงบประมาณคงเหลือในรายวิชาที่สอนได้ทันที
+    - **เจ้าหน้าที่ & แอดมิน (OFFICER / ADMIN)**: เข้าถึงข้อมูลภาพรวมระบบทั้งหมด, สต็อกทุกล็อต, รายการค้างส่งพัสดุ (Overdue), และชั่วโมงการใช้เครื่องปรับอากาศ
+  - ปรับปรุงการตรวจสอบสิทธิ์ `checkIntentPermission` และ `handleKnowledgeAndGeneralInquiry` ใน `src/lib/chatbot-engine.ts`
+- **ไฟล์สำคัญที่สร้างและแก้ไข**:
+  - `src/lib/chatbot-context-aggregator.ts` (NEW)
+  - `src/lib/chatbot-gemini.ts`
+  - `src/lib/chatbot-engine.ts`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit` ผ่าน 0 ข้อผิดพลาด, `npm run librarian:audit` ผ่าน 100%
+
 ### [2026-10-30] ยกระดับระบบถาม-ตอบแชทบอทให้ตอบวัน-เวลา-ปฏิทินไทย และข้อมูลระบบได้ 100% (Deterministic + Gemini 3.5 AI)
 - **หมวดหมู่**: AI Chatbot Engine / Thai Date-Time Engine / Semantic Q&A / Bugfix
 - **สิ่งที่ดำเนินการ**:

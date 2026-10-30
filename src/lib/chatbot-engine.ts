@@ -26,6 +26,7 @@ import {
 } from './chatbot-nlu';
 import { searchKnowledgeBase, answerDateTimeAndGeneralQuery } from './chatbot-knowledge';
 import { askGeminiLabBrain } from './chatbot-gemini';
+import { assembleUserScopedContext } from './chatbot-context-aggregator';
 
 // ตรวจสอบสิทธิ์การเข้าถึงตามบทบาท (RBAC)
 export function checkIntentPermission(intent: ChatIntent, userRole: string): { allowed: boolean; reason?: string } {
@@ -53,7 +54,16 @@ export function checkIntentPermission(intent: ChatIntent, userRole: string): { a
     if (role === 'USER') {
       return {
         allowed: false,
-        reason: 'ข้อมูลสรุปงบประมาณและต้นทุนรายวิชาสงวนสิทธิ์สำหรับคณาจารย์ผู้สอน เจ้าหน้าที่ และผู้บริหารเท่านั้นครับ',
+        reason: 'ข้อมูลสรุปงบประมาณและต้นทุนรายวิชาสงวนสิทธิ์สำหรับคณาจารย์ผู้สอน เจ้าหน้าที่ และผู้บริหารเท่านั้นครับ นิสิตสามารถตรวจสอบได้เฉพาะสถานะคำขอของตนเองครับ',
+      };
+    }
+  }
+
+  if (intent === 'QUERY_OVERDUE') {
+    if (role === 'USER') {
+      return {
+        allowed: false,
+        reason: 'ข้อมูลรายชื่อผู้ค้างส่งพัสดุเกินกำหนด (Overdue) สงวนสิทธิ์สำหรับเจ้าหน้าที่ห้องปฏิบัติการและอาจารย์ผู้สอนเท่านั้นครับ นิสิตสามารถพิมพ์ "เช็กสถานะคำขอของฉัน" เพื่อดูรายการของตนเองได้ครับ',
       };
     }
   }
@@ -1312,61 +1322,12 @@ async function handleKnowledgeAndGeneralInquiry(
   currentUser: any
 ): Promise<ChatbotTurnResponse> {
   const userRole = (currentUser?.role || 'USER').toUpperCase();
-  const lower = text.toLowerCase().trim();
 
-  // 1. ดึง Master Data จาก Prisma เพื่อเสริมความแม่นยำให้กับคำตอบ
-  const [activeRooms, activeCourses, activeKits] = await Promise.all([
-    prisma.practiceRoom.findMany({
-      where: { isActive: true },
-      select: { code: true, name: true, capacity: true, location: true },
-      orderBy: { code: 'asc' },
-    }),
-    prisma.course.findMany({
-      where: { status: 'ACTIVE' },
-      select: { code: true, name: true, instructorName: true },
-      take: 8,
-      orderBy: { code: 'asc' },
-    }),
-    prisma.practiceKit.findMany({
-      where: { isActive: true },
-      include: { items: { include: { item: true } } },
-      orderBy: { code: 'asc' },
-    }),
-  ]);
+  // 1. รวบรวมข้อมูลในระบบทั้งหมดแบบจำกัดสิทธิ์ตามบทบาท (RBAC Scoped System Context)
+  const systemContext = await assembleUserScopedContext(currentUser, text);
 
-  // 2. ตอบเฉพาะเจาะจง: ถามรายชื่อห้องแล็บ
-  if (lower.includes('มีห้องอะไรบ้าง') || lower.includes('มีห้องแล็บอะไรบ้าง') || lower.includes('มีกี่ห้อง') || lower.includes('ห้องแล็บมีกี่ห้อง') || lower.includes('รายชื่อห้อง')) {
-    const roomList = activeRooms
-      .map((r) => `• **${r.code} (${r.name})**\n  - รองรับได้: ${r.capacity} คน\n  - ที่ตั้ง: ${r.location || 'ชั้น 4 อาคารวิทยบริการ'}`)
-      .join('\n');
-    return {
-      replyText: `🏢 **ห้องปฏิบัติการพยาบาลที่เปิดให้บริการในระบบ (รวม ${activeRooms.length} ห้อง):**\n\n${roomList}\n\nนิสิตและคณาจารย์สามารถพิมพ์ *"จองห้อง [รหัสห้อง]"* เพื่อเริ่มจองห้องได้ทันทีครับ`,
-      sessionState: state,
-      quickReplies: activeRooms.slice(0, 4).map((r) => ({ label: `จอง ${r.code}`, textToSend: `ขอจองห้อง ${r.code}` })),
-    };
-  }
-
-  // 3. ตอบเฉพาะเจาะจง: ถามชุดฝึก Kits
-  if (lower.includes('มีชุดฝึกอะไรบ้าง') || lower.includes('ชุดฝึกมีอะไรบ้าง') || lower.includes('kits มีอะไรบ้าง') || lower.includes('มีชุดอะไรบ้าง')) {
-    const kitList = activeKits
-      .map((k) => {
-        const itemNames = k.items.map((it) => it.item.name).join(', ') || 'อุปกรณ์มาตรฐาน';
-        return `• 🩺 **${k.name}** [${k.code}]:\n  - ภายในชุดประกอบด้วย: ${itemNames}`;
-      })
-      .join('\n');
-    return {
-      replyText: `🩺 **ชุดฝึกปฏิบัติการมาตรฐาน (Nursing Practice Kits) ในระบบ:**\n\n${kitList}\n\nต้องการขอใช้ชุดฝึกชุดไหน สามารถพิมพ์แจ้งได้เลยครับ`,
-      sessionState: state,
-      quickReplies: activeKits.slice(0, 3).map((k) => ({ label: k.name, textToSend: `ขอเบิก ${k.name}` })),
-    };
-  }
-
-  // 4. ส่งให้ Gemini 2.0 Flash (มี Fallback เป็น Local Knowledge Base อัตโนมัติ)
-  const geminiResponse = await askGeminiLabBrain(text, currentUser, {
-    activeRooms,
-    activeCourses,
-    activeKits,
-  });
+  // 2. ส่งให้ Gemini 3.5 AI First Brain คิดวิเคราะห์และตอบคำถาม
+  const geminiResponse = await askGeminiLabBrain(text, currentUser, systemContext);
 
   if (geminiResponse.success && geminiResponse.replyText) {
     const replies = getRoleQuickReplies(userRole);
@@ -1382,7 +1343,7 @@ async function handleKnowledgeAndGeneralInquiry(
     };
   }
 
-  // 5. Fallback สุดท้าย
+  // 3. Fallback สุดท้าย
   return handleGeneralInquiry(text, userRole);
 }
 

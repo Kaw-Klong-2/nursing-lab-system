@@ -1,9 +1,11 @@
 /**
- * โมดูลเชื่อมต่อ Google Gemini AI (AI Front-End Brain)
+ * โมดูลเชื่อมต่อ Google Gemini AI (AI First Front-End Brain)
+ * ประมวลผลและตอบคำถามโดยอิงจาก Grounding Data Context ที่ผ่านการคัดกรองตามสิทธิ์ (RBAC)
  * รองรับโมเดล gemini-3.5-flash-lite, gemini-3.5-flash พร้อมระบบ Timeout และ Fallback อัตโนมัติ 100%
  */
 
 import { searchKnowledgeBase, answerDateTimeAndGeneralQuery } from './chatbot-knowledge';
+import { UserScopedSystemContext } from './chatbot-context-aggregator';
 
 export interface GeminiChatResponse {
   success: boolean;
@@ -14,43 +16,39 @@ export interface GeminiChatResponse {
 }
 
 /**
- * เรียกใช้ Google Gemini ผ่าน Native REST API พร้อมระบบ Failover
+ * เรียกใช้ Google Gemini คิดคำตอบอย่างชาญฉลาดโดยอิงจากข้อมูลระบบในสิทธิ์ของผู้ถาม
  */
 export async function askGeminiLabBrain(
   userMessage: string,
   currentUser: any,
-  contextData?: {
-    activeRooms?: Array<{ code: string; name: string; capacity: number }>;
-    activeCourses?: Array<{ code: string; name: string; instructorName: string }>;
-    activeKits?: Array<{ name: string }>;
-  }
+  systemContext?: UserScopedSystemContext
 ): Promise<GeminiChatResponse> {
   const role = (currentUser?.role || 'USER').toUpperCase();
   const userName = currentUser?.name || 'ผู้ใช้งาน';
 
-  // 1. ดักจับคำถามเรื่อง วัน เวลา ปฏิทิน และสถานะเปิดแล็บแบบ 0ms (Deterministic Engine)
-  const dtResult = answerDateTimeAndGeneralQuery(userMessage, role);
-  if (dtResult) {
-    return {
-      success: true,
-      replyText: dtResult.text,
-      source: 'DATETIME_ENGINE',
-      quickReplies: dtResult.quickReplies,
-    };
-  }
-
-  // 2. ดึง API Key จาก Environment Variables
+  // 1. ดึง API Key จาก Environment Variables
   const apiKey =
     process.env.GEMINI_API_KEY ||
     process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
-  // 3. หากไม่มี API Key ให้ใช้ Local Knowledge Base
+  // 2. หากไม่มี API Key ให้ใช้ Local Knowledge Base
   if (!apiKey) {
+    // เช็กเรื่องวันเวลา
+    const dtResult = answerDateTimeAndGeneralQuery(userMessage, role);
+    if (dtResult) {
+      return {
+        success: true,
+        replyText: dtResult.text,
+        source: 'DATETIME_ENGINE',
+        quickReplies: dtResult.quickReplies,
+      };
+    }
+
     const kbResult = searchKnowledgeBase(userMessage, role);
     if (kbResult) {
       return {
         success: true,
-        replyText: kbResult.answer(role, contextData),
+        replyText: kbResult.answer(role, systemContext),
         source: 'LOCAL_KNOWLEDGE_BASE',
         quickReplies: kbResult.quickReplies,
       };
@@ -65,14 +63,6 @@ export async function askGeminiLabBrain(
       };
     }
 
-    if (['ขอบคุณ', 'ขอบใจ', 'thank', 'thanks', 'แต๊งกิ้ว', 'เยี่ยม', 'สุดยอด'].includes(lower)) {
-      return {
-        success: true,
-        replyText: `ยินดีให้บริการเสมอครับคุณ **${userName}**! หากมีข้อสงสัยเรื่องห้องแล็บ การยืม-คืน หรือต้องการความช่วยเหลือเรื่องใด พิมพ์บอกผมได้ตลอดเวลานะครับ ❤️🩺`,
-        source: 'LOCAL_KNOWLEDGE_BASE',
-      };
-    }
-
     return {
       success: false,
       replyText: '',
@@ -80,31 +70,37 @@ export async function askGeminiLabBrain(
     };
   }
 
-  // 4. ส่งคำถามให้ Gemini AI คิดคำตอบ (ลอง gemini-3.5-flash-lite ก่อน หากไม่สำเร็จให้ลอง gemini-3.5-flash)
+  // 3. เตรียม System Prompt และข้อมูลบริบทในสิทธิ์ (RBAC Grounding Context)
   const candidateModels = ['gemini-3.5-flash-lite', 'gemini-3.5-flash'];
-  const nowBkk = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'full', timeStyle: 'medium' });
+  const nowBkk = systemContext?.currentBangkokTime || new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'full', timeStyle: 'medium' });
 
-  const systemPrompt = `คุณคือ "KUNurse+ Lab AI Copilot" ผู้ช่วยประจำระบบห้องปฏิบัติการพยาบาล คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์
+  // แปลง System Context เป็นข้อความสรุปบริบท
+  const contextText = JSON.stringify(systemContext || {}, null, 2);
 
-ขอบเขตและหน้าที่ของคุณ (สำคัญมาก - ตอบเฉพาะเรื่องที่กำหนดเท่านั้น):
-1. ตอบเฉพาะเรื่อง:
-   - ข้อมูลและวิธีใช้งานระบบ KUNurse+ Lab (การจองห้อง, การเบิก-ยืมของ, การซ้อมหัตถการ, การสแกน QR Code)
-   - ข้อมูลห้องแล็บ, สถานที่ตั้ง, เวลาทำการ, และกฎระเบียบความปลอดภัยในห้องแล็บ
-   - เรื่องทั่วไปพื้นฐานในชีวิตประจำวัน เช่น วันที่ปัจจุบัน, เวลา, วันในสัปดาห์ (ข้อมูลเวลาปัจจุบันของระบบคือ: ${nowBkk})
-   - หากผู้ใช้ถามเรื่องอื่นที่อยู่นอกเหนือจากระบบห้องแล็บหรือเรื่องทั่วไปพื้นฐาน ให้ปฏิเสธอย่างสุภาพว่า "ขออภัยครับ ผมเป็นผู้ช่วยดูแลระบบห้องปฏิบัติการพยาบาล จึงสามารถให้ข้อมูลได้เฉพาะเรื่องระบบห้องแล็บ ระเบียบการใช้งาน และข้อมูลพื้นฐานเท่านั้นครับ"
-2. กฎเหล็กด้านคำศัพท์: บังคับใช้คำว่า "นิสิต" เสมอในทุกกรณี และห้ามใช้คำอื่นที่ผิดระเบียบคณะโดยเด็ดขาด
-3. ข้อมูลบริบทของระบบห้องแล็บ:
-   - ผู้ใช้งานปัจจุบัน: ชื่อ "${userName}", บทบาทสิทธิ์ "${role}" (USER=นิสิต, TEACHER/APPROVER=อาจารย์, OFFICER=เจ้าหน้าที่, ADMIN=ผู้ดูแลระบบ)
-   - สถานที่: ห้องเตรียมการ ชั้น 3 อาคารวิทยบริการ, ห้องปฏิบัติการทักษะ ชั้น 4 (LAB-01 ถึง LAB-06)
-   - เวลาทำการ: จันทร์-ศุกร์ 08:30 - 16:30 น. (ปิดเสาร์-อาทิตย์ และวันหยุดราชการ) การคืนของต้องคืนก่อน 16:30 น.
-   - ระเบียบสำคัญ: ห้ามใช้ปากกาเขียนผิวหุ่นจำลองเด็ดขาด (หมึกซึมลบไม่ออก), แต่งกายชุดฝึกถูกระเบียบ, ห้ามนำอาหารเข้าห้องแล็บ
-   - ระบบสำคัญ: ยืม-เบิก One-Stop, Patient Safety Lock (คนจริงห้ามใช้ของหมดอายุ แต่หุ่น Sim ใช้ได้), จองห้องแล็บและรอบฝึกทักษะพร้อม QR Check-in
-   - ห้องปฏิบัติการที่เปิดใช้: ${contextData?.activeRooms?.map((r) => `${r.code} (${r.name}, จุ ${r.capacity} คน)`).join(', ') || 'LAB-01 ถึง LAB-06'}
-   - ชุดฝึกหัตถการมาตรฐาน (Kits): ${contextData?.activeKits?.map((k) => k.name).join(', ') || 'ชุดทำแผล, ชุดฉีดยา, ชุดสวนปัสสาวะ, ชุด CPR'}
-4. รูปแบบการตอบ:
-   - ตอบสั้น กระชับ สุภาพ เป็นมิตร ไม่เวิ่นเว้อ
-   - ถ้าถาม "ทำอะไรได้บ้าง" ให้อธิบายฟังก์ชันของระบบตามบทบาทของผู้ใช้ (นิสิต/อาจารย์/เจ้าหน้าที่) สั้นๆ ชัดเจน
-   - ถ้าถามวันที่หรือเวลา ให้ตอบอ้างอิงจากเวลาปัจจุบันที่ระบุข้างต้น`;
+  const systemPrompt = `คุณคือ "KUNurse+ Lab AI Copilot" ผู้ช่วยอัจฉริยะประจำระบบห้องปฏิบัติการพยาบาล คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์
+
+กฎเหล็กด้านความปลอดภัยและการรักษาความลับข้อมูล (RBAC Data Security):
+1. ผู้ถามมีบทบาทเป็น: "${role}" (ชื่อ: "${userName}")
+   - หากผู้ถามคือ "USER" (นิสิต): นิสิตมีสิทธิ์ทราบเฉพาะข้อมูลสาธารณะ (ห้องแล็บ, ชุด Kits, สต็อกคงเหลือทั่วไป, ตู้เก็บ), ข้อมูลคำขอของตนเอง, และวันเวลาทำการ
+   - ❌ **ห้ามเปิดเผยข้อมูลข้ามบุคคลเด็ดขาด**: นิสิตไม่มีสิทธิ์ดูงบประมาณของรายวิชา, ไม่มีสิทธิ์ดูคำขอของนิสิตคนอื่น, และไม่มีสิทธิ์ดูรายชื่อคนค้างคืนพัสดุ (Overdue)
+   - หากนิสิตถามเรื่องที่ไม่มีสิทธิ์เข้าถึง (เช่น ถามงบวิชา, ถามว่าใครยังไม่คืนของ): ให้ปฏิเสธอย่างสุภาพทันทีว่า "ขออภัยครับ ข้อมูลส่วนนี้สงวนสิทธิ์สำหรับอาจารย์ผู้ประสานงานวิชา หรือเจ้าหน้าที่ห้องแล็บเท่านั้นครับ นิสิตสามารถตรวจสอบได้เฉพาะสถานะคำขอของตนเองครับ"
+2. หากผู้ถามคือ "APPROVER" หรือ "TEACHER" (อาจารย์):
+   - สามารถดูคำขอรออนุมัติของนิสิตในวิชาที่อาจารย์รับผิดชอบได้
+   - สามารถดูงบประมาณคงเหลือและยอดเบิกจ่ายสะสมของรายวิชาได้
+3. หากผู้ถามคือ "OFFICER" หรือ "ADMIN" (เจ้าหน้าที่/ผู้ดูแลระบบ):
+   - สามารถดูข้อมูลระบบทั้งหมดได้ เช่น รายชื่อผู้ค้างส่งพัสดุ (Overdue), คำขอรออนุมัติทั้งหมด, ประวัติการเปิดแอร์
+4. กฎเหล็กด้านคำศัพท์: บังคับใช้คำว่า "นิสิต" เสมอในทุกกรณี และห้ามใช้คำอื่นที่ผิดระเบียบคณะโดยเด็ดขาด
+5. เวลาปัจจุบันของระบบในประเทศไทยคือ: ${nowBkk} (สถานะแล็บขณะนี้: ${systemContext?.isLabOpenNow ? 'เปิดทำการอยู่' : 'ปิดทำการ'})
+
+ข้อมูลฐานข้อมูลในระบบที่กรองสิทธิ์แล้ว (RBAC Context Data):
+\`\`\`json
+${contextText}
+\`\`\`
+
+หลักการคิดและตอบคำถาม:
+- วิเคราะห์คำถามของผู้ใช้ และค้นหาข้อมูลจาก RBAC Context Data ข้างต้นมาตอบอย่างถูกต้อง แม่นยำ
+- ถ้าผู้ใช้ถามคำถามผสมผสาน เช่น "ถ้าจะซ้อมฉีดยาพรุ่งนี้ ต้องทำยังไง" ให้คิดวิเคราะห์เป็นขั้นตอน (จองห้องแล็บ -> เบิกชุดฉีดยา -> เตรียมตัว)
+- ตอบสั้น กระชับ มีโครงสร้างอ่านง่าย สุภาพ เป็นมิตร`;
 
   for (const model of candidateModels) {
     try {
@@ -129,7 +125,7 @@ export async function askGeminiLabBrain(
           },
           generationConfig: {
             temperature: 0.3,
-            maxOutputTokens: 600,
+            maxOutputTokens: 700,
           },
         }),
       });
@@ -152,12 +148,23 @@ export async function askGeminiLabBrain(
     }
   }
 
-  // 5. หากเรียก Gemini ทุกตัวไม่สำเร็จ ให้ Fallback ไปยัง Local Knowledge Base
+  // 4. หากเรียก Gemini ทุกตัวไม่สำเร็จ ให้ Fallback ไปยัง Local Knowledge Base
+  // เช็กเรื่องวันเวลาก่อน
+  const dt = answerDateTimeAndGeneralQuery(userMessage, role);
+  if (dt) {
+    return {
+      success: true,
+      replyText: dt.text,
+      source: 'DATETIME_ENGINE',
+      quickReplies: dt.quickReplies,
+    };
+  }
+
   const kbResult = searchKnowledgeBase(userMessage, role);
   if (kbResult) {
     return {
       success: true,
-      replyText: kbResult.answer(role, contextData),
+      replyText: kbResult.answer(role, systemContext),
       source: 'LOCAL_KNOWLEDGE_BASE',
       quickReplies: kbResult.quickReplies,
     };

@@ -1,5 +1,9 @@
 export type ChatIntent =
   | 'IDLE'
+  | 'CAPABILITIES'
+  | 'SYSTEM_INFO'
+  | 'ROOMS_DIRECTORY'
+  | 'KITS_DIRECTORY'
   | 'BOOK_ROOM'
   | 'BOOK_PRACTICE'
   | 'BORROW_REQUISITION'

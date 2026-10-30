@@ -17,6 +17,25 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-30] อัปเกรดระบบ Hybrid Brain Q&A: เพิ่ม Google Gemini 2.0 Flash Integration & คลังความรู้ห้องแล็บ 31 ฉบับ
+- **หมวดหมู่**: AI Knowledge Base / Gemini 2.0 Flash / Hybrid Brain / Zero-Downtime Fallback / Q&A
+- **สิ่งที่ดำเนินการ**:
+  - แก้ไขปัญหาถาม *"ทำอะไรได้บ้าง"* แล้วบอทไม่ตอบ หรือติดค้างอยู่ในฟอร์มเดิม (Fix Intent Locking & Narrow Intent Matching)
+  - พัฒนาคลังความรู้กลาง `src/lib/chatbot-knowledge.ts` รวบรวมข้อมูลจากคู่มือระบบจริง 31 ฉบับ (เกี่ยวกับระบบ, เวลาทำการ 08:30-16:30 น., พิกัดชั้น 3 อาคารวิทยบริการ, ข้อห้ามใช้ปากกาเขียนผิวหุ่นจำลอง, ขั้นตอน 1-2-3-4 การยืม-คืนและจองห้อง, สิทธิ์ของแต่ละบทบาท)
+  - พัฒนาระบบเชื่อมต่อ Google Gemini 2.0 Flash (`src/lib/chatbot-gemini.ts`) เป็นสมองด่านหน้า เข้าใจภาษาไทยทุกสำนวน คุยตอบคำถามทั่วไปและข้อมูลระบบได้เป็นธรรมชาติ
+  - วางระบบลูกผสม (Hybrid Architecture with Zero-Downtime Fallback):
+    - หากมี `GEMINI_API_KEY`: ใช้สมอง Gemini 2.0 Flash ตอบคุยลื่นไหล
+    - หากไม่มี Key หรือเกิดปัญหาเน็ต: สลับมาใช้ Local Knowledge Base ตอบคำถามเรื่องความสามารถและข้อมูลระบบได้ทันที 100% ไม่มีใบ้กิน
+  - รองรับการถามสดจากฐานข้อมูล Prisma: *"มีห้องอะไรบ้าง"* (ดึงห้องจริง LAB-01 ถึง LAB-06 พร้อมความจุและที่ตั้ง), *"มีชุดฝึกอะไรบ้าง"* (ดึงชุดฝึกจริงพร้อมรายการของข้างใน), *"มีวิชาอะไรบ้าง"* (ดึงวิชาและอาจารย์ประจำวิชา)
+- **ไฟล์สำคัญที่สร้างและแก้ไข**:
+  - `src/lib/chatbot-knowledge.ts` (NEW)
+  - `src/lib/chatbot-gemini.ts` (NEW)
+  - `src/lib/chatbot-engine.ts`
+  - `src/types/chatbot.ts`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit` ผ่าน 0 ข้อผิดพลาด, `npm run librarian:audit` ผ่าน 100%
+
+
 ### [2026-10-30] พัฒนาระบบแชทบอทอัจฉริยะ KUNurse+ Lab AI Copilot (Multi-Turn Conversational Actions & Real-Time DB)
 - **หมวดหมู่**: AI Conversational Copilot / In-Chat Actions / Thai NLU / Real-Time Database / RBAC
 - **สิ่งที่ดำเนินการ**:

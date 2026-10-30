@@ -24,6 +24,8 @@ import {
   extractCourseIdentifier,
   calculateUsageHours,
 } from './chatbot-nlu';
+import { searchKnowledgeBase } from './chatbot-knowledge';
+import { askGeminiLabBrain } from './chatbot-gemini';
 
 // ตรวจสอบสิทธิ์การเข้าถึงตามบทบาท (RBAC)
 export function checkIntentPermission(intent: ChatIntent, userRole: string): { allowed: boolean; reason?: string } {
@@ -104,6 +106,11 @@ export async function processChatbotTurn(
     state.stage = 'COLLECTING_SLOTS';
   }
 
+  // 2.5 ตรวจจับคำถามทั่วไป / ความรู้เกี่ยวกับระบบ / คำถามความสามารถ ("ทำอะไรได้บ้าง")
+  if (isGeneralOrKnowledgeQuery(text)) {
+    return await handleKnowledgeAndGeneralInquiry(text, state, currentUser);
+  }
+
   // 3. ตรวจจับและอัปเดต Intent
   const detectedIntent = detectIntent(text, state.activeIntent);
   if (state.activeIntent === 'IDLE' || (detectedIntent !== 'IDLE' && detectedIntent !== state.activeIntent)) {
@@ -161,11 +168,42 @@ export async function processChatbotTurn(
   }
 }
 
+export function isGeneralOrKnowledgeQuery(text: string): boolean {
+  const lower = text.toLowerCase().trim();
+
+  // หากผู้ใช้พิมพ์ทำรายการต่อ ไม่ใช่คำถามทั่วไป
+  if (lower.includes('ต่อ') && (lower.includes('จอง') || lower.includes('รายการ') || lower.includes('เดิม'))) {
+    return false;
+  }
+
+  const keywords = [
+    'ทำอะไรได้บ้าง', 'ช่วยอะไรได้บ้าง', 'ทำไรได้มั่ง', 'ช่วยไรได้', 'ฟังก์ชัน', 'ฟีเจอร์', 'ความสามารถ',
+    'คุณคือใคร', 'บอททำอะไรได้', 'ทำอะไรเป็นบ้าง', 'มีอะไรให้เล่น', 'help', 'ทำอะไรได้',
+    'ระบบนี้คืออะไร', 'เกี่ยวกับระบบ', 'ระบบแล็บคืออะไร', 'ระบบคืออะไร', 'kunurse', 'ระบบนี้ทำอะไร',
+    'มีห้องอะไรบ้าง', 'มีห้องแล็บอะไรบ้าง', 'มีกี่ห้อง', 'ห้องแล็บมีกี่ห้อง', 'มีห้องไหนบ้าง', 'รายชื่อห้อง',
+    'มีชุดฝึกอะไรบ้าง', 'ชุดฝึกมีอะไรบ้าง', 'kits มีอะไรบ้าง', 'ชุดฝึกคืออะไร', 'มีชุดอะไรบ้าง',
+    'แล็บอยู่ที่ไหน', 'ห้องแล็บอยู่ที่ไหน', 'ติดต่อใคร', 'เบอร์โทร', 'ห้องเตรียมการอยู่ไหน', 'ห้องเตรียมแล็บ',
+    'เปิดกี่โมง', 'ปิดกี่โมง', 'เวลาทำการ', 'คืนของกี่โมง', 'ส่งของคืนกี่โมง', 'คืนของช้าสุด',
+    'ข้อห้าม', 'กฎระเบียบ', 'ห้ามเขียนหุ่น', 'เขียนหุ่น', 'การแต่งกาย', 'ระเบียบการใช้ห้อง', 'ข้อควรระวัง',
+    'วิธีใช้งาน', 'ขั้นตอนการยืม', 'ยืมของยังไง', 'จองห้องยังไง', 'วิธีจองห้อง', 'วิธีสแกน qr', 'สแกนคิวอาร์ยังไง', 'ขั้นตอนการคืน',
+    'osce คืออะไร', 'สอบ osce', 'ซ้อม osce', 'สถานการณ์จำลอง',
+    'สวัสดี', 'หวัดดี', 'hello', 'hi', 'ดีครับ', 'ดีค่ะ',
+    'ขอบคุณ', 'ขอบใจ', 'thanks', 'แต๊งกิ้ว', 'เยี่ยม', 'สุดยอด',
+  ];
+
+  return keywords.some((kw) => lower.includes(kw));
+}
+
 /**
  * ตรวจจับเจตนาจากข้อความ
  */
 function detectIntent(text: string, currentIntent: ChatIntent): ChatIntent {
   const lower = text.toLowerCase();
+
+  // หากเป็นคำถามความรู้หรือคำถามทั่วไป ไม่ล็อกโฟลว์เดิม
+  if (isGeneralOrKnowledgeQuery(text)) {
+    return 'IDLE';
+  }
 
   // หากกำลังอยู่ระหว่างโฟลว์เดิม ให้ทำโฟลว์เดิมต่อไป เว้นแต่มีคีย์เวิร์ดเปลี่ยนเรื่องชัดเจน
   if (lower.includes('จองห้อง') || lower.includes('ขอใช้ห้อง') || lower.includes('ห้องแลป') || lower.includes('ห้องแล็บ')) {
@@ -1255,9 +1293,98 @@ function handleFaqRules(text: string): ChatbotTurnResponse {
   };
 }
 
+async function handleKnowledgeAndGeneralInquiry(
+  text: string,
+  state: ChatSessionState,
+  currentUser: any
+): Promise<ChatbotTurnResponse> {
+  const userRole = (currentUser?.role || 'USER').toUpperCase();
+  const lower = text.toLowerCase().trim();
+
+  // 1. ดึง Master Data จาก Prisma เพื่อเสริมความแม่นยำให้กับคำตอบ
+  const [activeRooms, activeCourses, activeKits] = await Promise.all([
+    prisma.practiceRoom.findMany({
+      where: { isActive: true },
+      select: { code: true, name: true, capacity: true, location: true },
+      orderBy: { code: 'asc' },
+    }),
+    prisma.course.findMany({
+      where: { status: 'ACTIVE' },
+      select: { code: true, name: true, instructorName: true },
+      take: 8,
+      orderBy: { code: 'asc' },
+    }),
+    prisma.practiceKit.findMany({
+      where: { isActive: true },
+      include: { items: { include: { item: true } } },
+      orderBy: { code: 'asc' },
+    }),
+  ]);
+
+  // 2. ตอบเฉพาะเจาะจง: ถามรายชื่อห้องแล็บ
+  if (lower.includes('มีห้องอะไรบ้าง') || lower.includes('มีห้องแล็บอะไรบ้าง') || lower.includes('มีกี่ห้อง') || lower.includes('ห้องแล็บมีกี่ห้อง') || lower.includes('รายชื่อห้อง')) {
+    const roomList = activeRooms
+      .map((r) => `• **${r.code} (${r.name})**\n  - รองรับได้: ${r.capacity} คน\n  - ที่ตั้ง: ${r.location || 'ชั้น 4 อาคารวิทยบริการ'}`)
+      .join('\n');
+    return {
+      replyText: `🏢 **ห้องปฏิบัติการพยาบาลที่เปิดให้บริการในระบบ (รวม ${activeRooms.length} ห้อง):**\n\n${roomList}\n\nนิสิตและคณาจารย์สามารถพิมพ์ *"จองห้อง [รหัสห้อง]"* เพื่อเริ่มจองห้องได้ทันทีครับ`,
+      sessionState: state,
+      quickReplies: activeRooms.slice(0, 4).map((r) => ({ label: `จอง ${r.code}`, textToSend: `ขอจองห้อง ${r.code}` })),
+    };
+  }
+
+  // 3. ตอบเฉพาะเจาะจง: ถามชุดฝึก Kits
+  if (lower.includes('มีชุดฝึกอะไรบ้าง') || lower.includes('ชุดฝึกมีอะไรบ้าง') || lower.includes('kits มีอะไรบ้าง') || lower.includes('มีชุดอะไรบ้าง')) {
+    const kitList = activeKits
+      .map((k) => {
+        const itemNames = k.items.map((it) => it.item.name).join(', ') || 'อุปกรณ์มาตรฐาน';
+        return `• 🩺 **${k.name}** [${k.code}]:\n  - ภายในชุดประกอบด้วย: ${itemNames}`;
+      })
+      .join('\n');
+    return {
+      replyText: `🩺 **ชุดฝึกปฏิบัติการมาตรฐาน (Nursing Practice Kits) ในระบบ:**\n\n${kitList}\n\nต้องการขอใช้ชุดฝึกชุดไหน สามารถพิมพ์แจ้งได้เลยครับ`,
+      sessionState: state,
+      quickReplies: activeKits.slice(0, 3).map((k) => ({ label: k.name, textToSend: `ขอเบิก ${k.name}` })),
+    };
+  }
+
+  // 4. ส่งให้ Gemini 2.0 Flash (มี Fallback เป็น Local Knowledge Base อัตโนมัติ)
+  const geminiResponse = await askGeminiLabBrain(text, currentUser, {
+    activeRooms,
+    activeCourses,
+    activeKits,
+  });
+
+  if (geminiResponse.success && geminiResponse.replyText) {
+    const replies = getRoleQuickReplies(userRole);
+    // หากมีดราฟต์จองห้องหรือเบิกของค้างอยู่ ให้เพิ่มปุ่มทำรายการต่อ
+    if (state.roomDraft?.roomId || state.requestDraft?.borrowItems.length) {
+      replies.unshift({ label: '↩️ ทำรายการเดิมต่อ', textToSend: 'จองห้องต่อ' });
+    }
+
+    return {
+      replyText: geminiResponse.replyText,
+      sessionState: state,
+      quickReplies: replies,
+    };
+  }
+
+  // 5. Fallback สุดท้าย
+  return handleGeneralInquiry(text, userRole);
+}
+
 function handleGeneralInquiry(text: string, userRole: string): ChatbotTurnResponse {
+  const kb = searchKnowledgeBase(text, userRole);
+  if (kb) {
+    return {
+      replyText: kb.answer(userRole),
+      sessionState: { activeIntent: 'IDLE', stage: 'IDLE', lastUpdated: Date.now() },
+      quickReplies: kb.quickReplies || getRoleQuickReplies(userRole),
+    };
+  }
+
   return {
-    replyText: 'สวัสดีครับ! ผมคือ **KUNurse+ Lab AI Copilot** ผู้ช่วยอัจฉริยะประจำห้องปฏิบัติการพยาบาลครับ 😊\n\nท่านสามารถสั่งงานหรือพิมพ์คุยสอบถามได้ทันที เช่น:\n• *"จองห้องแลป"* หรือ *"จองห้อง 402 วันพุธหน้า 9 โมงถึงเที่ยง"*\n• *"ขอเบิกถุงมือ 2 กล่อง กับยืมเครื่องวัดความดัน"*\n• *"มีวิชาอะไรบ้าง"* หรือ *"เช็กสต็อกเข็มเบอร์ 24"*\n• *"ตรวจสอบคำขอค้างของฉัน"*',
+    replyText: 'สวัสดีครับ! ผมคือ **KUNurse+ Lab AI Copilot** ผู้ช่วยอัจฉริยะประจำห้องปฏิบัติการพยาบาลครับ 😊\n\nท่านสามารถสั่งงานหรือพิมพ์คุยสอบถามได้ทันที เช่น:\n• *"ทำอะไรได้บ้าง"* หรือ *"แล็บอยู่ที่ไหน"*\n• *"จองห้องแลป"* หรือ *"จองห้อง 402 วันพุธหน้า 9 โมงถึงเที่ยง"*\n• *"ขอเบิกถุงมือ 2 กล่อง กับยืมเครื่องวัดความดัน"*\n• *"มีวิชาอะไรบ้าง"* หรือ *"เช็กสต็อกเข็มเบอร์ 24"*\n• *"ตรวจสอบคำขอค้างของฉัน"*',
     sessionState: { activeIntent: 'IDLE', stage: 'IDLE', lastUpdated: Date.now() },
     quickReplies: getRoleQuickReplies(userRole),
   };

@@ -49,6 +49,7 @@
 | **10. ผู้ใช้งาน สิทธิ์การเข้าถึง และความปลอดภัย (Users, Auth & Audit)** | `/login`, `/admin` (incl. `admin/error.tsx`), `/users`, `/audit-logs`, `/settings/terms`, `error.tsx` (Global) | `/api/auth/*` (`heartbeat`), `/api/users/*` (`active-sessions`, `analytics`, `/force-logout`), `/api/backup` | `auth-context.tsx`, `auth-security.ts`, `google-auth.ts`, `user-presence.ts`, `DailyUsageCharts.tsx`, `user-utils.ts`, `SessionActivityWatcher.tsx`, `ProfileModal.tsx` | `User`, `ActivityLog`, `AcademicTerm` |
 | **11. ระบบแจ้งเตือนและ Web Push (Notifications & Auto Return Reminder)** | `/settings/notifications` | `/api/notifications/*`, `/api/cron/reminders`, `/api/settings/notifications/*` | `NotificationBell.tsx`, `PushNotificationManager.tsx`, `notifications.ts`, `notification-templates.ts`, `email.ts`, `webpush.ts` | `Notification`, `PushSubscription`, `NotificationTemplate` |
 | **12. รายงานและส่งออกข้อมูล (Reports & Exports)** | `/reports` | `/api/reports` | `exportStickerDocx.ts`, `exportStickerPdf.ts` | ทุกตารางหลัก |
+| **13. ผู้ช่วยอัจฉริยะในแชท (KUNurse+ Lab AI Copilot)** | เข้าถึงได้ทุกหน้าผ่าน Floating Action Button และ Navbar | `/api/chatbot` | `LabCopilotWidget.tsx`, `chatbot-engine.ts`, `chatbot-nlu.ts`, `chatbot.ts` | `RoomBooking`, `PracticeBooking`, `BorrowRequest`, `RequisitionRequest`, `AcOperationLog`, `EquipmentIssueReport`, `Item` |
 
 ---
 

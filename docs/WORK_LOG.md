@@ -17,6 +17,31 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-30] พัฒนาระบบแชทบอทอัจฉริยะ KUNurse+ Lab AI Copilot (Multi-Turn Conversational Actions & Real-Time DB)
+- **หมวดหมู่**: AI Conversational Copilot / In-Chat Actions / Thai NLU / Real-Time Database / RBAC
+- **สิ่งที่ดำเนินการ**:
+  - พัฒนาระบบแชทบอทอัจฉริยะ (KUNurse+ Lab AI Copilot) ให้สามารถพูดคุยโต้ตอบแบบธรรมชาติ (Multi-Turn Dialogue) เข้าใจภาษาไทย ทั้งวันที่ เวลา รหัสวิชา และจำนวนคน
+  - รองรับการทำธุรกรรมจริงจบในแชทครบ 6 ฟังก์ชันหลัก:
+    1. **จองห้องปฏิบัติการ (`BOOK_ROOM`)**: ตรวจสอบห้องว่าง, รองรับหลายวัน, เช็กเวลาชน, ล็อกอาจารย์ประจำวิชาอัตโนมัติ (เช่น "222" -> 01980222), สรุปข้อมูลให้พิมพ์ "ยืนยัน" ก่อนบันทึกจริง
+    2. **ลงชื่อเข้ารอบฝึกปฏิบัติ (`BOOK_PRACTICE`)**: เช็กรอบว่าง, จับคู่ชุดฝึก Kits อัตโนมัติ, สร้างบัตรคิวเข้าห้อง
+    3. **ขอยืมครุภัณฑ์ & เบิกวัสดุสิ้นเปลือง (`BORROW_REQUISITION`)**: ตรวจสต็อกพร้อมใช้และเศษเปิดแพ็ก, ตรวจเงื่อนไขความปลอดภัยผู้ป่วย (Sim vs Human)
+    4. **บันทึกเปิด-ปิดเครื่องปรับอากาศ (`LOG_AC`)**: สั่งคำสั่งประโยคเดียว (One-Shot) คำนวณชั่วโมงการใช้ไฟสะสม (เฉพาะเจ้าหน้าที่/แอดมิน)
+    5. **ตรวจและอนุมัติคำขอค้าง (`APPROVE_REQUESTS`)**: สั่งอนุมัติรายชิ้นหรืออนุมัติทั้งหมดผ่านแชท (จำกัดสิทธิ์ตามบทบาทและรายวิชาที่สอน)
+    6. **แจ้งซ่อมครุภัณฑ์ชำรุด (`REPORT_ISSUE`)**: สร้างใบแจ้งซ่อมด่วนเข้าสู่ระบบ
+  - เพิ่มระบบถาม-ตอบข้อมูลสด (Q&A): ค้นหาสต็อก/ที่เก็บ, เช็กสถานะคำขอของตนเอง, เช็กคนค้างคืนพัสดุ (Overdue), คำนวณงบประมาณและต้นทุนวิชา, กฎระเบียบห้องแล็บ
+  - สร้าง Floating Action Button มุมขวาล่าง และปุ่ม "ผู้ช่วย AI" บน Navbar พร้อมรองรับการสั่งงานด้วยเสียงภาษาไทย (Thai Speech Recognition 🎙️)
+- **ไฟล์สำคัญที่สร้างและแก้ไข**:
+  - `src/types/chatbot.ts` (NEW)
+  - `src/lib/chatbot-nlu.ts` (NEW)
+  - `src/lib/chatbot-engine.ts` (NEW)
+  - `src/app/api/chatbot/route.ts` (NEW)
+  - `src/components/chatbot/LabCopilotWidget.tsx` (NEW)
+  - `src/components/layout/Navbar.tsx`
+  - `src/components/layout/AppLayout.tsx`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit` ผ่าน 0 ข้อผิดพลาด, `npm run librarian:audit` ผ่าน 100%
+
+
 ### [2026-10-29] กู้คืนและซิงค์ Logic / UI ของฟอร์มหน้าใหม่ให้สมบูรณ์เท่า Modal เดิม (/practice/book, /borrow/request, /asset/[code])
 - **หมวดหมู่**: UX Parity / Standalone Pages / Practice Booking / Clinical Safety / Direct Borrow Link
 - **สิ่งที่ดำเนินการ**:

@@ -19,6 +19,7 @@ import {
   X,
   Store,
   Briefcase,
+  Bot,
 } from 'lucide-react';
 import ProfileModal from '@/components/profile/ProfileModal';
 import QrScannerModal from '@/components/qrcode/QrScannerModal';
@@ -145,6 +146,21 @@ export default function Navbar({ onToggleMobileMenu, isMobileMenuOpen }: NavbarP
         >
           <span className="text-base leading-none">㗊</span>
           <span className="hidden sm:inline">แอปพลิเคชัน</span>
+        </button>
+
+        {/* Quick Lab AI Copilot Trigger */}
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('open-lab-copilot'));
+            }
+          }}
+          className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-teal-50 to-indigo-50 dark:from-teal-950/60 dark:to-indigo-950/60 hover:from-teal-100 hover:to-indigo-100 dark:hover:from-teal-900/80 dark:hover:to-indigo-900/80 text-teal-800 dark:text-teal-200 text-xs font-bold transition border border-teal-200 dark:border-teal-800 shadow-xs cursor-pointer flex-shrink-0"
+          title="เปิดแชทบอท AI ผู้ช่วยแล็บ (KUNurse+ Lab AI Copilot)"
+        >
+          <Bot className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+          <span className="hidden sm:inline">ผู้ช่วย AI</span>
         </button>
 
         {/* Quick QR Scanner Button (Hidden on Mobile; accessible via floating center QR button in Bottom Nav) */}

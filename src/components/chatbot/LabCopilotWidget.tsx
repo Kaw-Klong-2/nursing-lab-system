@@ -171,6 +171,9 @@ export default function LabCopilotWidget() {
           message: text,
           sessionState,
           userId: currentUser.id,
+          userEmail: currentUser.email,
+          userName: currentUser.name,
+          userRole: currentUser.role,
         }),
       });
 

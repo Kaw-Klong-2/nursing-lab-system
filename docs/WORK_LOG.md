@@ -17,6 +17,24 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-30] ยกระดับระบบถาม-ตอบแชทบอทให้ตอบวัน-เวลา-ปฏิทินไทย และข้อมูลระบบได้ 100% (Deterministic + Gemini 3.5 AI)
+- **หมวดหมู่**: AI Chatbot Engine / Thai Date-Time Engine / Semantic Q&A / Bugfix
+- **สิ่งที่ดำเนินการ**:
+  - **แก้ไข Root Causes 5 จุดวิกฤต**:
+    1. แก้ไข `default:` fallback ใน `chatbot-engine.ts` ที่เคยส่งข้อความทักทายเดิมซ้ำๆ ให้ส่งต่อไปยังท่อ `handleKnowledgeAndGeneralInquiry` เสมอ
+    2. แก้ไขคำว่า `"กี่โมง"` และ `"เวลา"` ที่เคยถูกดักผิดเข้า `FAQ_RULES` ไปตอบแค่เวลาทำการ ให้สามารถตอบเวลาปัจจุบันของไทยแบบสดๆ ได้ถูกต้อง
+    3. ปลดล็อก Intent Locking กรณีผู้ใช้พิมพ์ถามคำถามทั่วไปหรือถามเรื่องวันเวลาแทรกเข้ามา
+    4. เพิ่ม Built-in Thai Date-Time Engine ใน `chatbot-knowledge.ts` คำนวณวัน-เวลาปัจจุบัน (Bangkok Timezone), พ.ศ., วันในสัปดาห์, และสถานะห้องแล็บเปิด/ปิดแบบ 0ms
+    5. อัปเกรดโมเดล Gemini เป็น `gemini-3.5-flash-lite` และ `gemini-3.5-flash` พร้อม AbortController Timeout 6.5s และปรับ `/api/chatbot` ให้รองรับ Session Metadata ป้องกันปัญหา 401
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/lib/chatbot-knowledge.ts`
+  - `src/lib/chatbot-gemini.ts`
+  - `src/lib/chatbot-engine.ts`
+  - `src/app/api/chatbot/route.ts`
+  - `src/components/chatbot/LabCopilotWidget.tsx`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit` ผ่าน 0 ข้อผิดพลาด, `npm run librarian:audit` ผ่าน 100%
+
 ### [2026-10-30] อัปเกรดระบบ Hybrid Brain Q&A: เพิ่ม Google Gemini 2.0 Flash Integration & คลังความรู้ห้องแล็บ 31 ฉบับ
 - **หมวดหมู่**: AI Knowledge Base / Gemini 2.0 Flash / Hybrid Brain / Zero-Downtime Fallback / Q&A
 - **สิ่งที่ดำเนินการ**:

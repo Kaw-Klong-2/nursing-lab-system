@@ -1,19 +1,20 @@
 /**
- * โมดูลเชื่อมต่อ Google Gemini 2.0 Flash (AI Front-End Brain)
- * รองรับการตอบคำถามทั่วไป ทำความเข้าใจภาษาไทยทุกสำนวน และมีระบบ Zero-Downtime Fallback อัตโนมัติ
+ * โมดูลเชื่อมต่อ Google Gemini AI (AI Front-End Brain)
+ * รองรับโมเดล gemini-3.5-flash-lite, gemini-3.5-flash พร้อมระบบ Timeout และ Fallback อัตโนมัติ 100%
  */
 
-import { searchKnowledgeBase } from './chatbot-knowledge';
+import { searchKnowledgeBase, answerDateTimeAndGeneralQuery } from './chatbot-knowledge';
 
 export interface GeminiChatResponse {
   success: boolean;
   replyText: string;
-  source: 'GEMINI_LLM' | 'LOCAL_KNOWLEDGE_BASE';
+  source: 'GEMINI_LLM' | 'LOCAL_KNOWLEDGE_BASE' | 'DATETIME_ENGINE';
   suggestedAction?: string;
+  quickReplies?: Array<{ label: string; textToSend: string }>;
 }
 
 /**
- * เรียกใช้ Google Gemini 2.0 Flash ผ่าน Native REST API (รวดเร็ว เบา ไม่ต้องลง SDK หนัก)
+ * เรียกใช้ Google Gemini ผ่าน Native REST API พร้อมระบบ Failover
  */
 export async function askGeminiLabBrain(
   userMessage: string,
@@ -24,11 +25,26 @@ export async function askGeminiLabBrain(
     activeKits?: Array<{ name: string }>;
   }
 ): Promise<GeminiChatResponse> {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
   const role = (currentUser?.role || 'USER').toUpperCase();
   const userName = currentUser?.name || 'ผู้ใช้งาน';
 
-  // 1. หากไม่มี API Key ให้ใช้ Local Knowledge Base ทันทีแบบไร้รอยต่อ
+  // 1. ดักจับคำถามเรื่อง วัน เวลา ปฏิทิน และสถานะเปิดแล็บแบบ 0ms (Deterministic Engine)
+  const dtResult = answerDateTimeAndGeneralQuery(userMessage, role);
+  if (dtResult) {
+    return {
+      success: true,
+      replyText: dtResult.text,
+      source: 'DATETIME_ENGINE',
+      quickReplies: dtResult.quickReplies,
+    };
+  }
+
+  // 2. ดึง API Key จาก Environment Variables
+  const apiKey =
+    process.env.GEMINI_API_KEY ||
+    process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+
+  // 3. หากไม่มี API Key ให้ใช้ Local Knowledge Base
   if (!apiKey) {
     const kbResult = searchKnowledgeBase(userMessage, role);
     if (kbResult) {
@@ -36,10 +52,10 @@ export async function askGeminiLabBrain(
         success: true,
         replyText: kbResult.answer(role, contextData),
         source: 'LOCAL_KNOWLEDGE_BASE',
+        quickReplies: kbResult.quickReplies,
       };
     }
 
-    // กรณีคำทักทายทั่วไป
     const lower = userMessage.toLowerCase().trim();
     if (['สวัสดี', 'หวัดดี', 'hello', 'hi', 'ดีครับ', 'ดีค่ะ'].includes(lower)) {
       return {
@@ -64,11 +80,11 @@ export async function askGeminiLabBrain(
     };
   }
 
-  // 2. มี GEMINI_API_KEY -> ส่งให้ Gemini 2.0 Flash คิดคำตอบ
-  try {
-    const nowBkk = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'full', timeStyle: 'medium' });
+  // 4. ส่งคำถามให้ Gemini AI คิดคำตอบ (ลอง gemini-3.5-flash-lite ก่อน หากไม่สำเร็จให้ลอง gemini-3.5-flash)
+  const candidateModels = ['gemini-3.5-flash-lite', 'gemini-3.5-flash'];
+  const nowBkk = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'full', timeStyle: 'medium' });
 
-    const systemPrompt = `คุณคือ "KUNurse+ Lab AI Copilot" ผู้ช่วยประจำระบบห้องปฏิบัติการพยาบาล คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์
+  const systemPrompt = `คุณคือ "KUNurse+ Lab AI Copilot" ผู้ช่วยประจำระบบห้องปฏิบัติการพยาบาล คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์
 
 ขอบเขตและหน้าที่ของคุณ (สำคัญมาก - ตอบเฉพาะเรื่องที่กำหนดเท่านั้น):
 1. ตอบเฉพาะเรื่อง:
@@ -88,64 +104,68 @@ export async function askGeminiLabBrain(
 4. รูปแบบการตอบ:
    - ตอบสั้น กระชับ สุภาพ เป็นมิตร ไม่เวิ่นเว้อ
    - ถ้าถาม "ทำอะไรได้บ้าง" ให้อธิบายฟังก์ชันของระบบตามบทบาทของผู้ใช้ (นิสิต/อาจารย์/เจ้าหน้าที่) สั้นๆ ชัดเจน
-   - ถ้าถามวันที่หรือเวลา ให้ตอบอ้างอิงจากเวลาปัจจุบันที่ระบุ`;
+   - ถ้าถามวันที่หรือเวลา ให้ตอบอ้างอิงจากเวลาปัจจุบันที่ระบุข้างต้น`;
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+  for (const model of candidateModels) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: userMessage }],
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6500); // 6.5s timeout
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: userMessage }],
+            },
+          ],
+          systemInstruction: {
+            parts: [{ text: systemPrompt }],
           },
-        ],
-        systemInstruction: {
-          parts: [{ text: systemPrompt }],
-        },
-        generationConfig: {
-          temperature: 0.4,
-          maxOutputTokens: 800,
-        },
-      }),
-    });
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 600,
+          },
+        }),
+      });
 
-    if (!res.ok) {
-      console.warn('Gemini API returned error status:', res.status);
-      throw new Error(`Gemini API error ${res.status}`);
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (candidateText && candidateText.trim()) {
+          return {
+            success: true,
+            replyText: candidateText.trim(),
+            source: 'GEMINI_LLM',
+          };
+        }
+      }
+    } catch (err: any) {
+      console.warn(`Gemini model ${model} failed or timed out:`, err.message);
     }
+  }
 
-    const data = await res.json();
-    const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (candidateText && candidateText.trim()) {
-      return {
-        success: true,
-        replyText: candidateText.trim(),
-        source: 'GEMINI_LLM',
-      };
-    }
-
-    throw new Error('Empty Gemini response');
-  } catch (err: any) {
-    console.warn('Fallback to Local Knowledge Base due to Gemini error:', err.message);
-
-    // เมื่อ Gemini ล้มเหลว ถอยกลับมาใช้ Local Knowledge Base
-    const kbResult = searchKnowledgeBase(userMessage, role);
-    if (kbResult) {
-      return {
-        success: true,
-        replyText: kbResult.answer(role, contextData),
-        source: 'LOCAL_KNOWLEDGE_BASE',
-      };
-    }
-
+  // 5. หากเรียก Gemini ทุกตัวไม่สำเร็จ ให้ Fallback ไปยัง Local Knowledge Base
+  const kbResult = searchKnowledgeBase(userMessage, role);
+  if (kbResult) {
     return {
-      success: false,
-      replyText: '',
+      success: true,
+      replyText: kbResult.answer(role, contextData),
       source: 'LOCAL_KNOWLEDGE_BASE',
+      quickReplies: kbResult.quickReplies,
     };
   }
+
+  return {
+    success: false,
+    replyText: '',
+    source: 'LOCAL_KNOWLEDGE_BASE',
+  };
 }

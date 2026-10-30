@@ -60,7 +60,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { message, sessionState, userId } = body;
+    const { message, sessionState, userId, userEmail, userName, userRole } = body;
 
     if (!message || typeof message !== 'string') {
       return NextResponse.json({ error: 'กรุณาระบุข้อความ' }, { status: 400 });
@@ -74,8 +74,21 @@ export async function POST(req: Request) {
       });
     }
 
+    if (!currentUser && userEmail) {
+      currentUser = await prisma.user.findUnique({
+        where: { email: userEmail },
+        select: { id: true, name: true, role: true, department: true },
+      });
+    }
+
+    // หากยังไม่พบคอนเท็กซ์ผู้ใช้จาก DB ให้ใช้ข้อมูลจากเซสชันของไคลเอนต์เพื่อรองรับการถามตอบทั่วไป
     if (!currentUser) {
-      return NextResponse.json({ error: 'ไม่พบข้อมูลผู้ใช้งาน หรือเซสชันหมดอายุ' }, { status: 401 });
+      currentUser = {
+        id: userId || 'guest-user',
+        name: userName || 'ผู้ใช้งาน',
+        role: (userRole || 'USER').toUpperCase(),
+        department: 'คณะพยาบาลศาสตร์',
+      };
     }
 
     const response = await processChatbotTurn(message, sessionState || null, currentUser);

@@ -17,6 +17,23 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-10-31] ปรับซ่อนแชทบอทจากหน้าทั่วไป และย้ายเข้าสู่เมนูเฉพาะแอดมิน (Admin & Officer Sandbox)
+- **หมวดหมู่**: UI Security / Sandbox Mode / RBAC Visibility / Chatbot
+- **สิ่งที่ดำเนินการ**:
+  - ถอดปุ่มลอยแชทบอท (Floating Button) และ Widget สาธารณะออกจากหน้าจอของนิสิตและอาจารย์ทั่วไปใน `src/components/layout/AppLayout.tsx`
+  - ปรับเงื่อนไขใน `src/components/chatbot/LabCopilotWidget.tsx` และ `Navbar.tsx` ให้แสดงผลเฉพาะผู้ใช้งานที่มีบทบาทเป็น `ADMIN` หรือ `OFFICER` เท่านั้น
+  - สร้างหน้าจอทดสอบเฉพาะทาง `src/app/admin/chatbot/page.tsx` (Admin & Officer Sandbox) เพื่อเป็นพื้นที่ทดสอบภายในสำหรับเจ้าหน้าที่และผู้ดูแลระบบ
+  - เพิ่มเมนู *"ห้องทดสอบ AI Copilot (Admin Sandbox)"* ในหน้า Admin Console (`src/app/admin/page.tsx`) และในรายการ Sub-Apps (`src/lib/sub-apps.ts`)
+- **ไฟล์สำคัญที่สร้างและแก้ไข**:
+  - `src/app/admin/chatbot/page.tsx` (NEW)
+  - `src/components/layout/AppLayout.tsx`
+  - `src/components/layout/Navbar.tsx`
+  - `src/components/chatbot/LabCopilotWidget.tsx`
+  - `src/app/admin/page.tsx`
+  - `src/lib/sub-apps.ts`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit` ผ่าน 0 ข้อผิดพลาด, `npm run librarian:audit` ผ่าน 100% (34 หน้าจอ UI)
+
 ### [2026-10-30] ยกระดับ KUNurse+ Lab AI สู่มาตรฐานระดับโลก (World-Class Super Intelligent Copilot)
 - **หมวดหมู่**: AI Core Engine / World-Class Knowledge / Clinical OSCE Tutor / Open-Domain AI / Gemini 3.5
 - **สิ่งที่ดำเนินการ**:

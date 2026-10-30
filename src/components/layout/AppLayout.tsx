@@ -170,8 +170,10 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       {/* Web Push Notification One-time Setup Banner */}
       <PushNotificationManager />
 
-      {/* KUNurse+ Lab AI Copilot Chatbot Widget */}
-      <LabCopilotWidget />
+      {/* KUNurse+ Lab AI Copilot Chatbot Widget (Only accessible for Officer / Admin in internal sandbox) */}
+      {(currentUser?.role === 'ADMIN' || currentUser?.role === 'OFFICER') && (
+        <LabCopilotWidget />
+      )}
     </div>
   );
 }

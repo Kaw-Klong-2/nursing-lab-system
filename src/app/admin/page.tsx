@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   Activity,
   CheckCircle2,
+  Bot,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 
@@ -175,6 +176,17 @@ export default function AdminConsolePage() {
       badgeColor: 'bg-slate-100 text-slate-800 border-slate-200',
       adminOnly: false,
       color: 'slate',
+    },
+    {
+      title: 'ห้องทดสอบ AI Copilot (Admin Sandbox)',
+      subtitle: 'พื้นที่ทดสอบการคิดวิเคราะห์ คำนวณวันเวลา และถามตอบของแชทบอทก่อนเปิดใช้งานจริง',
+      href: '/admin/chatbot',
+      icon: Bot,
+      emoji: '🤖',
+      badge: 'Sandbox เฉพาะแอดมิน',
+      badgeColor: 'bg-teal-100 text-teal-800 border-teal-200',
+      adminOnly: false,
+      color: 'teal',
     },
   ];
 

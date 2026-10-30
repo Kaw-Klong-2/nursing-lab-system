@@ -19,6 +19,7 @@ import {
   History,
   LayoutDashboard,
   LucideIcon,
+  Bot,
 } from 'lucide-react';
 import { UserRole } from './auth-context';
 
@@ -378,6 +379,12 @@ export const SUB_APPS: Record<SubAppId, SubAppConfig> = {
         label: 'ประวัติการทำรายการ (Audit Logs)',
         href: '/audit-logs',
         icon: History,
+        roles: ['ADMIN', 'OFFICER'],
+      },
+      {
+        label: 'ห้องทดสอบ AI Copilot (Lab Sandbox)',
+        href: '/admin/chatbot',
+        icon: Bot,
         roles: ['ADMIN', 'OFFICER'],
       },
     ],

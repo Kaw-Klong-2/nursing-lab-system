@@ -226,6 +226,10 @@ export default function LabCopilotWidget() {
 
   if (!currentUser) return null;
 
+  // จำกัดการแสดงผลแชทบอทเฉพาะผู้ดูแลระบบและเจ้าหน้าที่เท่านั้น (Admin Sandbox)
+  const isPrivileged = currentUser.role === 'ADMIN' || currentUser.role === 'OFFICER';
+  if (!isPrivileged) return null;
+
   return (
     <>
       {/* 1. ปุ่มลอยมุมขวาล่าง (Floating Action Button) */}

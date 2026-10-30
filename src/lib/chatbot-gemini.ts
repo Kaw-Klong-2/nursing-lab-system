@@ -83,7 +83,7 @@ export async function askGeminiLabBrain(
    - ถ้าผู้ใช้ถามว่า "ทำอะไรได้บ้าง" หรือ "ช่วยอะไรได้" ให้อธิบายความสามารถหลักตามบทบาทของผู้ใช้ (นิสิต/อาจารย์/เจ้าหน้าที่) พร้อมตัวอย่างประโยคที่พิมพ์สั่งได้
    - ตอบคำถามทั่วไป คำถามเกี่ยวกับระบบ การเตรียมตัวสอบ OSCE และหัตถการพยาบาลได้อย่างถูกต้อง`;
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
     const res = await fetch(endpoint, {
       method: 'POST',

@@ -17,6 +17,35 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-01] พัฒนาศูนย์ทดลองนวัตกรรมแอดมิน (Admin Sandbox Hub) และแคตตาล็อกเบิก-ยืมพัสดุแบบภาพ & ชุดเซ็ต 1-Click
+- **หมวดหมู่**: Innovation Hub / Visual Catalog / Practice Bundles / Admin Sandbox / UI Component
+- **สิ่งที่ดำเนินการ**:
+  - สร้างศูนย์รวมการทดลอง **Admin Innovation Sandbox Hub** (`/admin/sandbox`) ให้แอดมินและเจ้าหน้าที่สามารถทดสอบฟีเจอร์ใหม่ก่อนเปิดจริงในระบบ
+  - พัฒนาคอมโพเนนต์แคตตาล็อกเบิก-ยืมพัสดุยุคใหม่ `src/components/borrow/BorrowCatalogBrowser.tsx`:
+    - การ์ดภาพพัสดุพร้อมรหัส ยี่ห้อ รุ่น และตำแหน่งตู้จัดเก็บ
+    - ตัวนับสต็อกแบบเรียลไทม์พร้อมแสดงจำนวนเศษชิ้นที่เปิดใช้งานแล้ว (`openPackRemainder`)
+    - ระบบสลับหน่วยนับย่อย/กล่อง (e.g. ชิ้น ↔ กล่อง) ได้อิสระทั้งในการ์ดและในตะกร้า
+    - แถบชุดเซ็ตฝึกปฏิบัติ (1-Click Practice Kits) เพิ่มอุปกรณ์ครบชุดลงตะกร้าได้ใน 1 วินาที
+    - ตัวกรองประเภทพัสดุ (ทั้งหมด, ครุภัณฑ์, วัสดุสิ้นเปลือง), หมวดหมู่, ค้นหาแบบเรียลไทม์, และสลับดูเฉพาะของที่มีในสต็อก
+    - แถบตะกร้าลอย (Floating Cart Bar) และหน้าต่างสรุปตรวจสอบรายการ (Cart Drawer)
+  - สร้างหน้าจอห้องทดลอง **Catalog Playground** (`/admin/sandbox/catalog`):
+    - เชื่อมต่อข้อมูลจริงจาก `/api/items` และ `/api/kits`
+    - รองรับการจำลองสิทธิ์เป็นมุมมองนิสิต (Student Mode) หรือมุมมองอาจารย์ (Teacher Mode)
+    - มีปุ่มล้างตะกร้าจำลอง และหน้าต่างตรวจสอบ JSON Payload แบบเรียลไทม์
+    - ทำงานในโหมด Sandbox ปลอดภัย 100% ไม่กระทบคลังจริง
+  - เชื่อมโยงระบบแชทบอท AI Copilot เข้าสู่ Sandbox Hub (`/admin/chatbot`)
+  - อัปเดตเมนูใน `AdminConsolePage` (`src/app/admin/page.tsx`) และ `src/lib/sub-apps.ts`
+- **ไฟล์สำคัญที่สร้างและแก้ไข**:
+  - `src/components/borrow/BorrowCatalogBrowser.tsx` (NEW)
+  - `src/app/admin/sandbox/page.tsx` (NEW)
+  - `src/app/admin/sandbox/catalog/page.tsx` (NEW)
+  - `src/app/admin/chatbot/page.tsx`
+  - `src/app/admin/page.tsx`
+  - `src/lib/sub-apps.ts`
+  - `LIBRARY_CATALOG.md`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit` ผ่าน 0 ข้อผิดพลาด, `npm run librarian:audit` ผ่าน 100% (36 หน้าจอ UI, 0 คำต้องห้าม, 0 Mojibake)
+
 ### [2026-10-31] ปรับซ่อนแชทบอทจากหน้าทั่วไป และย้ายเข้าสู่เมนูเฉพาะแอดมิน (Admin & Officer Sandbox)
 - **หมวดหมู่**: UI Security / Sandbox Mode / RBAC Visibility / Chatbot
 - **สิ่งที่ดำเนินการ**:

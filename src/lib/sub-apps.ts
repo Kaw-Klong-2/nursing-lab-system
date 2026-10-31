@@ -20,6 +20,7 @@ import {
   LayoutDashboard,
   LucideIcon,
   Bot,
+  Sparkles,
 } from 'lucide-react';
 import { UserRole } from './auth-context';
 
@@ -382,9 +383,9 @@ export const SUB_APPS: Record<SubAppId, SubAppConfig> = {
         roles: ['ADMIN', 'OFFICER'],
       },
       {
-        label: 'ห้องทดสอบ AI Copilot (Lab Sandbox)',
-        href: '/admin/chatbot',
-        icon: Bot,
+        label: 'ศูนย์ทดลองนวัตกรรม (Admin Sandbox)',
+        href: '/admin/sandbox',
+        icon: Sparkles,
         roles: ['ADMIN', 'OFFICER'],
       },
     ],
@@ -436,7 +437,9 @@ export function getSubAppsForUser(
         item.href === '/repack' ||
         item.href === '/audit-logs' ||
         item.href === '/settings/terms' ||
-        item.href === '/admin'
+        item.href === '/admin' ||
+        item.href === '/admin/sandbox' ||
+        item.href === '/admin/chatbot'
       ) {
         return isAdmin || isOfficer;
       }

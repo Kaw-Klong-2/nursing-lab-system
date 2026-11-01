@@ -17,6 +17,16 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-01] แก้ไขปัญหาปุ่มลอยตะกร้าพัสดุทับซ้อนกับปุ่ม AI Copilot (Floating Cart Button Overlap Fix)
+- **หมวดหมู่**: Module 6: Borrow, Requisitions & Dispense Center / Bugfix / UI Positioning
+- **สิ่งที่ดำเนินการ**:
+  - แก้ไขปัญหาปุ่มลอยตะกร้าพัสดุ (Floating Cart Button) แสดงผลซ้อนทับกับปุ่มเรียก **AI ผู้ช่วยแล็บ (Lab Copilot Widget)** ที่มุมขวาล่างของหน้าจอ
+  - ย้ายพิกัดปุ่มลอยตะกร้าพัสดุไปอยู่ **ตรงกลางขอบล่างของหน้าจอ (Centered Bottom Floating Pill: `left-1/2 -translate-x-1/2`)** และตั้งระยะห่าง `bottom-20 md:bottom-6` เพื่อไม่ให้ทับแถบเมนูด้านล่างบนมือถือ
+  - ปุ่มแยกพื้นที่อิสระจากปุ่มแชทบอทชัดเจน 100% ไม่บังกัน และกดง่ายตามหลัก Ergonomic Thumb Zone
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/components/borrow/BorrowCatalogBrowser.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCatalogBrowser.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100% (บังคับใช้คำว่า "นิสิต" และ UTF-8 Integrity)
+
 ### [2026-11-01] ปรับโฉม UI/UX แคตตาล็อกเบิก-ยืมพัสดุสไตล์ Boutique Medical Storefront (Clean & Minimalist Redesign)
 - **หมวดหมู่**: Module 6: Borrow, Requisitions & Dispense Center / UI/UX Engineering
 - **สิ่งที่ดำเนินการ**:

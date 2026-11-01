@@ -1520,28 +1520,36 @@ export default function BorrowCatalogBrowser({
         )}
       </div>
 
-      {/* 3. Floating Cart Bar (Sleek Bottom Pill) */}
+      {/* 3. Floating Cart Bar (Centered Bottom Floating Pill - completely separated from AI Copilot) */}
       {totalCartCount > 0 && (
-        <div className="fixed bottom-5 right-5 z-40 animate-in slide-in-from-bottom duration-300">
+        <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] sm:w-auto max-w-md animate-in slide-in-from-bottom duration-300 pointer-events-none">
           <button
             type="button"
             onClick={() => setIsCartDrawerOpen(true)}
-            className="flex items-center gap-3.5 px-5 py-3.5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold shadow-2xl hover:scale-105 transition-all cursor-pointer ring-4 ring-black/5 dark:ring-white/10"
+            className="pointer-events-auto w-full sm:w-auto flex items-center justify-between sm:justify-start gap-4 px-5 sm:px-6 py-3 sm:py-3.5 rounded-full bg-slate-900/95 dark:bg-white/95 backdrop-blur-md text-white dark:text-slate-900 font-bold shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer ring-4 ring-black/10 dark:ring-white/20 border border-white/10 dark:border-slate-800"
           >
-            <div className="relative">
-              <ShoppingCart className="w-5 h-5 text-teal-400 dark:text-teal-600" />
-              <span className="absolute -top-2 -right-2.5 w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center">
-                {totalCartCount}
-              </span>
-            </div>
-            <div className="text-left leading-tight">
-              <div className="text-xs font-black">ตะกร้าพัสดุที่เลือก</div>
-              <div className="text-[10px] opacity-75">
-                {totalBorrowQty > 0 && `ยืม ${totalBorrowQty} ชิ้น `}
-                {totalReqQty > 0 && `เบิก ${totalReqQty} หน่วย`}
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <span className="w-8 h-8 rounded-full bg-white/15 dark:bg-slate-900/10 flex items-center justify-center">
+                  <ShoppingCart className="w-4 h-4 text-teal-400 dark:text-teal-600" />
+                </span>
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center shadow-xs">
+                  {totalCartCount}
+                </span>
+              </div>
+              <div className="text-left leading-tight">
+                <div className="text-xs font-black">ตะกร้าพัสดุที่เลือกไว้</div>
+                <div className="text-[10px] opacity-75">
+                  {totalBorrowQty > 0 && `ยืม ${totalBorrowQty} ชิ้น `}
+                  {totalReqQty > 0 && `เบิก ${totalReqQty} หน่วย`}
+                </div>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 opacity-70" />
+
+            <div className="flex items-center gap-1 pl-3 border-l border-white/20 dark:border-slate-300 text-xs text-teal-400 dark:text-teal-600 font-bold">
+              <span>ดูรายการ</span>
+              <ChevronRight className="w-4 h-4" />
+            </div>
           </button>
         </div>
       )}

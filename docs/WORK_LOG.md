@@ -17,6 +17,25 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-01] ไดคัทภาพถ่ายพัสดุจริงเดิมในแล็ป (57 รายการ) ด้วย AI IS-Net/U2-Net พร้อมระบบสลับเทียบก่อน-หลัง
+- **หมวดหมู่**: Asset Image Processing / Background Removal / Admin Sandbox Review
+- **สิ่งที่ดำเนินการ**:
+  - เปลี่ยนจากการสร้างภาพจำลองด้วย AI มาเป็นการ **ไดคัทภาพถ่ายของจริงเดิมที่มีอยู่ในระบบ (57 รายการใน Google Drive)** ตามความต้องการของผู้ใช้
+  - ติดตั้งและตั้งค่าเอนจิน Deep Learning สำหรับตัดพื้นหลังอัตโนมัติ (IS-Net และ U2-Net) ในเครื่อง ทำงานแบบ Local ปลอดภัยและรวดเร็ว
+  - ทดสอบไดคัทภาพพัสดุจริง 4 รายการตัวอย่าง:
+    1. `EQ-AI-0001` ((AI) หุ่นฝึกทักษะการพยาบาลขั้นสูง KERi): ตัดพื้นหลังออกเนียนกริบ 100%
+    2. `EQ-MED-0001` (ชุดถังออกซิเจน 0.5Q พร้อมอุปกรณ์): ลบเตียงคนไข้และผนังวอร์ดออก คงไว้เฉพาะถัง เกจ์ และป้ายรหัสครุภัณฑ์จริง
+    3. `EQ-BRE-0001` (หุ่นฝึกการตรวจเต้านม): ลบถาดรถเข็นพยาบาลสีฟ้าและผนังห้องออก
+    4. `EQ-URC-0011` (หุ่นจำลองฝึกสวนปัสสาวะ ชาย): ลบลายไม้ปาร์เกต์ห้องแล็ปออก คงไว้ตัวหุ่นและกระเป๋าอุปกรณ์
+  - อัปเกรดหน้าจอ [`/admin/sandbox/images`](http://localhost:3000/admin/sandbox/images) ให้สามารถกดปุ่มสลับ **[✨ ภาพไดคัท]** กับ **[📷 ภาพถ่ายจริงเดิม]** เพื่อเปรียบเทียบก่อน-หลังได้ทันที พร้อมโหมดฉากหลัง (ขาว/มืด/ตารางหมากรุก)
+  - ยังไม่มีการเขียนทับฐานข้อมูลจริงหรืออัปเดตไฟล์ใน Google Drive จนกว่าผู้ใช้จะตรวจเช็กและอนุมัติ
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/app/admin/sandbox/images/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/images/page.tsx)
+  - [`scripts/test_cutout_u2net.py`](file:///d:/LAB-system/scripts/test_cutout_u2net.py)
+  - `public/catalog-preview/real-*.png` & `public/catalog-preview/real-*.jpg`
+  - [`catalog_image_cutout_review.md`](file:///C:/Users/Nurse2/.gemini/antigravity/brain/d6e319fc-9087-45cf-b5f5-fcd102558f90/catalog_image_cutout_review.md)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100% (บังคับใช้คำว่า "นิสิต" และ UTF-8 Integrity)
+
 ### [2026-11-01] จัดเตรียมภาพถ่ายพัสดุไดคัทสตูดิโอชุดนำร่อง (Pilot Batch) และสร้างห้องตรวจรับภาพก่อนนำขึ้น Google Drive
 - **หมวดหมู่**: Product Photography / Isolated Studio Cut-outs / Admin Sandbox / Image Inspection
 - **สิ่งที่ดำเนินการ**:

@@ -19,6 +19,8 @@ import {
   UploadCloud,
   Check,
   RotateCcw,
+  SlidersHorizontal,
+  Image as ImageIcon,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 
@@ -28,8 +30,11 @@ interface CandidateImage {
   itemName: string;
   itemType: 'EQUIPMENT' | 'CONSUMABLE';
   category: string;
+  brand: string;
+  model: string;
   unit: string;
-  imageSrc: string;
+  originalSrc: string;
+  cutoutSrc: string;
   aspectRatio: string;
   cutoutQuality: string;
   notes: string;
@@ -40,7 +45,22 @@ export default function AdminCatalogImageReviewPage() {
   const { currentUser, isOfficer, isAdmin, isLoading: authLoading } = useAuth();
 
   const [bgMode, setBgMode] = useState<'WHITE' | 'DARK' | 'GRID'>('WHITE');
-  const [selectedZoom, setSelectedZoom] = useState<CandidateImage | null>(null);
+  const [selectedZoom, setSelectedZoom] = useState<{ img: CandidateImage; mode: 'cutout' | 'original' } | null>(null);
+  
+  // Track toggle state for each item (default: show cutout)
+  const [activeModes, setActiveModes] = useState<Record<string, 'cutout' | 'original'>>({
+    'EQ-AI-0001': 'cutout',
+    'EQ-MED-0001': 'cutout',
+    'EQ-BRE-0001': 'cutout',
+    'EQ-URC-0011': 'cutout',
+  });
+
+  const toggleMode = (code: string) => {
+    setActiveModes((prev) => ({
+      ...prev,
+      [code]: prev[code] === 'cutout' ? 'original' : 'cutout',
+    }));
+  };
 
   if (authLoading) {
     return (
@@ -55,42 +75,66 @@ export default function AdminCatalogImageReviewPage() {
     return null;
   }
 
-  const candidateImages: CandidateImage[] = [
+  const realCandidateImages: CandidateImage[] = [
     {
-      itemId: 'cmtv0sscz003mliecvgtkhr5o',
-      itemCode: 'EQ-AED-0001',
-      itemName: 'เครื่องกระตุกไฟฟ้าหัวใจ (Automated External Defibrillator / AED)',
+      itemId: 'cmtv0swz2005kliecsy5avwb3',
+      itemCode: 'EQ-AI-0001',
+      itemName: '(AI) หุ่นฝึกทักษะการพยาบาลขั้นสูง',
       itemType: 'EQUIPMENT',
-      category: 'เครื่องกระตุกไฟฟ้าหัวใจและ AED',
-      unit: 'เครื่อง',
-      imageSrc: '/catalog-preview/aed.jpg',
-      aspectRatio: '1:1 Square Studio',
-      cutoutQuality: 'ไดคัทพื้นหลังขาวสะอาด 100% (Isolated White)',
-      notes: 'ตัวเครื่องสีแดง-เหลืองตามมาตรฐานการแพทย์ พร้อมแผ่นอิเล็กโทรด แผ่นสอนตำแหน่ง และจอแสดงคลื่น ECG ชัดเจน',
+      category: 'หุ่นฝึกทักษะทางการพยาบาล',
+      brand: '3B Scientific',
+      model: '101-7140-8Y (KERi)',
+      unit: 'ตัว',
+      originalSrc: '/catalog-preview/real-ai-mannequin-original.jpg',
+      cutoutSrc: '/catalog-preview/real-ai-mannequin-cutout.png',
+      aspectRatio: 'Transparent Cutout PNG (IS-Net)',
+      cutoutQuality: 'ไดคัทขอบคม 100% เนียนกริบ ไร้พื้นหลังรบกวน',
+      notes: 'ภาพถ่ายจริงของหุ่น KERi ในห้องแล็ป ตัดพื้นหลังสตูดิโอเดิมออก เหลือเพียงตัวหุ่นและเสื้อผ้าคมชัด',
     },
     {
-      itemId: 'cmtv0suwd004qliecyiu0tzjl',
-      itemCode: 'EQ-BED-0001',
-      itemName: 'เตียงนอนไฟฟ้า (Hospital Electric Patient Bed)',
+      itemId: 'cmtv0v3w8013sliecevza79nk',
+      itemCode: 'EQ-MED-0001',
+      itemName: 'ชุดถังออกซิเจน 0.5Q พร้อมอุปกรณ์',
       itemType: 'EQUIPMENT',
-      category: 'เตียงและตู้ข้างเตียง',
-      unit: 'หลัง',
-      imageSrc: '/catalog-preview/hospital-bed.jpg',
-      aspectRatio: '1:1 Square Studio',
-      cutoutQuality: 'ไดคัทพื้นหลังขาวสะอาด 100% (Isolated White)',
-      notes: 'เตียงไฟฟ้าพยาบาลพร้อมเบาะไวนิลสีฟ้า ราวกั้นเตียงสไลด์ รีโมตควบคุม และล้อล็อกพยาบาล มองเห็นโครงสร้างครบถ้วน',
+      category: 'ออกซิเจนและการช่วยหายใจ',
+      brand: 'Upright Simulation',
+      model: 'Medical Device Standard',
+      unit: 'ชุด',
+      originalSrc: '/catalog-preview/real-o2tank-original.jpg',
+      cutoutSrc: '/catalog-preview/real-o2tank-cutout.png',
+      aspectRatio: 'Transparent Cutout PNG (IS-Net)',
+      cutoutQuality: 'ไดคัทตัดเตียงคนไข้และผนังแล็ปออก รักษาเกจ์วัดและป้ายรหัสครุภัณฑ์จริง',
+      notes: 'ภาพถ่ายจริงในห้องแล็ปข้างเตียงคนไข้ ถูกตัดเตียงและผนังออก คงไว้เฉพาะถังออกซิเจน เกจ์ปรับความดัน และขาตั้งล้อเลื่อน',
     },
     {
-      itemId: 'cmty1g2go005blij8esy8vebr',
-      itemCode: 'CS-ALC-PAD',
-      itemName: 'แผ่นสำลีชุบแอลกอฮอล์ (Alcohol Prep Pads 70%)',
-      itemType: 'CONSUMABLE',
-      category: 'แอลกอฮอล์',
-      unit: 'กล่อง',
-      imageSrc: '/catalog-preview/alcohol-pad.jpg',
-      aspectRatio: '1:1 Square Studio',
-      cutoutQuality: 'ไดคัทพื้นหลังขาวสะอาด 100% (Isolated White)',
-      notes: 'กล่องบรรจุ 200 ซอง พร้อมซองฟอยล์ปลอดเชื้อและตัวอย่างแผ่นสำลีคลี่ออก มีข้อความภาษาไทยและอังกฤษตรงตามมาตรฐานเวชภัณฑ์',
+      itemId: 'cmtv0t428008oliecs8v9d910',
+      itemCode: 'EQ-BRE-0001',
+      itemName: 'หุ่นฝึกการตรวจเต้านม',
+      itemType: 'EQUIPMENT',
+      category: 'หุ่นฝึกทักษะทางการพยาบาล',
+      brand: 'Limbs & Things',
+      model: '40201',
+      unit: 'ตัว',
+      originalSrc: '/catalog-preview/real-breast-original.jpg',
+      cutoutSrc: '/catalog-preview/real-breast-cutout.png',
+      aspectRatio: 'Transparent Cutout PNG (IS-Net)',
+      cutoutQuality: 'ไดคัทตัดถาดพยาบาลสีฟ้าและผนังห้องออก',
+      notes: 'ภาพถ่ายจริงของหุ่นจำลองบนถาดรถเข็น ตัดพื้นผิวถาดและผนังออกคงรูปโมเดลกายวิภาค',
+    },
+    {
+      itemId: 'cmtv0u4gn00oaliec6pqx1ugh',
+      itemCode: 'EQ-URC-0011',
+      itemName: 'หุ่นจำลองฝึกสวนปัสสาวะ (ชาย)',
+      itemType: 'EQUIPMENT',
+      category: 'หุ่นฝึกทักษะทางการพยาบาล',
+      brand: 'Limbs & Things',
+      model: '60850',
+      unit: 'ชุด',
+      originalSrc: '/catalog-preview/real-urc-male-original.jpg',
+      cutoutSrc: '/catalog-preview/real-urc-male-cutout.png',
+      aspectRatio: 'Transparent Cutout PNG (U2-Net)',
+      cutoutQuality: 'ไดคัทตัดพื้นไม้ปาร์เกต์ห้องแล็ปออก คงกระเป๋าและอุปกรณ์สาธิตหลัก',
+      notes: 'ภาพถ่ายจริงของเซ็ตอุปกรณ์บนพื้นห้องแล็ป ตัดลายไม้ปาร์เกต์ออกคงเหลือตัวหุ่น ถาดไต และกระเป๋าใส่อุปกรณ์',
     },
   ];
 
@@ -110,19 +154,19 @@ export default function AdminCatalogImageReviewPage() {
               </Link>
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-purple-100/90 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                 <Camera className="w-3.5 h-3.5 text-purple-600" />
-                Image Quality Inspection
+                Real Asset Cut-Out Inspection
               </div>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
-              <span>ห้องตรวจเช็กภาพถ่ายพัสดุไดคัท (Catalog Image Review)</span>
-              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                รอตรวจรับก่อนขึ้นไดรฟ์
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5 flex-wrap">
+              <span>ห้องตรวจเช็กภาพถ่ายจริงไดคัท (Real Lab Photos Cut-out)</span>
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                ใช้ภาพของจริงในแล็ป 100%
               </span>
             </h1>
 
             <p className="text-slate-600 dark:text-slate-300 text-xs sm:text-sm max-w-3xl leading-relaxed">
-              ภาพถ่ายพัสดุชุดทดสอบที่ผ่านการตัดต่อและไดคัทพื้นหลังแบบ Isolated Studio Cut-out เพื่อให้ท่านได้ตรวจเช็กคุณภาพ ความคมชัด และความถูกต้องของอุปกรณ์ ก่อนส่งขึ้น Google Drive ของคณะ
+              นำภาพถ่ายพัสดุจริงของห้องปฏิบัติการที่มีอยู่ในระบบ (ภาพเดิม 57 รายการ) มาไดคัทตัดพื้นหลังห้อง เตียงคนไข้ ผนัง และพื้นแล็ปออก เพื่อให้ได้ภาพอุปกรณ์เดี่ยวที่สะอาดตา พร้อมกดสลับดูเปรียบเทียบก่อน-หลังได้ทันที
             </p>
           </div>
 
@@ -163,16 +207,31 @@ export default function AdminCatalogImageReviewPage() {
               }`}
             >
               <Layers className="w-3.5 h-3.5 text-purple-600" />
-              <span>ลายตารางตารางหมากรุก (Check Transparency)</span>
+              <span>ตารางหมากรุก (Check Transparency)</span>
             </button>
           </div>
         </div>
       </div>
 
+      {/* Comparison Instruction Banner */}
+      <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200">
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal className="w-4 h-4 text-amber-600 shrink-0" />
+          <span>
+            <strong>วิธีตรวจสอบ:</strong> สามารถกดปุ่มสลับ <strong>[✨ ภาพไดคัท]</strong> และ <strong>[📷 ภาพถ่ายจริงเดิม]</strong> ที่การ์ดแต่ละใบ เพื่อดูความแตกต่างของการตัดพื้นหลัง หรือคลิกที่ภาพเพื่อขยายดูความละเอียดสูง
+          </span>
+        </div>
+        <span className="font-semibold px-2.5 py-1 rounded-lg bg-amber-200/60 dark:bg-amber-900/60 text-amber-900 dark:text-amber-100 shrink-0 text-center">
+          ระบบมีภาพจริงทั้งหมด 57 รายการ
+        </span>
+      </div>
+
       {/* Review Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {candidateImages.map((img) => {
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {realCandidateImages.map((img) => {
           const isEquip = img.itemType === 'EQUIPMENT';
+          const isCutout = activeModes[img.itemCode] !== 'original';
+          const currentSrc = isCutout ? img.cutoutSrc : img.originalSrc;
 
           return (
             <div
@@ -182,7 +241,9 @@ export default function AdminCatalogImageReviewPage() {
               {/* Image Preview Box with Selected Background */}
               <div
                 className={`relative w-full h-72 overflow-hidden flex items-center justify-center p-4 transition-colors ${
-                  bgMode === 'WHITE'
+                  !isCutout
+                    ? 'bg-slate-100 dark:bg-slate-800'
+                    : bgMode === 'WHITE'
                     ? 'bg-white'
                     : bgMode === 'DARK'
                     ? 'bg-slate-950'
@@ -190,71 +251,107 @@ export default function AdminCatalogImageReviewPage() {
                 }`}
               >
                 <img
-                  src={img.imageSrc}
+                  src={currentSrc}
                   alt={img.itemName}
                   className="w-full h-full object-contain hover:scale-105 transition-transform duration-300 cursor-pointer"
-                  onClick={() => setSelectedZoom(img)}
+                  onClick={() => setSelectedZoom({ img, mode: isCutout ? 'cutout' : 'original' })}
                 />
 
-                {/* Floating Top Badge */}
-                <div className="absolute top-3 left-3 z-10">
+                {/* Floating Top Badges */}
+                <div className="absolute top-3 left-3 z-10 flex flex-col gap-1">
                   <span
-                    className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider backdrop-blur-md shadow-xs ${
+                    className={`text-[10px] font-black px-2 py-0.5 rounded-lg uppercase tracking-wider backdrop-blur-md shadow-xs ${
                       isEquip ? 'bg-blue-600/90 text-white' : 'bg-teal-600/90 text-white'
                     }`}
                   >
                     {isEquip ? '🔧 ครุภัณฑ์' : '📦 วัสดุสิ้นเปลือง'}
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-lg backdrop-blur-md shadow-xs ${
+                      isCutout
+                        ? 'bg-emerald-600/90 text-white'
+                        : 'bg-slate-700/90 text-slate-100'
+                    }`}
+                  >
+                    {isCutout ? '✨ ไดคัทแล้ว' : '📷 รูปต้นฉบับ'}
                   </span>
                 </div>
 
                 {/* Zoom Button */}
                 <button
                   type="button"
-                  onClick={() => setSelectedZoom(img)}
-                  className="absolute bottom-3 right-3 p-2 rounded-xl bg-slate-900/80 hover:bg-slate-900 text-white transition backdrop-blur-md shadow-md cursor-pointer flex items-center gap-1 text-xs font-bold"
+                  onClick={() => setSelectedZoom({ img, mode: isCutout ? 'cutout' : 'original' })}
+                  className="absolute bottom-3 right-3 p-2 rounded-xl bg-slate-900/80 hover:bg-slate-900 text-white transition backdrop-blur-md shadow-md cursor-pointer flex items-center gap-1 text-[11px] font-bold"
                 >
-                  <ZoomIn className="w-4 h-4" />
-                  <span>ขยายดูความละเอียด</span>
+                  <ZoomIn className="w-3.5 h-3.5" />
+                  <span>ขยาย</span>
                 </button>
               </div>
 
+              {/* View Mode Toggle Buttons */}
+              <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/60 border-t border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-slate-500">โหมดแสดงภาพ:</span>
+                <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => toggleMode(img.itemCode)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer ${
+                      isCutout
+                        ? 'bg-emerald-500 text-white shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900'
+                    }`}
+                  >
+                    ✨ ไดคัท
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleMode(img.itemCode)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer ${
+                      !isCutout
+                        ? 'bg-slate-700 text-white shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900'
+                    }`}
+                  >
+                    📷 ต้นฉบับ
+                  </button>
+                </div>
+              </div>
+
               {/* Card Meta & Quality Review */}
-              <div className="p-5 space-y-3 flex-1 flex flex-col justify-between border-t border-slate-100 dark:border-slate-800">
-                <div className="space-y-2">
+              <div className="p-4 space-y-2.5 flex-1 flex flex-col justify-between">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-mono font-bold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded-md border border-teal-200/60 dark:border-teal-800/60">
                       {img.itemCode}
                     </span>
-                    <span className="text-[11px] text-slate-400">หน่วยนับ: {img.unit}</span>
+                    <span className="text-[11px] text-slate-400">หน่วย: {img.unit}</span>
                   </div>
 
-                  <h3 className="text-sm font-black text-slate-900 dark:text-white leading-snug">
+                  <h3 className="text-xs font-black text-slate-900 dark:text-white leading-snug line-clamp-2">
                     {img.itemName}
                   </h3>
 
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    ยี่ห้อ: <span className="font-semibold text-slate-700 dark:text-slate-200">{img.brand}</span> | รุ่น: <span className="font-semibold text-slate-700 dark:text-slate-200">{img.model}</span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
                     {img.notes}
                   </p>
 
                   <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
-                    <div className="flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                      <span>{img.cutoutQuality}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-slate-400">
-                      <Sparkles className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-                      <span>อัตราส่วนภาพ: {img.aspectRatio}</span>
+                    <div className="flex items-start gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                      <span className="line-clamp-2">{img.cutoutQuality}</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-                  <span className="text-[11px] text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                    <span>รอท่านอนุมัติ</span>
-                  </span>
-                  <span className="text-slate-400 text-[10px]">
-                    (พร้อมอัปขึ้น Google Drive ทันทีที่ท่านอนุมัติ)
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-400">สถานะ:</span>
+                  <span className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                    <RotateCcw className="w-3 h-3" />
+                    รอท่านตรวจเช็ก
                   </span>
                 </div>
               </div>
@@ -265,43 +362,66 @@ export default function AdminCatalogImageReviewPage() {
 
       {/* Lightbox Zoom Modal */}
       {selectedZoom && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setSelectedZoom(null)}
+        >
+          <div
+            className="relative max-w-4xl w-full bg-white dark:bg-slate-900 rounded-3xl overflow-hidden border border-slate-700 shadow-2xl p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono">
-                  {selectedZoom.itemCode}
+                <span className="text-xs font-mono font-bold text-teal-600 dark:text-teal-400">
+                  {selectedZoom.img.itemCode}
                 </span>
-                <h3 className="text-sm font-black text-slate-900 dark:text-white mt-1">
-                  {selectedZoom.itemName}
+                <h3 className="text-base font-black text-slate-900 dark:text-white">
+                  {selectedZoom.img.itemName}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedZoom(null)}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold transition cursor-pointer"
               >
-                ✕
+                ปิดหน้าต่าง (ESC)
               </button>
             </div>
 
-            <div className="p-6 bg-slate-50 dark:bg-slate-950 flex items-center justify-center min-h-[350px]">
+            <div
+              className={`w-full h-96 sm:h-[480px] rounded-2xl overflow-hidden flex items-center justify-center p-4 transition-colors ${
+                selectedZoom.mode === 'original'
+                  ? 'bg-slate-100 dark:bg-slate-800'
+                  : bgMode === 'WHITE'
+                  ? 'bg-white'
+                  : bgMode === 'DARK'
+                  ? 'bg-slate-950'
+                  : 'bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] bg-slate-100'
+              }`}
+            >
               <img
-                src={selectedZoom.imageSrc}
-                alt={selectedZoom.itemName}
-                className="max-h-[500px] max-w-full object-contain rounded-2xl shadow-xl"
+                src={selectedZoom.mode === 'cutout' ? selectedZoom.img.cutoutSrc : selectedZoom.img.originalSrc}
+                alt={selectedZoom.img.itemName}
+                className="max-h-full max-w-full object-contain"
               />
             </div>
 
-            <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
-              <span>{selectedZoom.cutoutQuality}</span>
-              <button
-                type="button"
-                onClick={() => setSelectedZoom(null)}
-                className="px-4 py-1.5 rounded-xl bg-slate-900 text-white font-bold text-xs"
-              >
-                ปิดหน้าต่าง
-              </button>
+            <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <span>{selectedZoom.img.notes}</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedZoom({
+                      ...selectedZoom,
+                      mode: selectedZoom.mode === 'cutout' ? 'original' : 'cutout',
+                    })
+                  }
+                  className="px-3 py-1 rounded-lg bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300 font-bold border border-teal-200 dark:border-teal-800 cursor-pointer"
+                >
+                  สลับดู {selectedZoom.mode === 'cutout' ? 'รูปต้นฉบับเดิม' : 'รูปไดคัท'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

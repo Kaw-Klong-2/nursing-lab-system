@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Package,
   Boxes,
@@ -24,8 +24,18 @@ import {
   ExternalLink,
   ChevronRight,
   ZoomIn,
+  Clock,
+  Calendar,
+  AlertTriangle,
+  HeartPulse,
+  Activity,
+  Bed,
+  Droplets,
+  ShieldCheck,
+  Users,
 } from 'lucide-react';
 import { formatImageUrl } from '@/lib/image-helper';
+import { formatBangkokDateTime } from '@/lib/date-time-utils';
 
 export interface CatalogItem {
   id: string;
@@ -94,6 +104,31 @@ export interface RequisitionRow {
   categoryId?: string;
 }
 
+export interface ItemConflictInfo {
+  requestId: string;
+  requestNumber: string;
+  borrowDate: string;
+  expectedReturnDate: string;
+  status: string;
+  purpose: string;
+  requesterName: string;
+  requesterRole: string;
+  quantity: number;
+}
+
+export interface ItemAvailability {
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  type: 'EQUIPMENT' | 'CONSUMABLE';
+  unit: string;
+  physicalCapacity: number;
+  reservedCount: number;
+  availableNow: number;
+  conflictStatus: 'AVAILABLE' | 'PARTIALLY_AVAILABLE' | 'FULL';
+  conflicts: ItemConflictInfo[];
+}
+
 interface BorrowCatalogBrowserProps {
   equipmentList: CatalogItem[];
   consumablesList: CatalogItem[];
@@ -103,6 +138,104 @@ interface BorrowCatalogBrowserProps {
   onUpdateBorrowItems: (items: BorrowRow[]) => void;
   onUpdateRequisitionItems: (items: RequisitionRow[]) => void;
   readOnly?: boolean;
+  initialBorrowDate?: string;
+  initialReturnDate?: string;
+  onDatesChange?: (dates: { borrowDate: string; expectedReturnDate: string }) => void;
+}
+
+function getMedicalCategoryMeta(categoryName?: string, itemType?: string) {
+  const name = categoryName || '';
+  if (
+    name.includes('เครื่องกระตุก') ||
+    name.includes('AED') ||
+    name.includes('หัวใจ') ||
+    name.includes('กู้ชีพ')
+  ) {
+    return {
+      icon: HeartPulse,
+      bg: 'bg-rose-50 dark:bg-rose-950/30',
+      text: 'text-rose-600 dark:text-rose-400',
+      border: 'border-rose-200 dark:border-rose-900',
+      label: 'เครื่องมือช่วยชีวิต',
+    };
+  }
+  if (
+    name.includes('เตียง') ||
+    name.includes('ตู้') ||
+    name.includes('โต๊ะ') ||
+    name.includes('เก้าอี้')
+  ) {
+    return {
+      icon: Bed,
+      bg: 'bg-indigo-50 dark:bg-indigo-950/30',
+      text: 'text-indigo-600 dark:text-indigo-400',
+      border: 'border-indigo-200 dark:border-indigo-900',
+      label: 'เตียงและเฟอร์นิเจอร์วอร์ด',
+    };
+  }
+  if (name.includes('หุ่น') || name.includes('จำลอง') || name.includes('ทักษะ')) {
+    return {
+      icon: Activity,
+      bg: 'bg-purple-50 dark:bg-purple-950/30',
+      text: 'text-purple-600 dark:text-purple-400',
+      border: 'border-purple-200 dark:border-purple-900',
+      label: 'หุ่นฝึกทักษะการแพทย์',
+    };
+  }
+  if (
+    name.includes('สารน้ำ') ||
+    name.includes('น้ำเกลือ') ||
+    name.includes('IV') ||
+    name.includes('D-5-S')
+  ) {
+    return {
+      icon: Droplets,
+      bg: 'bg-sky-50 dark:bg-sky-950/30',
+      text: 'text-sky-600 dark:text-sky-400',
+      border: 'border-sky-200 dark:border-sky-900',
+      label: 'สารน้ำทางหลอดเลือด',
+    };
+  }
+  if (name.includes('แอลกอฮอล์') || name.includes('ล้าง') || name.includes('ฆ่าเชื้อ')) {
+    return {
+      icon: Sparkles,
+      bg: 'bg-cyan-50 dark:bg-cyan-950/30',
+      text: 'text-cyan-600 dark:text-cyan-400',
+      border: 'border-cyan-200 dark:border-cyan-900',
+      label: 'น้ำยาทำความสะอาด/ฆ่าเชื้อ',
+    };
+  }
+  if (
+    name.includes('แผล') ||
+    name.includes('ผ้าก๊อซ') ||
+    name.includes('สำลี') ||
+    name.includes('Conform') ||
+    name.includes('Dressing')
+  ) {
+    return {
+      icon: ShieldCheck,
+      bg: 'bg-amber-50 dark:bg-amber-950/30',
+      text: 'text-amber-600 dark:text-amber-400',
+      border: 'border-amber-200 dark:border-amber-900',
+      label: 'เวชภัณฑ์ทำแผล',
+    };
+  }
+  return {
+    icon: itemType === 'EQUIPMENT' ? Package : Boxes,
+    bg:
+      itemType === 'EQUIPMENT'
+        ? 'bg-blue-50 dark:bg-blue-950/30'
+        : 'bg-teal-50 dark:bg-teal-950/30',
+    text:
+      itemType === 'EQUIPMENT'
+        ? 'text-blue-600 dark:text-blue-400'
+        : 'text-teal-600 dark:text-teal-400',
+    border:
+      itemType === 'EQUIPMENT'
+        ? 'border-blue-200 dark:border-blue-900'
+        : 'border-teal-200 dark:border-teal-900',
+    label: categoryName || (itemType === 'EQUIPMENT' ? 'ครุภัณฑ์การแพทย์' : 'วัสดุการแพทย์'),
+  };
 }
 
 export default function BorrowCatalogBrowser({
@@ -114,6 +247,9 @@ export default function BorrowCatalogBrowser({
   onUpdateBorrowItems,
   onUpdateRequisitionItems,
   readOnly = false,
+  initialBorrowDate,
+  initialReturnDate,
+  onDatesChange,
 }: BorrowCatalogBrowserProps) {
   const [activeTab, setActiveTab] = useState<'ALL' | 'EQUIPMENT' | 'CONSUMABLE'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -132,71 +268,189 @@ export default function BorrowCatalogBrowser({
   // Broken image tracker
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
 
+  // Real-time Date Window & Conflict State
+  const getDefaultDates = () => {
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const y = tomorrow.getFullYear();
+    const m = String(tomorrow.getMonth() + 1).padStart(2, '0');
+    const d = String(tomorrow.getDate()).padStart(2, '0');
+    return {
+      borrow: `${y}-${m}-${d}T09:00`,
+      return: `${y}-${m}-${d}T12:00`,
+    };
+  };
+
+  const defaultDates = useMemo(() => getDefaultDates(), []);
+  const [borrowDate, setBorrowDate] = useState<string>(initialBorrowDate || defaultDates.borrow);
+  const [expectedReturnDate, setExpectedReturnDate] = useState<string>(
+    initialReturnDate || defaultDates.return
+  );
+
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+  const [simulateConflict, setSimulateConflict] = useState(false);
+  const [availabilityMap, setAvailabilityMap] = useState<Record<string, ItemAvailability>>({});
+  const [selectedConflictModalItem, setSelectedConflictModalItem] =
+    useState<ItemAvailability | null>(null);
+
+  // Sync with prop changes if external form updates
+  useEffect(() => {
+    if (initialBorrowDate) setBorrowDate(initialBorrowDate);
+    if (initialReturnDate) setExpectedReturnDate(initialReturnDate);
+  }, [initialBorrowDate, initialReturnDate]);
+
+  // Fetch real-time availability on date changes
+  useEffect(() => {
+    let isMounted = true;
+    if (!borrowDate || !expectedReturnDate) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsCheckingAvailability(true);
+        const res = await fetch(
+          `/api/borrow/availability?borrowDate=${encodeURIComponent(
+            borrowDate
+          )}&expectedReturnDate=${encodeURIComponent(expectedReturnDate)}${
+            simulateConflict ? '&simulate=true' : ''
+          }`
+        );
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          setAvailabilityMap(data.availabilityMap || {});
+        }
+      } catch (err) {
+        console.error('Failed to fetch borrow availability:', err);
+      } finally {
+        if (isMounted) setIsCheckingAvailability(false);
+      }
+    }, 250);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [borrowDate, expectedReturnDate, simulateConflict]);
+
+  // Conflict summary count
+  const conflictSummary = useMemo(() => {
+    let count = 0;
+    const itemIds = new Set<string>();
+    Object.values(availabilityMap).forEach((avail) => {
+      if (avail.type === 'EQUIPMENT' && avail.conflictStatus !== 'AVAILABLE') {
+        count++;
+        itemIds.add(avail.itemId);
+      }
+    });
+    return { count, itemIds };
+  }, [availabilityMap]);
+
+  // Quick preset chips handler
+  const applyPresetSlot = (preset: 'MORNING' | 'AFTERNOON' | 'FULLDAY' | 'THREE_DAYS' | 'ONE_WEEK') => {
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const y = tomorrow.getFullYear();
+    const m = String(tomorrow.getMonth() + 1).padStart(2, '0');
+    const d = String(tomorrow.getDate()).padStart(2, '0');
+
+    let start = `${y}-${m}-${d}T09:00`;
+    let end = `${y}-${m}-${d}T12:00`;
+
+    if (preset === 'AFTERNOON') {
+      start = `${y}-${m}-${d}T13:00`;
+      end = `${y}-${m}-${d}T16:00`;
+    } else if (preset === 'FULLDAY') {
+      start = `${y}-${m}-${d}T09:00`;
+      end = `${y}-${m}-${d}T16:00`;
+    } else if (preset === 'THREE_DAYS') {
+      const end3 = new Date(tomorrow.getTime() + 2 * 24 * 60 * 60 * 1000);
+      const y3 = end3.getFullYear();
+      const m3 = String(end3.getMonth() + 1).padStart(2, '0');
+      const d3 = String(end3.getDate()).padStart(2, '0');
+      start = `${y}-${m}-${d}T09:00`;
+      end = `${y3}-${m3}-${d3}T16:00`;
+    } else if (preset === 'ONE_WEEK') {
+      const end7 = new Date(tomorrow.getTime() + 6 * 24 * 60 * 60 * 1000);
+      const y7 = end7.getFullYear();
+      const m7 = String(end7.getMonth() + 1).padStart(2, '0');
+      const d7 = String(end7.getDate()).padStart(2, '0');
+      start = `${y}-${m}-${d}T09:00`;
+      end = `${y7}-${m7}-${d7}T16:00`;
+    }
+
+    setBorrowDate(start);
+    setExpectedReturnDate(end);
+    onDatesChange?.({ borrowDate: start, expectedReturnDate: end });
+  };
+
   // Extract unique categories across equipment and consumables
   const categories = useMemo(() => {
     const map = new Map<string, { id: string; name: string; count: number }>();
     const all = [...equipmentList, ...consumablesList];
     all.forEach((it) => {
       const catId = it.category?.id || it.categoryId || 'OTHER';
-      const catName = it.category?.name || 'หมวดทั่วไป';
+      const catName = it.category?.name || 'อื่นๆ';
       if (!map.has(catId)) {
-        map.set(catId, { id: catId, name: catName, count: 1 });
-      } else {
-        map.get(catId)!.count++;
+        map.set(catId, { id: catId, name: catName, count: 0 });
       }
+      map.get(catId)!.count += 1;
     });
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [equipmentList, consumablesList]);
 
-  // Combine items according to active type tab and filters
-  const displayItems = useMemo(() => {
-    let list: CatalogItem[] = [];
+  // Combined & Filtered Items
+  const filteredItems = useMemo(() => {
+    let pool: CatalogItem[] = [];
     if (activeTab === 'ALL') {
-      list = [...equipmentList, ...consumablesList];
+      pool = [...equipmentList, ...consumablesList];
     } else if (activeTab === 'EQUIPMENT') {
-      list = equipmentList;
+      pool = equipmentList;
     } else {
-      list = consumablesList;
+      pool = consumablesList;
     }
 
-    const query = searchQuery.trim().toLowerCase();
-    return list.filter((it) => {
+    return pool.filter((item) => {
       // 1. Search Query
-      if (query) {
-        const matchName = it.name?.toLowerCase().includes(query);
-        const matchCode = it.code?.toLowerCase().includes(query);
-        const matchBrand = it.brand?.toLowerCase().includes(query);
-        const matchLoc =
-          it.location?.toLowerCase().includes(query) ||
-          it.storageLocation?.name?.toLowerCase().includes(query) ||
-          it.storageLocation?.code?.toLowerCase().includes(query);
-        if (!matchName && !matchCode && !matchBrand && !matchLoc) {
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchName = item.name.toLowerCase().includes(q);
+        const matchCode = item.code.toLowerCase().includes(q);
+        const matchBrand = (item.brand || '').toLowerCase().includes(q);
+        const matchModel = (item.model || '').toLowerCase().includes(q);
+        const matchLoc = (item.location || '').toLowerCase().includes(q);
+        const matchStore = (item.storageLocation?.name || '').toLowerCase().includes(q);
+        if (!matchName && !matchCode && !matchBrand && !matchModel && !matchLoc && !matchStore) {
           return false;
         }
       }
 
       // 2. Category Filter
       if (selectedCategory !== 'ALL') {
-        const itCatId = it.category?.id || it.categoryId;
-        if (itCatId !== selectedCategory) return false;
+        const cId = item.category?.id || item.categoryId || 'OTHER';
+        if (cId !== selectedCategory) return false;
       }
 
-      // 3. In-Stock Only Filter
+      // 3. In Stock Only
       if (inStockOnly) {
-        const stock = it.currentStock ?? 0;
-        const open = it.openPackRemainder ?? 0;
-        if (stock <= 0 && open <= 0) return false;
+        if (item.type === 'EQUIPMENT') {
+          // If conflict map loaded, respect availableNow; otherwise currentStock
+          const avail = availabilityMap[item.id];
+          const stock = avail !== undefined ? avail.availableNow : item.currentStock;
+          if (stock <= 0) return false;
+        } else {
+          const totalPieces =
+            item.currentStock * (Number(item.conversionRatio) || 1) +
+            (item.openPackRemainder || 0);
+          if (totalPieces <= 0) return false;
+        }
       }
 
-      // 4. Has Photos Filter
+      // 4. Photos Only
       if (hasPhotosOnly) {
-        if (!it.imageUrl || brokenImages[it.id]) return false;
+        if (!item.imageUrl || brokenImages[item.id]) return false;
       }
 
-      // 5. Has SubUnit Filter
+      // 5. Subunits Only
       if (hasSubUnitOnly) {
-        const ratio = Number(it.conversionRatio) > 0 ? Number(it.conversionRatio) : 1;
-        const hasSub = it.type === 'CONSUMABLE' && (ratio > 1 || (!!it.usageUnit && it.usageUnit !== it.unit));
+        const ratio = Number(item.conversionRatio) || 1;
+        const hasSub = item.type === 'CONSUMABLE' && (ratio > 1 || !!item.usageUnit);
         if (!hasSub) return false;
       }
 
@@ -212,6 +466,7 @@ export default function BorrowCatalogBrowser({
     hasPhotosOnly,
     hasSubUnitOnly,
     brokenImages,
+    availabilityMap,
   ]);
 
   // Total items in cart
@@ -269,7 +524,15 @@ export default function BorrowCatalogBrowser({
     const maxPieces = item.currentStock * ratio + (item.openPackRemainder || 0);
 
     const activeIsSub = isSubUnit !== undefined ? isSubUnit : (cardUnitPreference[item.id] || false);
-    const maxLimit = activeIsSub ? maxPieces : item.currentStock;
+
+    // If equipment and availability is known, limit by availableNow
+    let maxLimit = activeIsSub ? maxPieces : item.currentStock;
+    if (item.type === 'EQUIPMENT') {
+      const avail = availabilityMap[item.id];
+      if (avail !== undefined) {
+        maxLimit = avail.availableNow;
+      }
+    }
 
     const targetQty = Math.max(0, Math.min(qty, maxLimit > 0 ? maxLimit : 9999));
 
@@ -375,6 +638,127 @@ export default function BorrowCatalogBrowser({
 
   return (
     <div className="space-y-6">
+      {/* 0. Real-time Date Window & Conflict Checker Banner */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-teal-500/10 dark:from-slate-900 dark:via-indigo-950/40 dark:to-slate-900 border border-blue-200/80 dark:border-blue-900/60 shadow-xs space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <span className="p-2 rounded-2xl bg-blue-600 text-white shadow-xs shrink-0 mt-0.5">
+              <Clock className="w-5 h-5" />
+            </span>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                  ระบบเช็กสต็อกและวันซ้อนทับแบบเรียลไทม์ (Time-Conflict Checker)
+                </h3>
+                {isCheckingAvailability ? (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 animate-pulse">
+                    กำลังคำนวณการชนเวลา...
+                  </span>
+                ) : conflictSummary.count > 0 ? (
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 text-amber-600" />
+                    <span>มี {conflictSummary.count} รายการติดจองในช่วงเวลานี้</span>
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600" />
+                    <span>ครุภัณฑ์ทุกชิ้นว่างพร้อมใช้งาน</span>
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                เลือกวัน-เวลาที่ต้องการฝึกปฏิบัติการ ระบบจะตัดรายการที่กลุ่มอื่นจองไว้แล้วออกให้อัตโนมัติ ป้องกันการจองชนกัน
+              </p>
+            </div>
+          </div>
+
+          {/* Date & Time Input Boxes */}
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+              <span className="text-xs font-bold text-slate-500 shrink-0">วันยืม:</span>
+              <input
+                type="datetime-local"
+                value={borrowDate}
+                onChange={(e) => {
+                  setBorrowDate(e.target.value);
+                  onDatesChange?.({ borrowDate: e.target.value, expectedReturnDate });
+                }}
+                className="bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none text-xs cursor-pointer"
+              />
+            </div>
+            <span className="text-slate-400 text-xs font-bold shrink-0">ถึง</span>
+            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+              <span className="text-xs font-bold text-slate-500 shrink-0">กำหนดคืน:</span>
+              <input
+                type="datetime-local"
+                value={expectedReturnDate}
+                onChange={(e) => {
+                  setExpectedReturnDate(e.target.value);
+                  onDatesChange?.({ borrowDate, expectedReturnDate: e.target.value });
+                }}
+                className="bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none text-xs cursor-pointer"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Preset Slot Chips */}
+        <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-blue-100/80 dark:border-slate-800/80">
+          <span className="text-[11px] font-bold text-slate-500 mr-1 flex items-center gap-1">
+            <Calendar className="w-3.5 h-3.5 text-blue-600" />
+            <span>ทางลัดเลือกช่วงเวลา:</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => applyPresetSlot('MORNING')}
+            className="px-2.5 py-1 rounded-xl text-xs font-bold bg-white/90 dark:bg-slate-800 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 transition cursor-pointer shadow-2xs"
+          >
+            🌅 พรุ่งนี้เช้า (09:00 - 12:00)
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPresetSlot('AFTERNOON')}
+            className="px-2.5 py-1 rounded-xl text-xs font-bold bg-white/90 dark:bg-slate-800 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 transition cursor-pointer shadow-2xs"
+          >
+            ☀️ พรุ่งนี้บ่าย (13:00 - 16:00)
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPresetSlot('FULLDAY')}
+            className="px-2.5 py-1 rounded-xl text-xs font-bold bg-white/90 dark:bg-slate-800 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 transition cursor-pointer shadow-2xs"
+          >
+            ⏳ พรุ่งนี้เต็มวัน (09:00 - 16:00)
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPresetSlot('THREE_DAYS')}
+            className="px-2.5 py-1 rounded-xl text-xs font-bold bg-white/90 dark:bg-slate-800 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 transition cursor-pointer shadow-2xs"
+          >
+            🗓️ ยืม 3 วัน
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPresetSlot('ONE_WEEK')}
+            className="px-2.5 py-1 rounded-xl text-xs font-bold bg-white/90 dark:bg-slate-800 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 transition cursor-pointer shadow-2xs"
+          >
+            📅 ยืม 1 สัปดาห์
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSimulateConflict(!simulateConflict)}
+            className={`px-2.5 py-1 rounded-xl text-xs font-bold transition cursor-pointer shadow-2xs border ml-auto ${
+              simulateConflict
+                ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                : 'bg-white/90 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:bg-amber-50 dark:hover:bg-amber-950/40'
+            }`}
+            title="คลิกเพื่อทดสอบการจำลองเหตุการณ์ที่มีผู้อื่นจองอุปกรณ์ชนเวลา"
+          >
+            🧪 {simulateConflict ? 'โหมดจำลองติดจอง: เปิดใช้งาน' : 'จำลองสถานการณ์ติดจอง'}
+          </button>
+        </div>
+      </div>
+
       {/* 1. Quick 1-Click Practice Kits Carousel / Grid */}
       {practiceKits.length > 0 && (
         <div className="bg-gradient-to-r from-teal-500/10 via-indigo-500/10 to-purple-500/10 dark:from-teal-950/40 dark:via-indigo-950/40 dark:to-purple-950/40 p-4 sm:p-5 rounded-3xl border border-teal-200/80 dark:border-teal-900/60 shadow-xs space-y-3">
@@ -448,7 +832,7 @@ export default function BorrowCatalogBrowser({
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
                 activeTab === 'ALL'
                   ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
               ทั้งหมด ({equipmentList.length + consumablesList.length})
@@ -456,26 +840,30 @@ export default function BorrowCatalogBrowser({
             <button
               type="button"
               onClick={() => setActiveTab('EQUIPMENT')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'EQUIPMENT'
                   ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <Package className="w-3.5 h-3.5" />
-              <span>ครุภัณฑ์ ({equipmentList.length})</span>
+              <span>ครุภัณฑ์</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20">
+                {equipmentList.length}
+              </span>
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('CONSUMABLE')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'CONSUMABLE'
                   ? 'bg-teal-600 text-white shadow-xs'
-                  : 'text-slate-500 hover:text-teal-600 dark:text-slate-400 dark:hover:text-teal-400'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <Boxes className="w-3.5 h-3.5" />
-              <span>วัสดุสิ้นเปลือง ({consumablesList.length})</span>
+              <span>วัสดุสิ้นเปลือง</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20">
+                {consumablesList.length}
+              </span>
             </button>
           </div>
 
@@ -493,7 +881,7 @@ export default function BorrowCatalogBrowser({
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -579,90 +967,119 @@ export default function BorrowCatalogBrowser({
                 setSelectedCategory('ALL');
                 setSearchQuery('');
               }}
-              className="text-xs text-rose-500 hover:underline font-semibold"
+              className="text-xs text-rose-500 hover:text-rose-700 font-bold transition flex items-center gap-1 cursor-pointer"
             >
-              ล้างตัวกรองทั้งหมด
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>ล้างตัวกรองทั้งหมด</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* 3. Visual Catalog Items Grid */}
+      {/* 3. Catalog Items Grid */}
       <div className="space-y-3">
         <div className="flex items-center justify-between text-xs text-slate-500 px-1">
           <span>
-            แสดงพัสดุทั้งหมด <strong>{displayItems.length}</strong> รายการ
-            {hasPhotosOnly && ' (คัดเฉพาะที่มีรูป)'}
-            {hasSubUnitOnly && ' (คัดเฉพาะที่มีหน่วยย่อย)'}
+            แสดงพัสดุ <strong>{filteredItems.length}</strong> รายการ
           </span>
-          {totalCartCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setIsCartDrawerOpen(true)}
-              className="text-teal-600 dark:text-teal-400 font-bold hover:underline flex items-center gap-1 cursor-pointer"
-            >
-              <ShoppingCart className="w-3.5 h-3.5" />
-              <span>ดูตะกร้าของฉัน ({totalCartCount} รายการ)</span>
-            </button>
-          )}
+          <span className="text-[11px] text-slate-400">
+            แตะที่การ์ดเพื่อขยายดูรูป หรือเพิ่มลงตะกร้า
+          </span>
         </div>
 
-        {displayItems.length === 0 ? (
-          <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-2">
-            <Boxes className="w-10 h-10 text-slate-300 mx-auto" />
-            <p className="text-sm font-bold text-slate-600 dark:text-slate-400">
-              ไม่พบพัสดุที่ตรงกับเงื่อนไขการค้นหา
-            </p>
-            <p className="text-xs text-slate-400">
-              ลองปิดตัวกรอง หรือค้นหาด้วยชื่ออื่นดูนะครับ
+        {filteredItems.length === 0 ? (
+          <div className="text-center py-16 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-8 space-y-3">
+            <Package className="w-12 h-12 text-slate-300 mx-auto" />
+            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">
+              ไม่พบรายการพัสดุที่ตรงกับเงื่อนไข
+            </h3>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              ลองล้างคำค้นหา หรือปลดตัวกรองหมวดหมู่เพื่อแสดงพัสดุทั้งหมด
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-2.5 sm:gap-4">
-            {displayItems.map((item) => {
-              const cartState = getItemCartState(item);
+            {filteredItems.map((item) => {
               const isEquip = item.type === 'EQUIPMENT';
+              const cartState = getItemCartState(item);
               const ratio = Number(item.conversionRatio) > 0 ? Number(item.conversionRatio) : 1;
-              const hasSubUnit = !isEquip && (ratio > 1 || (!!item.usageUnit && item.usageUnit !== item.unit));
+              const hasSubUnit = !isEquip && (ratio > 1 || !!item.usageUnit);
               const activeIsSub = cartState.isSubUnit;
-              const activeUnitLabel = activeIsSub ? (item.usageUnit || 'ชิ้น') : item.unit;
 
-              const totalPieces = !isEquip ? item.currentStock * ratio + (item.openPackRemainder || 0) : 0;
+              // Time-Conflict State for Equipment
+              const avail = isEquip ? availabilityMap[item.id] : undefined;
+              const hasConflict = isEquip && avail && avail.conflictStatus !== 'AVAILABLE';
+              const isFullConflict = isEquip && avail && avail.conflictStatus === 'FULL';
+
+              // Effective stock display
+              const effectiveStock =
+                isEquip && avail !== undefined ? avail.availableNow : item.currentStock;
+
+              const totalPieces = !isEquip
+                ? item.currentStock * ratio + (item.openPackRemainder || 0)
+                : 0;
+
               const isAvailable = isEquip
-                ? item.currentStock > 0
+                ? effectiveStock > 0
                 : item.currentStock > 0 || (item.openPackRemainder || 0) > 0;
 
               const hasImage = !!item.imageUrl && !brokenImages[item.id];
+              const catMeta = getMedicalCategoryMeta(item.category?.name, item.type);
+              const CatIcon = catMeta.icon;
 
               return (
                 <div
                   key={item.id}
                   className={`rounded-2xl sm:rounded-3xl border overflow-hidden transition-all duration-200 flex flex-col justify-between shadow-xs hover:shadow-lg ${
-                    cartState.inCart
+                    isFullConflict
+                      ? 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-300 dark:border-rose-900 opacity-90'
+                      : cartState.inCart
                       ? isEquip
                         ? 'bg-blue-50/60 dark:bg-blue-950/30 border-blue-400 dark:border-blue-700 ring-2 ring-blue-400/20'
                         : 'bg-teal-50/60 dark:bg-teal-950/30 border-teal-400 dark:border-teal-700 ring-2 ring-teal-400/20'
                       : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800'
                   }`}
                 >
-                  {/* Card Visual Header: Real Photo or Stylized Illustration */}
+                  {/* Card Visual Header: Real Photo or Smart Category Medical Icon */}
                   <div className="relative w-full h-32 sm:h-40 md:h-44 bg-slate-100 dark:bg-slate-850 overflow-hidden flex items-center justify-center group/img">
                     {/* Top Left: Type Badge */}
                     <div className="absolute top-2 left-2 sm:top-2.5 sm:left-2.5 z-10">
                       <span
                         className={`text-[9px] sm:text-[10px] font-black px-1.5 sm:px-2 py-0.5 rounded-md sm:rounded-lg uppercase tracking-wider backdrop-blur-md shadow-xs ${
-                          isEquip
-                            ? 'bg-blue-600/90 text-white'
-                            : 'bg-teal-600/90 text-white'
+                          isEquip ? 'bg-blue-600/90 text-white' : 'bg-teal-600/90 text-white'
                         }`}
                       >
                         {isEquip ? '🔧 ครุภัณฑ์' : '📦 วัสดุ'}
                       </span>
                     </div>
 
-                    {/* Top Right: Stock Status Badge */}
-                    <div className="absolute top-2 right-2 sm:top-2.5 sm:right-2.5 z-10">
-                      {isAvailable ? (
+                    {/* Top Right: Stock & Time-Conflict Status Badge */}
+                    <div className="absolute top-2 right-2 sm:top-2.5 sm:right-2.5 z-10 flex flex-col items-end gap-1">
+                      {isEquip && avail ? (
+                        avail.conflictStatus === 'FULL' ? (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedConflictModalItem(avail)}
+                            className="text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md sm:rounded-lg bg-rose-600 text-white backdrop-blur-md shadow-xs flex items-center gap-1 cursor-pointer hover:bg-rose-700"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                            <span>จองเต็มแล้ว</span>
+                          </button>
+                        ) : avail.conflictStatus === 'PARTIALLY_AVAILABLE' ? (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedConflictModalItem(avail)}
+                            className="text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md sm:rounded-lg bg-amber-500 text-white backdrop-blur-md shadow-xs flex items-center gap-1 cursor-pointer hover:bg-amber-600"
+                          >
+                            <span>ว่าง {avail.availableNow}/{avail.physicalCapacity} {item.unit}</span>
+                          </button>
+                        ) : (
+                          <span className="text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md sm:rounded-lg bg-emerald-500/90 text-white backdrop-blur-md shadow-xs flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                            <span>ว่าง {avail.availableNow} {item.unit}</span>
+                          </span>
+                        )
+                      ) : isAvailable ? (
                         <span className="text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md sm:rounded-lg bg-emerald-500/90 text-white backdrop-blur-md shadow-xs flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
                           <span>
@@ -676,7 +1093,7 @@ export default function BorrowCatalogBrowser({
                       )}
                     </div>
 
-                    {/* Image Render */}
+                    {/* Image Render or Smart Medical Category Placeholder */}
                     {hasImage ? (
                       <>
                         <img
@@ -701,21 +1118,19 @@ export default function BorrowCatalogBrowser({
                         </button>
                       </>
                     ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center p-2 sm:p-4 text-center bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900">
-                        {isEquip ? (
-                          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-1 shadow-xs">
-                            <Package className="w-5 h-5 sm:w-6 sm:h-6" />
-                          </div>
-                        ) : (
-                          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-teal-100 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center mb-1 shadow-xs">
-                            <Boxes className="w-5 h-5 sm:w-6 sm:h-6" />
-                          </div>
-                        )}
-                        <span className="text-[10px] sm:text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400 truncate max-w-full px-1">
+                      <div
+                        className={`w-full h-full flex flex-col items-center justify-center p-3 text-center transition-colors ${catMeta.bg}`}
+                      >
+                        <div
+                          className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl ${catMeta.bg} ${catMeta.text} border ${catMeta.border} flex items-center justify-center mb-1.5 shadow-xs`}
+                        >
+                          <CatIcon className="w-5 h-5 sm:w-6 sm:h-6" />
+                        </div>
+                        <span className="text-[10px] sm:text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 truncate max-w-full px-1">
                           {item.code}
                         </span>
-                        <span className="text-[9px] sm:text-[10px] text-slate-400 line-clamp-1">
-                          {item.category?.name || 'พัสดุห้องแล็บ'}
+                        <span className="text-[9px] text-slate-500 dark:text-slate-400 line-clamp-1">
+                          {item.brand ? `${item.brand} ${item.model || ''}` : catMeta.label}
                         </span>
                       </div>
                     )}
@@ -750,158 +1165,117 @@ export default function BorrowCatalogBrowser({
                         >
                           {item.name}
                         </h4>
-                        <p className="text-[10px] sm:text-[11px] text-slate-400 font-mono mt-0.5 truncate">
-                          รหัส: {item.code} {item.brand ? `• ${item.brand}` : ''}
-                        </p>
+                        {(item.brand || item.model) && (
+                          <p className="text-[10px] sm:text-[11px] text-slate-400 line-clamp-1 mt-0.5">
+                            {item.brand} {item.model}
+                          </p>
+                        )}
                       </div>
 
-                      {/* Subunit Controller: Shown directly on card whenever item supports subunits */}
-                      {hasSubUnit && (
-                        <div className="p-1.5 sm:p-2 rounded-xl sm:rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 space-y-1 sm:space-y-1.5">
-                          <div className="flex items-center justify-between text-[10px] sm:text-[11px] gap-1">
-                            <span className="text-slate-600 dark:text-slate-300 font-bold flex items-center gap-1 truncate">
-                              <Layers className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-teal-600 shrink-0" />
-                              <span className="truncate">หน่วย:</span>
-                            </span>
-                            {ratio > 1 && (
-                              <span className="text-[9px] sm:text-[10px] font-black text-teal-700 dark:text-teal-300 bg-teal-100/80 dark:bg-teal-950/80 px-1 sm:px-1.5 py-0.2 rounded-md border border-teal-200 dark:border-teal-800 shrink-0">
-                                1:{ratio}
+                      {/* Consumable: Open Pack Remainder & Conversion */}
+                      {!isEquip && (
+                        <div className="text-[10px] sm:text-[11px] bg-slate-50 dark:bg-slate-800/60 p-1.5 sm:p-2 rounded-xl space-y-1">
+                          <div className="flex items-center justify-between text-slate-500">
+                            <span>คงเหลือสุทธิ:</span>
+                            <strong className="text-slate-900 dark:text-slate-100 font-mono">
+                              {totalPieces} {item.usageUnit || item.unit}
+                            </strong>
+                          </div>
+                          {(item.openPackRemainder || 0) > 0 && (
+                            <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 text-[9px] sm:text-[10px]">
+                              <span>เศษที่เปิดแล้ว:</span>
+                              <span className="font-bold">
+                                {item.openPackRemainder} {item.usageUnit || 'ชิ้น'}
                               </span>
-                            )}
-                          </div>
-
-                          {/* 2-Way Pill Switcher (กล่อง vs ชิ้นย่อย) */}
-                          <div className="grid grid-cols-2 gap-0.5 sm:gap-1 p-0.5 rounded-lg sm:rounded-xl bg-slate-200/70 dark:bg-slate-700/60 text-xs font-bold">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleSubUnit(item, false)}
-                              className={`py-1 px-1 rounded-md sm:rounded-lg text-[9px] sm:text-[11px] font-bold transition text-center cursor-pointer truncate ${
-                                !activeIsSub
-                                  ? 'bg-teal-600 text-white shadow-xs'
-                                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
-                              }`}
-                            >
-                              {item.unit}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleToggleSubUnit(item, true)}
-                              className={`py-1 px-1 rounded-md sm:rounded-lg text-[9px] sm:text-[11px] font-bold transition text-center cursor-pointer truncate ${
-                                activeIsSub
-                                  ? 'bg-teal-600 text-white shadow-xs'
-                                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
-                              }`}
-                            >
-                              {item.usageUnit || 'ชิ้น'} (ย่อย)
-                            </button>
-                          </div>
-
-                          {/* Live Remainder Note */}
-                          <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 pt-0.5 truncate">
-                            <span className="truncate">คลัง: {item.currentStock} {item.unit}</span>
-                            {(item.openPackRemainder || 0) > 0 && (
-                              <span className="text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-950/50 px-1 rounded shrink-0 ml-1">
-                                เศษ: {item.openPackRemainder}
-                              </span>
-                            )}
-                          </div>
+                            </div>
+                          )}
                         </div>
                       )}
 
-                      {/* Equipment Details Note */}
-                      {isEquip && (
-                        <div className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
-                          <span>พร้อม: {item.currentStock} {item.unit}</span>
-                          {item.model && <span className="font-mono truncate ml-1">{item.model}</span>}
+                      {/* Unit Switcher (Whole Pack vs Subunit) */}
+                      {hasSubUnit && (
+                        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[10px]">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSubUnit(item, false)}
+                            className={`flex-1 py-1 rounded-md font-bold transition cursor-pointer text-center ${
+                              !activeIsSub
+                                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                                : 'text-slate-500 hover:text-slate-900'
+                            }`}
+                          >
+                            กล่อง ({item.unit})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSubUnit(item, true)}
+                            className={`flex-1 py-1 rounded-md font-bold transition cursor-pointer text-center ${
+                              activeIsSub
+                                ? 'bg-teal-600 text-white shadow-2xs'
+                                : 'text-slate-500 hover:text-slate-900'
+                            }`}
+                          >
+                            ชิ้น ({item.usageUnit})
+                          </button>
                         </div>
                       )}
                     </div>
 
-                    {/* Quantity Controller / Add Button */}
-                    <div className="pt-1.5 sm:pt-2 border-t border-slate-100 dark:border-slate-800">
-                      {cartState.inCart ? (
-                        <div className="space-y-1 sm:space-y-1.5">
-                          <div className="flex items-center justify-between text-[9px] sm:text-[10px] font-bold">
-                            <span className="text-teal-700 dark:text-teal-300 truncate">
-                              ในตะกร้า ({activeUnitLabel})
-                            </span>
-                            <span className="text-slate-400 shrink-0">
-                              {cartState.quantity} {activeUnitLabel}
+                    {/* Quantity Selector / Add to Cart Button */}
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                      {isFullConflict ? (
+                        <button
+                          type="button"
+                          onClick={() => avail && setSelectedConflictModalItem(avail)}
+                          className="w-full py-1.5 px-2 rounded-xl bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          <span>ติดจองเต็มในช่วงนี้ (ดูรายละเอียด)</span>
+                        </button>
+                      ) : cartState.inCart ? (
+                        <div className="flex items-center justify-between gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleSetItemQuantity(item, cartState.quantity - 1, activeIsSub)
+                            }
+                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 flex items-center justify-center transition cursor-pointer shadow-2xs shrink-0"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+
+                          <div className="text-center font-bold text-xs sm:text-sm font-mono text-slate-900 dark:text-white">
+                            <span>{cartState.quantity}</span>
+                            <span className="text-[10px] text-slate-400 font-sans ml-1">
+                              {activeIsSub ? (item.usageUnit || 'ชิ้น') : item.unit}
                             </span>
                           </div>
 
-                          <div className="flex items-center justify-between gap-1 sm:gap-2">
-                            <div className="flex items-center gap-0.5 sm:gap-1.5 bg-white dark:bg-slate-850 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-700 p-0.5 sm:p-1 flex-1 shadow-xs justify-between">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleSetItemQuantity(
-                                    item,
-                                    cartState.quantity - 1,
-                                    cartState.isSubUnit
-                                  )
-                                }
-                                className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl flex items-center justify-center text-slate-500 hover:text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                              >
-                                <Minus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                              </button>
-                              <input
-                                type="number"
-                                min="0"
-                                value={cartState.quantity}
-                                onChange={(e) =>
-                                  handleSetItemQuantity(
-                                    item,
-                                    parseInt(e.target.value, 10) || 0,
-                                    cartState.isSubUnit
-                                  )
-                                }
-                                className="w-8 sm:w-12 text-center text-[11px] sm:text-xs font-black bg-transparent text-slate-900 dark:text-white focus:outline-none"
-                              />
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleSetItemQuantity(
-                                    item,
-                                    cartState.quantity + 1,
-                                    cartState.isSubUnit
-                                  )
-                                }
-                                className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl flex items-center justify-center text-slate-500 hover:text-teal-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                              >
-                                <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                              </button>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => handleSetItemQuantity(item, 0)}
-                              className="p-1 sm:p-2 text-slate-400 hover:text-rose-500 rounded-lg sm:rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer shrink-0"
-                              title="ลบออกจากตะกร้า"
-                            >
-                              <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleSetItemQuantity(item, cartState.quantity + 1, activeIsSub)
+                            }
+                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-teal-600 hover:bg-teal-700 text-white flex items-center justify-center transition cursor-pointer shadow-2xs shrink-0"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       ) : (
                         <button
                           type="button"
-                          disabled={!isAvailable || readOnly}
+                          disabled={!isAvailable}
                           onClick={() => handleSetItemQuantity(item, 1, activeIsSub)}
-                          className={`w-full py-2 sm:py-2.5 px-2 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer shadow-xs ${
+                          className={`w-full py-1.5 sm:py-2 px-2 sm:px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs ${
                             isAvailable
                               ? isEquip
-                                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20'
-                                : 'bg-teal-600 hover:bg-teal-700 text-white shadow-teal-600/20'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                                ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
+                                : 'bg-teal-600 hover:bg-teal-700 text-white cursor-pointer'
+                              : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
                           }`}
                         >
-                          <Plus className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate">
-                            {isAvailable
-                              ? `+ หยิบ (${activeUnitLabel})`
-                              : 'ของหมด'}
-                          </span>
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>+ เพิ่มลงรายการ</span>
                         </button>
                       )}
                     </div>
@@ -913,121 +1287,136 @@ export default function BorrowCatalogBrowser({
         )}
       </div>
 
-      {/* 4. Floating Cart Summary Bar */}
+      {/* 4. Floating Cart Drawer Button */}
       {totalCartCount > 0 && (
-        <div className="sticky bottom-4 z-20">
-          <div className="p-3 sm:p-4 rounded-3xl bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-md text-white border border-slate-800 shadow-2xl flex items-center justify-between gap-4 max-w-4xl mx-auto">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-teal-500 text-white flex items-center justify-center font-bold shadow-md">
-                <ShoppingCart className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-xs font-black flex items-center gap-2">
-                  <span>
-                    ตะกร้าพัสดุ: <strong>{totalCartCount}</strong> รายการ
-                  </span>
-                  <span className="text-[10px] text-teal-300 font-normal">
-                    (ครุภัณฑ์ {totalBorrowQty} ชิ้น • วัสดุ {totalReqQty} รายการ)
-                  </span>
-                </div>
-                <span className="text-[10px] text-slate-400 block">
-                  พร้อมนำรายการทั้งหมดเข้าสู่ใบคำขอเบิก-ยืมพัสดุ
-                </span>
+        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 animate-in slide-in-from-bottom duration-300">
+          <button
+            type="button"
+            onClick={() => setIsCartDrawerOpen(true)}
+            className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-gradient-to-r from-teal-600 to-indigo-600 text-white font-bold shadow-xl hover:shadow-teal-500/25 hover:scale-105 transition-all cursor-pointer border border-white/20"
+          >
+            <div className="relative">
+              <ShoppingCart className="w-5 h-5" />
+              <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center ring-2 ring-white">
+                {totalCartCount}
+              </span>
+            </div>
+            <div className="text-left leading-tight hidden xs:block">
+              <div className="text-xs">รายการที่เลือกไว้</div>
+              <div className="text-[10px] opacity-90">
+                {totalBorrowQty > 0 && `ยืม ${totalBorrowQty} ชิ้น `}
+                {totalReqQty > 0 && `เบิก ${totalReqQty} หน่วย`}
               </div>
             </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsCartDrawerOpen(true)}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-500 text-white transition cursor-pointer shadow-md flex items-center gap-1.5"
-              >
-                <span>ตรวจทานตะกร้า ({totalCartCount})</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
+            <ChevronRight className="w-4 h-4 ml-1 opacity-80" />
+          </button>
         </div>
       )}
 
-      {/* 5. Cart Review Modal / Drawer */}
+      {/* 5. Cart Review Drawer Modal */}
       {isCartDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-xl w-full max-h-[85vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
-            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-teal-600 text-white flex items-center justify-center font-bold">
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-teal-600 text-white shadow-xs">
                   <ShoppingCart className="w-4 h-4" />
-                </div>
+                </span>
                 <div>
                   <h3 className="text-sm font-black text-slate-900 dark:text-white">
-                    ตะกร้าพัสดุที่เลือกไว้ ({totalCartCount} รายการ)
+                    ตะกร้าพัสดุที่เลือกไว้ ({totalCartCount} ชิ้น)
                   </h3>
-                  <p className="text-[11px] text-slate-500">
-                    ตรวจสอบรายการครุภัณฑ์และวัสดุสิ้นเปลืองก่อนบันทึกลงฟอร์ม
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    ช่วงเวลา: {borrowDate.replace('T', ' ')} ถึง {expectedReturnDate.replace('T', ' ')}
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsCartDrawerOpen(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Modal Body: Cart Items List */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-              {/* Equipment Items */}
+            {/* Modal Body: List of selected items */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+              {/* Equipment Items in Cart */}
               {borrowItems.filter((b) => b.itemId && Number(b.quantity) > 0).length > 0 && (
                 <div className="space-y-2">
-                  <span className="text-xs font-black text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
-                    <Package className="w-4 h-4" />
-                    <span>ครุภัณฑ์ยืม-คืน (Equipment)</span>
-                  </span>
+                  <h4 className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Package className="w-3.5 h-3.5" />
+                    <span>ครุภัณฑ์ (ยืมใช้งานแล้วต้องส่งคืน)</span>
+                  </h4>
+
                   <div className="space-y-2">
                     {borrowItems
                       .filter((b) => b.itemId && Number(b.quantity) > 0)
                       .map((b) => {
-                        const it = equipmentList.find((x) => x.id === b.itemId);
+                        const item = equipmentList.find((it) => it.id === b.itemId);
+                        if (!item) return null;
+                        const avail = availabilityMap[item.id];
+                        const hasExceeded = avail !== undefined && Number(b.quantity) > avail.availableNow;
+
                         return (
                           <div
                             key={b.itemId}
-                            className="p-3 rounded-2xl bg-blue-50/50 dark:bg-slate-800/60 border border-blue-200/80 dark:border-blue-900/40 flex items-center justify-between gap-3 text-xs"
+                            className={`p-3 rounded-2xl border flex items-center justify-between gap-3 ${
+                              hasExceeded
+                                ? 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800'
+                                : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-700/80'
+                            }`}
                           >
-                            <div className="flex items-center gap-3">
-                              {it?.imageUrl ? (
-                                <img
-                                  src={formatImageUrl(it.imageUrl)}
-                                  alt={it.name}
-                                  referrerPolicy="no-referrer"
-                                  className="w-10 h-10 object-contain rounded-lg bg-white dark:bg-slate-900 border p-0.5"
-                                />
-                              ) : (
-                                <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-950 flex items-center justify-center text-blue-600">
-                                  <Package className="w-5 h-5" />
-                                </div>
-                              )}
-                              <div>
-                                <div className="font-bold text-slate-900 dark:text-white">
-                                  {it?.name || b.itemId}
-                                </div>
-                                <span className="text-[10px] text-slate-400">
-                                  รหัส: {it?.code || '-'}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-blue-900 dark:text-blue-200 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-xl border border-blue-200 dark:border-blue-800">
-                                {b.quantity} {it?.unit || 'ชิ้น'}
+                            <div className="flex-1 min-w-0">
+                              <span className="text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400">
+                                {item.code}
                               </span>
+                              <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                {item.name}
+                              </h5>
+                              {hasExceeded ? (
+                                <p className="text-[10px] text-rose-600 font-bold flex items-center gap-1 mt-0.5">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  <span>เกินจำนวนที่ว่างในช่วงเวลานี้ (ว่าง {avail.availableNow} {item.unit})</span>
+                                </p>
+                              ) : (
+                                <p className="text-[10px] text-slate-400">
+                                  {item.storageLocation?.name || item.location || 'คลังพัสดุ'}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1 bg-white dark:bg-slate-900 rounded-lg p-1 border border-slate-200 dark:border-slate-700">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleSetItemQuantity(item, Number(b.quantity) - 1)
+                                  }
+                                  className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 flex items-center justify-center cursor-pointer text-xs"
+                                >
+                                  -
+                                </button>
+                                <span className="font-mono text-xs font-bold px-2">
+                                  {b.quantity} {item.unit}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleSetItemQuantity(item, Number(b.quantity) + 1)
+                                  }
+                                  className="w-6 h-6 rounded bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center cursor-pointer text-xs"
+                                >
+                                  +
+                                </button>
+                              </div>
+
                               <button
                                 type="button"
-                                onClick={() => it && handleSetItemQuantity(it, 0)}
-                                className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg"
-                                title="ลบรายการนี้"
+                                onClick={() => handleSetItemQuantity(item, 0)}
+                                className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg transition cursor-pointer"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -1039,64 +1428,75 @@ export default function BorrowCatalogBrowser({
                 </div>
               )}
 
-              {/* Consumables Items */}
+              {/* Consumables in Cart */}
               {requisitionItems.filter((r) => r.itemId && Number(r.quantity) > 0).length > 0 && (
                 <div className="space-y-2">
-                  <span className="text-xs font-black text-teal-700 dark:text-teal-300 flex items-center gap-1.5">
-                    <Boxes className="w-4 h-4" />
-                    <span>วัสดุสิ้นเปลือง (Consumables)</span>
-                  </span>
+                  <h4 className="text-xs font-black text-teal-600 dark:text-teal-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Boxes className="w-3.5 h-3.5" />
+                    <span>วัสดุสิ้นเปลือง (เบิกใช้หมดไป)</span>
+                  </h4>
+
                   <div className="space-y-2">
                     {requisitionItems
                       .filter((r) => r.itemId && Number(r.quantity) > 0)
                       .map((r) => {
-                        const it = consumablesList.find((x) => x.id === r.itemId);
-                        const unitLabel = r.isSubUnit
-                          ? it?.usageUnit || 'ชิ้น'
-                          : it?.unit || 'หน่วย';
+                        const item = consumablesList.find((it) => it.id === r.itemId);
+                        if (!item) return null;
+
                         return (
                           <div
                             key={r.itemId}
-                            className="p-3 rounded-2xl bg-teal-50/50 dark:bg-slate-800/60 border border-teal-200/80 dark:border-teal-900/40 flex items-center justify-between gap-3 text-xs"
+                            className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between gap-3"
                           >
-                            <div className="flex items-center gap-3">
-                              {it?.imageUrl ? (
-                                <img
-                                  src={formatImageUrl(it.imageUrl)}
-                                  alt={it.name}
-                                  referrerPolicy="no-referrer"
-                                  className="w-10 h-10 object-contain rounded-lg bg-white dark:bg-slate-900 border p-0.5"
-                                />
-                              ) : (
-                                <div className="w-10 h-10 rounded-lg bg-teal-100 dark:bg-teal-950 flex items-center justify-center text-teal-600">
-                                  <Boxes className="w-5 h-5" />
-                                </div>
-                              )}
-                              <div>
-                                <div className="font-bold text-slate-900 dark:text-white">
-                                  {it?.name || r.itemId}
-                                </div>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-[10px] text-slate-400">
-                                    รหัส: {it?.code || '-'}
-                                  </span>
-                                  {r.isSubUnit && (
-                                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
-                                      หน่วยย่อย
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-teal-900 dark:text-teal-200 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-xl border border-teal-200 dark:border-teal-800">
-                                {r.quantity} {unitLabel}
+                            <div className="flex-1 min-w-0">
+                              <span className="text-[10px] font-mono font-bold text-teal-600 dark:text-teal-400">
+                                {item.code}
                               </span>
+                              <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                {item.name}
+                              </h5>
+                              <p className="text-[10px] text-slate-400">
+                                หน่วยเบิก: {r.requestedUnit || (r.isSubUnit ? item.usageUnit : item.unit)}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1 bg-white dark:bg-slate-900 rounded-lg p-1 border border-slate-200 dark:border-slate-700">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleSetItemQuantity(
+                                      item,
+                                      Number(r.quantity) - 1,
+                                      r.isSubUnit
+                                    )
+                                  }
+                                  className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 flex items-center justify-center cursor-pointer text-xs"
+                                >
+                                  -
+                                </button>
+                                <span className="font-mono text-xs font-bold px-2">
+                                  {r.quantity} {r.requestedUnit}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleSetItemQuantity(
+                                      item,
+                                      Number(r.quantity) + 1,
+                                      r.isSubUnit
+                                    )
+                                  }
+                                  className="w-6 h-6 rounded bg-teal-600 hover:bg-teal-700 text-white flex items-center justify-center cursor-pointer text-xs"
+                                >
+                                  +
+                                </button>
+                              </div>
+
                               <button
                                 type="button"
-                                onClick={() => it && handleSetItemQuantity(it, 0)}
-                                className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg"
-                                title="ลบรายการนี้"
+                                onClick={() => handleSetItemQuantity(item, 0, r.isSubUnit)}
+                                className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg transition cursor-pointer"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -1126,7 +1526,107 @@ export default function BorrowCatalogBrowser({
         </div>
       )}
 
-      {/* 6. Image Preview Modal (Lightbox) */}
+      {/* 6. Conflict Detail Modal */}
+      {selectedConflictModalItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          onClick={() => setSelectedConflictModalItem(null)}
+        >
+          <div
+            className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-lg w-full overflow-hidden flex flex-col p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="w-5 h-5" />
+                </span>
+                <div>
+                  <span className="text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400">
+                    {selectedConflictModalItem.itemCode}
+                  </span>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white leading-tight">
+                    {selectedConflictModalItem.itemName}
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedConflictModalItem(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="text-xs space-y-3">
+              <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 flex items-center justify-between text-amber-900 dark:text-amber-200">
+                <div>
+                  <div className="font-bold">สถานะความจุในช่วงเวลานี้:</div>
+                  <div className="text-[11px] opacity-80">
+                    ความจุทั้งหมด {selectedConflictModalItem.physicalCapacity} {selectedConflictModalItem.unit} | ติดจองแล้ว {selectedConflictModalItem.reservedCount} {selectedConflictModalItem.unit}
+                  </div>
+                </div>
+                <span className="text-sm font-black px-2.5 py-1 rounded-xl bg-amber-200/80 dark:bg-amber-900/80">
+                  ว่าง {selectedConflictModalItem.availableNow} {selectedConflictModalItem.unit}
+                </span>
+              </div>
+
+              <div>
+                <h4 className="font-bold text-slate-700 dark:text-slate-300 text-xs mb-2 flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-blue-600" />
+                  <span>รายการที่จองใช้งานซ้อนทับในช่วงเวลานี้ ({selectedConflictModalItem.conflicts.length} รายการ):</span>
+                </h4>
+
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {selectedConflictModalItem.conflicts.length === 0 ? (
+                    <p className="text-slate-400 text-center py-4">ไม่มีรายการซ้อนทับ</p>
+                  ) : (
+                    selectedConflictModalItem.conflicts.map((c, idx) => (
+                      <div
+                        key={idx}
+                        className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 text-xs space-y-1"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-900 dark:text-white">
+                            {c.requestNumber}
+                          </span>
+                          <span className="font-bold text-amber-600 bg-amber-100 dark:bg-amber-950 px-2 py-0.5 rounded text-[10px]">
+                            {c.status === 'BORROWED' ? 'กำลังยืมอยู่' : c.status === 'APPROVED' ? 'อนุมัติแล้ว' : 'รออนุมัติ'} ({c.quantity} {selectedConflictModalItem.unit})
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          ผู้ขอ: <span className="font-semibold text-slate-700 dark:text-slate-300">{c.requesterName}</span> ({c.requesterRole === 'USER' ? 'นิสิต' : 'อาจารย์'})
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          ช่วงเวลา: {formatBangkokDateTime(c.borrowDate)} ถึง {formatBangkokDateTime(c.expectedReturnDate)}
+                        </div>
+                        {c.purpose && (
+                          <div className="text-[10px] text-slate-400 italic">
+                            วัตถุประสงค์: {c.purpose}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedConflictModalItem(null)}
+                className="px-4 py-1.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold cursor-pointer"
+              >
+                เข้าใจแล้ว
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. Image Preview Modal (Lightbox) */}
       {previewItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-xl w-full overflow-hidden flex flex-col">
@@ -1142,7 +1642,7 @@ export default function BorrowCatalogBrowser({
               <button
                 type="button"
                 onClick={() => setPreviewItem(null)}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1167,7 +1667,9 @@ export default function BorrowCatalogBrowser({
             <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
               <div className="flex items-center gap-1.5">
                 <MapPin className="w-4 h-4 text-teal-500" />
-                <span>{previewItem.storageLocation?.name || previewItem.location || 'ไม่ระบุที่เก็บ'}</span>
+                <span>
+                  {previewItem.storageLocation?.name || previewItem.location || 'ไม่ระบุที่เก็บ'}
+                </span>
               </div>
               {previewItem.imageUrl && (
                 <a

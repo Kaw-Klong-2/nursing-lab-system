@@ -17,6 +17,32 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-01] พัฒนาระบบเช็กสต็อกและช่วงวันเวลาซ้อนทับแบบเรียลไทม์ (Time-Conflict Booking Checker) ในแคตตาล็อกเบิก-ยืมพัสดุ
+- **หมวดหมู่**: Module 6: Borrow, Requisitions & Dispense Center / Visual Catalog / Real-time Availability
+- **สิ่งที่ดำเนินการ**:
+  - พัฒนา API จุดเชื่อมต่อใหม่ [`src/app/api/borrow/availability/route.ts`](file:///d:/LAB-system/src/app/api/borrow/availability/route.ts):
+    - ตรวจสอบช่วงวันเวลาซ้อนทับตามหลักการจองสากล (`borrowDate <= endDateTime AND expectedReturnDate >= startDateTime`) สำหรับคำขอสถานะ `PENDING`, `APPROVED`, `BORROWED`
+    - รองรับ Timezone กรุงเทพฯ (+07:00) ผ่านฟังก์ชัน `parseBangkokDateTime`
+    - คำนวณจำนวนครุภัณฑ์คงเหลือจริงในแต่ละช่วงเวลาเทียบกับความจุที่มีสภาพพร้อมใช้งาน (`AVAILABLE`)
+    - เพิ่มโหมดจำลอง (`simulate=true`) สำหรับการสาธิตและทดสอบสถานการณ์การชนของเวลาใน Sandbox
+  - อัปเกรดคอมโพเนนต์ [`src/components/borrow/BorrowCatalogBrowser.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCatalogBrowser.tsx):
+    - **แถบเลือกช่วงวันและเวลา (Time Window Selector)**: ปรับวันเวลายืม-คืน พร้อมปุ่มลัดมาตรฐาน (🌅 พรุ่งนี้เช้า, ☀️ พรุ่งนี้บ่าย, ⏳ พรุ่งนี้เต็มวัน, 🗓️ ยืม 3 วัน, 📅 ยืม 1 สัปดาห์)
+    - **ปุ่มเปิด-ปิดการจำลองสถานการณ์ (Simulation Toggle)**: ให้แอดมินหรือผู้ทดสอบกดดูตัวอย่างสถานะติดจองได้ทันที
+    - **ป้ายแสดงสถานะความพร้อมแบบไดนามิกบนการ์ดพัสดุ**:
+      - 🟢 ว่างพร้อมยืม
+      - 🟡 ติดจองบางส่วน (พร้อมปุ่มดูคิวจอง)
+      - 🔴 จองเต็มแล้ว (พร้อมปุ่มดูคิวจอง)
+    - **หน้าต่างป๊อปอัปตรวจสอบรายการที่ติดจอง (Conflict Details Modal)**: แสดงข้อมูลผู้จองซ้อน, บทบาท, วัตถุประสงค์, รหัสคำขอ, วันเวลาที่จอง และจำนวนที่จองไป
+    - **Smart Medical Category Placeholders**: พัสดุที่ยังไม่มีรูปภาพจะแสดงไอคอนทางการแพทย์และแบ็กกราวด์เกรเดียนท์สวยงามตามหมวดหมู่ ไม่ขึ้นภาพแตก
+    - **ระบบเตือนในตะกร้า**: แจ้งเตือนทันทีหากจำนวนที่เลือกเกินกว่าจำนวนที่ว่างในหน้าต่างเวลาที่กำหนด
+  - อัปเดตหน้าจอ [`src/app/admin/sandbox/catalog/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/catalog/page.tsx) ให้รองรับการทดสอบระบบ Time-Conflict Checker อย่างสมบูรณ์
+- **ไฟล์สำคัญที่แก้ไข/สร้างใหม่**:
+  - [`src/app/api/borrow/availability/route.ts`](file:///d:/LAB-system/src/app/api/borrow/availability/route.ts)
+  - [`src/components/borrow/BorrowCatalogBrowser.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCatalogBrowser.tsx)
+  - [`src/app/admin/sandbox/catalog/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/catalog/page.tsx)
+  - [`LIBRARY_CATALOG.md`](file:///d:/LAB-system/LIBRARY_CATALOG.md)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100% (บังคับใช้คำว่า "นิสิต" และ UTF-8 Integrity)
+
 ### [2026-11-01] ยกเลิกการทดลองไดคัทภาพพัสดุและล้างไฟล์ทดลองออกจากระบบตามคำสั่งผู้ใช้
 - **หมวดหมู่**: Cleanup / Rollback / Asset Image Processing
 - **สิ่งที่ดำเนินการ**:

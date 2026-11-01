@@ -216,6 +216,9 @@ export default function AdminCatalogSandboxPage() {
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-bold">
                   ✂️ มีระบบหน่วยย่อย 82 รายการ (สลับ กล่อง ↔ ชิ้น ได้อิสระ)
                 </span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-bold">
+                  ⚡ เช็กสต็อกและวันซ้อนทับแบบเรียลไทม์ (Time-Conflict Checker)
+                </span>
               </div>
             </div>
           </div>

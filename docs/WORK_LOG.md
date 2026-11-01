@@ -17,6 +17,18 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-01] เปิดใช้งาน Row Level Security (RLS) ครบทุก 35 ตารางบน Supabase ใหม่
+- **หมวดหมู่**: Database Security / Supabase RLS Hardening
+- **สิ่งที่ดำเนินการ**:
+  - รันคำสั่งเปิดใช้งาน Row Level Security (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY;`) ให้กับตารางทั้งหมด 35 ตารางในฐานข้อมูล Supabase (`galzjfuixuunkfamzczo`)
+  - ตรวจสอบสถานะ `rowsecurity = true` ครบทุกตาราง 100% ป้องกันคนภายนอกเรียกดูดข้อมูลผ่าน Public PostgREST API
+  - ทดสอบ Sanity Check การเชื่อมต่อผ่าน Prisma ORM บน Server หลังบ้าน ทำงานได้อย่างราบรื่น 100% (Bypass RLS โดยสมบูรณ์)
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `scripts/enable-rls.mjs`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100%
+
+
 ### [2026-11-01] ย้ายและกู้คืนฐานข้อมูลเต็มรูปแบบสู่โปรเจกต์ Supabase ใหม่ (Email-based Account Migration & Full Data Restore)
 - **หมวดหมู่**: Database Migration / Supabase Re-connection / Full Data Recovery
 - **สิ่งที่ดำเนินการ**:

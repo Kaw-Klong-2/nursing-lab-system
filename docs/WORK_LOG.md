@@ -17,6 +17,20 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-01] ย้ายและกู้คืนฐานข้อมูลเต็มรูปแบบสู่โปรเจกต์ Supabase ใหม่ (Email-based Account Migration & Full Data Restore)
+- **หมวดหมู่**: Database Migration / Supabase Re-connection / Full Data Recovery
+- **สิ่งที่ดำเนินการ**:
+  - เปลี่ยนการเชื่อมต่อฐานข้อมูลจากโปรเจกต์เดิม (`nxdowqfewhbglqrhmmnt`) ซึ่งติดปัญหาการยืนยันตัวตน GitHub OAuth ไปยังโปรเจกต์ใหม่ (`galzjfuixuunkfamzczo`) ที่เข้าใช้งานผ่าน Email + Password ได้อย่างอิสระ
+  - ปรับปรุง `DATABASE_URL` และ `DIRECT_URL` ใน `.env` ไปยังฐานข้อมูลใหม่ (Singapore Pooler & Direct Connection)
+  - รัน `prisma db push` เพื่อสร้างโครงสร้างตารางทั้ง 35 โมเดลพร้อม Foreign Keys, Enums และ Indexes ครบ 100%
+  - สร้างและรันสคริปต์ `scripts/restore-backup.mjs` กู้คืนข้อมูลทั้งหมดจาก `FULL_BACKUP_2026-11-01T07-05-32-811Z.json` จำนวน 3,403 รายการครบทุกตาราง 26 ตาราง (ข้อมูลนิสิต, อาจารย์, เจ้าหน้าที่, พัสดุ, ครุภัณฑ์, สต็อกกล่อง 1,689 ชิ้น, ประวัติการจอง, และ Audit Logs 89 รายการ) ปลอดภัย 100% โดยไม่มีข้อมูลสูญหาย
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `.env`
+  - `scripts/restore-backup.mjs`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100% (คำว่า "นิสิต" ถูกต้องครบถ้วน, รหัส UTF-8 สมบูรณ์)
+
+
 ### [2026-11-01] เพิ่มการแสดงผลรูปถ่ายจริง (Google Drive formatImageUrl & Zoom Lightbox) และตัวสลับหน่วยย่อยบนการ์ดแคตตาล็อก
 - **หมวดหมู่**: Visual Catalog / Image Rendering / Subunit Switcher / Playground UI Fix
 - **สิ่งที่ดำเนินการ**:

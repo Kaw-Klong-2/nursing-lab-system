@@ -17,6 +17,24 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-01] เพิ่มการแสดงผลรูปถ่ายจริง (Google Drive formatImageUrl & Zoom Lightbox) และตัวสลับหน่วยย่อยบนการ์ดแคตตาล็อก
+- **หมวดหมู่**: Visual Catalog / Image Rendering / Subunit Switcher / Playground UI Fix
+- **สิ่งที่ดำเนินการ**:
+  - แก้ไข `src/components/borrow/BorrowCatalogBrowser.tsx`:
+    - เพิ่มพื้นที่แสดงผลรูปภาพจริง (Visual Header Container ความสูง 176px) บนการ์ดทุกใบ
+    - แปลง URL รูปถ่ายพัสดุ (Google Drive Links) ผ่าน `formatImageUrl()` จาก `src/lib/image-helper.ts` ให้แสดงผลภาพตัวอย่างได้ทันที พร้อม `referrerPolicy="no-referrer"`
+    - เพิ่มหน้าต่าง Zoom Lightbox Modal เมื่อคลิกที่รูปภาพเพื่อดูภาพขยายใหญ่และดูไฟล์ต้นฉบับ
+    - เพิ่มตัวเลือกสลับหน่วยนับย่อย/กล่อง (e.g. `[กล่อง (เต็ม)]` ↔ `[ชิ้น (ย่อย)]`) และอัตราแปลงหน่วย (e.g. `1 กล่อง = 100 ชิ้น`) ปรากฏบนการ์ดทันทีก่อนและหลังหยิบใส่ตะกร้า
+    - เพิ่มตัวกรองคัดกรองด่วน: `[x] เฉพาะที่มีรูปถ่ายจริง (57 รายการ)` และ `[x] เฉพาะที่มีหน่วยย่อย (82 รายการ)`
+    - แสดงรูปภาพ Thumbnail และป้ายกำกับหน่วยย่อยในตะกร้าและหน้าต่างตรวจทานตะกร้า
+  - ปรับปรุง `src/app/admin/sandbox/catalog/page.tsx`:
+    - เพิ่มคำแนะนำและป้ายสรุปสถานะพัสดุที่มีรูปภาพจริง 57 รายการ และพัสดุที่มีระบบหน่วยย่อย 82 รายการ เพื่อให้เจ้าหน้าที่และแอดมินทดสอบได้ทันที
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/components/borrow/BorrowCatalogBrowser.tsx`
+  - `src/app/admin/sandbox/catalog/page.tsx`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit` ผ่าน 0 ข้อผิดพลาด, `npm run librarian:audit` ผ่าน 100% (0 คำต้องห้าม, 0 Mojibake)
+
 ### [2026-11-01] พัฒนาศูนย์ทดลองนวัตกรรมแอดมิน (Admin Sandbox Hub) และแคตตาล็อกเบิก-ยืมพัสดุแบบภาพ & ชุดเซ็ต 1-Click
 - **หมวดหมู่**: Innovation Hub / Visual Catalog / Practice Bundles / Admin Sandbox / UI Component
 - **สิ่งที่ดำเนินการ**:

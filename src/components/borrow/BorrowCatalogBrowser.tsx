@@ -19,7 +19,13 @@ import {
   Building2,
   AlertCircle,
   X,
+  Eye,
+  Camera,
+  ExternalLink,
+  ChevronRight,
+  ZoomIn,
 } from 'lucide-react';
+import { formatImageUrl } from '@/lib/image-helper';
 
 export interface CatalogItem {
   id: string;
@@ -113,7 +119,18 @@ export default function BorrowCatalogBrowser({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [inStockOnly, setInStockOnly] = useState(false);
+  const [hasPhotosOnly, setHasPhotosOnly] = useState(false);
+  const [hasSubUnitOnly, setHasSubUnitOnly] = useState(false);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
+
+  // Preference for items not yet in cart: cardUnitPreference[itemId] = boolean (isSubUnit)
+  const [cardUnitPreference, setCardUnitPreference] = useState<Record<string, boolean>>({});
+
+  // Image Preview Modal
+  const [previewItem, setPreviewItem] = useState<CatalogItem | null>(null);
+
+  // Broken image tracker
+  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
 
   // Extract unique categories across equipment and consumables
   const categories = useMemo(() => {
@@ -131,7 +148,7 @@ export default function BorrowCatalogBrowser({
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [equipmentList, consumablesList]);
 
-  // Combine items according to active type tab
+  // Combine items according to active type tab and filters
   const displayItems = useMemo(() => {
     let list: CatalogItem[] = [];
     if (activeTab === 'ALL') {
@@ -171,15 +188,44 @@ export default function BorrowCatalogBrowser({
         if (stock <= 0 && open <= 0) return false;
       }
 
+      // 4. Has Photos Filter
+      if (hasPhotosOnly) {
+        if (!it.imageUrl || brokenImages[it.id]) return false;
+      }
+
+      // 5. Has SubUnit Filter
+      if (hasSubUnitOnly) {
+        const ratio = Number(it.conversionRatio) > 0 ? Number(it.conversionRatio) : 1;
+        const hasSub = it.type === 'CONSUMABLE' && (ratio > 1 || (!!it.usageUnit && it.usageUnit !== it.unit));
+        if (!hasSub) return false;
+      }
+
       return true;
     });
-  }, [equipmentList, consumablesList, activeTab, searchQuery, selectedCategory, inStockOnly]);
+  }, [
+    equipmentList,
+    consumablesList,
+    activeTab,
+    searchQuery,
+    selectedCategory,
+    inStockOnly,
+    hasPhotosOnly,
+    hasSubUnitOnly,
+    brokenImages,
+  ]);
 
   // Total items in cart
-  const totalBorrowQty = borrowItems.reduce((sum, b) => (b.itemId && Number(b.quantity) > 0 ? sum + Number(b.quantity) : sum), 0);
-  const totalReqQty = requisitionItems.reduce((sum, r) => (r.itemId && Number(r.quantity) > 0 ? sum + Number(r.quantity) : sum), 0);
-  const totalCartCount = (borrowItems.filter((b) => b.itemId && Number(b.quantity) > 0).length) +
-    (requisitionItems.filter((r) => r.itemId && Number(r.quantity) > 0).length);
+  const totalBorrowQty = borrowItems.reduce(
+    (sum, b) => (b.itemId && Number(b.quantity) > 0 ? sum + Number(b.quantity) : sum),
+    0
+  );
+  const totalReqQty = requisitionItems.reduce(
+    (sum, r) => (r.itemId && Number(r.quantity) > 0 ? sum + Number(r.quantity) : sum),
+    0
+  );
+  const totalCartCount =
+    borrowItems.filter((b) => b.itemId && Number(b.quantity) > 0).length +
+    requisitionItems.filter((r) => r.itemId && Number(r.quantity) > 0).length;
 
   // Helper: check if item is currently in cart
   const getItemCartState = (item: CatalogItem) => {
@@ -192,11 +238,27 @@ export default function BorrowCatalogBrowser({
       };
     } else {
       const found = requisitionItems.find((r) => r.itemId === item.id);
+      const isSub = found ? !!found.isSubUnit : (cardUnitPreference[item.id] || false);
       return {
         inCart: !!found && Number(found.quantity) > 0,
         quantity: found ? Number(found.quantity) || 0 : 0,
-        isSubUnit: !!found?.isSubUnit,
+        isSubUnit: isSub,
       };
+    }
+  };
+
+  // Handler: Switch preferred subunit mode (whether in cart or before adding)
+  const handleToggleSubUnit = (item: CatalogItem, isSubUnit: boolean) => {
+    setCardUnitPreference((prev) => ({ ...prev, [item.id]: isSubUnit }));
+
+    if (item.type === 'CONSUMABLE') {
+      const idx = requisitionItems.findIndex((r) => r.itemId === item.id);
+      if (idx !== -1 && Number(requisitionItems[idx].quantity) > 0) {
+        const updated = [...requisitionItems];
+        updated[idx].isSubUnit = isSubUnit;
+        updated[idx].requestedUnit = isSubUnit ? (item.usageUnit || 'ชิ้น') : item.unit;
+        onUpdateRequisitionItems(updated);
+      }
     }
   };
 
@@ -204,8 +266,10 @@ export default function BorrowCatalogBrowser({
   const handleSetItemQuantity = (item: CatalogItem, qty: number, isSubUnit?: boolean) => {
     if (readOnly) return;
     const ratio = Number(item.conversionRatio) > 0 ? Number(item.conversionRatio) : 1;
-    const maxPieces = (item.currentStock * ratio) + (item.openPackRemainder || 0);
-    const maxLimit = isSubUnit ? maxPieces : item.currentStock;
+    const maxPieces = item.currentStock * ratio + (item.openPackRemainder || 0);
+
+    const activeIsSub = isSubUnit !== undefined ? isSubUnit : (cardUnitPreference[item.id] || false);
+    const maxLimit = activeIsSub ? maxPieces : item.currentStock;
 
     const targetQty = Math.max(0, Math.min(qty, maxLimit > 0 ? maxLimit : 9999));
 
@@ -225,67 +289,89 @@ export default function BorrowCatalogBrowser({
     } else {
       let updated = [...requisitionItems];
       const idx = updated.findIndex((r) => r.itemId === item.id);
+      const unitLabel = activeIsSub ? (item.usageUnit || 'ชิ้น') : item.unit;
+
       if (targetQty <= 0) {
         if (idx !== -1) updated = updated.filter((_, i) => i !== idx);
       } else {
-        const sub = isSubUnit !== undefined ? isSubUnit : (idx !== -1 ? updated[idx].isSubUnit : false);
-        const unitLabel = sub ? (item.usageUnit || 'ชิ้น') : item.unit;
         if (idx !== -1) {
           updated[idx].quantity = targetQty;
-          updated[idx].isSubUnit = sub;
+          updated[idx].isSubUnit = activeIsSub;
           updated[idx].requestedUnit = unitLabel;
         } else {
           updated.push({
             itemId: item.id,
             quantity: targetQty,
-            isSubUnit: sub,
+            isSubUnit: activeIsSub,
             requestedUnit: unitLabel,
             categoryId: item.categoryId,
           });
         }
       }
-      onUpdateRequisitionItems(updated.length > 0 ? updated : [{ itemId: '', quantity: '', isSubUnit: false, requestedUnit: '' }]);
+      onUpdateRequisitionItems(
+        updated.length > 0
+          ? updated
+          : [{ itemId: '', quantity: '', isSubUnit: false, requestedUnit: '' }]
+      );
     }
   };
 
-  // Handler: Quick apply entire Practice Kit
+  // 1-Click Practice Kit: add all components to cart
   const handleApplyPracticeKit = (kit: PracticeKitComponent) => {
     if (readOnly) return;
+    let newBorrow = borrowItems.filter((b) => b.itemId && Number(b.quantity) > 0);
+    let newReq = requisitionItems.filter((r) => r.itemId && Number(r.quantity) > 0);
 
-    let newBorrow = [...borrowItems.filter((b) => b.itemId && Number(b.quantity) > 0)];
-    let newReq = [...requisitionItems.filter((r) => r.itemId && Number(r.quantity) > 0)];
+    kit.items.forEach((kitComp) => {
+      const it = kitComp.item;
+      const neededQty = kitComp.quantity || 1;
 
-    kit.items.forEach((kitItem) => {
-      const targetId = kitItem.itemId;
-      const targetItem = [...equipmentList, ...consumablesList].find((it) => it.id === targetId) || kitItem.item;
-      const addQty = kitItem.quantity || 1;
-
-      if (targetItem.type === 'EQUIPMENT') {
-        const existingIdx = newBorrow.findIndex((b) => b.itemId === targetId);
-        if (existingIdx !== -1) {
-          newBorrow[existingIdx].quantity = Number(newBorrow[existingIdx].quantity) + addQty;
+      if (it.type === 'EQUIPMENT') {
+        const bIdx = newBorrow.findIndex((b) => b.itemId === it.id);
+        if (bIdx !== -1) {
+          newBorrow[bIdx].quantity = Number(newBorrow[bIdx].quantity) + neededQty;
         } else {
-          newBorrow.push({ itemId: targetId, quantity: addQty });
+          newBorrow.push({ itemId: it.id, quantity: neededQty });
         }
       } else {
-        const existingIdx = newReq.findIndex((r) => r.itemId === targetId);
-        if (existingIdx !== -1) {
-          newReq[existingIdx].quantity = Number(newReq[existingIdx].quantity) + addQty;
+        const rIdx = newReq.findIndex((r) => r.itemId === it.id);
+        const hasSub = (Number(it.conversionRatio) || 1) > 1 && !!it.usageUnit;
+        if (rIdx !== -1) {
+          newReq[rIdx].quantity = Number(newReq[rIdx].quantity) + neededQty;
         } else {
           newReq.push({
-            itemId: targetId,
-            quantity: addQty,
-            isSubUnit: false,
-            requestedUnit: targetItem.unit,
+            itemId: it.id,
+            quantity: neededQty,
+            isSubUnit: hasSub,
+            requestedUnit: hasSub ? (it.usageUnit || 'ชิ้น') : it.unit,
           });
         }
       }
     });
 
     onUpdateBorrowItems(newBorrow.length > 0 ? newBorrow : [{ itemId: '', quantity: '' }]);
-    onUpdateRequisitionItems(newReq.length > 0 ? newReq : [{ itemId: '', quantity: '', isSubUnit: false, requestedUnit: '' }]);
+    onUpdateRequisitionItems(
+      newReq.length > 0
+        ? newReq
+        : [{ itemId: '', quantity: '', isSubUnit: false, requestedUnit: '' }]
+    );
     setIsCartDrawerOpen(true);
   };
+
+  // Helper: check total items with photos or subunits for stat display
+  const totalWithPhotos = useMemo(() => {
+    return (
+      equipmentList.filter((it) => !!it.imageUrl).length +
+      consumablesList.filter((it) => !!it.imageUrl).length
+    );
+  }, [equipmentList, consumablesList]);
+
+  const totalWithSubunits = useMemo(() => {
+    return consumablesList.filter((it) => {
+      const ratio = Number(it.conversionRatio) > 0 ? Number(it.conversionRatio) : 1;
+      return ratio > 1 || (!!it.usageUnit && it.usageUnit !== it.unit);
+    }).length;
+  }, [consumablesList]);
 
   return (
     <div className="space-y-6">
@@ -330,7 +416,9 @@ export default function BorrowCatalogBrowser({
                     {kit.name}
                   </h4>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-tight">
-                    {kit.items.map((it) => it.item.name).join(', ') || kit.description || 'อุปกรณ์มาตรฐานพร้อมฝึก'}
+                    {kit.items.map((it) => it.item.name).join(', ') ||
+                      kit.description ||
+                      'อุปกรณ์มาตรฐานพร้อมฝึก'}
                   </p>
                 </div>
 
@@ -348,7 +436,7 @@ export default function BorrowCatalogBrowser({
         </div>
       )}
 
-      {/* 2. Search, Type Filters & Category Pills */}
+      {/* 2. Search, Type Filters & Feature Toggles */}
       <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
         {/* Row 1: Search & Type Tabs */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
@@ -360,7 +448,7 @@ export default function BorrowCatalogBrowser({
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
                 activeTab === 'ALL'
                   ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
               }`}
             >
               ทั้งหมด ({equipmentList.length + consumablesList.length})
@@ -375,7 +463,7 @@ export default function BorrowCatalogBrowser({
               }`}
             >
               <Package className="w-3.5 h-3.5" />
-              <span>ครุภัณฑ์ยืม-คืน ({equipmentList.length})</span>
+              <span>ครุภัณฑ์ ({equipmentList.length})</span>
             </button>
             <button
               type="button"
@@ -413,52 +501,100 @@ export default function BorrowCatalogBrowser({
           </div>
         </div>
 
-        {/* Row 2: Category Pills & In-Stock Toggle */}
-        <div className="flex items-center justify-between gap-3 flex-wrap border-t border-slate-100 dark:border-slate-800 pt-3">
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+        {/* Row 2: Category Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 border-t border-slate-100 dark:border-slate-800 pt-3">
+          <button
+            type="button"
+            onClick={() => setSelectedCategory('ALL')}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition shrink-0 cursor-pointer ${
+              selectedCategory === 'ALL'
+                ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-xs'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+            }`}
+          >
+            ทุกหมวดหมู่
+          </button>
+          {categories.map((cat) => (
             <button
+              key={cat.id}
               type="button"
-              onClick={() => setSelectedCategory('ALL')}
-              className={`px-3 py-1 rounded-full text-xs font-bold transition shrink-0 cursor-pointer ${
-                selectedCategory === 'ALL'
-                  ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-xs'
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition shrink-0 cursor-pointer ${
+                selectedCategory === cat.id
+                  ? 'bg-teal-600 text-white font-bold shadow-xs'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
               }`}
             >
-              ทุกหมวดหมู่
+              {cat.name} ({cat.count})
             </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition shrink-0 cursor-pointer ${
-                  selectedCategory === cat.id
-                    ? 'bg-teal-600 text-white font-bold shadow-xs'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                }`}
-              >
-                {cat.name} ({cat.count})
-              </button>
-            ))}
+          ))}
+        </div>
+
+        {/* Row 3: Feature Filter Checkboxes */}
+        <div className="flex items-center justify-between gap-3 flex-wrap border-t border-slate-100 dark:border-slate-800 pt-3">
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Has Photos Toggle */}
+            <label className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hasPhotosOnly}
+                onChange={(e) => setHasPhotosOnly(e.target.checked)}
+                className="rounded text-teal-600 focus:ring-teal-500 w-3.5 h-3.5"
+              />
+              <Camera className="w-3.5 h-3.5 text-teal-600" />
+              <span>เฉพาะที่มีรูปถ่ายจริง ({totalWithPhotos})</span>
+            </label>
+
+            {/* Has SubUnit Toggle */}
+            <label className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hasSubUnitOnly}
+                onChange={(e) => setHasSubUnitOnly(e.target.checked)}
+                className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
+              />
+              <Layers className="w-3.5 h-3.5 text-indigo-600" />
+              <span>เฉพาะที่มีหน่วยย่อย ({totalWithSubunits})</span>
+            </label>
+
+            {/* In Stock Only */}
+            <label className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={inStockOnly}
+                onChange={(e) => setInStockOnly(e.target.checked)}
+                className="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5"
+              />
+              <span>เฉพาะที่มีของพร้อมใช้</span>
+            </label>
           </div>
 
-          <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300 cursor-pointer shrink-0">
-            <input
-              type="checkbox"
-              checked={inStockOnly}
-              onChange={(e) => setInStockOnly(e.target.checked)}
-              className="rounded text-teal-600 focus:ring-teal-500 w-3.5 h-3.5"
-            />
-            <span>เฉพาะที่มีของพร้อมใช้</span>
-          </label>
+          {(hasPhotosOnly || hasSubUnitOnly || inStockOnly || selectedCategory !== 'ALL' || searchQuery) && (
+            <button
+              type="button"
+              onClick={() => {
+                setHasPhotosOnly(false);
+                setHasSubUnitOnly(false);
+                setInStockOnly(false);
+                setSelectedCategory('ALL');
+                setSearchQuery('');
+              }}
+              className="text-xs text-rose-500 hover:underline font-semibold"
+            >
+              ล้างตัวกรองทั้งหมด
+            </button>
+          )}
         </div>
       </div>
 
       {/* 3. Visual Catalog Items Grid */}
       <div className="space-y-3">
         <div className="flex items-center justify-between text-xs text-slate-500 px-1">
-          <span>พบพัสดุทั้งหมด <strong>{displayItems.length}</strong> รายการ</span>
+          <span>
+            แสดงพัสดุทั้งหมด <strong>{displayItems.length}</strong> รายการ
+            {hasPhotosOnly && ' (คัดเฉพาะที่มีรูป)'}
+            {hasSubUnitOnly && ' (คัดเฉพาะที่มีหน่วยย่อย)'}
+          </span>
           {totalCartCount > 0 && (
             <button
               type="button"
@@ -478,168 +614,297 @@ export default function BorrowCatalogBrowser({
               ไม่พบพัสดุที่ตรงกับเงื่อนไขการค้นหา
             </p>
             <p className="text-xs text-slate-400">
-              ลองเปลี่ยนคำค้นหา หรือเลือกหมวดหมู่อื่นดูนะครับ
+              ลองปิดตัวกรอง หรือค้นหาด้วยชื่ออื่นดูนะครับ
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {displayItems.map((item) => {
               const cartState = getItemCartState(item);
               const isEquip = item.type === 'EQUIPMENT';
               const ratio = Number(item.conversionRatio) > 0 ? Number(item.conversionRatio) : 1;
-              const canSubUnit = !isEquip && ratio > 1 && !!item.usageUnit && item.usageUnit !== item.unit;
-              const totalPieces = !isEquip ? (item.currentStock * ratio) + (item.openPackRemainder || 0) : 0;
-              const isAvailable = isEquip ? item.currentStock > 0 : (item.currentStock > 0 || (item.openPackRemainder || 0) > 0);
+              const hasSubUnit = !isEquip && (ratio > 1 || (!!item.usageUnit && item.usageUnit !== item.unit));
+              const activeIsSub = cartState.isSubUnit;
+              const activeUnitLabel = activeIsSub ? (item.usageUnit || 'ชิ้น') : item.unit;
+
+              const totalPieces = !isEquip ? item.currentStock * ratio + (item.openPackRemainder || 0) : 0;
+              const isAvailable = isEquip
+                ? item.currentStock > 0
+                : item.currentStock > 0 || (item.openPackRemainder || 0) > 0;
+
+              const hasImage = !!item.imageUrl && !brokenImages[item.id];
 
               return (
                 <div
                   key={item.id}
-                  className={`rounded-3xl p-4 border transition-all flex flex-col justify-between gap-3 shadow-xs ${
+                  className={`rounded-3xl border overflow-hidden transition-all duration-200 flex flex-col justify-between shadow-xs hover:shadow-lg ${
                     cartState.inCart
                       ? isEquip
-                        ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-400 dark:border-blue-700 ring-2 ring-blue-400/20'
-                        : 'bg-teal-50/70 dark:bg-teal-950/40 border-teal-400 dark:border-teal-700 ring-2 ring-teal-400/20'
-                      : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 hover:shadow-md'
+                        ? 'bg-blue-50/60 dark:bg-blue-950/30 border-blue-400 dark:border-blue-700 ring-2 ring-blue-400/20'
+                        : 'bg-teal-50/60 dark:bg-teal-950/30 border-teal-400 dark:border-teal-700 ring-2 ring-teal-400/20'
+                      : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800'
                   }`}
                 >
-                  {/* Card Header & Badge */}
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between gap-2">
+                  {/* Card Visual Header: Real Photo or Stylized Illustration */}
+                  <div className="relative w-full h-44 bg-slate-100 dark:bg-slate-850 overflow-hidden flex items-center justify-center group/img">
+                    {/* Top Left: Type Badge */}
+                    <div className="absolute top-2.5 left-2.5 z-10">
                       <span
-                        className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                        className={`text-[10px] font-black px-2 py-0.5 rounded-lg uppercase tracking-wider backdrop-blur-md shadow-xs ${
                           isEquip
-                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300'
-                            : 'bg-teal-100 text-teal-800 dark:bg-teal-900/60 dark:text-teal-300'
+                            ? 'bg-blue-600/90 text-white'
+                            : 'bg-teal-600/90 text-white'
                         }`}
                       >
-                        {isEquip ? '🔧 ครุภัณฑ์ยืม-คืน' : '📦 วัสดุสิ้นเปลือง'}
+                        {isEquip ? '🔧 ครุภัณฑ์' : '📦 วัสดุสิ้นเปลือง'}
                       </span>
+                    </div>
 
-                      {/* Stock Badge */}
+                    {/* Top Right: Stock Status Badge */}
+                    <div className="absolute top-2.5 right-2.5 z-10">
                       {isAvailable ? (
-                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                          <span>พร้อม: {item.currentStock} {item.unit}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-emerald-500/90 text-white backdrop-blur-md shadow-xs flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                          <span>
+                            {item.currentStock} {item.unit}
+                          </span>
                         </span>
                       ) : (
-                        <span className="text-[10px] font-bold text-rose-500 flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                          <span>หมดชั่วคราว</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-rose-500/90 text-white backdrop-blur-md shadow-xs">
+                          หมดชั่วคราว
                         </span>
                       )}
                     </div>
 
-                    {/* Title & Code */}
-                    <div>
-                      <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white line-clamp-2 leading-snug">
-                        {item.name}
-                      </h4>
-                      <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-                        รหัส: {item.code} {item.brand ? `• ยี่ห้อ: ${item.brand}` : ''}
-                      </p>
-                    </div>
-
-                    {/* Location Tag */}
-                    {(item.storageLocation || item.location) && (
-                      <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1 line-clamp-1">
-                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span>{item.storageLocation?.name || item.location}</span>
+                    {/* Image Render */}
+                    {hasImage ? (
+                      <>
+                        <img
+                          src={formatImageUrl(item.imageUrl)}
+                          alt={item.name}
+                          referrerPolicy="no-referrer"
+                          loading="lazy"
+                          onError={() =>
+                            setBrokenImages((prev) => ({ ...prev, [item.id]: true }))
+                          }
+                          onClick={() => setPreviewItem(item)}
+                          className="w-full h-full object-contain p-2 hover:scale-105 transition-transform duration-300 cursor-pointer bg-white dark:bg-slate-900"
+                        />
+                        {/* Hover Zoom Pill */}
+                        <button
+                          type="button"
+                          onClick={() => setPreviewItem(item)}
+                          className="absolute inset-0 bg-black/30 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white gap-1.5 text-xs font-bold cursor-pointer"
+                        >
+                          <ZoomIn className="w-4 h-4" />
+                          <span>ดูรูปขนาดใหญ่</span>
+                        </button>
+                      </>
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900">
+                        {isEquip ? (
+                          <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-1 shadow-xs">
+                            <Package className="w-6 h-6" />
+                          </div>
+                        ) : (
+                          <div className="w-12 h-12 rounded-2xl bg-teal-100 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center mb-1 shadow-xs">
+                            <Boxes className="w-6 h-6" />
+                          </div>
+                        )}
+                        <span className="text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400">
+                          {item.code}
+                        </span>
+                        <span className="text-[10px] text-slate-400 line-clamp-1">
+                          {item.category?.name || 'พัสดุห้องปฏิบัติการ'}
+                        </span>
                       </div>
                     )}
 
-                    {/* Remainder Notes */}
-                    {!isEquip && (item.openPackRemainder || 0) > 0 && (
-                      <div className="text-[10px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded-md font-semibold border border-amber-200 dark:border-amber-900/60 w-fit">
-                        มีเศษเปิดซอง: {item.openPackRemainder} {item.usageUnit || 'ชิ้น'}
+                    {/* Bottom Location Overlay Tag */}
+                    {(item.storageLocation || item.location) && (
+                      <div className="absolute bottom-2 left-2 right-2 z-10 flex items-center justify-between px-2.5 py-1 rounded-xl bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-medium">
+                        <div className="flex items-center gap-1 truncate">
+                          <MapPin className="w-3 h-3 text-teal-400 shrink-0" />
+                          <span className="truncate">
+                            {item.storageLocation?.name || item.location}
+                          </span>
+                        </div>
+                        {item.storageLocation?.roomName && (
+                          <span className="text-[9px] text-slate-300 shrink-0 ml-1">
+                            {item.storageLocation.roomName}
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
 
-                  {/* Quantity Controller / Add Button */}
-                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                    {/* Subunit toggle for Consumables */}
-                    {canSubUnit && cartState.inCart && (
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-slate-400 font-medium">หน่วยที่เบิก:</span>
-                        <div className="inline-flex rounded-lg p-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                          <button
-                            type="button"
-                            onClick={() => handleSetItemQuantity(item, cartState.quantity, false)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
-                              !cartState.isSubUnit
-                                ? 'bg-teal-600 text-white shadow-xs'
-                                : 'text-slate-600 dark:text-slate-300'
-                            }`}
-                          >
-                            {item.unit}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleSetItemQuantity(item, cartState.quantity, true)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
-                              cartState.isSubUnit
-                                ? 'bg-teal-600 text-white shadow-xs'
-                                : 'text-slate-600 dark:text-slate-300'
-                            }`}
-                          >
-                            {item.usageUnit} (ย่อย)
-                          </button>
-                        </div>
+                  {/* Card Body: Info & Controllers */}
+                  <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                    <div className="space-y-2">
+                      {/* Name & Brand */}
+                      <div>
+                        <h4
+                          className="text-xs sm:text-sm font-black text-slate-900 dark:text-white line-clamp-2 leading-snug cursor-pointer hover:text-teal-600 transition"
+                          title={item.name}
+                          onClick={() => hasImage && setPreviewItem(item)}
+                        >
+                          {item.name}
+                        </h4>
+                        <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                          รหัส: {item.code} {item.brand ? `• ยี่ห้อ: ${item.brand}` : ''}
+                        </p>
                       </div>
-                    )}
 
-                    {cartState.inCart ? (
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 bg-white dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-700 p-1 flex-1 shadow-xs">
-                          <button
-                            type="button"
-                            onClick={() => handleSetItemQuantity(item, cartState.quantity - 1, cartState.isSubUnit)}
-                            className="w-7 h-7 rounded-xl flex items-center justify-center text-slate-500 hover:text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                          <input
-                            type="number"
-                            min="0"
-                            value={cartState.quantity}
-                            onChange={(e) => handleSetItemQuantity(item, parseInt(e.target.value, 10) || 0, cartState.isSubUnit)}
-                            className="w-12 text-center text-xs font-black bg-transparent text-slate-900 dark:text-white focus:outline-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleSetItemQuantity(item, cartState.quantity + 1, cartState.isSubUnit)}
-                            className="w-7 h-7 rounded-xl flex items-center justify-center text-slate-500 hover:text-teal-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
+                      {/* Subunit Controller: Shown directly on card whenever item supports subunits */}
+                      {hasSubUnit && (
+                        <div className="p-2 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 space-y-1.5">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-slate-600 dark:text-slate-300 font-bold flex items-center gap-1">
+                              <Layers className="w-3.5 h-3.5 text-teal-600" />
+                              <span>เลือกหน่วยเบิก:</span>
+                            </span>
+                            {ratio > 1 && (
+                              <span className="text-[10px] font-black text-teal-700 dark:text-teal-300 bg-teal-100/80 dark:bg-teal-950/80 px-1.5 py-0.5 rounded-md border border-teal-200 dark:border-teal-800">
+                                1 {item.unit} = {ratio} {item.usageUnit || 'ชิ้น'}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* 2-Way Pill Switcher (กล่อง vs ชิ้นย่อย) */}
+                          <div className="grid grid-cols-2 gap-1 p-0.5 rounded-xl bg-slate-200/70 dark:bg-slate-700/60 text-xs font-bold">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSubUnit(item, false)}
+                              className={`py-1 px-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition text-center cursor-pointer ${
+                                !activeIsSub
+                                  ? 'bg-teal-600 text-white shadow-xs'
+                                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                              }`}
+                            >
+                              {item.unit} (เต็ม)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSubUnit(item, true)}
+                              className={`py-1 px-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition text-center cursor-pointer ${
+                                activeIsSub
+                                  ? 'bg-teal-600 text-white shadow-xs'
+                                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                              }`}
+                            >
+                              {item.usageUnit || 'ชิ้น'} (ย่อย)
+                            </button>
+                          </div>
+
+                          {/* Live Remainder Note */}
+                          <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pt-0.5">
+                            <span>คลัง: {item.currentStock} {item.unit}</span>
+                            {(item.openPackRemainder || 0) > 0 && (
+                              <span className="text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-950/50 px-1 rounded">
+                                เศษเปิดแล้ว: {item.openPackRemainder} {item.usageUnit || 'ชิ้น'}
+                              </span>
+                            )}
+                          </div>
                         </div>
+                      )}
 
+                      {/* Equipment Details Note */}
+                      {isEquip && (
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                          <span>พร้อมให้ยืม: {item.currentStock} {item.unit}</span>
+                          {item.model && <span className="font-mono">รุ่น: {item.model}</span>}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Quantity Controller / Add Button */}
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                      {cartState.inCart ? (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-[10px] font-bold">
+                            <span className="text-teal-700 dark:text-teal-300">
+                              อยู่ในตะกร้า ({activeUnitLabel})
+                            </span>
+                            <span className="text-slate-400">
+                              {cartState.quantity} {activeUnitLabel}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-700 p-1 flex-1 shadow-xs">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleSetItemQuantity(
+                                    item,
+                                    cartState.quantity - 1,
+                                    cartState.isSubUnit
+                                  )
+                                }
+                                className="w-7 h-7 rounded-xl flex items-center justify-center text-slate-500 hover:text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                              >
+                                <Minus className="w-3.5 h-3.5" />
+                              </button>
+                              <input
+                                type="number"
+                                min="0"
+                                value={cartState.quantity}
+                                onChange={(e) =>
+                                  handleSetItemQuantity(
+                                    item,
+                                    parseInt(e.target.value, 10) || 0,
+                                    cartState.isSubUnit
+                                  )
+                                }
+                                className="w-12 text-center text-xs font-black bg-transparent text-slate-900 dark:text-white focus:outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleSetItemQuantity(
+                                    item,
+                                    cartState.quantity + 1,
+                                    cartState.isSubUnit
+                                  )
+                                }
+                                className="w-7 h-7 rounded-xl flex items-center justify-center text-slate-500 hover:text-teal-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleSetItemQuantity(item, 0)}
+                              className="p-2 text-slate-400 hover:text-rose-500 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                              title="ลบออกจากตะกร้า"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
                         <button
                           type="button"
-                          onClick={() => handleSetItemQuantity(item, 0)}
-                          className="p-2 text-slate-400 hover:text-rose-500 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
-                          title="ลบออกจากตะกร้า"
+                          disabled={!isAvailable || readOnly}
+                          onClick={() => handleSetItemQuantity(item, 1, activeIsSub)}
+                          className={`w-full py-2.5 px-3 rounded-2xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
+                            isAvailable
+                              ? isEquip
+                                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20'
+                                : 'bg-teal-600 hover:bg-teal-700 text-white shadow-teal-600/20'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                          }`}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Plus className="w-4 h-4" />
+                          <span>
+                            {isAvailable
+                              ? `+ หยิบใส่ตะกร้า (${activeUnitLabel})`
+                              : 'ของหมดในคลัง'}
+                          </span>
                         </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={!isAvailable || readOnly}
-                        onClick={() => handleSetItemQuantity(item, 1, false)}
-                        className={`w-full py-2 px-3 rounded-2xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
-                          isAvailable
-                            ? isEquip
-                              ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20'
-                              : 'bg-teal-600 hover:bg-teal-700 text-white shadow-teal-600/20'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
-                        }`}
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>{isAvailable ? '+ หยิบใส่ตะกร้า' : 'ของหมดในคลัง'}</span>
-                      </button>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -653,14 +918,16 @@ export default function BorrowCatalogBrowser({
         <div className="sticky bottom-4 z-20">
           <div className="p-3 sm:p-4 rounded-3xl bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-md text-white border border-slate-800 shadow-2xl flex items-center justify-between gap-4 max-w-4xl mx-auto">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-teal-500 text-white flex items-center justify-center font-bold">
+              <div className="w-10 h-10 rounded-2xl bg-teal-500 text-white flex items-center justify-center font-bold shadow-md">
                 <ShoppingCart className="w-5 h-5" />
               </div>
               <div>
                 <div className="text-xs font-black flex items-center gap-2">
-                  <span>ตะกร้าพัสดุ: <strong>{totalCartCount}</strong> รายการ</span>
+                  <span>
+                    ตะกร้าพัสดุ: <strong>{totalCartCount}</strong> รายการ
+                  </span>
                   <span className="text-[10px] text-teal-300 font-normal">
-                    (ครุภัณฑ์ {totalBorrowQty} ชิ้น • วัสดุ {totalReqQty} หน่วย)
+                    (ครุภัณฑ์ {totalBorrowQty} ชิ้น • วัสดุ {totalReqQty} รายการ)
                   </span>
                 </div>
                 <span className="text-[10px] text-slate-400 block">
@@ -673,9 +940,10 @@ export default function BorrowCatalogBrowser({
               <button
                 type="button"
                 onClick={() => setIsCartDrawerOpen(true)}
-                className="px-3 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-500 text-white transition cursor-pointer shadow-md flex items-center gap-1.5"
               >
-                ตรวจทานตะกร้า
+                <span>ตรวจทานตะกร้า ({totalCartCount})</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -729,9 +997,27 @@ export default function BorrowCatalogBrowser({
                             key={b.itemId}
                             className="p-3 rounded-2xl bg-blue-50/50 dark:bg-slate-800/60 border border-blue-200/80 dark:border-blue-900/40 flex items-center justify-between gap-3 text-xs"
                           >
-                            <div>
-                              <div className="font-bold text-slate-900 dark:text-white">{it?.name || b.itemId}</div>
-                              <span className="text-[10px] text-slate-400">รหัส: {it?.code || '-'}</span>
+                            <div className="flex items-center gap-3">
+                              {it?.imageUrl ? (
+                                <img
+                                  src={formatImageUrl(it.imageUrl)}
+                                  alt={it.name}
+                                  referrerPolicy="no-referrer"
+                                  className="w-10 h-10 object-contain rounded-lg bg-white dark:bg-slate-900 border p-0.5"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-950 flex items-center justify-center text-blue-600">
+                                  <Package className="w-5 h-5" />
+                                </div>
+                              )}
+                              <div>
+                                <div className="font-bold text-slate-900 dark:text-white">
+                                  {it?.name || b.itemId}
+                                </div>
+                                <span className="text-[10px] text-slate-400">
+                                  รหัส: {it?.code || '-'}
+                                </span>
+                              </div>
                             </div>
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-blue-900 dark:text-blue-200 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-xl border border-blue-200 dark:border-blue-800">
@@ -741,6 +1027,7 @@ export default function BorrowCatalogBrowser({
                                 type="button"
                                 onClick={() => it && handleSetItemQuantity(it, 0)}
                                 className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg"
+                                title="ลบรายการนี้"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -764,17 +1051,42 @@ export default function BorrowCatalogBrowser({
                       .filter((r) => r.itemId && Number(r.quantity) > 0)
                       .map((r) => {
                         const it = consumablesList.find((x) => x.id === r.itemId);
-                        const unitLabel = r.isSubUnit ? (it?.usageUnit || 'ชิ้น') : (it?.unit || 'หน่วย');
+                        const unitLabel = r.isSubUnit
+                          ? it?.usageUnit || 'ชิ้น'
+                          : it?.unit || 'หน่วย';
                         return (
                           <div
                             key={r.itemId}
                             className="p-3 rounded-2xl bg-teal-50/50 dark:bg-slate-800/60 border border-teal-200/80 dark:border-teal-900/40 flex items-center justify-between gap-3 text-xs"
                           >
-                            <div>
-                              <div className="font-bold text-slate-900 dark:text-white">{it?.name || r.itemId}</div>
-                              <span className="text-[10px] text-slate-400">
-                                รหัส: {it?.code || '-'} {r.isSubUnit ? `(เบิกหน่วยย่อย)` : ''}
-                              </span>
+                            <div className="flex items-center gap-3">
+                              {it?.imageUrl ? (
+                                <img
+                                  src={formatImageUrl(it.imageUrl)}
+                                  alt={it.name}
+                                  referrerPolicy="no-referrer"
+                                  className="w-10 h-10 object-contain rounded-lg bg-white dark:bg-slate-900 border p-0.5"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-lg bg-teal-100 dark:bg-teal-950 flex items-center justify-center text-teal-600">
+                                  <Boxes className="w-5 h-5" />
+                                </div>
+                              )}
+                              <div>
+                                <div className="font-bold text-slate-900 dark:text-white">
+                                  {it?.name || r.itemId}
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-[10px] text-slate-400">
+                                    รหัส: {it?.code || '-'}
+                                  </span>
+                                  {r.isSubUnit && (
+                                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                                      หน่วยย่อย
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-teal-900 dark:text-teal-200 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-xl border border-teal-200 dark:border-teal-800">
@@ -784,6 +1096,7 @@ export default function BorrowCatalogBrowser({
                                 type="button"
                                 onClick={() => it && handleSetItemQuantity(it, 0)}
                                 className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg"
+                                title="ลบรายการนี้"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -798,25 +1111,75 @@ export default function BorrowCatalogBrowser({
 
             {/* Modal Footer */}
             <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => {
-                  onUpdateBorrowItems([{ itemId: '', quantity: '' }]);
-                  onUpdateRequisitionItems([{ itemId: '', quantity: '', isSubUnit: false, requestedUnit: '' }]);
-                  setIsCartDrawerOpen(false);
-                }}
-                className="text-xs text-rose-500 hover:underline font-bold"
-              >
-                ล้างตะกร้าทั้งหมด
-              </button>
-
+              <div className="text-xs text-slate-500">
+                รวมทั้งหมด: <strong className="text-slate-900 dark:text-white">{totalCartCount}</strong> รายการ
+              </div>
               <button
                 type="button"
                 onClick={() => setIsCartDrawerOpen(false)}
-                className="px-5 py-2.5 rounded-2xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold transition hover:opacity-90 cursor-pointer"
               >
-                เสร็จสิ้น / กลับสู่หน้าฟอร์ม
+                บันทึกและกลับไปเลือกต่อ
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Image Preview Modal (Lightbox) */}
+      {previewItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-xl w-full overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono">
+                  {previewItem.code}
+                </span>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white mt-1">
+                  {previewItem.name}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewItem(null)}
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6 bg-slate-50 dark:bg-slate-950 flex items-center justify-center min-h-[300px] max-h-[500px]">
+              {previewItem.imageUrl ? (
+                <img
+                  src={formatImageUrl(previewItem.imageUrl)}
+                  alt={previewItem.name}
+                  referrerPolicy="no-referrer"
+                  className="max-h-[450px] max-w-full object-contain rounded-2xl shadow-md"
+                />
+              ) : (
+                <div className="text-center text-slate-400">
+                  <Camera className="w-12 h-12 mx-auto mb-2 opacity-40" />
+                  <p className="text-xs">ไม่มีรูปถ่ายในระบบ</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
+              <div className="flex items-center gap-1.5">
+                <MapPin className="w-4 h-4 text-teal-500" />
+                <span>{previewItem.storageLocation?.name || previewItem.location || 'ไม่ระบุที่เก็บ'}</span>
+              </div>
+              {previewItem.imageUrl && (
+                <a
+                  href={previewItem.imageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-teal-600 hover:underline font-bold"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>ดูไฟล์ต้นฉบับ</span>
+                </a>
+              )}
             </div>
           </div>
         </div>

@@ -618,7 +618,7 @@ export default function BorrowCatalogBrowser({
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-2.5 sm:gap-4">
             {displayItems.map((item) => {
               const cartState = getItemCartState(item);
               const isEquip = item.type === 'EQUIPMENT';
@@ -637,7 +637,7 @@ export default function BorrowCatalogBrowser({
               return (
                 <div
                   key={item.id}
-                  className={`rounded-3xl border overflow-hidden transition-all duration-200 flex flex-col justify-between shadow-xs hover:shadow-lg ${
+                  className={`rounded-2xl sm:rounded-3xl border overflow-hidden transition-all duration-200 flex flex-col justify-between shadow-xs hover:shadow-lg ${
                     cartState.inCart
                       ? isEquip
                         ? 'bg-blue-50/60 dark:bg-blue-950/30 border-blue-400 dark:border-blue-700 ring-2 ring-blue-400/20'
@@ -646,32 +646,32 @@ export default function BorrowCatalogBrowser({
                   }`}
                 >
                   {/* Card Visual Header: Real Photo or Stylized Illustration */}
-                  <div className="relative w-full h-44 bg-slate-100 dark:bg-slate-850 overflow-hidden flex items-center justify-center group/img">
+                  <div className="relative w-full h-32 sm:h-40 md:h-44 bg-slate-100 dark:bg-slate-850 overflow-hidden flex items-center justify-center group/img">
                     {/* Top Left: Type Badge */}
-                    <div className="absolute top-2.5 left-2.5 z-10">
+                    <div className="absolute top-2 left-2 sm:top-2.5 sm:left-2.5 z-10">
                       <span
-                        className={`text-[10px] font-black px-2 py-0.5 rounded-lg uppercase tracking-wider backdrop-blur-md shadow-xs ${
+                        className={`text-[9px] sm:text-[10px] font-black px-1.5 sm:px-2 py-0.5 rounded-md sm:rounded-lg uppercase tracking-wider backdrop-blur-md shadow-xs ${
                           isEquip
                             ? 'bg-blue-600/90 text-white'
                             : 'bg-teal-600/90 text-white'
                         }`}
                       >
-                        {isEquip ? '🔧 ครุภัณฑ์' : '📦 วัสดุสิ้นเปลือง'}
+                        {isEquip ? '🔧 ครุภัณฑ์' : '📦 วัสดุ'}
                       </span>
                     </div>
 
                     {/* Top Right: Stock Status Badge */}
-                    <div className="absolute top-2.5 right-2.5 z-10">
+                    <div className="absolute top-2 right-2 sm:top-2.5 sm:right-2.5 z-10">
                       {isAvailable ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-emerald-500/90 text-white backdrop-blur-md shadow-xs flex items-center gap-1">
+                        <span className="text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md sm:rounded-lg bg-emerald-500/90 text-white backdrop-blur-md shadow-xs flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
                           <span>
                             {item.currentStock} {item.unit}
                           </span>
                         </span>
                       ) : (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-rose-500/90 text-white backdrop-blur-md shadow-xs">
-                          หมดชั่วคราว
+                        <span className="text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md sm:rounded-lg bg-rose-500/90 text-white backdrop-blur-md shadow-xs">
+                          หมด
                         </span>
                       )}
                     </div>
@@ -697,40 +697,40 @@ export default function BorrowCatalogBrowser({
                           className="absolute inset-0 bg-black/30 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white gap-1.5 text-xs font-bold cursor-pointer"
                         >
                           <ZoomIn className="w-4 h-4" />
-                          <span>ดูรูปขนาดใหญ่</span>
+                          <span className="hidden sm:inline">ดูรูปขนาดใหญ่</span>
                         </button>
                       </>
                     ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900">
+                      <div className="w-full h-full flex flex-col items-center justify-center p-2 sm:p-4 text-center bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900">
                         {isEquip ? (
-                          <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-1 shadow-xs">
-                            <Package className="w-6 h-6" />
+                          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-1 shadow-xs">
+                            <Package className="w-5 h-5 sm:w-6 sm:h-6" />
                           </div>
                         ) : (
-                          <div className="w-12 h-12 rounded-2xl bg-teal-100 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center mb-1 shadow-xs">
-                            <Boxes className="w-6 h-6" />
+                          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-teal-100 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center mb-1 shadow-xs">
+                            <Boxes className="w-5 h-5 sm:w-6 sm:h-6" />
                           </div>
                         )}
-                        <span className="text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400">
+                        <span className="text-[10px] sm:text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400 truncate max-w-full px-1">
                           {item.code}
                         </span>
-                        <span className="text-[10px] text-slate-400 line-clamp-1">
-                          {item.category?.name || 'พัสดุห้องปฏิบัติการ'}
+                        <span className="text-[9px] sm:text-[10px] text-slate-400 line-clamp-1">
+                          {item.category?.name || 'พัสดุห้องแล็บ'}
                         </span>
                       </div>
                     )}
 
                     {/* Bottom Location Overlay Tag */}
                     {(item.storageLocation || item.location) && (
-                      <div className="absolute bottom-2 left-2 right-2 z-10 flex items-center justify-between px-2.5 py-1 rounded-xl bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-medium">
+                      <div className="absolute bottom-1.5 left-1.5 right-1.5 sm:bottom-2 sm:left-2 sm:right-2 z-10 flex items-center justify-between px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl bg-slate-900/80 backdrop-blur-md text-white text-[9px] sm:text-[10px] font-medium">
                         <div className="flex items-center gap-1 truncate">
-                          <MapPin className="w-3 h-3 text-teal-400 shrink-0" />
+                          <MapPin className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-teal-400 shrink-0" />
                           <span className="truncate">
                             {item.storageLocation?.name || item.location}
                           </span>
                         </div>
                         {item.storageLocation?.roomName && (
-                          <span className="text-[9px] text-slate-300 shrink-0 ml-1">
+                          <span className="text-[8px] sm:text-[9px] text-slate-300 shrink-0 ml-1 hidden xs:inline">
                             {item.storageLocation.roomName}
                           </span>
                         )}
@@ -739,54 +739,54 @@ export default function BorrowCatalogBrowser({
                   </div>
 
                   {/* Card Body: Info & Controllers */}
-                  <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                  <div className="p-2.5 sm:p-4 space-y-2 sm:space-y-3 flex-1 flex flex-col justify-between">
                     <div className="space-y-2">
                       {/* Name & Brand */}
                       <div>
                         <h4
-                          className="text-xs sm:text-sm font-black text-slate-900 dark:text-white line-clamp-2 leading-snug cursor-pointer hover:text-teal-600 transition"
+                          className="text-xs sm:text-sm font-black text-slate-900 dark:text-white line-clamp-2 leading-tight sm:leading-snug cursor-pointer hover:text-teal-600 transition"
                           title={item.name}
                           onClick={() => hasImage && setPreviewItem(item)}
                         >
                           {item.name}
                         </h4>
-                        <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-                          รหัส: {item.code} {item.brand ? `• ยี่ห้อ: ${item.brand}` : ''}
+                        <p className="text-[10px] sm:text-[11px] text-slate-400 font-mono mt-0.5 truncate">
+                          รหัส: {item.code} {item.brand ? `• ${item.brand}` : ''}
                         </p>
                       </div>
 
                       {/* Subunit Controller: Shown directly on card whenever item supports subunits */}
                       {hasSubUnit && (
-                        <div className="p-2 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 space-y-1.5">
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="text-slate-600 dark:text-slate-300 font-bold flex items-center gap-1">
-                              <Layers className="w-3.5 h-3.5 text-teal-600" />
-                              <span>เลือกหน่วยเบิก:</span>
+                        <div className="p-1.5 sm:p-2 rounded-xl sm:rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 space-y-1 sm:space-y-1.5">
+                          <div className="flex items-center justify-between text-[10px] sm:text-[11px] gap-1">
+                            <span className="text-slate-600 dark:text-slate-300 font-bold flex items-center gap-1 truncate">
+                              <Layers className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-teal-600 shrink-0" />
+                              <span className="truncate">หน่วย:</span>
                             </span>
                             {ratio > 1 && (
-                              <span className="text-[10px] font-black text-teal-700 dark:text-teal-300 bg-teal-100/80 dark:bg-teal-950/80 px-1.5 py-0.5 rounded-md border border-teal-200 dark:border-teal-800">
-                                1 {item.unit} = {ratio} {item.usageUnit || 'ชิ้น'}
+                              <span className="text-[9px] sm:text-[10px] font-black text-teal-700 dark:text-teal-300 bg-teal-100/80 dark:bg-teal-950/80 px-1 sm:px-1.5 py-0.2 rounded-md border border-teal-200 dark:border-teal-800 shrink-0">
+                                1:{ratio}
                               </span>
                             )}
                           </div>
 
                           {/* 2-Way Pill Switcher (กล่อง vs ชิ้นย่อย) */}
-                          <div className="grid grid-cols-2 gap-1 p-0.5 rounded-xl bg-slate-200/70 dark:bg-slate-700/60 text-xs font-bold">
+                          <div className="grid grid-cols-2 gap-0.5 sm:gap-1 p-0.5 rounded-lg sm:rounded-xl bg-slate-200/70 dark:bg-slate-700/60 text-xs font-bold">
                             <button
                               type="button"
                               onClick={() => handleToggleSubUnit(item, false)}
-                              className={`py-1 px-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition text-center cursor-pointer ${
+                              className={`py-1 px-1 rounded-md sm:rounded-lg text-[9px] sm:text-[11px] font-bold transition text-center cursor-pointer truncate ${
                                 !activeIsSub
                                   ? 'bg-teal-600 text-white shadow-xs'
                                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
                               }`}
                             >
-                              {item.unit} (เต็ม)
+                              {item.unit}
                             </button>
                             <button
                               type="button"
                               onClick={() => handleToggleSubUnit(item, true)}
-                              className={`py-1 px-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition text-center cursor-pointer ${
+                              className={`py-1 px-1 rounded-md sm:rounded-lg text-[9px] sm:text-[11px] font-bold transition text-center cursor-pointer truncate ${
                                 activeIsSub
                                   ? 'bg-teal-600 text-white shadow-xs'
                                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
@@ -797,11 +797,11 @@ export default function BorrowCatalogBrowser({
                           </div>
 
                           {/* Live Remainder Note */}
-                          <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pt-0.5">
-                            <span>คลัง: {item.currentStock} {item.unit}</span>
+                          <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 pt-0.5 truncate">
+                            <span className="truncate">คลัง: {item.currentStock} {item.unit}</span>
                             {(item.openPackRemainder || 0) > 0 && (
-                              <span className="text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-950/50 px-1 rounded">
-                                เศษเปิดแล้ว: {item.openPackRemainder} {item.usageUnit || 'ชิ้น'}
+                              <span className="text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-950/50 px-1 rounded shrink-0 ml-1">
+                                เศษ: {item.openPackRemainder}
                               </span>
                             )}
                           </div>
@@ -810,28 +810,28 @@ export default function BorrowCatalogBrowser({
 
                       {/* Equipment Details Note */}
                       {isEquip && (
-                        <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
-                          <span>พร้อมให้ยืม: {item.currentStock} {item.unit}</span>
-                          {item.model && <span className="font-mono">รุ่น: {item.model}</span>}
+                        <div className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                          <span>พร้อม: {item.currentStock} {item.unit}</span>
+                          {item.model && <span className="font-mono truncate ml-1">{item.model}</span>}
                         </div>
                       )}
                     </div>
 
                     {/* Quantity Controller / Add Button */}
-                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <div className="pt-1.5 sm:pt-2 border-t border-slate-100 dark:border-slate-800">
                       {cartState.inCart ? (
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between text-[10px] font-bold">
-                            <span className="text-teal-700 dark:text-teal-300">
-                              อยู่ในตะกร้า ({activeUnitLabel})
+                        <div className="space-y-1 sm:space-y-1.5">
+                          <div className="flex items-center justify-between text-[9px] sm:text-[10px] font-bold">
+                            <span className="text-teal-700 dark:text-teal-300 truncate">
+                              ในตะกร้า ({activeUnitLabel})
                             </span>
-                            <span className="text-slate-400">
+                            <span className="text-slate-400 shrink-0">
                               {cartState.quantity} {activeUnitLabel}
                             </span>
                           </div>
 
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-700 p-1 flex-1 shadow-xs">
+                          <div className="flex items-center justify-between gap-1 sm:gap-2">
+                            <div className="flex items-center gap-0.5 sm:gap-1.5 bg-white dark:bg-slate-850 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-700 p-0.5 sm:p-1 flex-1 shadow-xs justify-between">
                               <button
                                 type="button"
                                 onClick={() =>
@@ -841,9 +841,9 @@ export default function BorrowCatalogBrowser({
                                     cartState.isSubUnit
                                   )
                                 }
-                                className="w-7 h-7 rounded-xl flex items-center justify-center text-slate-500 hover:text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                                className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl flex items-center justify-center text-slate-500 hover:text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                               >
-                                <Minus className="w-3.5 h-3.5" />
+                                <Minus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                               </button>
                               <input
                                 type="number"
@@ -856,7 +856,7 @@ export default function BorrowCatalogBrowser({
                                     cartState.isSubUnit
                                   )
                                 }
-                                className="w-12 text-center text-xs font-black bg-transparent text-slate-900 dark:text-white focus:outline-none"
+                                className="w-8 sm:w-12 text-center text-[11px] sm:text-xs font-black bg-transparent text-slate-900 dark:text-white focus:outline-none"
                               />
                               <button
                                 type="button"
@@ -867,19 +867,19 @@ export default function BorrowCatalogBrowser({
                                     cartState.isSubUnit
                                   )
                                 }
-                                className="w-7 h-7 rounded-xl flex items-center justify-center text-slate-500 hover:text-teal-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                                className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl flex items-center justify-center text-slate-500 hover:text-teal-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                               >
-                                <Plus className="w-3.5 h-3.5" />
+                                <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                               </button>
                             </div>
 
                             <button
                               type="button"
                               onClick={() => handleSetItemQuantity(item, 0)}
-                              className="p-2 text-slate-400 hover:text-rose-500 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                              className="p-1 sm:p-2 text-slate-400 hover:text-rose-500 rounded-lg sm:rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer shrink-0"
                               title="ลบออกจากตะกร้า"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             </button>
                           </div>
                         </div>
@@ -888,7 +888,7 @@ export default function BorrowCatalogBrowser({
                           type="button"
                           disabled={!isAvailable || readOnly}
                           onClick={() => handleSetItemQuantity(item, 1, activeIsSub)}
-                          className={`w-full py-2.5 px-3 rounded-2xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
+                          className={`w-full py-2 sm:py-2.5 px-2 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer shadow-xs ${
                             isAvailable
                               ? isEquip
                                 ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20'
@@ -896,11 +896,11 @@ export default function BorrowCatalogBrowser({
                               : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
                           }`}
                         >
-                          <Plus className="w-4 h-4" />
-                          <span>
+                          <Plus className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">
                             {isAvailable
-                              ? `+ หยิบใส่ตะกร้า (${activeUnitLabel})`
-                              : 'ของหมดในคลัง'}
+                              ? `+ หยิบ (${activeUnitLabel})`
+                              : 'ของหมด'}
                           </span>
                         </button>
                       )}

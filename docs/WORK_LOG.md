@@ -17,6 +17,17 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-01] ปรับปรุงเลย์เอาต์แคตตาล็อกพัสดุบนโทรศัพท์มือถือเป็น 2 คอลัมน์ (Mobile 2-Column Grid)
+- **หมวดหมู่**: UI / Responsive Layout / Mobile Experience / Visual Catalog
+- **สิ่งที่ดำเนินการ**:
+  - ปรับ Grid การแสดงผลการ์ดพัสดุใน `src/components/borrow/BorrowCatalogBrowser.tsx` จากเดิม 1 คอลัมน์บนมือถือ ให้แสดงผลเป็น **2 คอลัมน์ (`grid-cols-2`)** ทันทีเมื่อเปิดบนสมาร์ตโฟน
+  - ปรับระยะห่าง `gap-2.5 sm:gap-4` และความสูงกล่องรูปภาพ `h-32 sm:h-40 md:h-44` ให้ได้สัดส่วนสวยงามพอดีหน้าจอโทรศัพท์
+  - ปรับขนาดตัวอักษร, ป้ายกำกับสต็อก, ป้ายประเภทพัสดุ, และปุ่มสลับหน่วยนับย่อย (`[ กล่อง ]` ↔ `[ ชิ้น ]`) ให้กะทัดรัด ไม่ล้นกรอบ และกดง่ายด้วยนิ้วสัมผัส
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `src/components/borrow/BorrowCatalogBrowser.tsx`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit` ผ่าน 0 ข้อผิดพลาด, `npm run librarian:audit` ผ่าน 100%
+
 ### [2026-11-01] อัปเดต Environment Variables บน Vercel Production และสั่ง Redeploy สำเร็จ 100%
 - **หมวดหมู่**: Vercel Deployment / Cloud Environment Synchronization / Production Verification
 - **สิ่งที่ดำเนินการ**:

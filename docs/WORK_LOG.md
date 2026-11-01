@@ -17,6 +17,30 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-01] จัดเตรียมภาพถ่ายพัสดุไดคัทสตูดิโอชุดนำร่อง (Pilot Batch) และสร้างห้องตรวจรับภาพก่อนนำขึ้น Google Drive
+- **หมวดหมู่**: Product Photography / Isolated Studio Cut-outs / Admin Sandbox / Image Inspection
+- **สิ่งที่ดำเนินการ**:
+  - สำรวจพัสดุที่ยังไม่มีรูปภาพในระบบ พบทั้งสิ้น 112 รายการ (ครุภัณฑ์ 46 รายการ, วัสดุสิ้นเปลือง 66 รายการ)
+  - จัดเตรียมและเรนเดอร์ภาพถ่ายสตูดิโอไดคัทแบบ Isolated Clean White พื้นหลังขาวสะอาด ปราศจากสิ่งรบกวน สำหรับ 3 รายการนำร่อง:
+    1. `EQ-AED-0001` (เครื่องกระตุกไฟฟ้าหัวใจ AED-500 พร้อมแผ่นแพด)
+    2. `EQ-BED-0001` (เตียงนอนไฟฟ้าพยาบาล เบาะไวนิลสีฟ้า ราวสไลด์ และรีโมต)
+    3. `CS-ALC-PAD` (แผ่นสำลีชุบแอลกอฮอล์ 70% กล่องบรรจุ 200 ซอง พร้อมซองฟอยล์และตัวอย่างแผ่นสำลี)
+  - นำไฟล์ภาพจัดเก็บไว้ใน `public/catalog-preview/` และในไดเรกทอรี Artifacts เพื่อให้ผู้ใช้สามารถตรวจสอบความคมชัดและลักษณะภาพ
+  - สร้างหน้าจอห้องตรวจรับภาพถ่ายพัสดุแบบ Interactive: `src/app/admin/sandbox/images/page.tsx`:
+    - มีโหมดทดสอบฉากหลัง 3 แบบ: พื้นขาว, พื้นมืด, และลายตารางหมากรุก (Checkerboard) เพื่อพิสูจน์ความเนียนของขอบภาพไดคัท
+    - มีระบบ Lightbox Zoom ขยายภาพใหญ่ระดับสตูดิโอ
+    - บันทึกสถานะ "รอท่านตรวจรับ" ยังไม่มีการอัปโหลดขึ้น Google Drive หรือแก้ไขตารางฐานข้อมูลจริงจนกว่าจะได้รับความเห็นชอบ
+  - เชื่อมโยงเมนูใหม่เข้าสู่หน้า Sandbox Hub (`src/app/admin/sandbox/page.tsx`) และ `LIBRARY_CATALOG.md`
+- **ไฟล์สำคัญที่สร้างและแก้ไข**:
+  - `src/app/admin/sandbox/images/page.tsx` (NEW)
+  - `public/catalog-preview/aed.jpg` (NEW)
+  - `public/catalog-preview/hospital-bed.jpg` (NEW)
+  - `public/catalog-preview/alcohol-pad.jpg` (NEW)
+  - `src/app/admin/sandbox/page.tsx`
+  - `LIBRARY_CATALOG.md`
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit` ผ่าน 0 ข้อผิดพลาด, `npm run librarian:audit` ผ่าน 100% (37 หน้าจอ UI)
+
 ### [2026-11-01] ปรับปรุงเลย์เอาต์แคตตาล็อกพัสดุบนโทรศัพท์มือถือเป็น 2 คอลัมน์ (Mobile 2-Column Grid)
 - **หมวดหมู่**: UI / Responsive Layout / Mobile Experience / Visual Catalog
 - **สิ่งที่ดำเนินการ**:

@@ -17,6 +17,18 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-01] อัปเดต Environment Variables บน Vercel Production และสั่ง Redeploy สำเร็จ 100%
+- **หมวดหมู่**: Vercel Deployment / Cloud Environment Synchronization / Production Verification
+- **สิ่งที่ดำเนินการ**:
+  - ใช้สิทธิ์ Vercel API เชื่อมต่อโปรเจกต์ `nursing-lab-system` (`prj_OigV6a1lNU7B3NQmNhiLFAyph4FP`) ภายใต้ทีม `kaw-klong`
+  - อัปเดตตัวแปรสภาพแวดล้อม (`DATABASE_URL` และ `DIRECT_URL`) ครอบคลุมทั้ง `production`, `preview` และ `development` ไปยังฐานข้อมูล Supabase ตัวใหม่ (`galzjfuixuunkfamzczo`)
+  - สั่ง Trigger Redeployment บน Production (`dpl_39uqkiMEV1QjKZDLALMo3BZ1ZSnH`) สำเร็จด้วยสถานะ `READY`
+  - ทดสอบยิง Health Check และ Endpoint ดึงตารางห้อง (`/api/external/room-schedules`) บน Production Domain (`https://nursing-lab-system.vercel.app`) สามารถดึงและประมวลผลข้อมูลจากฐานข้อมูลใหม่อย่างสมบูรณ์แบบ
+- **ไฟล์สำคัญที่แก้ไข**:
+  - `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100%
+
+
 ### [2026-11-01] เปิดใช้งาน Row Level Security (RLS) ครบทุก 35 ตารางบน Supabase ใหม่
 - **หมวดหมู่**: Database Security / Supabase RLS Hardening
 - **สิ่งที่ดำเนินการ**:

@@ -17,6 +17,27 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-01] ปรับโฉม UI/UX แคตตาล็อกเบิก-ยืมพัสดุสไตล์ Boutique Medical Storefront (Clean & Minimalist Redesign)
+- **หมวดหมู่**: Module 6: Borrow, Requisitions & Dispense Center / UI/UX Engineering
+- **สิ่งที่ดำเนินการ**:
+  - **ยุบรวมแบนเนอร์ 4 ชั้นเป็น Unified Command & Time-Window Studio Card เดียว**:
+    - เปลี่ยนแถบเลือกวัน-เวลา (Time-Conflict Checker) เป็นแถบด้านบนสุดที่บางเฉียบและสะอาดตา พร้อมปุ่มลัดช่วงเวลาที่ไฮไลต์ปุ่มที่กำลังเลือก (`activePreset`)
+    - เปลี่ยนกล่องชุดฝึกหัตถการสำเร็จรูป (1-Click Practice Kits) จากกล่องใหญ่ที่กินพื้นที่หน้าจอ มาเป็น **Collapsible Drawer (`✨ ชุดหัตถการ`)** ที่กดกางออก/พับเก็บได้ตามต้องการ
+  - **ออกแบบการ์ดพัสดุใหม่ (Clean Product Card)**:
+    - นำแถบสีดำบอกตู้เก็บที่เคยคาดทับด้านล่างของรูปภาพออก เพื่อให้เห็นรูปถ่ายพัสดุเต็มตา 100% บนสัดส่วน `aspect-[4/3]`
+    - ย้ายรหัสพัสดุและพิกัดตู้เก็บ (`📍 ตู้/ห้อง`) ลงมาจัดระเบียบในส่วนเนื้อหาการ์ด
+    - ปรับป้ายสถานะความพร้อมมุมขวาบนเป็น Floating Glass Pill และเมื่อกดเลือกสินค้าแล้วจะแสดงป้าย `✓ เลือกแล้ว X` มุมซ้ายบนอย่างชัดเจน
+  - **เปลี่ยน Checkbox แบบเดิมเป็น Interactive Filter Chips**:
+    - ปุ่มแคปซูล `📸 มีรูปจริง`, `✂️ แยกชิ้นได้`, `พร้อมใช้เท่านั้น` ที่กดสลับเปิด-ปิดได้ทันที
+  - **เพิ่มโหมดสลับมุมมองการแสดงผล 3 รูปแบบ (View Mode Switcher)**:
+    - 🖼️ **Gallery View (การ์ดมาตรฐาน 4 คอลัมน์)**: เน้นดูรูปภาพชัดเจน
+    - ⚡ **Compact Grid (ตารางกะทัดรัด 6 คอลัมน์)**: เห็นรายการพัสดุจำนวนมากในหน้าจอเดียว
+    - 📋 **List View (มุมมองรายการแนวนอน)**: เหมาะสำหรับกวาดสายตาเช็กรหัสและกดบวก/ลบจำนวนอย่างรวดเร็ว
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/components/borrow/BorrowCatalogBrowser.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCatalogBrowser.tsx)
+  - [`src/app/admin/sandbox/catalog/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/catalog/page.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100% (บังคับใช้คำว่า "นิสิต" และ UTF-8 Integrity)
+
 ### [2026-11-01] พัฒนาระบบเช็กสต็อกและช่วงวันเวลาซ้อนทับแบบเรียลไทม์ (Time-Conflict Booking Checker) ในแคตตาล็อกเบิก-ยืมพัสดุ
 - **หมวดหมู่**: Module 6: Borrow, Requisitions & Dispense Center / Visual Catalog / Real-time Availability
 - **สิ่งที่ดำเนินการ**:

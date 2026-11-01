@@ -191,39 +191,20 @@ export default function AdminCatalogSandboxPage() {
           </div>
         </div>
 
-        {/* Informational Sandbox Banner */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-teal-500/10 via-cyan-500/10 to-indigo-500/10 p-4 border border-teal-200/80 dark:border-teal-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-700 dark:text-teal-300 flex items-center justify-center shrink-0 mt-0.5">
-              <Eye className="w-4 h-4" />
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
-                <span>พื้นที่ทดสอบแคตตาล็อกเบิก-ยืมพัสดุ (Interactive Playground)</span>
-                <span className="text-[11px] font-normal px-2 py-0.5 rounded-md bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300">
-                  {simulatedRole === 'STUDENT' ? '🎓 มุมมองนิสิต' : '👨‍🏫 มุมมองอาจารย์'}
-                </span>
-              </p>
-              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                ท่านสามารถทดสอบการดูรูปถ่ายพัสดุจริง (คลิกเพื่อขยายดูรูปใหญ่ได้), เลือกระบุหน่วยย่อย/กล่องบนการ์ดพัสดุ, กดเพิ่มชุดฝึกทักษะ 1-Click และดูโครงสร้าง JSON ก่อนส่งเข้า API ได้โดยปลอดภัย ไม่กระทบคลังจริง
-              </p>
-
-              {/* Quick Info Badges */}
-              <div className="flex items-center gap-2 pt-1 flex-wrap text-[11px]">
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 font-bold">
-                  📸 มีรูปภาพจริงพร้อมแสดง 57 รายการ (คลิกที่รูปเพื่อซูม)
-                </span>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-bold">
-                  ✂️ มีระบบหน่วยย่อย 82 รายการ (สลับ กล่อง ↔ ชิ้น ได้อิสระ)
-                </span>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-bold">
-                  ⚡ เช็กสต็อกและวันซ้อนทับแบบเรียลไทม์ (Time-Conflict Checker)
-                </span>
-              </div>
-            </div>
+        {/* Compact Informational Sandbox Strip */}
+        <div className="rounded-2xl bg-slate-50/90 dark:bg-slate-900/80 px-4 py-2.5 border border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-200">
+              <Eye className="w-3.5 h-3.5 text-teal-600" />
+              <span>โหมดทดสอบแคตตาล็อก ({simulatedRole === 'STUDENT' ? '🎓 มุมมองนิสิต' : '👨‍🏫 มุมมองอาจารย์'})</span>
+            </span>
+            <span className="text-slate-300 dark:text-slate-700 hidden sm:inline">|</span>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+              คลิกที่รูปเพื่อซูม • สลับโหมดแสดงผล (การ์ด / ตารางย่อ / รายการ) ได้ที่มุมขวาบนของตารางค้นหา
+            </span>
           </div>
-          <div className="shrink-0 flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400 self-start sm:self-center">
-            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+          <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+            <ShieldCheck className="w-3.5 h-3.5" />
             <span>คลังจริงปลอดภัย 100%</span>
           </div>
         </div>

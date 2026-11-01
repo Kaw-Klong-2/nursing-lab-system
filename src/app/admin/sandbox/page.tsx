@@ -20,7 +20,6 @@ import {
   ArrowLeft,
   ChevronRight,
   Sliders,
-  Camera,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 
@@ -88,27 +87,6 @@ export default function AdminSandboxHubPage() {
         'คำนวณวันกำหนดส่งคืนตรงตามปฏิทินภาคการศึกษา',
         'แนะนำครุภัณฑ์ทดแทนเมื่อสต็อกไม่เพียงพอ',
         'คัดแยกสิทธิ์คำตอบอัตโนมัติตามบทบาท (Role-Aware Context)',
-      ],
-      readyForReview: true,
-    },
-    {
-      id: 'image-cutout-review',
-      title: 'ห้องตรวจรับภาพถ่ายพัสดุไดคัท (Studio Cut-out)',
-      titleEn: 'Catalog Image Quality Inspection & Review',
-      description:
-        'ตรวจเช็กคุณภาพภาพถ่ายพัสดุและเวชภัณฑ์ทางการแพทย์ที่ผ่านการไดคัทพื้นหลังแบบ Isolated Studio White ทดสอบสลับฉากหลังมืด/ขาว และอนุมัติก่อนส่งขึ้น Google Drive',
-      href: '/admin/sandbox/images',
-      icon: Camera,
-      color: 'purple',
-      badge: 'รอการตรวจรับ (3 ภาพตัวอย่าง)',
-      badgeColor: 'bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 border-purple-200 dark:border-purple-800',
-      gradient: 'from-purple-500/10 via-pink-500/5 to-transparent',
-      borderColor: 'hover:border-purple-500/50',
-      features: [
-        'เครื่องกระตุกไฟฟ้าหัวใจ AED-500 พร้อมแผ่นแพด',
-        'เตียงคนไข้ระบบไฟฟ้าราวสไลด์พยาบาล',
-        'แผ่นสำลีชุบแอลกอฮอล์ Alcohol Prep Pads 70%',
-        'โหมดทดสอบฉากหลัง: ขาว, มืด, ตารางหมากรุก',
       ],
       readyForReview: true,
     },

@@ -17,6 +17,16 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-01] ยกเลิกการทดลองไดคัทภาพพัสดุและล้างไฟล์ทดลองออกจากระบบตามคำสั่งผู้ใช้
+- **หมวดหมู่**: Cleanup / Rollback / Asset Image Processing
+- **สิ่งที่ดำเนินการ**:
+  - ยกเลิกการทดลองไดคัทและสร้างภาพพัสดุตามคำสั่งของผู้ใช้ ("ไม่เอาอ่ะไม่เนี่ยนเลย ยกเลิกๆ")
+  - ลบหน้าจอทดลอง [`src/app/admin/sandbox/images`](file:///d:/LAB-system/src/app/admin/sandbox/images) และการ์ดนำทางใน [`src/app/admin/sandbox/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/page.tsx) ออกทั้งหมด
+  - ล้างโฟลเดอร์ไฟล์ภาพพรีวิว `public/catalog-preview/` และสคริปต์ทดสอบใน `scripts/` ออกจากระบบ
+  - ตรวจสอบความถูกต้องของโค้ด: `npx tsc --noEmit` ผ่าน 0 ข้อผิดพลาด
+  - ฐานข้อมูลจริง `Item` และไฟล์จริงใน Google Drive ยังคงปลอดภัยและไม่มีการแตะต้องใดๆ ทั้งสิ้น
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100% (บังคับใช้คำว่า "นิสิต" และ UTF-8 Integrity)
+
 ### [2026-11-01] ไดคัทภาพถ่ายพัสดุจริงเดิมในแล็ป (57 รายการ) ด้วย AI IS-Net/U2-Net พร้อมระบบสลับเทียบก่อน-หลัง
 - **หมวดหมู่**: Asset Image Processing / Background Removal / Admin Sandbox Review
 - **สิ่งที่ดำเนินการ**:

@@ -17,6 +17,18 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-02] ปรับปรุงประสิทธิภาพรองรับการเข้าใช้งานพร้อมกัน (High Concurrency & Tab-Aware Polling Guard)
+- **หมวดหมู่**: Core Performance & Traffic Optimization / Background Polling / Concurrency Guard
+- **สิ่งที่ดำเนินการ**:
+  - **กำจัดภาระ Polling ไม่จำเป็นสำหรับนิสิต**: ใน [`src/components/layout/Sidebar.tsx`](file:///d:/LAB-system/src/components/layout/Sidebar.tsx) ปรับให้ยิงดึงยอดคอยอนุมัติ (`/api/dashboard`) เฉพาะผู้มีสิทธิ์อนุมัติเท่านั้น (`isApproverRole`) ส่วนนิสิตทั่วไป (`USER`) จะไม่ยิงดึงโดยสิ้นเชิง ลด Traffic ลงได้มหาศาลเมื่อนิสิตล็อกอินพร้อมกันหลักร้อยคน
+  - **ขยายระยะเวลา Polling สถิติแดชบอร์ด**: ปรับความถี่จาก 15 วินาที เป็น 30 วินาที เพื่อให้ตรงกับ In-Memory Cache TTL ของเซิร์ฟเวอร์
+  - **Tab Visibility Guard**: ทั้งใน [`Sidebar.tsx`](file:///d:/LAB-system/src/components/layout/Sidebar.tsx) และ [`NotificationBell.tsx`](file:///d:/LAB-system/src/components/notifications/NotificationBell.tsx) จะตรวจสอบ `document.visibilityState === 'visible'` ก่อน polling หากผู้ใช้พับแท็บหรือสลับหน้าต่าง จะหยุดยิงทันที และจะ fetch ทันทีเมื่อสลับกลับมา (`focus` / `visibilitychange`)
+  - **ผลลัพธ์**: ประหยัด Bandwidth และ Connection Pool ของ PostgreSQL ป้องกันเซิร์ฟเวอร์หน่วงเมื่อนิสิตเข้าใช้งานพร้อมกัน
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/components/layout/Sidebar.tsx`](file:///d:/LAB-system/src/components/layout/Sidebar.tsx)
+  - [`src/components/notifications/NotificationBell.tsx`](file:///d:/LAB-system/src/components/notifications/NotificationBell.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100% (ไม่พบคำต้องห้าม, UTF-8 สมบูรณ์)
+
 ### [2026-11-02] พัฒนาระบบแผงสไลด์ด้านข้างและสนามจำลองขั้นตอนการเบิก-ยืมครบวงจร (Slide-Over Drawer & End-to-End Checkout Simulator)
 - **หมวดหมู่**: Module 6: Borrow, Requisitions & Dispense Center / Visual Catalog / Checkout Simulation
 - **สิ่งที่ดำเนินการ**:

@@ -287,15 +287,22 @@ export default function NotificationBell() {
     }
 
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       fetchNotifications();
-    }, 15000); // Check every 15s for instant alerts
+    }, 15000);
 
-    const handleFocus = () => fetchNotifications();
+    const handleFocus = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchNotifications();
+      }
+    };
     window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
     };
   }, [currentUser?.id, isOfficer, isAdmin]);
 

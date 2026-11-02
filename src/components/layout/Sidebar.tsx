@@ -50,8 +50,16 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
   });
   const [isSwitcherOpen, setIsSwitcherOpen] = useState<boolean>(false);
 
+  const isApproverRole = isOfficer || isApprover || isAdmin || isTeacher;
+
   useEffect(() => {
+    // Regular students (USER) do not have approval badges - skip polling to prevent server overload
+    if (!isApproverRole) return;
+
     async function fetchStats() {
+      // Only fetch when the tab is currently visible
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+
       try {
         const res = await fetch('/api/dashboard');
         if (res.ok) {
@@ -67,10 +75,20 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
         // silent fail
       }
     }
+
     fetchStats();
-    const interval = setInterval(fetchStats, 15000);
-    return () => clearInterval(interval);
-  }, []);
+    // Poll every 30s for staff (matches server in-memory cache TTL)
+    const interval = setInterval(fetchStats, 30000);
+    const onVisibilityOrFocus = () => fetchStats();
+    window.addEventListener('focus', onVisibilityOrFocus);
+    document.addEventListener('visibilitychange', onVisibilityOrFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', onVisibilityOrFocus);
+    };
+  }, [isApproverRole]);
 
   const userRole = currentUser?.role || 'USER';
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Package,
   Boxes,
@@ -306,16 +306,30 @@ export default function BorrowCatalogBrowser({
   const [selectedConflictModalItem, setSelectedConflictModalItem] =
     useState<ItemAvailability | null>(null);
 
+  // In-Memory Cache to prevent redundant API calls when toggling date presets
+  const availabilityCacheRef = useRef<Record<string, Record<string, ItemAvailability>>>({});
+
   // Sync with prop changes if external form updates
   useEffect(() => {
     if (initialBorrowDate) setBorrowDate(initialBorrowDate);
     if (initialReturnDate) setExpectedReturnDate(initialReturnDate);
   }, [initialBorrowDate, initialReturnDate]);
 
-  // Fetch real-time availability on date changes
+  // Fetch real-time availability on date changes (with caching + 400ms debounce)
   useEffect(() => {
     let isMounted = true;
     if (!borrowDate || !expectedReturnDate) return;
+
+    // Check in-memory cache first (0 network calls when toggling back and forth)
+    const cacheKey = `${borrowDate}_${expectedReturnDate}_${simulateConflict ? '1' : '0'}`;
+    if (availabilityCacheRef.current[cacheKey]) {
+      setAvailabilityMap(availabilityCacheRef.current[cacheKey]);
+      setIsCheckingAvailability(false);
+      return;
+    }
+
+    // Only fire if full ISO datetime is provided (e.g. YYYY-MM-DDTHH:mm is 16 chars)
+    if (borrowDate.length < 16 || expectedReturnDate.length < 16) return;
 
     const timer = setTimeout(async () => {
       try {
@@ -329,14 +343,16 @@ export default function BorrowCatalogBrowser({
         );
         if (res.ok && isMounted) {
           const data = await res.json();
-          setAvailabilityMap(data.availabilityMap || {});
+          const map = data.availabilityMap || {};
+          availabilityCacheRef.current[cacheKey] = map;
+          setAvailabilityMap(map);
         }
       } catch (err) {
         console.error('Failed to fetch borrow availability:', err);
       } finally {
         if (isMounted) setIsCheckingAvailability(false);
       }
-    }, 250);
+    }, 400);
 
     return () => {
       isMounted = false;

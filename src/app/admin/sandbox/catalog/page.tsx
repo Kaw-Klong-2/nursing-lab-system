@@ -35,6 +35,8 @@ export default function AdminCatalogSandboxPage() {
   const [equipmentList, setEquipmentList] = useState<CatalogItem[]>([]);
   const [consumablesList, setConsumablesList] = useState<CatalogItem[]>([]);
   const [practiceKits, setPracticeKits] = useState<PracticeKitComponent[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [instructors, setInstructors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,10 +59,12 @@ export default function AdminCatalogSandboxPage() {
         setLoading(true);
         setError(null);
 
-        const [eqRes, conRes, kitsRes] = await Promise.all([
+        const [eqRes, conRes, kitsRes, coursesRes, instructorsRes] = await Promise.all([
           fetch('/api/items?type=EQUIPMENT&compact=true'),
           fetch('/api/items?type=CONSUMABLE&compact=true'),
           fetch('/api/kits'),
+          fetch('/api/courses?compact=true'),
+          fetch('/api/users?role=INSTRUCTOR'),
         ]);
 
         if (!eqRes.ok || !conRes.ok) {
@@ -70,11 +74,15 @@ export default function AdminCatalogSandboxPage() {
         const eqData = await eqRes.json();
         const conData = await conRes.json();
         const kitsData = kitsRes.ok ? await kitsRes.json() : [];
+        const coursesData = coursesRes.ok ? await coursesRes.json() : [];
+        const instructorsData = instructorsRes.ok ? await instructorsRes.json() : [];
 
         if (isMounted) {
           setEquipmentList(Array.isArray(eqData) ? eqData : []);
           setConsumablesList(Array.isArray(conData) ? conData : []);
           setPracticeKits(Array.isArray(kitsData) ? kitsData : []);
+          setCourses(Array.isArray(coursesData) ? coursesData : []);
+          setInstructors(Array.isArray(instructorsData) ? instructorsData : []);
         }
       } catch (err: any) {
         console.error('Failed to load catalog data:', err);
@@ -254,6 +262,10 @@ export default function AdminCatalogSandboxPage() {
         practiceKits={practiceKits}
         borrowItems={borrowItems}
         requisitionItems={requisitionItems}
+        courses={courses}
+        instructors={instructors}
+        isSimulation={true}
+        simulatedRole={simulatedRole}
         onUpdateBorrowItems={setBorrowItems}
         onUpdateRequisitionItems={setRequisitionItems}
         readOnly={false}

@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { formatImageUrl } from '@/lib/image-helper';
 import { formatBangkokDateTime } from '@/lib/date-time-utils';
+import BorrowCheckoutDrawer, { CourseItem, InstructorItem } from './BorrowCheckoutDrawer';
 
 export interface CatalogItem {
   id: string;
@@ -141,6 +142,11 @@ interface BorrowCatalogBrowserProps {
   initialBorrowDate?: string;
   initialReturnDate?: string;
   onDatesChange?: (dates: { borrowDate: string; expectedReturnDate: string }) => void;
+  courses?: CourseItem[];
+  instructors?: InstructorItem[];
+  isSimulation?: boolean;
+  simulatedRole?: 'STUDENT' | 'TEACHER';
+  onSubmitRealRequest?: (payload: any) => Promise<{ success: boolean; data?: any; error?: string }>;
 }
 
 function getMedicalCategoryMeta(categoryName?: string, itemType?: string) {
@@ -250,6 +256,11 @@ export default function BorrowCatalogBrowser({
   initialBorrowDate,
   initialReturnDate,
   onDatesChange,
+  courses = [],
+  instructors = [],
+  isSimulation = true,
+  simulatedRole = 'STUDENT',
+  onSubmitRealRequest,
 }: BorrowCatalogBrowserProps) {
   const [activeTab, setActiveTab] = useState<'ALL' | 'EQUIPMENT' | 'CONSUMABLE'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -930,33 +941,40 @@ export default function BorrowCatalogBrowser({
 
           {/* Category Horizontal Pills + Interactive Filter Chips */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80">
-            {/* Category Pills */}
+            {/* Category Pills with Medical Icons */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
               <button
                 type="button"
                 onClick={() => setSelectedCategory('ALL')}
-                className={`px-3 py-1 rounded-full text-xs font-bold transition shrink-0 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-full text-xs font-bold transition shrink-0 cursor-pointer flex items-center gap-1.5 ${
                   selectedCategory === 'ALL'
                     ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-2xs'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200/80'
                 }`}
               >
-                ทุกหมวดหมู่
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>ทุกหมวดหมู่</span>
               </button>
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition shrink-0 cursor-pointer ${
-                    selectedCategory === cat.id
-                      ? 'bg-teal-600 text-white font-bold shadow-2xs'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200/80'
-                  }`}
-                >
-                  {cat.name} <span className="opacity-60 text-[10px]">({cat.count})</span>
-                </button>
-              ))}
+              {categories.map((cat) => {
+                const meta = getMedicalCategoryMeta(cat.name);
+                const CatIcon = meta.icon;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setSelectedCategory(cat.id)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                      selectedCategory === cat.id
+                        ? 'bg-teal-600 text-white font-bold shadow-2xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200/80'
+                    }`}
+                  >
+                    <CatIcon className="w-3.5 h-3.5 opacity-80" />
+                    <span>{cat.name}</span>
+                    <span className="opacity-60 text-[10px]">({cat.count})</span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Modern Interactive Filter Chips (Replacing old Checkboxes) */}
@@ -1554,220 +1572,25 @@ export default function BorrowCatalogBrowser({
         </div>
       )}
 
-      {/* 4. Cart Review Drawer Modal */}
-      {isCartDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-xl w-full max-h-[85vh] flex flex-col overflow-hidden">
-            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
-              <div className="flex items-center gap-2.5">
-                <span className="p-2 rounded-xl bg-teal-600 text-white shadow-xs">
-                  <ShoppingCart className="w-4 h-4" />
-                </span>
-                <div>
-                  <h3 className="text-sm font-black text-slate-900 dark:text-white">
-                    ตะกร้าพัสดุที่เลือกไว้ ({totalCartCount} รายการ)
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    ช่วงเวลา: {borrowDate.replace('T', ' ')} ถึง {expectedReturnDate.replace('T', ' ')}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCartDrawerOpen(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
-              {borrowItems.filter((b) => b.itemId && Number(b.quantity) > 0).length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Package className="w-3.5 h-3.5" />
-                    <span>ครุภัณฑ์ (ยืมใช้งานแล้วต้องส่งคืน)</span>
-                  </h4>
-
-                  <div className="space-y-2">
-                    {borrowItems
-                      .filter((b) => b.itemId && Number(b.quantity) > 0)
-                      .map((b) => {
-                        const eqItem = equipmentList.find((it) => it.id === b.itemId);
-                        if (!eqItem) return null;
-                        const avail = availabilityMap[eqItem.id];
-                        const hasExceeded =
-                          avail !== undefined && Number(b.quantity) > avail.availableNow;
-
-                        return (
-                          <div
-                            key={b.itemId}
-                            className={`p-3 rounded-2xl border flex items-center justify-between gap-3 ${
-                              hasExceeded
-                                ? 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800'
-                                : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-700/80'
-                            }`}
-                          >
-                            <div className="flex-1 min-w-0">
-                              <span className="text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400">
-                                {eqItem.code}
-                              </span>
-                              <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                                {eqItem.name}
-                              </h5>
-                              {hasExceeded ? (
-                                <p className="text-[10px] text-rose-600 font-bold flex items-center gap-1 mt-0.5">
-                                  <AlertTriangle className="w-3 h-3" />
-                                  <span>
-                                    เกินจำนวนที่ว่างในช่วงเวลานี้ (ว่าง {avail.availableNow}{' '}
-                                    {eqItem.unit})
-                                  </span>
-                                </p>
-                              ) : (
-                                <p className="text-[10px] text-slate-400">
-                                  {eqItem.storageLocation?.name || eqItem.location || 'คลังพัสดุ'}
-                                </p>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-1 bg-white dark:bg-slate-900 rounded-lg p-1 border border-slate-200 dark:border-slate-700">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleSetItemQuantity(eqItem, Number(b.quantity) - 1)
-                                  }
-                                  className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 flex items-center justify-center cursor-pointer text-xs"
-                                >
-                                  -
-                                </button>
-                                <span className="font-mono text-xs font-bold px-2">
-                                  {b.quantity} {eqItem.unit}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleSetItemQuantity(eqItem, Number(b.quantity) + 1)
-                                  }
-                                  className="w-6 h-6 rounded bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center cursor-pointer text-xs"
-                                >
-                                  +
-                                </button>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={() => handleSetItemQuantity(eqItem, 0)}
-                                className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg transition cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                </div>
-              )}
-
-              {requisitionItems.filter((r) => r.itemId && Number(r.quantity) > 0).length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-xs font-black text-teal-600 dark:text-teal-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Boxes className="w-3.5 h-3.5" />
-                    <span>วัสดุสิ้นเปลือง (เบิกใช้หมดไป)</span>
-                  </h4>
-
-                  <div className="space-y-2">
-                    {requisitionItems
-                      .filter((r) => r.itemId && Number(r.quantity) > 0)
-                      .map((r) => {
-                        const conItem = consumablesList.find((it) => it.id === r.itemId);
-                        if (!conItem) return null;
-
-                        return (
-                          <div
-                            key={r.itemId}
-                            className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between gap-3"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <span className="text-[10px] font-mono font-bold text-teal-600 dark:text-teal-400">
-                                {conItem.code}
-                              </span>
-                              <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                                {conItem.name}
-                              </h5>
-                              <p className="text-[10px] text-slate-400">
-                                หน่วยเบิก:{' '}
-                                {r.requestedUnit ||
-                                  (r.isSubUnit ? conItem.usageUnit : conItem.unit)}
-                              </p>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-1 bg-white dark:bg-slate-900 rounded-lg p-1 border border-slate-200 dark:border-slate-700">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleSetItemQuantity(
-                                      conItem,
-                                      Number(r.quantity) - 1,
-                                      r.isSubUnit
-                                    )
-                                  }
-                                  className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 flex items-center justify-center cursor-pointer text-xs"
-                                >
-                                  -
-                                </button>
-                                <span className="font-mono text-xs font-bold px-2">
-                                  {r.quantity} {r.requestedUnit}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleSetItemQuantity(
-                                      conItem,
-                                      Number(r.quantity) + 1,
-                                      r.isSubUnit
-                                    )
-                                  }
-                                  className="w-6 h-6 rounded bg-teal-600 hover:bg-teal-700 text-white flex items-center justify-center cursor-pointer text-xs"
-                                >
-                                  +
-                                </button>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={() => handleSetItemQuantity(conItem, 0, r.isSubUnit)}
-                                className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg transition cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <div className="text-xs text-slate-500">
-                รวมทั้งหมด:{' '}
-                <strong className="text-slate-900 dark:text-white">{totalCartCount}</strong> รายการ
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCartDrawerOpen(false)}
-                className="px-4 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold transition hover:opacity-90 cursor-pointer"
-              >
-                บันทึกและกลับไปเลือกต่อ
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 4. Slide-Over Cart & Checkout Drawer (แทน Popup Modal กลางจอ 100%) */}
+      <BorrowCheckoutDrawer
+        isOpen={isCartDrawerOpen}
+        onClose={() => setIsCartDrawerOpen(false)}
+        borrowItems={borrowItems}
+        requisitionItems={requisitionItems}
+        equipmentList={equipmentList}
+        consumablesList={consumablesList}
+        courses={courses}
+        instructors={instructors}
+        borrowDate={borrowDate}
+        expectedReturnDate={expectedReturnDate}
+        availabilityMap={availabilityMap}
+        onUpdateBorrowItems={onUpdateBorrowItems}
+        onUpdateRequisitionItems={onUpdateRequisitionItems}
+        isSimulation={isSimulation}
+        simulatedRole={simulatedRole}
+        onSubmitRealRequest={onSubmitRealRequest}
+      />
 
       {/* 5. Conflict Detail Modal */}
       {selectedConflictModalItem && (

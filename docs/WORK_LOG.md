@@ -17,6 +17,29 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-02] พัฒนาระบบแผงสไลด์ด้านข้างและสนามจำลองขั้นตอนการเบิก-ยืมครบวงจร (Slide-Over Drawer & End-to-End Checkout Simulator)
+- **หมวดหมู่**: Module 6: Borrow, Requisitions & Dispense Center / Visual Catalog / Checkout Simulation
+- **สิ่งที่ดำเนินการ**:
+  - สร้างคอมโพเนนต์ใหม่ [`src/components/borrow/BorrowCheckoutDrawer.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCheckoutDrawer.tsx):
+    - **ลบ Popup Modal กลางจอออก 100%**: เปลี่ยนเป็น **Slide-Over Side Drawer ขอบขวา** เปิด-ปิดนุ่มนวล ไม่บดบังแคตตาล็อก
+    - **สเต็ป 1 (Cart Review)**: ตรวจสอบรายการพัสดุ ปรับเพิ่ม/ลดจำนวน สลับหน่วยกล่อง-ชิ้น และเตือนคิวเวลาชนกัน
+    - **สเต็ป 2 (Checkout Form)**: ระบุข้อมูลจริงที่จะเชื่อมเข้าสู่ระบบจริง (ดึงรายวิชาจริงจาก `/api/courses`, ดึงรายชื่ออาจารย์จริงจาก `/api/users?role=INSTRUCTOR`, เลือกระดับความปลอดภัย 🧪 ฝึกกับหุ่น vs 🧑‍⚕️ ใช้กับคนจริง, ระบุวัตถุประสงค์พร้อมตัวเลือกด่วน)
+    - **สเต็ป 3 (Digital Slip & QR Code)**: ออกรหัสคำขอจำลอง (`BR-202611-SIM01`, `RQ-202611-SIM01`) พร้อมสลิปดิจิทัล
+    - **สเต็ป 4 (Interactive Role-Play Simulator)**: แถบจำลองบทบาทขั้นตอนหลังบ้าน (👨‍🏫 จำลองอาจารย์กดอนุมัติ -> 🧑‍💼 จำลองเจ้าหน้าที่สแกนจ่ายของ POS พร้อมรหัส Asset จริง -> 🔄 จำลองนิสิตส่งคืน)
+    - รองรับทั้งโหมดจำลอง (`isSimulation=true`) ใน Sandbox และพร้อมเปิดเชื่อมกับ API จริง ([`/api/requests/unified`](file:///d:/LAB-system/src/app/api/requests/unified/route.ts)) ในหน้าจริงได้ทันที
+  - อัปเกรดคอมโพเนนต์ [`src/components/borrow/BorrowCatalogBrowser.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCatalogBrowser.tsx):
+    - เชื่อมต่อ `BorrowCheckoutDrawer` แทนหน้าต่างโมดอลเดิม
+    - เพิ่มไอคอนทางการแพทย์ลงในแถบหมวดหมู่ (Visual Category Pills with Clinical Icons)
+  - อัปเดตหน้าจอ [`src/app/admin/sandbox/catalog/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/catalog/page.tsx):
+    - เพิ่มการดึงข้อมูล `courses` และ `instructors` จากระบบจริงมาส่งให้ Drawer
+- **ไฟล์สำคัญที่แก้ไข/สร้างใหม่**:
+  - [`src/components/borrow/BorrowCheckoutDrawer.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCheckoutDrawer.tsx) (สร้างใหม่)
+  - [`src/components/borrow/BorrowCatalogBrowser.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCatalogBrowser.tsx)
+  - [`src/app/admin/sandbox/catalog/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/catalog/page.tsx)
+  - [`LIBRARY_CATALOG.md`](file:///d:/LAB-system/LIBRARY_CATALOG.md)
+  - [`docs/WORK_LOG.md`](file:///d:/LAB-system/docs/WORK_LOG.md)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100% (บังคับใช้คำว่า "นิสิต" และ UTF-8 Integrity, 45 components)
+
 ### [2026-11-01] แก้ไขปัญหาปุ่มลอยตะกร้าพัสดุทับซ้อนกับปุ่ม AI Copilot (Floating Cart Button Overlap Fix)
 - **หมวดหมู่**: Module 6: Borrow, Requisitions & Dispense Center / Bugfix / UI Positioning
 - **สิ่งที่ดำเนินการ**:

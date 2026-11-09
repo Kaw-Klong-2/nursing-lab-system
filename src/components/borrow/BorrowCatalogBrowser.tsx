@@ -33,6 +33,16 @@ import {
   Grid3X3,
   List,
   FlaskConical,
+  Heart,
+  Flame,
+  Star,
+  ArrowUpDown,
+  Eye,
+  Tag,
+  Info,
+  Building2,
+  CheckCircle2,
+  Store,
 } from 'lucide-react';
 import { formatImageUrl } from '@/lib/image-helper';
 import { formatBangkokDateTime } from '@/lib/date-time-utils';
@@ -244,6 +254,39 @@ function getMedicalCategoryMeta(categoryName?: string, itemType?: string) {
   };
 }
 
+const TRENDING_TAGS = [
+  { label: '🔥 หุ่นจำลอง', query: 'หุ่น' },
+  { label: '🩹 ชุดทำแผล', query: 'แผล' },
+  { label: '💧 สารน้ำ/IV', query: 'น้ำเกลือ' },
+  { label: '💓 กู้ชีพ/AED', query: 'AED' },
+  { label: '🧴 แอลกอฮอล์/ฆ่าเชื้อ', query: 'แอลกอฮอล์' },
+  { label: '🛏️ เตียงผู้ป่วย', query: 'เตียง' },
+];
+
+function getEcommerceBadge(item: CatalogItem, hasValidImage: boolean) {
+  const cost = Number(item.unitCost) || 0;
+  const ratio = Number(item.conversionRatio) || 1;
+  if (cost >= 5000) {
+    return {
+      label: '🛡️ ครุภัณฑ์หลัก',
+      className: 'bg-indigo-600/95 text-white border-indigo-400/40',
+    };
+  }
+  if (hasValidImage) {
+    return {
+      label: '🔥 ยอดนิยม',
+      className: 'bg-gradient-to-r from-orange-500 to-rose-500 text-white border-rose-400/40',
+    };
+  }
+  if (item.type === 'CONSUMABLE' && (ratio > 1 || !!item.usageUnit)) {
+    return {
+      label: '⭐ แบ่งเบิกได้',
+      className: 'bg-amber-500/95 text-white border-amber-400/40',
+    };
+  }
+  return null;
+}
+
 export default function BorrowCatalogBrowser({
   equipmentList,
   consumablesList,
@@ -268,10 +311,57 @@ export default function BorrowCatalogBrowser({
   const [inStockOnly, setInStockOnly] = useState(false);
   const [hasPhotosOnly, setHasPhotosOnly] = useState(false);
   const [hasSubUnitOnly, setHasSubUnitOnly] = useState(false);
+  const [wishlistOnly, setWishlistOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<'RECOMMENDED' | 'STOCK_DESC' | 'NAME_ASC' | 'VALUE_DESC'>(
+    'RECOMMENDED'
+  );
+  const [showHeroBanner, setShowHeroBanner] = useState(true);
+  const [wishlistIds, setWishlistIds] = useState<string[]>([]);
+  const [cartToast, setCartToast] = useState<{
+    id: number;
+    message: string;
+    subtext?: string;
+  } | null>(null);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
   const [showKitsSection, setShowKitsSection] = useState(false);
   const [viewMode, setViewMode] = useState<'GALLERY' | 'COMPACT' | 'LIST'>('GALLERY');
   const [activePreset, setActivePreset] = useState<string>('MORNING');
+
+  // Load wishlist from localStorage on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const saved = window.localStorage.getItem('lab_catalog_wishlist');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setWishlistIds(parsed);
+      }
+    } catch {}
+  }, []);
+
+  const triggerToast = (message: string, subtext?: string) => {
+    const toastId = Date.now();
+    setCartToast({ id: toastId, message, subtext });
+    setTimeout(() => {
+      setCartToast((prev) => (prev?.id === toastId ? null : prev));
+    }, 2600);
+  };
+
+  const handleToggleWishlist = (item: CatalogItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setWishlistIds((prev) => {
+      const exists = prev.includes(item.id);
+      const next = exists ? prev.filter((id) => id !== item.id) : [...prev, item.id];
+      try {
+        window.localStorage.setItem('lab_catalog_wishlist', JSON.stringify(next));
+      } catch {}
+      triggerToast(
+        exists ? `นำ "${item.name}" ออกจากรายการโปรด` : `❤️ บันทึก "${item.name}" ลงรายการโปรดแล้ว`,
+        exists ? undefined : 'คลิกตัวกรอง "รายการโปรด" เพื่อดูเฉพาะพัสดุที่ใช้บ่อย'
+      );
+      return next;
+    });
+  };
 
   // Preference for items not yet in cart: cardUnitPreference[itemId] = boolean (isSubUnit)
   const [cardUnitPreference, setCardUnitPreference] = useState<Record<string, boolean>>({});
@@ -426,7 +516,7 @@ export default function BorrowCatalogBrowser({
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [equipmentList, consumablesList]);
 
-  // Combined & Filtered Items
+  // Combined, Filtered & Sorted Items (E-Commerce Engine)
   const filteredItems = useMemo(() => {
     let pool: CatalogItem[] = [];
     if (activeTab === 'ALL') {
@@ -437,7 +527,11 @@ export default function BorrowCatalogBrowser({
       pool = consumablesList;
     }
 
-    return pool.filter((item) => {
+    const filtered = pool.filter((item) => {
+      if (wishlistOnly && !wishlistIds.includes(item.id)) {
+        return false;
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchName = item.name.toLowerCase().includes(q);
@@ -446,7 +540,16 @@ export default function BorrowCatalogBrowser({
         const matchModel = (item.model || '').toLowerCase().includes(q);
         const matchLoc = (item.location || '').toLowerCase().includes(q);
         const matchStore = (item.storageLocation?.name || '').toLowerCase().includes(q);
-        if (!matchName && !matchCode && !matchBrand && !matchModel && !matchLoc && !matchStore) {
+        const matchCat = (item.category?.name || '').toLowerCase().includes(q);
+        if (
+          !matchName &&
+          !matchCode &&
+          !matchBrand &&
+          !matchModel &&
+          !matchLoc &&
+          !matchStore &&
+          !matchCat
+        ) {
           return false;
         }
       }
@@ -481,6 +584,36 @@ export default function BorrowCatalogBrowser({
 
       return true;
     });
+
+    const getEffectiveStock = (it: CatalogItem) => {
+      if (it.type === 'EQUIPMENT') {
+        const av = availabilityMap[it.id];
+        return av !== undefined ? av.availableNow : it.currentStock;
+      }
+      return it.currentStock;
+    };
+
+    return [...filtered].sort((a, b) => {
+      if (sortBy === 'STOCK_DESC') {
+        return getEffectiveStock(b) - getEffectiveStock(a);
+      }
+      if (sortBy === 'NAME_ASC') {
+        return a.name.localeCompare(b.name, 'th');
+      }
+      if (sortBy === 'VALUE_DESC') {
+        return (Number(b.unitCost) || 0) - (Number(a.unitCost) || 0);
+      }
+      // RECOMMENDED: Photo items first -> In-stock first -> Wishlist first -> Stock desc
+      const aHasImg = !!a.imageUrl && !brokenImages[a.id] ? 1 : 0;
+      const bHasImg = !!b.imageUrl && !brokenImages[b.id] ? 1 : 0;
+      if (bHasImg !== aHasImg) return bHasImg - aHasImg;
+
+      const aInStock = getEffectiveStock(a) > 0 ? 1 : 0;
+      const bInStock = getEffectiveStock(b) > 0 ? 1 : 0;
+      if (bInStock !== aInStock) return bInStock - aInStock;
+
+      return getEffectiveStock(b) - getEffectiveStock(a);
+    });
   }, [
     equipmentList,
     consumablesList,
@@ -490,6 +623,9 @@ export default function BorrowCatalogBrowser({
     inStockOnly,
     hasPhotosOnly,
     hasSubUnitOnly,
+    wishlistOnly,
+    wishlistIds,
+    sortBy,
     brokenImages,
     availabilityMap,
   ]);
@@ -570,6 +706,10 @@ export default function BorrowCatalogBrowser({
           updated[idx].quantity = targetQty;
         } else {
           updated.push({ itemId: item.id, quantity: targetQty, categoryId: item.categoryId });
+          triggerToast(
+            `✨ เพิ่ม "${item.name}" ลงตะกร้าแล้ว`,
+            `ยืมครุภัณฑ์ ${targetQty} ${item.unit}`
+          );
         }
       }
       onUpdateBorrowItems(updated.length > 0 ? updated : [{ itemId: '', quantity: '' }]);
@@ -593,6 +733,10 @@ export default function BorrowCatalogBrowser({
             requestedUnit: unitLabel,
             categoryId: item.categoryId,
           });
+          triggerToast(
+            `✨ เพิ่ม "${item.name}" ลงตะกร้าแล้ว`,
+            `เบิกวัสดุ ${targetQty} ${unitLabel}`
+          );
         }
       }
       onUpdateRequisitionItems(
@@ -668,11 +812,96 @@ export default function BorrowCatalogBrowser({
     hasPhotosOnly ||
     hasSubUnitOnly ||
     inStockOnly ||
+    wishlistOnly ||
     selectedCategory !== 'ALL' ||
     !!searchQuery.trim();
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 relative">
+      {/* Floating E-Commerce Micro-Toast Notification */}
+      {cartToast && (
+        <div className="fixed top-20 right-4 sm:right-6 z-50 animate-in slide-in-from-top-2 fade-in duration-200 pointer-events-none">
+          <div className="bg-slate-900/95 dark:bg-white/95 backdrop-blur-md text-white dark:text-slate-900 px-4 py-3 rounded-2xl shadow-2xl border border-white/10 dark:border-slate-200 flex items-center gap-3 max-w-sm">
+            <span className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-400 dark:text-teal-600 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-4 h-4" />
+            </span>
+            <div className="text-xs">
+              <div className="font-black leading-snug">{cartToast.message}</div>
+              {cartToast.subtext && (
+                <div className="text-[10px] opacity-75 mt-0.5">{cartToast.subtext}</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 0. E-Commerce Storefront Hero Showcase Banner */}
+      {showHeroBanner ? (
+        <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-slate-900 via-teal-950 to-indigo-950 text-white p-5 sm:p-6 shadow-lg border border-teal-500/20">
+          <div className="absolute -right-12 -top-12 w-56 h-56 rounded-full bg-teal-500/15 blur-3xl pointer-events-none" />
+          <div className="absolute right-24 -bottom-16 w-48 h-48 rounded-full bg-blue-500/15 blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-1.5 max-w-2xl">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/20 border border-teal-400/30 text-teal-300 text-[11px] font-bold">
+                <Store className="w-3.5 h-3.5" />
+                <span>NURSING LAB STOREFRONT • ศูนย์บริการเบิก-ยืมพัสดุออนไลน์</span>
+              </div>
+              <h2 className="text-base sm:text-xl font-black tracking-tight text-white">
+                เลือกช้อปครุภัณฑ์และเวชภัณฑ์ฝึกปฏิบัติการพยาบาลครบวงจร
+              </h2>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                ค้นหาง่ายเหมือนร้านค้าออนไลน์ เช็กคิวว่างตามช่วงเวลาจริง กดดูสเปกและตำแหน่งตู้จัดเก็บ
+                พร้อมบันทึก <strong className="text-rose-300">❤️ รายการโปรด</strong> สำหรับนิสิตที่ใช้ฝึกสอบ OSCE ประจำ
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {practiceKits.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowKitsSection(!showKitsSection)}
+                  className="px-4 py-2.5 rounded-2xl bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-black transition flex items-center gap-1.5 shadow-md cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>ดูเซ็ตหัตถการสำเร็จรูป ({practiceKits.length} ชุด)</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setHasPhotosOnly(true);
+                  setSortBy('RECOMMENDED');
+                }}
+                className="px-3.5 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/15 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Flame className="w-3.5 h-3.5 text-orange-400" />
+                <span>พัสดุยอดนิยมมีรูปจริง</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowHeroBanner(false)}
+                title="พับเก็บแบนเนอร์"
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/15 text-slate-300 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setShowHeroBanner(true)}
+            className="text-[11px] font-bold text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            <Store className="w-3.5 h-3.5" />
+            <span>แสดงแบนเนอร์แนะนำหน้าร้าน</span>
+          </button>
+        </div>
+      )}
+
       {/* 1. Unified Command & Time-Window Studio Card */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
         {/* Top Row: Time-Window Selector Bar (Sleek Minimalist Strip) */}
@@ -903,6 +1132,31 @@ export default function BorrowCatalogBrowser({
             </div>
           </div>
 
+          {/* Trending E-Commerce Search Tags (#QuickTags) */}
+          <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+            <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1 mr-1">
+              <Tag className="w-3 h-3 text-teal-500" />
+              <span>คำค้นยอดฮิต:</span>
+            </span>
+            {TRENDING_TAGS.map((tag) => {
+              const isTagActive = searchQuery.trim().toLowerCase() === tag.query.toLowerCase();
+              return (
+                <button
+                  key={tag.query}
+                  type="button"
+                  onClick={() => setSearchQuery(isTagActive ? '' : tag.query)}
+                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition cursor-pointer border ${
+                    isTagActive
+                      ? 'bg-teal-600 text-white border-teal-600 shadow-2xs'
+                      : 'bg-slate-50 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:border-teal-400 hover:text-teal-600'
+                  }`}
+                >
+                  {tag.label}
+                </button>
+              );
+            })}
+          </div>
+
           {/* Collapsible 1-Click Practice Kits Showcase */}
           {showKitsSection && practiceKits.length > 0 && (
             <div className="p-3.5 rounded-2xl bg-gradient-to-r from-teal-50/90 via-cyan-50/60 to-indigo-50/70 dark:from-teal-950/30 dark:via-slate-900 dark:to-indigo-950/30 border border-teal-200/80 dark:border-teal-900/60 space-y-2.5 animate-in fade-in duration-200">
@@ -993,8 +1247,28 @@ export default function BorrowCatalogBrowser({
               })}
             </div>
 
-            {/* Modern Interactive Filter Chips (Replacing old Checkboxes) */}
+            {/* Modern Interactive Filter Chips (including Wishlist ❤️) */}
             <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+              <button
+                type="button"
+                onClick={() => setWishlistOnly(!wishlistOnly)}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition flex items-center gap-1 cursor-pointer border ${
+                  wishlistOnly
+                    ? 'bg-rose-50 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border-rose-400 dark:border-rose-700 shadow-2xs'
+                    : 'bg-white dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-rose-300'
+                }`}
+              >
+                <Heart
+                  className={`w-3 h-3 ${
+                    wishlistOnly || wishlistIds.length > 0
+                      ? 'text-rose-500 fill-rose-500'
+                      : 'text-slate-400'
+                  }`}
+                />
+                <span>รายการโปรด ({wishlistIds.length})</span>
+                {wishlistOnly && <Check className="w-3 h-3 text-rose-600" />}
+              </button>
+
               <button
                 type="button"
                 onClick={() => setHasPhotosOnly(!hasPhotosOnly)}
@@ -1043,6 +1317,7 @@ export default function BorrowCatalogBrowser({
                     setHasPhotosOnly(false);
                     setHasSubUnitOnly(false);
                     setInStockOnly(false);
+                    setWishlistOnly(false);
                     setSelectedCategory('ALL');
                     setSearchQuery('');
                   }}
@@ -1057,10 +1332,10 @@ export default function BorrowCatalogBrowser({
         </div>
       </div>
 
-      {/* 2. Catalog Items Grid / List */}
+      {/* 2. Catalog Items Grid / List + E-Commerce Sorting Bar */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between text-xs text-slate-500 px-1">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 px-1">
+          <div className="flex items-center gap-2 flex-wrap">
             <span>
               แสดงพัสดุ <strong className="text-slate-900 dark:text-white">{filteredItems.length}</strong> รายการ
             </span>
@@ -1070,9 +1345,35 @@ export default function BorrowCatalogBrowser({
               </span>
             )}
           </div>
-          <span className="text-[11px] text-slate-400 hidden sm:inline">
-            คลิกที่รูปเพื่อขยายดูภาพใหญ่ • สลับหน่วย กล่อง/ชิ้น ได้บนการ์ด
-          </span>
+
+          {/* E-Commerce Sort Bar */}
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
+              <ArrowUpDown className="w-3 h-3" />
+              <span>เรียงตาม:</span>
+            </span>
+            <div className="inline-flex items-center bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+              {[
+                { id: 'RECOMMENDED', label: '🔥 แนะนำ' },
+                { id: 'STOCK_DESC', label: '📦 คงเหลือมาก-น้อย' },
+                { id: 'NAME_ASC', label: '🔤 ชื่อ ก-ฮ' },
+                { id: 'VALUE_DESC', label: '💎 มูลค่าสูง-ต่ำ' },
+              ].map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setSortBy(s.id as any)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                    sortBy === s.id
+                      ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {filteredItems.length === 0 ? (
@@ -1116,10 +1417,8 @@ export default function BorrowCatalogBrowser({
                 >
                   {/* Thumbnail */}
                   <div
-                    onClick={() => hasImage && setPreviewItem(item)}
-                    className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border border-slate-200/80 dark:border-slate-700 overflow-hidden shrink-0 flex items-center justify-center bg-white dark:bg-slate-800 ${
-                      hasImage ? 'cursor-pointer' : ''
-                    }`}
+                    onClick={() => setPreviewItem(item)}
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border border-slate-200/80 dark:border-slate-700 overflow-hidden shrink-0 flex items-center justify-center bg-white dark:bg-slate-800 cursor-pointer relative group/thumb"
                   >
                     {hasImage ? (
                       <img
@@ -1160,8 +1459,16 @@ export default function BorrowCatalogBrowser({
                           <span>{item.storageLocation?.name || item.location}</span>
                         </span>
                       )}
+                      {Number(item.unitCost) > 0 && (
+                        <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-1.5 py-0.5 rounded">
+                          มูลค่า ฿{Number(item.unitCost).toLocaleString()}
+                        </span>
+                      )}
                     </div>
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate mt-0.5">
+                    <h4
+                      onClick={() => setPreviewItem(item)}
+                      className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate mt-0.5 cursor-pointer hover:text-teal-600 transition"
+                    >
                       {item.name}
                     </h4>
                     <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-500">
@@ -1291,6 +1598,9 @@ export default function BorrowCatalogBrowser({
               const hasImage = !!item.imageUrl && !brokenImages[item.id];
               const catMeta = getMedicalCategoryMeta(item.category?.name, item.type);
               const CatIcon = catMeta.icon;
+              const ecommBadge = getEcommerceBadge(item, hasImage);
+              const isWishlisted = wishlistIds.includes(item.id);
+              const unitCostNum = Number(item.unitCost) || 0;
 
               return (
                 <div
@@ -1305,14 +1615,14 @@ export default function BorrowCatalogBrowser({
                       : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800/90 shadow-2xs hover:shadow-xl hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
                 >
-                  {/* 1. Clean Image Showcase Area (No dark bottom bar blocking the photo!) */}
+                  {/* 1. Clean Image Showcase Area */}
                   <div
                     className={`relative w-full ${
                       viewMode === 'COMPACT' ? 'aspect-square' : 'aspect-[4/3]'
                     } overflow-hidden flex items-center justify-center bg-gradient-to-b ${catMeta.gradient} border-b border-slate-100 dark:border-slate-800/80`}
                   >
-                    {/* Top Left: Selected Badge OR Minimal Type Pill */}
-                    <div className="absolute top-2.5 left-2.5 z-10">
+                    {/* Top Left: Selected Badge OR Type Pill + E-Commerce Badge */}
+                    <div className="absolute top-2.5 left-2.5 z-10 flex flex-col items-start gap-1">
                       {cartState.inCart ? (
                         <span
                           className={`text-[10px] font-black px-2.5 py-0.5 rounded-full text-white shadow-xs flex items-center gap-1 ${
@@ -1323,11 +1633,20 @@ export default function BorrowCatalogBrowser({
                           <span>เลือกแล้ว {cartState.quantity}</span>
                         </span>
                       ) : (
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md ${catMeta.badge}`}
-                        >
-                          {isEquip ? 'ครุภัณฑ์' : 'วัสดุ'}
-                        </span>
+                        <>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md ${catMeta.badge}`}
+                          >
+                            {isEquip ? 'ครุภัณฑ์' : 'วัสดุ'}
+                          </span>
+                          {ecommBadge && viewMode !== 'COMPACT' && (
+                            <span
+                              className={`text-[9px] font-black px-2 py-0.5 rounded-full border shadow-2xs ${ecommBadge.className}`}
+                            >
+                              {ecommBadge.label}
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
 
@@ -1375,6 +1694,22 @@ export default function BorrowCatalogBrowser({
                       )}
                     </div>
 
+                    {/* Bottom Left: E-Commerce Wishlist Heart Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleToggleWishlist(item, e)}
+                      title={isWishlisted ? 'นำออกจากรายการโปรด' : 'บันทึกเป็นรายการโปรด'}
+                      className={`absolute bottom-2.5 left-2.5 z-10 w-7 h-7 rounded-full flex items-center justify-center transition shadow-2xs cursor-pointer backdrop-blur-md border ${
+                        isWishlisted
+                          ? 'bg-rose-50 dark:bg-rose-950/90 border-rose-200 dark:border-rose-800 text-rose-500'
+                          : 'bg-white/80 dark:bg-slate-900/80 border-slate-200/70 dark:border-slate-700 text-slate-400 hover:text-rose-500'
+                      }`}
+                    >
+                      <Heart
+                        className={`w-3.5 h-3.5 ${isWishlisted ? 'fill-rose-500 text-rose-500' : ''}`}
+                      />
+                    </button>
+
                     {/* Product Photo OR Boutique Medical Illustration Placeholder */}
                     {hasImage ? (
                       <div
@@ -1391,12 +1726,16 @@ export default function BorrowCatalogBrowser({
                           }
                           className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-500"
                         />
-                        <div className="absolute bottom-2 right-2 p-1.5 rounded-full bg-slate-900/70 text-white opacity-0 group-hover/photo:opacity-100 transition-opacity backdrop-blur-xs">
-                          <ZoomIn className="w-3.5 h-3.5" />
+                        <div className="absolute bottom-2.5 right-2.5 px-2 py-1 rounded-full bg-slate-900/80 text-white text-[10px] font-bold opacity-0 group-hover/photo:opacity-100 transition-opacity backdrop-blur-xs flex items-center gap-1">
+                          <Eye className="w-3 h-3" />
+                          <span>ดูสเปก</span>
                         </div>
                       </div>
                     ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center select-none">
+                      <div
+                        onClick={() => setPreviewItem(item)}
+                        className="w-full h-full flex flex-col items-center justify-center p-4 text-center select-none cursor-pointer relative group/photo"
+                      >
                         <div
                           className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl ${catMeta.iconBg} flex items-center justify-center mb-2 transition-transform duration-300 group-hover:scale-110 shadow-2xs`}
                         >
@@ -1405,6 +1744,10 @@ export default function BorrowCatalogBrowser({
                         <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 line-clamp-1">
                           {catMeta.label}
                         </span>
+                        <div className="absolute bottom-2.5 right-2.5 px-2 py-1 rounded-full bg-slate-900/75 text-white text-[10px] font-bold opacity-0 group-hover/photo:opacity-100 transition-opacity backdrop-blur-xs flex items-center gap-1">
+                          <Eye className="w-3 h-3" />
+                          <span>ดูสเปก</span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1432,14 +1775,32 @@ export default function BorrowCatalogBrowser({
 
                       {/* Item Title */}
                       <h4
-                        onClick={() => hasImage && setPreviewItem(item)}
-                        className={`text-xs sm:text-[13px] font-bold text-slate-900 dark:text-white line-clamp-2 leading-snug ${
-                          hasImage ? 'cursor-pointer hover:text-teal-600 transition' : ''
-                        }`}
+                        onClick={() => setPreviewItem(item)}
+                        className="text-xs sm:text-[13px] font-bold text-slate-900 dark:text-white line-clamp-2 leading-snug cursor-pointer hover:text-teal-600 dark:hover:text-teal-400 transition"
                         title={item.name}
                       >
                         {item.name}
                       </h4>
+
+                      {/* E-Commerce Value / Brand Subtitle Row */}
+                      {viewMode !== 'COMPACT' && (
+                        <div className="flex items-center justify-between gap-1 pt-0.5 text-[10px]">
+                          <span className="text-slate-400 dark:text-slate-500 truncate">
+                            {item.brand || item.model
+                              ? `${item.brand || ''} ${item.model || ''}`.trim()
+                              : item.category?.name || 'มาตรฐานคลินิก'}
+                          </span>
+                          {unitCostNum > 0 ? (
+                            <span className="font-mono font-bold text-amber-600 dark:text-amber-400 shrink-0">
+                              มูลค่า ฿{unitCostNum.toLocaleString()}
+                            </span>
+                          ) : (
+                            <span className="font-semibold text-teal-600 dark:text-teal-400 shrink-0">
+                              เบิกฝึกฟรี
+                            </span>
+                          )}
+                        </div>
+                      )}
 
                       {/* Subunit Switcher Pill (Clean iOS Segmented Style) */}
                       {hasSubUnit && viewMode !== 'COMPACT' && (
@@ -1723,72 +2084,358 @@ export default function BorrowCatalogBrowser({
         </div>
       )}
 
-      {/* 6. Image Preview Modal (Lightbox) */}
-      {previewItem && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200"
-          onClick={() => setPreviewItem(null)}
-        >
-          <div
-            className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-xl w-full overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono">
-                  {previewItem.code}
-                </span>
-                <h3 className="text-sm font-black text-slate-900 dark:text-white mt-1">
-                  {previewItem.name}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPreviewItem(null)}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+      {/* 6. E-Commerce Product Quick View Modal (หน้าต่างดูสเปกและหยิบใส่ตะกร้าแบบเว็บขายของ) */}
+      {previewItem &&
+        (() => {
+          const isEquip = previewItem.type === 'EQUIPMENT';
+          const cartState = getItemCartState(previewItem);
+          const ratio =
+            Number(previewItem.conversionRatio) > 0 ? Number(previewItem.conversionRatio) : 1;
+          const hasSubUnit = !isEquip && (ratio > 1 || !!previewItem.usageUnit);
+          const activeIsSub = cartState.isSubUnit;
+          const avail = isEquip ? availabilityMap[previewItem.id] : undefined;
+          const isFullConflict = isEquip && avail && avail.conflictStatus === 'FULL';
+          const effectiveStock =
+            isEquip && avail !== undefined ? avail.availableNow : previewItem.currentStock;
+          const totalPieces = !isEquip
+            ? previewItem.currentStock * ratio + (previewItem.openPackRemainder || 0)
+            : 0;
+          const isAvailable = isEquip
+            ? effectiveStock > 0
+            : previewItem.currentStock > 0 || (previewItem.openPackRemainder || 0) > 0;
+          const hasImage = !!previewItem.imageUrl && !brokenImages[previewItem.id];
+          const catMeta = getMedicalCategoryMeta(previewItem.category?.name, previewItem.type);
+          const CatIcon = catMeta.icon;
+          const ecommBadge = getEcommerceBadge(previewItem, hasImage);
+          const isWishlisted = wishlistIds.includes(previewItem.id);
+          const unitCostNum = Number(previewItem.unitCost) || 0;
+
+          return (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-3 sm:p-5 animate-in fade-in duration-200"
+              onClick={() => setPreviewItem(null)}
+            >
+              <div
+                className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto flex flex-col md:flex-row"
+                onClick={(e) => e.stopPropagation()}
               >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4 sm:p-6 bg-slate-50 dark:bg-slate-950 flex items-center justify-center min-h-[300px] max-h-[500px]">
-              {previewItem.imageUrl ? (
-                <img
-                  src={formatImageUrl(previewItem.imageUrl)}
-                  alt={previewItem.name}
-                  referrerPolicy="no-referrer"
-                  className="max-h-[450px] max-w-full object-contain rounded-2xl shadow-md"
-                />
-              ) : (
-                <div className="text-center text-slate-400">
-                  <Camera className="w-12 h-12 mx-auto mb-2 opacity-40" />
-                  <p className="text-xs">ไม่มีรูปถ่ายในระบบ</p>
-                </div>
-              )}
-            </div>
-
-            <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
-              <div className="flex items-center gap-1.5">
-                <MapPin className="w-4 h-4 text-teal-500" />
-                <span>
-                  {previewItem.storageLocation?.name || previewItem.location || 'ไม่ระบุที่เก็บ'}
-                </span>
-              </div>
-              {previewItem.imageUrl && (
-                <a
-                  href={previewItem.imageUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-teal-600 hover:underline font-bold"
+                {/* Left Column: Product Showcase Gallery */}
+                <div
+                  className={`md:w-1/2 p-6 flex flex-col justify-between bg-gradient-to-b ${catMeta.gradient} border-b md:border-b-0 md:border-r border-slate-100 dark:border-slate-800 relative min-h-[260px]`}
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>ดูไฟล์ต้นฉบับ</span>
-                </a>
-              )}
+                  {/* Top Badges & Wishlist */}
+                  <div className="flex items-start justify-between gap-2 z-10">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span
+                        className={`text-[10px] font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${catMeta.badge}`}
+                      >
+                        {isEquip ? 'ครุภัณฑ์ยืม-คืน' : 'วัสดุสิ้นเปลือง'}
+                      </span>
+                      {ecommBadge && (
+                        <span
+                          className={`text-[10px] font-black px-2.5 py-1 rounded-full border shadow-2xs ${ecommBadge.className}`}
+                        >
+                          {ecommBadge.label}
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => handleToggleWishlist(previewItem, e)}
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 border transition cursor-pointer ${
+                        isWishlisted
+                          ? 'bg-rose-50 dark:bg-rose-950/90 border-rose-200 dark:border-rose-800 text-rose-600'
+                          : 'bg-white/90 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:text-rose-500'
+                      }`}
+                    >
+                      <Heart
+                        className={`w-3.5 h-3.5 ${
+                          isWishlisted ? 'fill-rose-500 text-rose-500' : ''
+                        }`}
+                      />
+                      <span>{isWishlisted ? 'บันทึกแล้ว' : 'รายการโปรด'}</span>
+                    </button>
+                  </div>
+
+                  {/* Center Image / Illustration */}
+                  <div className="my-4 flex items-center justify-center flex-1">
+                    {hasImage ? (
+                      <img
+                        src={formatImageUrl(previewItem.imageUrl)}
+                        alt={previewItem.name}
+                        referrerPolicy="no-referrer"
+                        className="max-h-[260px] max-w-full object-contain rounded-2xl drop-shadow-md"
+                      />
+                    ) : (
+                      <div className="text-center py-8">
+                        <div
+                          className={`w-20 h-20 rounded-3xl ${catMeta.iconBg} flex items-center justify-center mx-auto mb-3 shadow-sm`}
+                        >
+                          <CatIcon className="w-10 h-10" />
+                        </div>
+                        <p className="text-xs font-bold text-slate-500">{catMeta.label}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          ภาพสัญลักษณ์มาตรฐานประจำหมวดหมู่
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bottom Photo Link */}
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-200/50 dark:border-slate-800/60">
+                    <span>รหัสอ้างอิง: {previewItem.code}</span>
+                    {previewItem.imageUrl && (
+                      <a
+                        href={previewItem.imageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-teal-600 dark:text-teal-400 hover:underline font-bold"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>เปิดภาพขนาดเต็ม</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Column: E-Commerce Product Specs & Direct Cart Controls */}
+                <div className="md:w-1/2 p-5 sm:p-6 flex flex-col justify-between space-y-4">
+                  <div className="space-y-3.5">
+                    {/* Header & Close Button */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="text-[11px] font-bold text-teal-600 dark:text-teal-400">
+                          {previewItem.category?.name || catMeta.label}
+                        </div>
+                        <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-snug mt-0.5">
+                          {previewItem.name}
+                        </h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewItem(null)}
+                        className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer shrink-0"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    {/* E-Commerce Value / Price Tag Strip */}
+                    <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-400">
+                          {unitCostNum > 0 ? 'มูลค่าอ้างอิงพัสดุต่อหน่วย' : 'สิทธิ์การเบิก-ยืม'}
+                        </div>
+                        <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
+                          {unitCostNum > 0 ? (
+                            <span className="text-amber-600 dark:text-amber-400 font-mono">
+                              ฿{unitCostNum.toLocaleString()}
+                              <span className="text-xs font-sans font-normal text-slate-500">
+                                {' '}
+                                / {previewItem.unit}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-teal-600 dark:text-teal-400">
+                              สวัสดิการฝึกปฏิบัติการพยาบาล (เบิกฟรี)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="text-[10px] font-bold text-slate-400">สถานะคงเหลือ</div>
+                        <div
+                          className={`text-xs font-black ${
+                            isAvailable
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-rose-500'
+                          }`}
+                        >
+                          {isAvailable
+                            ? `พร้อมใช้ ${effectiveStock} ${previewItem.unit}`
+                            : 'หมดชั่วคราว'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Detailed Specifications Grid */}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                        <div className="text-[10px] text-slate-400">ยี่ห้อ / รุ่น</div>
+                        <div className="font-bold text-slate-800 dark:text-slate-200 truncate mt-0.5">
+                          {previewItem.brand || previewItem.model
+                            ? `${previewItem.brand || ''} ${previewItem.model || ''}`.trim()
+                            : 'มาตรฐานห้องปฏิบัติการ'}
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                        <div className="text-[10px] text-slate-400">ตำแหน่งตู้จัดเก็บ</div>
+                        <div className="font-bold text-slate-800 dark:text-slate-200 truncate mt-0.5 flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-teal-500 shrink-0" />
+                          <span className="truncate">
+                            {previewItem.storageLocation?.name ||
+                              previewItem.location ||
+                              'เคาน์เตอร์จ่ายพัสดุกลาง'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {previewItem.storageLocation?.roomName && (
+                        <div className="col-span-2 p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 flex items-center gap-2">
+                          <Building2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                          <span className="text-[11px] text-slate-600 dark:text-slate-300">
+                            ห้อง: <strong>{previewItem.storageLocation.roomName}</strong>
+                            {previewItem.storageLocation.floor
+                              ? ` (ชั้น ${previewItem.storageLocation.floor})`
+                              : ''}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Clinical Care & Borrowing Note for Students */}
+                    <div className="p-3 rounded-2xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-900/50 text-[11px] text-slate-600 dark:text-slate-300 space-y-1">
+                      <div className="font-bold text-blue-900 dark:text-blue-300 flex items-center gap-1.5">
+                        <Info className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <span>คำแนะนำการเบิกและดูแลรักษาสำหรับนิสิต</span>
+                      </div>
+                      <p className="leading-relaxed text-[10px] opacity-90">
+                        {isEquip
+                          ? 'กรุณาตรวจสอบความสมบูรณ์ของครุภัณฑ์ก่อนรับและทำความสะอาดหลังฝึกปฏิบัติการทุกครั้ง หากพบความชำรุดให้แจ้งเจ้าหน้าที่ทันที'
+                          : 'วัสดุสิ้นเปลืองสามารถเลือกเบิกเป็นหน่วยใหญ่หรือแบ่งเบิกตามจำนวนชิ้นที่ใช้ฝึกจริง เพื่อความประหยัดและคุ้มค่า'}
+                      </p>
+                    </div>
+
+                    {/* Sub-Unit Switcher inside Quick View */}
+                    {hasSubUnit && (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px] text-slate-500">
+                          <span className="font-bold">เลือกรูปแบบหน่วยที่ต้องการเบิก:</span>
+                          <span className="font-mono">
+                            1 {previewItem.unit} = {ratio} {previewItem.usageUnit || 'ชิ้น'} (รวม{' '}
+                            {totalPieces} {previewItem.usageUnit || 'ชิ้น'})
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSubUnit(previewItem, false)}
+                            className={`py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                              !activeIsSub
+                                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                                : 'text-slate-500'
+                            }`}
+                          >
+                            เบิกยก{previewItem.unit} ({previewItem.currentStock})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSubUnit(previewItem, true)}
+                            className={`py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                              activeIsSub
+                                ? 'bg-teal-600 text-white shadow-2xs'
+                                : 'text-slate-500'
+                            }`}
+                          >
+                            แบ่งเบิกเป็น{previewItem.usageUnit || 'ชิ้น'} ({totalPieces})
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Direct Add-to-Cart Bar inside Quick View */}
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2.5">
+                    {isFullConflict ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPreviewItem(null);
+                          if (avail) setSelectedConflictModalItem(avail);
+                        }}
+                        className="w-full py-2.5 px-4 rounded-2xl bg-rose-600 text-white text-xs font-bold cursor-pointer"
+                      >
+                        ติดจองเต็มในช่วงเวลานี้ (คลิกดูคิว)
+                      </button>
+                    ) : cartState.inCart ? (
+                      <>
+                        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleSetItemQuantity(
+                                previewItem,
+                                cartState.quantity - 1,
+                                activeIsSub
+                              )
+                            }
+                            className="w-8 h-8 rounded-xl bg-white dark:bg-slate-700 flex items-center justify-center cursor-pointer shadow-2xs"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <span className="font-mono text-xs font-black px-2">
+                            {cartState.quantity}{' '}
+                            {activeIsSub ? previewItem.usageUnit || 'ชิ้น' : previewItem.unit}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleSetItemQuantity(
+                                previewItem,
+                                cartState.quantity + 1,
+                                activeIsSub
+                              )
+                            }
+                            className="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center cursor-pointer shadow-2xs"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPreviewItem(null);
+                            setIsCartDrawerOpen(true);
+                          }}
+                          className="flex-1 py-2.5 px-4 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+                        >
+                          <ShoppingCart className="w-4 h-4 text-teal-400 dark:text-teal-600" />
+                          <span>เปิดดูตะกร้าพัสดุ</span>
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={!isAvailable}
+                        onClick={() => handleSetItemQuantity(previewItem, 1, activeIsSub)}
+                        className={`w-full py-3 px-4 rounded-2xl text-xs font-black transition flex items-center justify-center gap-2 ${
+                          isAvailable
+                            ? isEquip
+                              ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer shadow-md'
+                              : 'bg-teal-600 hover:bg-teal-700 text-white cursor-pointer shadow-md'
+                            : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        }`}
+                      >
+                        <ShoppingCart className="w-4 h-4" />
+                        <span>
+                          {isAvailable
+                            ? isEquip
+                              ? 'หยิบครุภัณฑ์นี้ลงตะกร้ายืม'
+                              : 'หยิบวัสดุนี้ลงตะกร้าเบิก'
+                            : 'สินค้าหมดชั่วคราว'}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          );
+        })()}
     </div>
   );
 }

@@ -17,6 +17,19 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-09] ยกระดับหน้าแคตตาล็อกสู่รูปแบบเว็บขายของออนไลน์ (Medical E-Commerce Storefront Upgrade)
+- **หมวดหมู่**: Module 6: Borrow, Requisitions & Dispense Center / Visual Catalog / E-Commerce UX
+- **สิ่งที่ดำเนินการ**:
+  - อัปเกรดคอมโพเนนต์ [`src/components/borrow/BorrowCatalogBrowser.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCatalogBrowser.tsx) ให้มีประสบการณ์ใช้งานเหมือนเว็บช้อปปิ้งออนไลน์ 5 ส่วนหลัก (โดยไม่ใช้ระบบสินค้าที่มักใช้คู่กันตามความต้องการของผู้ใช้):
+    - **1. Hero Storefront Banner & แท็กคำค้นยอดฮิต (`#TrendingTags`)**: เพิ่มแบนเนอร์ต้อนรับด้านบนสุด (พับเก็บได้) และแถบปุ่มคำค้นยอดนิยมใต้ช่องค้นหา (`#หุ่นจำลอง`, `#ชุดทำแผล`, `#สารน้ำ/IV`, `#กู้ชีพ/AED`, `#แอลกอฮอล์/ฆ่าเชื้อ`, `#เตียงผู้ป่วย`) กดแตะเพื่อกรองรายการได้ทันที
+    - **2. การ์ดสินค้าสไตล์ E-Commerce (Shopee / Apple Store Card)**: เพิ่มป้ายกำกับอัจฉริยะ (`🔥 ยอดนิยม`, `🛡️ ครุภัณฑ์หลัก`, `⭐ แบ่งเบิกได้`), แสดงยี่ห้อ/รุ่น และมูลค่าอ้างอิงของพัสดุ (`มูลค่า ฿X,XXX` หรือ `เบิกฝึกฟรี`) พร้อมเอฟเฟกต์แจ้งเตือน Micro-Toast มุมขวาบนเมื่อหยิบของลงตะกร้า
+    - **3. หน้าต่างดูสเปกสินค้าแบบร้านค้าออนไลน์ (2-Column Product Quick View Modal)**: แทนที่ Lightbox เดิมด้วยหน้าต่างสเปก 2 คอลัมน์ แสดงรูปใหญ่, ป้ายสถานะ, มูลค่าอ้างอิง, ตำแหน่งตู้จัดเก็บ/ห้อง, คำแนะนำการดูแลรักษาสำหรับนิสิต และปุ่มสลับหน่วย/ปรับจำนวน/หยิบใส่ตะกร้าจากในหน้าต่างสเปกได้โดยตรง
+    - **4. ระบบจัดเรียงสินค้าอัจฉริยะ (Smart E-Commerce Sort Bar)**: เพิ่มตัวเลือกจัดเรียง (`🔥 แนะนำ`, `📦 คงเหลือมาก-น้อย`, `🔤 ชื่อ ก-ฮ`, `💎 มูลค่าสูง-ต่ำ`)
+    - **5. ระบบรายการโปรดส่วนตัว (Wishlist / Favorites ❤️)**: เพิ่มปุ่มกดหัวใจบนการ์ดและในหน้า Quick View บันทึกลง `localStorage` (`lab_catalog_wishlist`) พร้อมชิปตัวกรอง `"❤️ รายการโปรด"`
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/components/borrow/BorrowCatalogBrowser.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCatalogBrowser.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npm run librarian:audit` ผ่าน 100% (ไม่พบคำต้องห้าม, UTF-8 สมบูรณ์)
+
 ### [2026-11-02] ปรับปรุงประสิทธิภาพรองรับการเข้าใช้งานพร้อมกัน (High Concurrency & Tab-Aware Polling Guard)
 - **หมวดหมู่**: Core Performance & Traffic Optimization / Background Polling / Concurrency Guard
 - **สิ่งที่ดำเนินการ**:

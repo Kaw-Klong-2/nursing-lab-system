@@ -254,28 +254,13 @@ function getMedicalCategoryMeta(categoryName?: string, itemType?: string) {
   };
 }
 
-const TRENDING_TAGS = [
-  { label: '🔥 หุ่นจำลอง', query: 'หุ่น' },
-  { label: '🩹 ชุดทำแผล', query: 'แผล' },
-  { label: '💧 สารน้ำ/IV', query: 'น้ำเกลือ' },
-  { label: '💓 กู้ชีพ/AED', query: 'AED' },
-  { label: '🧴 แอลกอฮอล์/ฆ่าเชื้อ', query: 'แอลกอฮอล์' },
-  { label: '🛏️ เตียงผู้ป่วย', query: 'เตียง' },
-];
-
-function getEcommerceBadge(item: CatalogItem, hasValidImage: boolean) {
+function getEcommerceBadge(item: CatalogItem) {
   const cost = Number(item.unitCost) || 0;
   const ratio = Number(item.conversionRatio) || 1;
   if (cost >= 5000) {
     return {
       label: '🛡️ ครุภัณฑ์หลัก',
       className: 'bg-indigo-600/95 text-white border-indigo-400/40',
-    };
-  }
-  if (hasValidImage) {
-    return {
-      label: '🔥 ยอดนิยม',
-      className: 'bg-gradient-to-r from-orange-500 to-rose-500 text-white border-rose-400/40',
     };
   }
   if (item.type === 'CONSUMABLE' && (ratio > 1 || !!item.usageUnit)) {
@@ -869,17 +854,6 @@ export default function BorrowCatalogBrowser({
               )}
               <button
                 type="button"
-                onClick={() => {
-                  setHasPhotosOnly(true);
-                  setSortBy('RECOMMENDED');
-                }}
-                className="px-3.5 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/15 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <Flame className="w-3.5 h-3.5 text-orange-400" />
-                <span>พัสดุยอดนิยมมีรูปจริง</span>
-              </button>
-              <button
-                type="button"
                 onClick={() => setShowHeroBanner(false)}
                 title="พับเก็บแบนเนอร์"
                 className="p-2 rounded-xl bg-white/5 hover:bg-white/15 text-slate-300 transition cursor-pointer"
@@ -1049,20 +1023,20 @@ export default function BorrowCatalogBrowser({
 
             {/* Search Input & Action Buttons */}
             <div className="flex items-center gap-2 flex-1 lg:max-w-xl justify-end">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <div className="flex-1 flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-teal-500/40 focus-within:border-teal-500 transition">
+                <Search className="w-4 h-4 text-slate-400 shrink-0 pointer-events-none" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="ค้นหาชื่อพัสดุ, รหัส, ยี่ห้อ, ตู้เก็บ..."
-                  className="w-full pl-9.5 pr-8 py-2 text-xs rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500 transition"
+                  className="w-full bg-transparent text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none border-none p-0"
                 />
                 {searchQuery && (
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    className="text-slate-400 hover:text-slate-600 cursor-pointer shrink-0"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -1130,31 +1104,6 @@ export default function BorrowCatalogBrowser({
                 </button>
               </div>
             </div>
-          </div>
-
-          {/* Trending E-Commerce Search Tags (#QuickTags) */}
-          <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-            <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1 mr-1">
-              <Tag className="w-3 h-3 text-teal-500" />
-              <span>คำค้นยอดฮิต:</span>
-            </span>
-            {TRENDING_TAGS.map((tag) => {
-              const isTagActive = searchQuery.trim().toLowerCase() === tag.query.toLowerCase();
-              return (
-                <button
-                  key={tag.query}
-                  type="button"
-                  onClick={() => setSearchQuery(isTagActive ? '' : tag.query)}
-                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition cursor-pointer border ${
-                    isTagActive
-                      ? 'bg-teal-600 text-white border-teal-600 shadow-2xs'
-                      : 'bg-slate-50 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:border-teal-400 hover:text-teal-600'
-                  }`}
-                >
-                  {tag.label}
-                </button>
-              );
-            })}
           </div>
 
           {/* Collapsible 1-Click Practice Kits Showcase */}
@@ -1598,7 +1547,7 @@ export default function BorrowCatalogBrowser({
               const hasImage = !!item.imageUrl && !brokenImages[item.id];
               const catMeta = getMedicalCategoryMeta(item.category?.name, item.type);
               const CatIcon = catMeta.icon;
-              const ecommBadge = getEcommerceBadge(item, hasImage);
+              const ecommBadge = getEcommerceBadge(item);
               const isWishlisted = wishlistIds.includes(item.id);
               const unitCostNum = Number(item.unitCost) || 0;
 
@@ -2106,7 +2055,7 @@ export default function BorrowCatalogBrowser({
           const hasImage = !!previewItem.imageUrl && !brokenImages[previewItem.id];
           const catMeta = getMedicalCategoryMeta(previewItem.category?.name, previewItem.type);
           const CatIcon = catMeta.icon;
-          const ecommBadge = getEcommerceBadge(previewItem, hasImage);
+          const ecommBadge = getEcommerceBadge(previewItem);
           const isWishlisted = wishlistIds.includes(previewItem.id);
           const unitCostNum = Number(previewItem.unitCost) || 0;
 

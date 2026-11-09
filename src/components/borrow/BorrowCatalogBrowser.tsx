@@ -390,9 +390,10 @@ export default function BorrowCatalogBrowser({
     if (initialReturnDate) setExpectedReturnDate(initialReturnDate);
   }, [initialBorrowDate, initialReturnDate]);
 
-  // Fetch real-time availability on date changes (with caching + 400ms debounce)
+  // Fetch real-time availability when drawer is open & dates change (with caching + 400ms debounce)
   useEffect(() => {
     let isMounted = true;
+    if (!isCartDrawerOpen) return;
     if (!borrowDate || !expectedReturnDate) return;
 
     // Check in-memory cache first (0 network calls when toggling back and forth)
@@ -433,7 +434,7 @@ export default function BorrowCatalogBrowser({
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [borrowDate, expectedReturnDate, simulateConflict]);
+  }, [isCartDrawerOpen, borrowDate, expectedReturnDate, simulateConflict]);
 
   // Conflict summary count
   const conflictSummary = useMemo(() => {
@@ -876,110 +877,9 @@ export default function BorrowCatalogBrowser({
         </div>
       )}
 
-      {/* 1. Unified Command & Time-Window Studio Card */}
+      {/* 1. Storefront Search & Category Navigation Card */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-        {/* Top Row: Time-Window Selector Bar (Sleek Minimalist Strip) */}
-        <div className="px-4 py-3 sm:px-5 sm:py-3.5 bg-gradient-to-r from-slate-50 via-blue-50/40 to-teal-50/40 dark:from-slate-900 dark:via-slate-800/60 dark:to-slate-900 border-b border-slate-200/70 dark:border-slate-800 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
-          {/* Left: Status & Date Pickers */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <div className="flex items-center gap-2 pr-1">
-              <span className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
-                <Clock className="w-4 h-4" />
-              </span>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-black text-slate-900 dark:text-white">
-                    ช่วงเวลายืม-คืน
-                  </span>
-                  {isCheckingAvailability ? (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 animate-pulse">
-                      กำลังเช็กคิว...
-                    </span>
-                  ) : conflictSummary.count > 0 ? (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300/80 dark:border-amber-800 flex items-center gap-1">
-                      <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
-                      <span>ติดจอง {conflictSummary.count} รายการ</span>
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-800 flex items-center gap-1">
-                      <Check className="w-2.5 h-2.5 text-emerald-600" />
-                      <span>พร้อมยืมทุกชิ้น</span>
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Compact Date Inputs */}
-            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-2.5 py-1.5 rounded-xl border border-slate-200/90 dark:border-slate-700 shadow-2xs">
-              <span className="text-[11px] font-bold text-slate-400">รับ:</span>
-              <input
-                type="datetime-local"
-                value={borrowDate}
-                onChange={(e) => {
-                  setActivePreset('CUSTOM');
-                  setBorrowDate(e.target.value);
-                  onDatesChange?.({ borrowDate: e.target.value, expectedReturnDate });
-                }}
-                className="bg-transparent text-slate-800 dark:text-slate-100 font-semibold focus:outline-none text-xs cursor-pointer"
-              />
-              <span className="text-slate-300 dark:text-slate-600 px-0.5">→</span>
-              <span className="text-[11px] font-bold text-slate-400">คืน:</span>
-              <input
-                type="datetime-local"
-                value={expectedReturnDate}
-                onChange={(e) => {
-                  setActivePreset('CUSTOM');
-                  setExpectedReturnDate(e.target.value);
-                  onDatesChange?.({ borrowDate, expectedReturnDate: e.target.value });
-                }}
-                className="bg-transparent text-slate-800 dark:text-slate-100 font-semibold focus:outline-none text-xs cursor-pointer"
-              />
-            </div>
-          </div>
-
-          {/* Right: Preset Pills & Simulation Toggle */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {[
-              { id: 'MORNING', label: '🌅 พรุ่งนี้เช้า' },
-              { id: 'AFTERNOON', label: '☀️ พรุ่งนี้บ่าย' },
-              { id: 'FULLDAY', label: '⏳ เต็มวัน' },
-              { id: 'THREE_DAYS', label: '🗓️ 3 วัน' },
-              { id: 'ONE_WEEK', label: '📅 1 สัปดาห์' },
-            ].map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => applyPresetSlot(p.id as any)}
-                className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition cursor-pointer ${
-                  activePreset === p.id
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 hover:border-blue-400'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-
-            <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 mx-0.5 hidden sm:block" />
-
-            <button
-              type="button"
-              onClick={() => setSimulateConflict(!simulateConflict)}
-              className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition cursor-pointer flex items-center gap-1 border ${
-                simulateConflict
-                  ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
-                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:bg-amber-50 dark:hover:bg-amber-950/30'
-              }`}
-              title="คลิกเพื่อจำลองเหตุการณ์ที่มีผู้อื่นจองอุปกรณ์ชนเวลา"
-            >
-              <FlaskConical className="w-3 h-3" />
-              <span>{simulateConflict ? 'จำลองคิวชน: เปิด' : 'จำลองคิวชน'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Middle Row: Search Bar + Type Switcher + View Mode & Practice Kits Button */}
+        {/* Search Bar + Type Switcher + View Mode & Practice Kits Button */}
         <div className="p-4 sm:p-5 space-y-4">
           <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
             {/* Segmented Type Tabs */}
@@ -1910,6 +1810,17 @@ export default function BorrowCatalogBrowser({
         instructors={instructors}
         borrowDate={borrowDate}
         expectedReturnDate={expectedReturnDate}
+        onChangeDates={(dates) => {
+          setActivePreset('CUSTOM');
+          setBorrowDate(dates.borrowDate);
+          setExpectedReturnDate(dates.expectedReturnDate);
+          onDatesChange?.(dates);
+        }}
+        activePreset={activePreset}
+        onApplyPreset={applyPresetSlot}
+        isCheckingAvailability={isCheckingAvailability}
+        simulateConflict={simulateConflict}
+        onToggleSimulateConflict={() => setSimulateConflict(!simulateConflict)}
         availabilityMap={availabilityMap}
         onUpdateBorrowItems={onUpdateBorrowItems}
         onUpdateRequisitionItems={onUpdateRequisitionItems}

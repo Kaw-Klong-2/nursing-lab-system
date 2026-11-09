@@ -61,6 +61,14 @@ interface BorrowCheckoutDrawerProps {
   instructors?: InstructorItem[];
   borrowDate: string;
   expectedReturnDate: string;
+  onChangeDates?: (dates: { borrowDate: string; expectedReturnDate: string }) => void;
+  activePreset?: string;
+  onApplyPreset?: (
+    preset: 'MORNING' | 'AFTERNOON' | 'FULLDAY' | 'THREE_DAYS' | 'ONE_WEEK'
+  ) => void;
+  isCheckingAvailability?: boolean;
+  simulateConflict?: boolean;
+  onToggleSimulateConflict?: () => void;
   availabilityMap?: Record<string, ItemAvailability>;
   onUpdateBorrowItems: (items: BorrowRow[]) => void;
   onUpdateRequisitionItems: (items: RequisitionRow[]) => void;
@@ -80,6 +88,12 @@ export default function BorrowCheckoutDrawer({
   instructors = [],
   borrowDate,
   expectedReturnDate,
+  onChangeDates,
+  activePreset = 'MORNING',
+  onApplyPreset,
+  isCheckingAvailability = false,
+  simulateConflict = false,
+  onToggleSimulateConflict,
   availabilityMap = {},
   onUpdateBorrowItems,
   onUpdateRequisitionItems,
@@ -300,7 +314,7 @@ export default function BorrowCheckoutDrawer({
                       </span>
                     </h3>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      ช่วงเวลายืม: {formatBangkokDateTime(borrowDate)} ถึง {formatBangkokDateTime(expectedReturnDate)}
+                      ตรวจสอบรายการและจำนวนก่อนเข้าสู่ขั้นตอนระบุวัน-เวลาและรายวิชา
                     </p>
                   </div>
                 </div>
@@ -786,16 +800,152 @@ export default function BorrowCheckoutDrawer({
                   </div>
                 </div>
 
-                {/* 5. Date & Time Window Summary */}
-                <div className="p-3 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900 text-blue-900 dark:text-blue-200 space-y-1">
-                  <div className="font-bold flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-blue-600" />
-                    <span>ช่วงเวลานัดหมายรับ-ส่งคืนพัสดุ:</span>
+                {/* 5. Interactive Date & Time Window Picker (ย้ายมากรอกในหน้าข้อมูลคำขอยืม-เบิกโดยตรง) */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-blue-600" />
+                      <span>
+                        {validBorrowRows.length > 0
+                          ? 'กำหนดวัน-เวลารับและส่งคืนพัสดุ'
+                          : 'กำหนดวัน-เวลารับวัสดุสิ้นเปลือง'}
+                      </span>
+                      <span className="text-rose-500">*</span>
+                    </div>
+
+                    {/* Real-time Availability Badge for Equipment in Cart */}
+                    {validBorrowRows.length > 0 && (
+                      <div>
+                        {isCheckingAvailability ? (
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 animate-pulse">
+                            กำลังเช็กคิวว่าง...
+                          </span>
+                        ) : conflictWarnings.length > 0 ? (
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3 text-amber-600" />
+                            <span>คิวชน {conflictWarnings.length} รายการ</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1">
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span>ครุภัณฑ์ว่างพร้อมยืม</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div className="text-[11px] text-blue-800 dark:text-blue-300">
-                    รับ: <strong>{formatBangkokDateTime(borrowDate)}</strong> ถึง คืน:{' '}
-                    <strong>{formatBangkokDateTime(expectedReturnDate)}</strong>
+
+                  {/* Quick Time-Slot Preset Pills */}
+                  {onApplyPreset && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {[
+                        { id: 'MORNING', label: '🌅 พรุ่งนี้เช้า' },
+                        { id: 'AFTERNOON', label: '☀️ พรุ่งนี้บ่าย' },
+                        { id: 'FULLDAY', label: '⏳ เต็มวัน' },
+                        ...(validBorrowRows.length > 0
+                          ? [
+                              { id: 'THREE_DAYS', label: '🗓️ 3 วัน' },
+                              { id: 'ONE_WEEK', label: '📅 1 สัปดาห์' },
+                            ]
+                          : []),
+                      ].map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => onApplyPreset(p.id as any)}
+                          className={`px-2.5 py-1 rounded-xl text-[10px] font-bold transition cursor-pointer ${
+                            activePreset === p.id
+                              ? 'bg-blue-600 text-white shadow-2xs'
+                              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-blue-400'
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+
+                      {isSimulation && validBorrowRows.length > 0 && onToggleSimulateConflict && (
+                        <button
+                          type="button"
+                          onClick={onToggleSimulateConflict}
+                          className={`px-2.5 py-1 rounded-xl text-[10px] font-bold transition cursor-pointer flex items-center gap-1 border ml-auto ${
+                            simulateConflict
+                              ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
+                              : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-amber-50'
+                          }`}
+                          title="ทดสอบจำลองเหตุการณ์ที่มีผู้อื่นจองครุภัณฑ์ชนเวลา"
+                        >
+                          <FlaskConical className="w-3 h-3" />
+                          <span>{simulateConflict ? 'จำลองคิวชน: เปิด' : 'จำลองคิวชน'}</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Date-Time Inputs Grid */}
+                  <div
+                    className={`grid ${
+                      validBorrowRows.length > 0 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'
+                    } gap-2.5`}
+                  >
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">
+                        วัน-เวลารับพัสดุ:
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={borrowDate}
+                        onChange={(e) =>
+                          onChangeDates?.({
+                            borrowDate: e.target.value,
+                            expectedReturnDate,
+                          })
+                        }
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs cursor-pointer"
+                      />
+                    </div>
+
+                    {validBorrowRows.length > 0 ? (
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">
+                          วัน-เวลากำหนดส่งคืนครุภัณฑ์:
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={expectedReturnDate}
+                          onChange={(e) =>
+                            onChangeDates?.({
+                              borrowDate,
+                              expectedReturnDate: e.target.value,
+                            })
+                          }
+                          className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs cursor-pointer"
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-teal-600 dark:text-teal-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 shrink-0" />
+                        <span>รายการในตะกร้าเป็นวัสดุสิ้นเปลืองทั้งหมด (เบิกใช้งานโดยไม่ต้องระบุวันส่งคืน)</span>
+                      </p>
+                    )}
                   </div>
+
+                  {/* Conflict Warning Detail inside Checkout Form */}
+                  {validBorrowRows.length > 0 && conflictWarnings.length > 0 && (
+                    <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-[11px] space-y-1">
+                      <div className="font-bold flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                        <span>ครุภัณฑ์บางรายการมีคิวจองซ้อนทับในช่วงเวลาที่คุณเลือก:</span>
+                      </div>
+                      <ul className="list-disc list-inside text-[10px] space-y-0.5 pl-1">
+                        {conflictWarnings.map((warn, i) => (
+                          <li key={i}>{warn}</li>
+                        ))}
+                      </ul>
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400 pt-0.5">
+                        💡 แนะนำให้ปรับขยับช่วงเวลา หรือกดย้อนกลับไปลดจำนวนในตะกร้า
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 

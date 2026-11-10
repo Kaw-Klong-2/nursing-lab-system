@@ -814,60 +814,12 @@ export default function BorrowCheckoutDrawer({
                     </div>
 
                     {/* Real-time Availability Badge for Equipment in Cart */}
-                    {validBorrowRows.length > 0 && (
-                      <div>
-                        {isCheckingAvailability ? (
-                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 animate-pulse">
-                            กำลังเช็กคิวว่าง...
-                          </span>
-                        ) : conflictWarnings.length > 0 ? (
-                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3 text-amber-600" />
-                            <span>คิวชน {conflictWarnings.length} รายการ</span>
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1">
-                            <Check className="w-3 h-3 text-emerald-600" />
-                            <span>ครุภัณฑ์ว่างพร้อมยืม</span>
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Quick Time-Slot Preset Pills */}
-                  {onApplyPreset && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {[
-                        { id: 'MORNING', label: '🌅 พรุ่งนี้เช้า' },
-                        { id: 'AFTERNOON', label: '☀️ พรุ่งนี้บ่าย' },
-                        { id: 'FULLDAY', label: '⏳ เต็มวัน' },
-                        ...(validBorrowRows.length > 0
-                          ? [
-                              { id: 'THREE_DAYS', label: '🗓️ 3 วัน' },
-                              { id: 'ONE_WEEK', label: '📅 1 สัปดาห์' },
-                            ]
-                          : []),
-                      ].map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => onApplyPreset(p.id as any)}
-                          className={`px-2.5 py-1 rounded-xl text-[10px] font-bold transition cursor-pointer ${
-                            activePreset === p.id
-                              ? 'bg-blue-600 text-white shadow-2xs'
-                              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-blue-400'
-                          }`}
-                        >
-                          {p.label}
-                        </button>
-                      ))}
-
+                    <div className="flex items-center gap-1.5">
                       {isSimulation && validBorrowRows.length > 0 && onToggleSimulateConflict && (
                         <button
                           type="button"
                           onClick={onToggleSimulateConflict}
-                          className={`px-2.5 py-1 rounded-xl text-[10px] font-bold transition cursor-pointer flex items-center gap-1 border ml-auto ${
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition cursor-pointer flex items-center gap-1 border ${
                             simulateConflict
                               ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
                               : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-amber-50'
@@ -878,8 +830,28 @@ export default function BorrowCheckoutDrawer({
                           <span>{simulateConflict ? 'จำลองคิวชน: เปิด' : 'จำลองคิวชน'}</span>
                         </button>
                       )}
+
+                      {validBorrowRows.length > 0 && (
+                        <div>
+                          {isCheckingAvailability ? (
+                            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 animate-pulse">
+                              กำลังเช็กคิวว่าง...
+                            </span>
+                          ) : conflictWarnings.length > 0 ? (
+                            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3 text-amber-600" />
+                              <span>คิวชน {conflictWarnings.length} รายการ</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1">
+                              <Check className="w-3 h-3 text-emerald-600" />
+                              <span>ครุภัณฑ์ว่างพร้อมยืม</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
 
                   {/* Date-Time Inputs Grid */}
                   <div

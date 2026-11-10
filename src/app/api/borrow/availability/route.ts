@@ -82,6 +82,7 @@ export async function GET(req: Request) {
           items: {
             select: {
               itemId: true,
+              assetId: true,
               quantity: true,
             },
           },
@@ -108,6 +109,7 @@ export async function GET(req: Request) {
       string,
       {
         totalReserved: number;
+        reservedAssetIds: Set<string>;
         conflicts: Array<{
           requestId: string;
           requestNumber: string;
@@ -118,14 +120,22 @@ export async function GET(req: Request) {
           requesterName: string;
           requesterRole: string;
           quantity: number;
+          assetId?: string | null;
         }>;
       }
     >();
 
     for (const bReq of overlappingRequests) {
       for (const bItem of bReq.items) {
-        const cur = reservationMap.get(bItem.itemId) || { totalReserved: 0, conflicts: [] };
+        const cur = reservationMap.get(bItem.itemId) || {
+          totalReserved: 0,
+          reservedAssetIds: new Set<string>(),
+          conflicts: [],
+        };
         cur.totalReserved += bItem.quantity;
+        if (bItem.assetId) {
+          cur.reservedAssetIds.add(bItem.assetId);
+        }
         cur.conflicts.push({
           requestId: bReq.id,
           requestNumber: bReq.requestNumber,
@@ -136,6 +146,7 @@ export async function GET(req: Request) {
           requesterName: bReq.user.name,
           requesterRole: bReq.user.role,
           quantity: bItem.quantity,
+          assetId: bItem.assetId,
         });
         reservationMap.set(bItem.itemId, cur);
       }
@@ -155,9 +166,14 @@ export async function GET(req: Request) {
 
       // Inject simulated overlapping requests for the first 3 equipment items
       demoItems.slice(0, 3).forEach((dItem, idx) => {
-        const cur = reservationMap.get(dItem.id) || { totalReserved: 0, conflicts: [] };
+        const cur = reservationMap.get(dItem.id) || {
+          totalReserved: 0,
+          reservedAssetIds: new Set<string>(),
+          conflicts: [],
+        };
         const simQty = idx === 0 ? Math.max(1, dItem.assets.length) : 1; // 1st is full, rest are partial
         cur.totalReserved += simQty;
+        dItem.assets.slice(0, simQty).forEach((a) => cur.reservedAssetIds.add(a.id));
         cur.conflicts.push({
           requestId: `sim-conflict-${idx + 1}`,
           requestNumber: `BR-202611-SIM0${idx + 1}`,
@@ -172,6 +188,7 @@ export async function GET(req: Request) {
             idx === 0 ? 'นิสิตกลุ่ม 4 (พยาบาลศาสตร์ ชั้นปีที่ 2)' : 'อาจารย์ประจำกลุ่มวิชา',
           requesterRole: idx === 0 ? 'USER' : 'INSTRUCTOR',
           quantity: simQty,
+          assetId: dItem.assets[0]?.id || null,
         });
         reservationMap.set(dItem.id, cur);
       });
@@ -180,7 +197,11 @@ export async function GET(req: Request) {
     // Build availability report for each item
     const availability = items.map((item) => {
       const physicalCapacity = item.type === 'EQUIPMENT' ? item.assets.length : 999;
-      const resData = reservationMap.get(item.id) || { totalReserved: 0, conflicts: [] };
+      const resData = reservationMap.get(item.id) || {
+        totalReserved: 0,
+        reservedAssetIds: new Set<string>(),
+        conflicts: [],
+      };
       const reservedCount = resData.totalReserved;
       const availableNow = Math.max(0, physicalCapacity - reservedCount);
 
@@ -202,6 +223,7 @@ export async function GET(req: Request) {
         physicalCapacity,
         reservedCount,
         availableNow,
+        reservedAssetIds: Array.from(resData.reservedAssetIds),
         conflictStatus,
         conflicts: resData.conflicts,
       };

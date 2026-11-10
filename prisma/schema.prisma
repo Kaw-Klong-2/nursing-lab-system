@@ -114,7 +114,9 @@ model Item {
   imageUrl        String?
   status          String   @default("ACTIVE")
   isBorrowable    Boolean  @default(true) // อนุญาตให้ยืมออกนอกห้องได้หรือไม่
-  allowExpiredForSim Boolean @default(true) // อนุญาตให้ใช้เวชภัณฑ์หมดอายุเพื่อฝึกกับหุ่นจำลอง
+  allowExpiredForSim Boolean @default(true)
+  customBadge        String?
+  customBadgeColor   String? // อนุญาตให้ใช้เวชภัณฑ์หมดอายุเพื่อฝึกกับหุ่นจำลอง
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

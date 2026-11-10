@@ -17,6 +17,28 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-10] ระบบป้ายกำกับพัสดุแบบกำหนดเองได้ & การเลือกชิ้นครุภัณฑ์รายชิ้น (Customizable Item Badges & Individual Equipment Asset Selector)
+- **หมวดหมู่**: Module 2: Inventory & Equipment / Module 6: Borrow, Requisitions & Visual Catalog
+- **สิ่งที่ดำเนินการ**:
+  - **1. ระบบป้ายกำกับพัสดุแบบกำหนดเองได้ (`customBadge` & `customBadgeColor`)**:
+    - เพิ่มฟิลด์ `customBadge` และ `customBadgeColor` ในตาราง `Item` ([`prisma/schema.prisma`](file:///d:/LAB-system/prisma/schema.prisma)) และอัปเดต API [`/api/items`](file:///d:/LAB-system/src/app/api/items/route.ts) และ [`/api/items/[id]`](file:///d:/LAB-system/src/app/api/items/%5Bid%5D/route.ts)
+    - **กฎเหล็กการแสดงป้ายบนแคตตาล็อก**: ใน [`BorrowCatalogBrowser.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCatalogBrowser.tsx) ถอดการเดาป้ายอัตโนมัติออกทั้งหมด หากพัสดุชิ้นใดไม่ได้ตั้งค่า `customBadge` ไว้ (`null` หรือว่าง) จะ **ไม่แสดงป้ายใดๆ ทั้งสิ้น** บนการ์ดของชิ้นนั้น
+    - เพิ่มแผงตั้งค่า/แก้ไข/ลบป้ายกำกับ (`🏷️ + ตั้งป้าย` / `แก้ป้าย`) ทั้งในหน้าต่าง Quick View ของแคตตาล็อก และในโมดัลเพิ่ม/แก้ไขพัสดุของหน้าคลังพัสดุ ([`src/app/inventory/page.tsx`](file:///d:/LAB-system/src/app/inventory/page.tsx)) พร้อมปุ่มลัดข้อความ (`🔥 ยอดนิยม`, `✨ แนะนำ`, `🎯 ใช้สอบ OSCE`, `🆕 มาใหม่`), ช่องพิมพ์ข้อความอิสระ และตัวเลือกสี 5 โทน (`AMBER`, `ROSE`, `EMERALD`, `INDIGO`, `PURPLE`)
+  - **2. ระบบเลือกชิ้นครุภัณฑ์รายชิ้น (`EquipmentAsset` Individual Unit Picker)**:
+    - เนื่องจากครุภัณฑ์ 1 รายการมีหลายชิ้นจริง (`EquipmentAsset` เช่น `AED-01`, `AED-02`) จึงเพิ่มการแสดงชิปรหัสเครื่องรายชิ้นบนการ์ดครุภัณฑ์ในแคตตาล็อก, ในหน้าต่าง Quick View, ในแผงตะกร้า ([`BorrowCheckoutDrawer.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCheckoutDrawer.tsx)), และในหน้าฟอร์มส่งคำขอยืม-เบิก ([`src/app/borrow/request/page.tsx`](file:///d:/LAB-system/src/app/borrow/request/page.tsx)) (โดยไม่มีปุ่ม "+ ยืมด่วน" ตามที่ผู้ใช้กำหนด)
+    - อัปเดต [`/api/borrow/availability`](file:///d:/LAB-system/src/app/api/borrow/availability/route.ts) ให้ส่งรายการ `reservedAssetIds` ที่ติดจองในช่วงเวลาดังกล่าว และอัปเดต [`/api/requests/unified`](file:///d:/LAB-system/src/app/api/requests/unified/route.ts) ให้ผูก `assetId` รายชิ้นลงใน `BorrowItem` ทันทีเมื่อผู้ใช้เจาะจงเลือกชิ้นครุภัณฑ์
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`prisma/schema.prisma`](file:///d:/LAB-system/prisma/schema.prisma)
+  - [`src/app/api/items/route.ts`](file:///d:/LAB-system/src/app/api/items/route.ts)
+  - [`src/app/api/items/[id]/route.ts`](file:///d:/LAB-system/src/app/api/items/%5Bid%5D/route.ts)
+  - [`src/app/api/borrow/availability/route.ts`](file:///d:/LAB-system/src/app/api/borrow/availability/route.ts)
+  - [`src/app/api/requests/unified/route.ts`](file:///d:/LAB-system/src/app/api/requests/unified/route.ts)
+  - [`src/components/borrow/BorrowCatalogBrowser.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCatalogBrowser.tsx)
+  - [`src/components/borrow/BorrowCheckoutDrawer.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCheckoutDrawer.tsx)
+  - [`src/app/inventory/page.tsx`](file:///d:/LAB-system/src/app/inventory/page.tsx)
+  - [`src/app/borrow/request/page.tsx`](file:///d:/LAB-system/src/app/borrow/request/page.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit` ผ่าน 0 error และ `npm run librarian:audit` ผ่าน 100%
+
 ### [2026-11-09] ยกระดับหน้าแคตตาล็อกสู่รูปแบบเว็บขายของออนไลน์ & ย้ายการกรอกวัน-เวลาเข้าสู่ขั้นตอนข้อมูลคำขอ (Medical E-Commerce Storefront & Checkout Date Picker)
 - **หมวดหมู่**: Module 6: Borrow, Requisitions & Dispense Center / Visual Catalog / E-Commerce UX
 - **สิ่งที่ดำเนินการ**:

@@ -59,9 +59,15 @@ function BorrowRequestContent() {
   const [expectedReturnDate, setExpectedReturnDate] = useState('');
 
   // Item Rows
-  const [borrowItems, setBorrowItems] = useState<{ itemId: string; quantity: number | string; categoryId?: string }[]>([
-    { itemId: '', quantity: '', categoryId: '' },
-  ]);
+  const [borrowItems, setBorrowItems] = useState<
+    {
+      itemId: string;
+      quantity: number | string;
+      categoryId?: string;
+      selectedAssetIds?: string[];
+      selectedAssetCodes?: string[];
+    }[]
+  >([{ itemId: '', quantity: '', categoryId: '' }]);
   const [requisitionItems, setRequisitionItems] = useState<
     {
       itemId: string;
@@ -202,7 +208,13 @@ function BorrowRequestContent() {
     try {
       const activeBorrowItems = borrowItems
         .filter((it) => it.itemId && Number(it.quantity) > 0)
-        .map((it) => ({ itemId: it.itemId, quantity: Number(it.quantity) }));
+        .map((it) => ({
+          itemId: it.itemId,
+          quantity: Number(it.quantity),
+          selectedAssetIds: Array.isArray(it.selectedAssetIds)
+            ? it.selectedAssetIds
+            : undefined,
+        }));
 
       const activeReqItems = requisitionItems
         .filter((it) => it.itemId && Number(it.quantity) > 0)
@@ -700,6 +712,71 @@ function BorrowRequestContent() {
                           )}
                         </span>
                       )}
+
+                      {/* Specific Equipment Asset Picker Chips */}
+                      {Array.isArray(chosenEq.availableAssets || chosenEq.assets) &&
+                        (chosenEq.availableAssets || chosenEq.assets).length > 0 && (
+                          <div className="w-full pt-2 mt-1 border-t border-blue-100 dark:border-slate-800 space-y-1.5">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="font-bold text-slate-600 dark:text-slate-300">
+                                🎯 เลือกชิ้นครุภัณฑ์ที่ต้องการเจาะจง (คลิกที่รหัสเครื่อง):
+                              </span>
+                              {Array.isArray(row.selectedAssetCodes) &&
+                                row.selectedAssetCodes.length > 0 && (
+                                  <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
+                                    เลือกแล้ว: {row.selectedAssetCodes.join(', ')}
+                                  </span>
+                                )}
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {(chosenEq.availableAssets || chosenEq.assets).map((asset: any) => {
+                                const pickedIds = Array.isArray(row.selectedAssetIds)
+                                  ? row.selectedAssetIds
+                                  : [];
+                                const pickedCodes = Array.isArray(row.selectedAssetCodes)
+                                  ? row.selectedAssetCodes
+                                  : [];
+                                const isPicked = pickedIds.includes(asset.id);
+                                return (
+                                  <button
+                                    key={asset.id}
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = [...borrowItems];
+                                      const nextIds = [...pickedIds];
+                                      const nextCodes = [...pickedCodes];
+                                      const exIdx = nextIds.indexOf(asset.id);
+                                      if (exIdx !== -1) {
+                                        nextIds.splice(exIdx, 1);
+                                        nextCodes.splice(exIdx, 1);
+                                      } else {
+                                        nextIds.push(asset.id);
+                                        nextCodes.push(asset.assetCode);
+                                      }
+                                      updated[idx] = {
+                                        ...updated[idx],
+                                        selectedAssetIds: nextIds,
+                                        selectedAssetCodes: nextCodes,
+                                        quantity:
+                                          nextIds.length > 0
+                                            ? Math.max(Number(updated[idx].quantity) || 1, nextIds.length)
+                                            : updated[idx].quantity || 1,
+                                      };
+                                      setBorrowItems(updated);
+                                    }}
+                                    className={`px-2.5 py-1 rounded-xl text-[11px] font-mono font-bold border transition cursor-pointer ${
+                                      isPicked
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-blue-400'
+                                    }`}
+                                  >
+                                    {isPicked ? `✓ ${asset.assetCode}` : asset.assetCode}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                     </div>
                   )}
                 </div>

@@ -48,6 +48,31 @@ import { formatImageUrl } from '@/lib/image-helper';
 import { formatBangkokDateTime } from '@/lib/date-time-utils';
 import BorrowCheckoutDrawer, { CourseItem, InstructorItem } from './BorrowCheckoutDrawer';
 
+export interface CatalogAssetItem {
+  id: string;
+  assetCode: string;
+  govAssetCode?: string | null;
+  serialNumber?: string | null;
+  sequenceNumber?: number;
+  location?: string | null;
+  storageLocation?: {
+    id: string;
+    code: string;
+    name: string;
+    roomName?: string | null;
+    floor?: string | null;
+    building?: string | null;
+  } | null;
+  brand?: string | null;
+  model?: string | null;
+  condition?: string | null;
+  status?: string | null;
+  cost?: number;
+  imageUrl?: string | null;
+  note?: string | null;
+  isBorrowable?: boolean;
+}
+
 export interface CatalogItem {
   id: string;
   code: string;
@@ -74,9 +99,13 @@ export interface CatalogItem {
   brand?: string | null;
   model?: string | null;
   unitCost?: number;
+  customBadge?: string | null;
+  customBadgeColor?: string | null;
   categoryId?: string;
   category?: { id: string; name: string };
   isBorrowable?: boolean;
+  assets?: CatalogAssetItem[];
+  availableAssets?: CatalogAssetItem[];
 }
 
 export interface PracticeKitComponent {
@@ -105,6 +134,8 @@ export interface BorrowRow {
   itemId: string;
   quantity: number | string;
   categoryId?: string;
+  selectedAssetIds?: string[];
+  selectedAssetCodes?: string[];
 }
 
 export interface RequisitionRow {
@@ -125,6 +156,7 @@ export interface ItemConflictInfo {
   requesterName: string;
   requesterRole: string;
   quantity: number;
+  assetId?: string | null;
 }
 
 export interface ItemAvailability {
@@ -136,6 +168,7 @@ export interface ItemAvailability {
   physicalCapacity: number;
   reservedCount: number;
   availableNow: number;
+  reservedAssetIds?: string[];
   conflictStatus: 'AVAILABLE' | 'PARTIALLY_AVAILABLE' | 'FULL';
   conflicts: ItemConflictInfo[];
 }
@@ -254,22 +287,36 @@ function getMedicalCategoryMeta(categoryName?: string, itemType?: string) {
   };
 }
 
-function getEcommerceBadge(item: CatalogItem) {
-  const cost = Number(item.unitCost) || 0;
-  const ratio = Number(item.conversionRatio) || 1;
-  if (cost >= 5000) {
-    return {
-      label: '🛡️ ครุภัณฑ์หลัก',
-      className: 'bg-indigo-600/95 text-white border-indigo-400/40',
-    };
+function getCustomBadgeMeta(
+  item: CatalogItem,
+  override?: { badge?: string | null; color?: string | null }
+) {
+  const badgeText =
+    override && override.badge !== undefined
+      ? override.badge
+      : item.customBadge;
+  if (!badgeText || !badgeText.trim()) {
+    return null;
   }
-  if (item.type === 'CONSUMABLE' && (ratio > 1 || !!item.usageUnit)) {
-    return {
-      label: '⭐ แบ่งเบิกได้',
-      className: 'bg-amber-500/95 text-white border-amber-400/40',
-    };
-  }
-  return null;
+
+  const colorKey = (
+    (override && override.color !== undefined ? override.color : item.customBadgeColor) ||
+    'AMBER'
+  ).toUpperCase();
+
+  const colorClasses: Record<string, string> = {
+    ROSE: 'bg-rose-600/95 text-white border-rose-400/50',
+    AMBER: 'bg-amber-500/95 text-white border-amber-300/50',
+    EMERALD: 'bg-emerald-600/95 text-white border-emerald-400/50',
+    INDIGO: 'bg-indigo-600/95 text-white border-indigo-400/50',
+    PURPLE: 'bg-purple-600/95 text-white border-purple-400/50',
+  };
+
+  return {
+    label: badgeText.trim(),
+    color: colorKey,
+    className: colorClasses[colorKey] || colorClasses.AMBER,
+  };
 }
 
 export default function BorrowCatalogBrowser({
@@ -353,6 +400,63 @@ export default function BorrowCatalogBrowser({
 
   // Image Preview Modal
   const [previewItem, setPreviewItem] = useState<CatalogItem | null>(null);
+
+  // Custom Badge Overrides & Quick Editor State
+  const [badgeOverrides, setBadgeOverrides] = useState<
+    Record<string, { badge: string | null; color: string | null }>
+  >({});
+  const [isEditingBadge, setIsEditingBadge] = useState(false);
+  const [badgeDraftText, setBadgeDraftText] = useState('');
+  const [badgeDraftColor, setBadgeDraftColor] = useState('AMBER');
+  const [savingBadge, setSavingBadge] = useState(false);
+
+  // Sync badge editor draft when previewItem opens
+  useEffect(() => {
+    if (previewItem) {
+      const ov = badgeOverrides[previewItem.id];
+      const currentText = ov !== undefined ? ov.badge || '' : previewItem.customBadge || '';
+      const currentColor = ov !== undefined ? ov.color || 'AMBER' : previewItem.customBadgeColor || 'AMBER';
+      setBadgeDraftText(currentText);
+      setBadgeDraftColor(currentColor);
+      setIsEditingBadge(false);
+    }
+  }, [previewItem, badgeOverrides]);
+
+  const handleSaveCustomBadge = async (
+    item: CatalogItem,
+    badgeVal: string | null,
+    colorVal: string | null
+  ) => {
+    const cleanText = badgeVal && badgeVal.trim() ? badgeVal.trim() : null;
+    const cleanColor = cleanText ? colorVal || 'AMBER' : null;
+    setSavingBadge(true);
+    try {
+      setBadgeOverrides((prev) => ({
+        ...prev,
+        [item.id]: { badge: cleanText, color: cleanColor },
+      }));
+
+      await fetch(`/api/items/${item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customBadge: cleanText,
+          customBadgeColor: cleanColor,
+        }),
+      });
+
+      triggerToast(
+        cleanText
+          ? `🏷️ ตั้งค่าป้าย "${cleanText}" สำหรับ "${item.name}" แล้ว`
+          : `นำป้ายกำกับออกจาก "${item.name}" แล้ว`
+      );
+      setIsEditingBadge(false);
+    } catch {
+      triggerToast('⚠️ ไม่สามารถบันทึกป้ายกำกับลงเซิร์ฟเวอร์ได้');
+    } finally {
+      setSavingBadge(false);
+    }
+  };
 
   // Broken image tracker
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
@@ -637,6 +741,8 @@ export default function BorrowCatalogBrowser({
         inCart: !!found && Number(found.quantity) > 0,
         quantity: found ? Number(found.quantity) || 0 : 0,
         isSubUnit: false,
+        selectedAssetIds: found?.selectedAssetIds || [],
+        selectedAssetCodes: found?.selectedAssetCodes || [],
       };
     } else {
       const found = requisitionItems.find((r) => r.itemId === item.id);
@@ -645,8 +751,60 @@ export default function BorrowCatalogBrowser({
         inCart: !!found && Number(found.quantity) > 0,
         quantity: found ? Number(found.quantity) || 0 : 0,
         isSubUnit: isSub,
+        selectedAssetIds: [],
+        selectedAssetCodes: [],
       };
     }
+  };
+
+  // Handler: Toggle specific equipment asset selection
+  const handleToggleEquipmentAsset = (item: CatalogItem, asset: CatalogAssetItem) => {
+    if (readOnly || item.type !== 'EQUIPMENT') return;
+    let updated = [...borrowItems];
+    const idx = updated.findIndex((b) => b.itemId === item.id);
+    const currentRow = idx !== -1 ? updated[idx] : null;
+    const currentIds = currentRow?.selectedAssetIds ? [...currentRow.selectedAssetIds] : [];
+    const currentCodes = currentRow?.selectedAssetCodes ? [...currentRow.selectedAssetCodes] : [];
+
+    const existsIdx = currentIds.indexOf(asset.id);
+    let nextIds: string[];
+    let nextCodes: string[];
+
+    if (existsIdx !== -1) {
+      nextIds = currentIds.filter((id) => id !== asset.id);
+      nextCodes = currentCodes.filter((_, i) => i !== existsIdx);
+    } else {
+      nextIds = [...currentIds, asset.id];
+      nextCodes = [...currentCodes, asset.assetCode];
+    }
+
+    if (nextIds.length === 0) {
+      if (idx !== -1) {
+        updated = updated.filter((_, i) => i !== idx);
+      }
+      triggerToast(`นำ "${asset.assetCode}" ออกจากตะกร้าแล้ว`);
+    } else {
+      const rowData: BorrowRow = {
+        itemId: item.id,
+        quantity: nextIds.length,
+        categoryId: item.categoryId,
+        selectedAssetIds: nextIds,
+        selectedAssetCodes: nextCodes,
+      };
+      if (idx !== -1) {
+        updated[idx] = rowData;
+      } else {
+        updated.push(rowData);
+      }
+      if (existsIdx === -1) {
+        triggerToast(
+          `🎯 เลือกเครื่อง "${asset.assetCode}" ลงตะกร้าแล้ว`,
+          `รวมเลือกเจาะจง ${nextIds.length} ${item.unit} (${nextCodes.join(', ')})`
+        );
+      }
+    }
+
+    onUpdateBorrowItems(updated.length > 0 ? updated : [{ itemId: '', quantity: '' }]);
   };
 
   // Handler: Switch preferred subunit mode
@@ -690,6 +848,16 @@ export default function BorrowCatalogBrowser({
       } else {
         if (idx !== -1) {
           updated[idx].quantity = targetQty;
+          if (
+            Array.isArray(updated[idx].selectedAssetIds) &&
+            updated[idx].selectedAssetIds!.length > targetQty
+          ) {
+            updated[idx].selectedAssetIds = updated[idx].selectedAssetIds!.slice(0, targetQty);
+            updated[idx].selectedAssetCodes = (updated[idx].selectedAssetCodes || []).slice(
+              0,
+              targetQty
+            );
+          }
         } else {
           updated.push({ itemId: item.id, quantity: targetQty, categoryId: item.categoryId });
           triggerToast(
@@ -1254,6 +1422,8 @@ export default function BorrowCatalogBrowser({
               const hasImage = !!item.imageUrl && !brokenImages[item.id];
               const catMeta = getMedicalCategoryMeta(item.category?.name, item.type);
               const CatIcon = catMeta.icon;
+              const customBadge = getCustomBadgeMeta(item, badgeOverrides[item.id]);
+              const assetPool = item.availableAssets || item.assets || [];
 
               return (
                 <div
@@ -1299,6 +1469,13 @@ export default function BorrowCatalogBrowser({
                       >
                         {isEquip ? 'ครุภัณฑ์' : 'วัสดุ'}
                       </span>
+                      {customBadge && (
+                        <span
+                          className={`text-[9px] font-black px-2 py-0.5 rounded-full border shadow-2xs ${customBadge.className}`}
+                        >
+                          {customBadge.label}
+                        </span>
+                      )}
                       <span className="text-[11px] font-mono text-slate-400 font-semibold">
                         {item.code}
                       </span>
@@ -1320,13 +1497,24 @@ export default function BorrowCatalogBrowser({
                     >
                       {item.name}
                     </h4>
-                    <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-500">
+                    <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-500 flex-wrap">
                       <span>
                         คงเหลือ:{' '}
                         <strong className="text-slate-800 dark:text-slate-200">
                           {effectiveStock} {item.unit}
                         </strong>
                       </span>
+                      {isEquip && assetPool.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setPreviewItem(item)}
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 cursor-pointer transition"
+                        >
+                          {cartState.selectedAssetCodes.length > 0
+                            ? `🎯 เลือกชิ้น: ${cartState.selectedAssetCodes.join(', ')}`
+                            : `🎯 เลือกชิ้น (${assetPool.length} ชิ้น)`}
+                        </button>
+                      )}
                       {hasSubUnit && (
                         <div className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[10px]">
                           <button
@@ -1447,9 +1635,11 @@ export default function BorrowCatalogBrowser({
               const hasImage = !!item.imageUrl && !brokenImages[item.id];
               const catMeta = getMedicalCategoryMeta(item.category?.name, item.type);
               const CatIcon = catMeta.icon;
-              const ecommBadge = getEcommerceBadge(item);
+              const customBadge = getCustomBadgeMeta(item, badgeOverrides[item.id]);
               const isWishlisted = wishlistIds.includes(item.id);
               const unitCostNum = Number(item.unitCost) || 0;
+              const assetPool = item.availableAssets || item.assets || [];
+              const reservedAssetSet = new Set(avail?.reservedAssetIds || []);
 
               return (
                 <div
@@ -1470,7 +1660,7 @@ export default function BorrowCatalogBrowser({
                       viewMode === 'COMPACT' ? 'aspect-square' : 'aspect-[4/3]'
                     } overflow-hidden flex items-center justify-center bg-gradient-to-b ${catMeta.gradient} border-b border-slate-100 dark:border-slate-800/80`}
                   >
-                    {/* Top Left: Selected Badge OR Type Pill + E-Commerce Badge */}
+                    {/* Top Left: Selected Badge OR Type Pill + Custom Badge */}
                     <div className="absolute top-2.5 left-2.5 z-10 flex flex-col items-start gap-1">
                       {cartState.inCart ? (
                         <span
@@ -1479,7 +1669,11 @@ export default function BorrowCatalogBrowser({
                           }`}
                         >
                           <Check className="w-3 h-3" />
-                          <span>เลือกแล้ว {cartState.quantity}</span>
+                          <span>
+                            {cartState.selectedAssetCodes.length > 0
+                              ? `เลือก ${cartState.selectedAssetCodes.length} ชิ้น`
+                              : `เลือกแล้ว ${cartState.quantity}`}
+                          </span>
                         </span>
                       ) : (
                         <>
@@ -1488,11 +1682,11 @@ export default function BorrowCatalogBrowser({
                           >
                             {isEquip ? 'ครุภัณฑ์' : 'วัสดุ'}
                           </span>
-                          {ecommBadge && viewMode !== 'COMPACT' && (
+                          {customBadge && (
                             <span
-                              className={`text-[9px] font-black px-2 py-0.5 rounded-full border shadow-2xs ${ecommBadge.className}`}
+                              className={`text-[9px] font-black px-2 py-0.5 rounded-full border shadow-2xs ${customBadge.className}`}
                             >
-                              {ecommBadge.label}
+                              {customBadge.label}
                             </span>
                           )}
                         </>
@@ -1648,6 +1842,63 @@ export default function BorrowCatalogBrowser({
                               เบิกฝึกฟรี
                             </span>
                           )}
+                        </div>
+                      )}
+
+                      {/* Equipment Specific Asset Chip Selector (เลือกชิ้นครุภัณฑ์รายหมายเลข) */}
+                      {isEquip && assetPool.length > 0 && viewMode !== 'COMPACT' && (
+                        <div className="pt-1">
+                          <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1 px-0.5">
+                            <span>เลือกหมายเลขชิ้น:</span>
+                            <button
+                              type="button"
+                              onClick={() => setPreviewItem(item)}
+                              className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                            >
+                              {cartState.selectedAssetCodes.length > 0
+                                ? `เลือกไว้ ${cartState.selectedAssetCodes.length} ชิ้น`
+                                : `ดูทั้งหมด (${assetPool.length})`}
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {assetPool.slice(0, 4).map((asset) => {
+                              const isPicked = cartState.selectedAssetIds.includes(asset.id);
+                              const isRes = reservedAssetSet.has(asset.id);
+                              return (
+                                <button
+                                  key={asset.id}
+                                  type="button"
+                                  disabled={isRes}
+                                  onClick={() => handleToggleEquipmentAsset(item, asset)}
+                                  title={
+                                    isRes
+                                      ? `${asset.assetCode} ติดคิวจองในช่วงเวลานี้`
+                                      : `คลิกเพื่อเลือก/ยกเลิกชิ้น ${asset.assetCode} (${
+                                          asset.storageLocation?.name || asset.location || 'คลังพัสดุ'
+                                        })`
+                                  }
+                                  className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold border transition cursor-pointer ${
+                                    isRes
+                                      ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900 text-rose-400 line-through cursor-not-allowed'
+                                      : isPicked
+                                      ? 'bg-blue-600 border-blue-600 text-white shadow-2xs'
+                                      : 'bg-slate-50 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-blue-400 hover:text-blue-600'
+                                  }`}
+                                >
+                                  {isPicked ? `✓ ${asset.assetCode}` : asset.assetCode}
+                                </button>
+                              );
+                            })}
+                            {assetPool.length > 4 && (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewItem(item)}
+                                className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800/80 hover:bg-blue-100 cursor-pointer"
+                              >
+                                +{assetPool.length - 4} ชิ้น
+                              </button>
+                            )}
+                          </div>
                         </div>
                       )}
 
@@ -1966,9 +2217,11 @@ export default function BorrowCatalogBrowser({
           const hasImage = !!previewItem.imageUrl && !brokenImages[previewItem.id];
           const catMeta = getMedicalCategoryMeta(previewItem.category?.name, previewItem.type);
           const CatIcon = catMeta.icon;
-          const ecommBadge = getEcommerceBadge(previewItem);
+          const customBadge = getCustomBadgeMeta(previewItem, badgeOverrides[previewItem.id]);
           const isWishlisted = wishlistIds.includes(previewItem.id);
           const unitCostNum = Number(previewItem.unitCost) || 0;
+          const assetPool = isEquip ? previewItem.availableAssets || previewItem.assets || [] : [];
+          const reservedSet = new Set(avail?.reservedAssetIds || []);
 
           return (
             <div
@@ -1991,13 +2244,21 @@ export default function BorrowCatalogBrowser({
                       >
                         {isEquip ? 'ครุภัณฑ์ยืม-คืน' : 'วัสดุสิ้นเปลือง'}
                       </span>
-                      {ecommBadge && (
+                      {customBadge && (
                         <span
-                          className={`text-[10px] font-black px-2.5 py-1 rounded-full border shadow-2xs ${ecommBadge.className}`}
+                          className={`text-[10px] font-black px-2.5 py-1 rounded-full border shadow-2xs ${customBadge.className}`}
                         >
-                          {ecommBadge.label}
+                          {customBadge.label}
                         </span>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingBadge((v) => !v)}
+                        className="text-[10px] font-bold px-2 py-1 rounded-full border border-slate-300/80 dark:border-slate-700 bg-white/90 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-amber-400 hover:text-amber-600 transition cursor-pointer"
+                        title="กำหนดป้ายกำกับพัสดุเอง (Custom Badge)"
+                      >
+                        🏷️ {customBadge ? 'แก้ป้าย' : '+ ตั้งป้าย'}
+                      </button>
                     </div>
 
                     <button
@@ -2080,6 +2341,98 @@ export default function BorrowCatalogBrowser({
                         <X className="w-5 h-5" />
                       </button>
                     </div>
+
+                    {/* Custom Badge Configuration Panel (Expandable via 🏷️ button) */}
+                    {isEditingBadge && (
+                      <div className="p-3 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/70 space-y-2.5 animate-in fade-in duration-150">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-black text-amber-900 dark:text-amber-200">
+                            🏷️ กำหนดป้ายกำกับพัสดุเอง (Custom Badge)
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            หากเว้นว่างจะไม่แสดงป้ายบนการ์ด
+                          </span>
+                        </div>
+
+                        {/* Quick Preset Chips */}
+                        <div className="flex flex-wrap gap-1">
+                          {[
+                            { text: '🔥 ยอดนิยม', color: 'AMBER' },
+                            { text: '✨ แนะนำ', color: 'EMERALD' },
+                            { text: '🎯 ใช้สอบ OSCE', color: 'ROSE' },
+                            { text: '🆕 มาใหม่', color: 'INDIGO' },
+                          ].map((p) => (
+                            <button
+                              key={p.text}
+                              type="button"
+                              onClick={() => {
+                                setBadgeDraftText(p.text);
+                                setBadgeDraftColor(p.color);
+                              }}
+                              className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-amber-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-amber-400 cursor-pointer"
+                            >
+                              {p.text}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Custom Text & Color Swatches */}
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            maxLength={28}
+                            value={badgeDraftText}
+                            onChange={(e) => setBadgeDraftText(e.target.value)}
+                            placeholder="พิมพ์ข้อความป้ายเอง เช่น 🔥 ยอดนิยม..."
+                            className="flex-1 px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-amber-500"
+                          />
+                          <div className="flex items-center gap-1 shrink-0">
+                            {[
+                              { key: 'AMBER', cls: 'bg-amber-500' },
+                              { key: 'ROSE', cls: 'bg-rose-600' },
+                              { key: 'EMERALD', cls: 'bg-emerald-600' },
+                              { key: 'INDIGO', cls: 'bg-indigo-600' },
+                              { key: 'PURPLE', cls: 'bg-purple-600' },
+                            ].map((sw) => (
+                              <button
+                                key={sw.key}
+                                type="button"
+                                onClick={() => setBadgeDraftColor(sw.key)}
+                                className={`w-5 h-5 rounded-full ${sw.cls} transition cursor-pointer ${
+                                  badgeDraftColor === sw.key
+                                    ? 'ring-2 ring-offset-1 ring-slate-900 dark:ring-white scale-110'
+                                    : 'opacity-65 hover:opacity-100'
+                                }`}
+                                title={`สี ${sw.key}`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-1.5 pt-1">
+                          {(customBadge || badgeDraftText) && (
+                            <button
+                              type="button"
+                              disabled={savingBadge}
+                              onClick={() => handleSaveCustomBadge(previewItem, null, null)}
+                              className="px-2.5 py-1 rounded-xl text-[10px] font-bold text-rose-600 hover:bg-rose-100/70 dark:hover:bg-rose-950/50 transition cursor-pointer"
+                            >
+                              ลบป้ายออก (ไม่แสดงป้าย)
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            disabled={savingBadge}
+                            onClick={() =>
+                              handleSaveCustomBadge(previewItem, badgeDraftText, badgeDraftColor)
+                            }
+                            className="px-3 py-1 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-black transition cursor-pointer shadow-2xs"
+                          >
+                            {savingBadge ? 'กำลังบันทึก...' : 'บันทึกป้าย'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* E-Commerce Value / Price Tag Strip */}
                     <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between">
@@ -2168,6 +2521,84 @@ export default function BorrowCatalogBrowser({
                           : 'วัสดุสิ้นเปลืองสามารถเลือกเบิกเป็นหน่วยใหญ่หรือแบ่งเบิกตามจำนวนชิ้นที่ใช้ฝึกจริง เพื่อความประหยัดและคุ้มค่า'}
                       </p>
                     </div>
+
+                    {/* Specific Equipment Asset Selector inside Quick View */}
+                    {isEquip && assetPool.length > 0 && (
+                      <div className="space-y-2 p-3 rounded-2xl bg-slate-50/90 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-black text-slate-800 dark:text-slate-100">
+                            🎯 เลือกเครื่องครุภัณฑ์รายชิ้น ({assetPool.length} ชิ้น)
+                          </span>
+                          <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                            {cartState.selectedAssetCodes.length > 0
+                              ? `เจาะจงแล้ว ${cartState.selectedAssetCodes.length} ชิ้น`
+                              : 'คลิกที่รหัสเพื่อเลือกชิ้นที่ต้องการ'}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-40 overflow-y-auto pr-1">
+                          {assetPool.map((asset) => {
+                            const isPicked = cartState.selectedAssetIds.includes(asset.id);
+                            const isReserved = reservedSet.has(asset.id);
+                            const condLabel =
+                              asset.condition === 'FAIR' ? 'พอใช้' : 'สภาพดี';
+                            const locLabel =
+                              asset.storageLocation?.name ||
+                              asset.location ||
+                              previewItem.storageLocation?.name ||
+                              previewItem.location ||
+                              'พร้อมจ่าย';
+                            return (
+                              <button
+                                key={asset.id}
+                                type="button"
+                                disabled={isReserved}
+                                onClick={() => handleToggleEquipmentAsset(previewItem, asset)}
+                                className={`p-2 rounded-xl border text-left transition flex items-center justify-between gap-1.5 ${
+                                  isReserved
+                                    ? 'bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-400 cursor-not-allowed opacity-60'
+                                    : isPicked
+                                    ? 'bg-blue-600 border-blue-600 text-white shadow-xs cursor-pointer'
+                                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-blue-400 cursor-pointer'
+                                }`}
+                              >
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-mono text-[11px] font-black truncate">
+                                      {asset.assetCode}
+                                    </span>
+                                    <span
+                                      className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                                        isPicked
+                                          ? 'bg-white/20 text-white'
+                                          : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400'
+                                      }`}
+                                    >
+                                      {isReserved ? 'ติดจอง' : condLabel}
+                                    </span>
+                                  </div>
+                                  <div
+                                    className={`text-[10px] truncate mt-0.5 ${
+                                      isPicked ? 'text-blue-100' : 'text-slate-400'
+                                    }`}
+                                  >
+                                    📍 {locLabel}
+                                  </div>
+                                </div>
+                                <span
+                                  className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 ${
+                                    isPicked
+                                      ? 'bg-white text-blue-600'
+                                      : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                                  }`}
+                                >
+                                  {isPicked ? '✓' : '+'}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Sub-Unit Switcher inside Quick View */}
                     {hasSubUnit && (

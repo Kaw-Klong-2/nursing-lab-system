@@ -250,6 +250,8 @@ export default function InventoryPage() {
     imageUrl: '',
     isBorrowable: true,
     allowExpiredForSim: true,
+    customBadge: '',
+    customBadgeColor: 'AMBER',
   });
   const [itemSaving, setItemSaving] = useState(false);
 
@@ -333,6 +335,8 @@ export default function InventoryPage() {
       imageUrl: item.imageUrl || '',
       isBorrowable: item.isBorrowable !== false,
       allowExpiredForSim: item.allowExpiredForSim !== false,
+      customBadge: item.customBadge || '',
+      customBadgeColor: item.customBadgeColor || 'AMBER',
     });
   };
 
@@ -397,6 +401,8 @@ export default function InventoryPage() {
     imageUrl: '',
     isBorrowable: true,
     allowExpiredForSim: true,
+    customBadge: '',
+    customBadgeColor: 'AMBER',
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -861,6 +867,8 @@ export default function InventoryPage() {
           imageUrl: '',
           isBorrowable: true,
           allowExpiredForSim: true,
+          customBadge: '',
+          customBadgeColor: 'AMBER',
         });
         fetchItems();
       } else {
@@ -1487,6 +1495,8 @@ export default function InventoryPage() {
                     imageUrl: '',
                     isBorrowable: true,
                     allowExpiredForSim: true,
+                    customBadge: '',
+                    customBadgeColor: 'AMBER',
                   });
                   setShowAddModal(true);
                 }}
@@ -2692,6 +2702,81 @@ export default function InventoryPage() {
                 </p>
               </div>
 
+              {/* Custom Badge Configuration */}
+              <div className="p-3 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-900/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                    🏷️ ป้ายกำกับพัสดุบนหน้าแคตตาล็อก (Custom Badge)
+                  </label>
+                  <span className="text-[10px] text-slate-400">
+                    เว้นว่างไว้หากไม่ต้องการให้มีป้ายแสดง
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { text: '🔥 ยอดนิยม', color: 'AMBER' },
+                    { text: '✨ แนะนำ', color: 'EMERALD' },
+                    { text: '🎯 ใช้สอบ OSCE', color: 'ROSE' },
+                    { text: '🆕 มาใหม่', color: 'INDIGO' },
+                  ].map((p) => (
+                    <button
+                      key={p.text}
+                      type="button"
+                      onClick={() =>
+                        setNewItem({
+                          ...newItem,
+                          customBadge: p.text,
+                          customBadgeColor: p.color,
+                        })
+                      }
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-amber-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-amber-400 cursor-pointer"
+                    >
+                      {p.text}
+                    </button>
+                  ))}
+                  {newItem.customBadge && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setNewItem({
+                          ...newItem,
+                          customBadge: '',
+                          customBadgeColor: 'AMBER',
+                        })
+                      }
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 border border-rose-200 dark:border-rose-800 cursor-pointer"
+                    >
+                      ✕ ล้างป้ายออก
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    maxLength={28}
+                    placeholder="พิมพ์ข้อความป้ายเอง เช่น 🔥 ยอดนิยม (หากไม่ใส่จะไม่มีป้าย)"
+                    value={newItem.customBadge || ''}
+                    onChange={(e) =>
+                      setNewItem({ ...newItem, customBadge: e.target.value })
+                    }
+                    className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100"
+                  />
+                  <select
+                    value={newItem.customBadgeColor || 'AMBER'}
+                    onChange={(e) =>
+                      setNewItem({ ...newItem, customBadgeColor: e.target.value })
+                    }
+                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200"
+                  >
+                    <option value="AMBER">สีส้มทอง (Amber)</option>
+                    <option value="ROSE">สีแดง (Rose)</option>
+                    <option value="EMERALD">สีเขียว (Emerald)</option>
+                    <option value="INDIGO">สีน้ำเงินคราม (Indigo)</option>
+                    <option value="PURPLE">สีม่วง (Purple)</option>
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                   รายละเอียดเพิ่มเติม
@@ -3606,6 +3691,81 @@ export default function InventoryPage() {
                 <p className="text-[10px] text-slate-400 mt-1">
                   * รองรับทั้งลิงก์ตรงและลิงก์แชร์ไฟล์จาก Google Drive ระบบจะแปลงเป็นรูปภาพให้อัตโนมัติ
                 </p>
+              </div>
+
+              {/* Custom Badge Configuration */}
+              <div className="p-3 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-900/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                    🏷️ ป้ายกำกับพัสดุบนหน้าแคตตาล็อก (Custom Badge)
+                  </label>
+                  <span className="text-[10px] text-slate-400">
+                    เว้นว่างไว้หากไม่ต้องการให้มีป้ายแสดง
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { text: '🔥 ยอดนิยม', color: 'AMBER' },
+                    { text: '✨ แนะนำ', color: 'EMERALD' },
+                    { text: '🎯 ใช้สอบ OSCE', color: 'ROSE' },
+                    { text: '🆕 มาใหม่', color: 'INDIGO' },
+                  ].map((p) => (
+                    <button
+                      key={p.text}
+                      type="button"
+                      onClick={() =>
+                        setEditItemForm({
+                          ...editItemForm,
+                          customBadge: p.text,
+                          customBadgeColor: p.color,
+                        })
+                      }
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-amber-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-amber-400 cursor-pointer"
+                    >
+                      {p.text}
+                    </button>
+                  ))}
+                  {editItemForm.customBadge && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditItemForm({
+                          ...editItemForm,
+                          customBadge: '',
+                          customBadgeColor: 'AMBER',
+                        })
+                      }
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 border border-rose-200 dark:border-rose-800 cursor-pointer"
+                    >
+                      ✕ ล้างป้ายออก
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    maxLength={28}
+                    placeholder="พิมพ์ข้อความป้ายเอง เช่น 🔥 ยอดนิยม (หากไม่ใส่จะไม่มีป้าย)"
+                    value={editItemForm.customBadge || ''}
+                    onChange={(e) =>
+                      setEditItemForm({ ...editItemForm, customBadge: e.target.value })
+                    }
+                    className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100"
+                  />
+                  <select
+                    value={editItemForm.customBadgeColor || 'AMBER'}
+                    onChange={(e) =>
+                      setEditItemForm({ ...editItemForm, customBadgeColor: e.target.value })
+                    }
+                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200"
+                  >
+                    <option value="AMBER">สีส้มทอง (Amber)</option>
+                    <option value="ROSE">สีแดง (Rose)</option>
+                    <option value="EMERALD">สีเขียว (Emerald)</option>
+                    <option value="INDIGO">สีน้ำเงินคราม (Indigo)</option>
+                    <option value="PURPLE">สีม่วง (Purple)</option>
+                  </select>
+                </div>
               </div>
 
               <div>

@@ -55,6 +55,18 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         imageUrl: imageUrl !== undefined ? imageUrl || null : undefined,
         isBorrowable: body.isBorrowable !== undefined ? Boolean(body.isBorrowable) : undefined,
         allowExpiredForSim: body.allowExpiredForSim !== undefined ? Boolean(body.allowExpiredForSim) : undefined,
+        customBadge:
+          body.customBadge !== undefined
+            ? body.customBadge && String(body.customBadge).trim()
+              ? String(body.customBadge).trim()
+              : null
+            : undefined,
+        customBadgeColor:
+          body.customBadgeColor !== undefined
+            ? body.customBadgeColor && String(body.customBadgeColor).trim()
+              ? String(body.customBadgeColor).trim()
+              : null
+            : undefined,
       },
       include: {
         category: true,

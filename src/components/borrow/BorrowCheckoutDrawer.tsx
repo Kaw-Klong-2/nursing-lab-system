@@ -189,8 +189,67 @@ export default function BorrowCheckoutDrawer({
     } else {
       if (idx !== -1) {
         updated[idx].quantity = targetQty;
+        if (
+          Array.isArray(updated[idx].selectedAssetIds) &&
+          updated[idx].selectedAssetIds!.length > targetQty
+        ) {
+          updated[idx].selectedAssetIds = updated[idx].selectedAssetIds!.slice(0, targetQty);
+          updated[idx].selectedAssetCodes = (updated[idx].selectedAssetCodes || []).slice(
+            0,
+            targetQty
+          );
+        }
       } else {
         updated.push({ itemId, quantity: targetQty });
+      }
+    }
+    onUpdateBorrowItems(updated.length > 0 ? updated : [{ itemId: '', quantity: '' }]);
+  };
+
+  // Handler: Toggle specific physical asset inside Cart Drawer
+  const handleToggleCartEquipmentAsset = (
+    item: CatalogItem,
+    asset: { id: string; assetCode: string }
+  ) => {
+    let updated = [...borrowItems];
+    const idx = updated.findIndex((b) => b.itemId === item.id);
+    if (idx === -1) {
+      updated.push({
+        itemId: item.id,
+        quantity: 1,
+        selectedAssetIds: [asset.id],
+        selectedAssetCodes: [asset.assetCode],
+      });
+    } else {
+      const currentIds = Array.isArray(updated[idx].selectedAssetIds)
+        ? [...updated[idx].selectedAssetIds!]
+        : [];
+      const currentCodes = Array.isArray(updated[idx].selectedAssetCodes)
+        ? [...updated[idx].selectedAssetCodes!]
+        : [];
+      const existsIdx = currentIds.indexOf(asset.id);
+      if (existsIdx !== -1) {
+        currentIds.splice(existsIdx, 1);
+        currentCodes.splice(existsIdx, 1);
+        if (currentIds.length === 0) {
+          updated = updated.filter((_, i) => i !== idx);
+        } else {
+          updated[idx] = {
+            ...updated[idx],
+            quantity: currentIds.length,
+            selectedAssetIds: currentIds,
+            selectedAssetCodes: currentCodes,
+          };
+        }
+      } else {
+        const nextIds = [...currentIds, asset.id];
+        const nextCodes = [...currentCodes, asset.assetCode];
+        updated[idx] = {
+          ...updated[idx],
+          quantity: Math.max(Number(updated[idx].quantity) || 0, nextIds.length),
+          selectedAssetIds: nextIds,
+          selectedAssetCodes: nextCodes,
+        };
       }
     }
     onUpdateBorrowItems(updated.length > 0 ? updated : [{ itemId: '', quantity: '' }]);
@@ -250,13 +309,21 @@ export default function BorrowCheckoutDrawer({
       });
       setSimulatedStatus('PENDING');
 
-      // Create mock assigned assets for equipment items
-      const mockAssets = validBorrowRows.map((b, i) => {
+      // Create mock assigned assets for equipment items (preferring user's selectedAssetCodes)
+      const mockAssets: Array<{ itemName: string; assetCode: string }> = [];
+      validBorrowRows.forEach((b, i) => {
         const item = equipmentList.find((it) => it.id === b.itemId);
-        return {
-          itemName: item?.name || 'ครุภัณฑ์',
-          assetCode: `${item?.code || 'EQ'}-ASSET-${String(i + 1).padStart(2, '0')}`,
-        };
+        const pickedCodes = Array.isArray(b.selectedAssetCodes) ? b.selectedAssetCodes : [];
+        const qty = Math.max(1, Number(b.quantity) || 1);
+        for (let idx = 0; idx < qty; idx++) {
+          const code =
+            pickedCodes[idx] ||
+            `${item?.code || 'EQ'}-ASSET-${String(i + idx + 1).padStart(2, '0')}`;
+          mockAssets.push({
+            itemName: item?.name || 'ครุภัณฑ์',
+            assetCode: code,
+          });
+        }
       });
       setMockAssignedAssets(mockAssets);
 
@@ -379,78 +446,126 @@ export default function BorrowCheckoutDrawer({
                             if (!item) return null;
                             const avail = availabilityMap[item.id];
                             const isOver = avail && Number(b.quantity) > avail.availableNow;
+                            const assetPool = item.availableAssets || item.assets || [];
+                            const reservedSet = new Set(avail?.reservedAssetIds || []);
+                            const pickedIds = Array.isArray(b.selectedAssetIds)
+                              ? b.selectedAssetIds
+                              : [];
+                            const pickedCodes = Array.isArray(b.selectedAssetCodes)
+                              ? b.selectedAssetCodes
+                              : [];
 
                             return (
                               <div
                                 key={b.itemId}
-                                className={`p-3 rounded-2xl border transition flex items-center justify-between gap-3 ${
+                                className={`p-3 rounded-2xl border transition space-y-2 ${
                                   isOver
                                     ? 'bg-rose-50/60 dark:bg-rose-950/30 border-rose-300 dark:border-rose-900'
                                     : 'bg-white dark:bg-slate-850 border-slate-200/80 dark:border-slate-800 shadow-2xs'
                                 }`}
                               >
-                                {/* Thumbnail */}
-                                <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700 overflow-hidden shrink-0 flex items-center justify-center">
-                                  {item.imageUrl ? (
-                                    <img
-                                      src={formatImageUrl(item.imageUrl)}
-                                      alt={item.name}
-                                      className="w-full h-full object-contain p-1"
-                                    />
-                                  ) : (
-                                    <Package className="w-5 h-5 text-slate-400" />
-                                  )}
-                                </div>
-
-                                {/* Title & Storage */}
-                                <div className="flex-1 min-w-0">
-                                  <span className="text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400">
-                                    {item.code}
-                                  </span>
-                                  <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                                    {item.name}
-                                  </h5>
-                                  <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5 truncate">
-                                    <Building2 className="w-3 h-3 text-teal-500 shrink-0" />
-                                    <span>{item.storageLocation?.name || item.location || 'คลังพัสดุ'}</span>
-                                  </p>
-                                </div>
-
-                                {/* Stepper & Remove */}
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 border border-slate-200 dark:border-slate-700">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleSetEquipmentQty(item.id, Number(b.quantity) - 1)
-                                      }
-                                      className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 flex items-center justify-center cursor-pointer shadow-2xs text-slate-700 dark:text-slate-200"
-                                    >
-                                      <Minus className="w-3 h-3" />
-                                    </button>
-                                    <span className="font-mono text-xs font-bold px-2">
-                                      {b.quantity}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleSetEquipmentQty(item.id, Number(b.quantity) + 1)
-                                      }
-                                      className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center cursor-pointer shadow-2xs"
-                                    >
-                                      <Plus className="w-3 h-3" />
-                                    </button>
+                                <div className="flex items-center justify-between gap-3">
+                                  {/* Thumbnail */}
+                                  <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700 overflow-hidden shrink-0 flex items-center justify-center">
+                                    {item.imageUrl ? (
+                                      <img
+                                        src={formatImageUrl(item.imageUrl)}
+                                        alt={item.name}
+                                        className="w-full h-full object-contain p-1"
+                                      />
+                                    ) : (
+                                      <Package className="w-5 h-5 text-slate-400" />
+                                    )}
                                   </div>
 
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSetEquipmentQty(item.id, 0)}
-                                    className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg transition cursor-pointer"
-                                    title="ลบรายการนี้"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  {/* Title & Storage */}
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400">
+                                      {item.code}
+                                    </span>
+                                    <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                      {item.name}
+                                    </h5>
+                                    <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5 truncate">
+                                      <Building2 className="w-3 h-3 text-teal-500 shrink-0" />
+                                      <span>
+                                        {item.storageLocation?.name || item.location || 'คลังพัสดุ'}
+                                      </span>
+                                    </p>
+                                  </div>
+
+                                  {/* Stepper & Remove */}
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 border border-slate-200 dark:border-slate-700">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleSetEquipmentQty(item.id, Number(b.quantity) - 1)
+                                        }
+                                        className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 flex items-center justify-center cursor-pointer shadow-2xs text-slate-700 dark:text-slate-200"
+                                      >
+                                        <Minus className="w-3 h-3" />
+                                      </button>
+                                      <span className="font-mono text-xs font-bold px-2">
+                                        {b.quantity}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleSetEquipmentQty(item.id, Number(b.quantity) + 1)
+                                        }
+                                        className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center cursor-pointer shadow-2xs"
+                                      >
+                                        <Plus className="w-3 h-3" />
+                                      </button>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSetEquipmentQty(item.id, 0)}
+                                      className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg transition cursor-pointer"
+                                      title="ลบรายการนี้"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
                                 </div>
+
+                                {/* Specific Equipment Asset Chips inside Cart */}
+                                {assetPool.length > 0 && (
+                                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
+                                    <div className="flex items-center justify-between text-[10px]">
+                                      <span className="font-bold text-slate-500">
+                                        🎯 เลือกชิ้นครุภัณฑ์ ({pickedCodes.length > 0 ? `เจาะจง: ${pickedCodes.join(', ')}` : 'คลิกเพื่อเจาะจงชิ้น'}):
+                                      </span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {assetPool.map((asset) => {
+                                        const isPicked = pickedIds.includes(asset.id);
+                                        const isReserved = reservedSet.has(asset.id);
+                                        return (
+                                          <button
+                                            key={asset.id}
+                                            type="button"
+                                            disabled={isReserved}
+                                            onClick={() =>
+                                              handleToggleCartEquipmentAsset(item, asset)
+                                            }
+                                            className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold border transition ${
+                                              isReserved
+                                                ? 'bg-slate-100 dark:bg-slate-800 text-slate-300 border-slate-200 dark:border-slate-800 line-through cursor-not-allowed'
+                                                : isPicked
+                                                ? 'bg-blue-600 text-white border-blue-600 shadow-2xs cursor-pointer'
+                                                : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-400 cursor-pointer'
+                                            }`}
+                                          >
+                                            {isPicked ? `✓ ${asset.assetCode}` : asset.assetCode}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             );
                           })}

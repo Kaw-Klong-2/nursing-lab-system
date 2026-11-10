@@ -161,6 +161,8 @@ export async function GET(req: Request) {
           status: true,
           isBorrowable: true,
           allowExpiredForSim: true,
+          customBadge: true,
+          customBadgeColor: true,
           categoryId: true,
           category: { select: { id: true, name: true } },
           assets: {
@@ -168,6 +170,7 @@ export async function GET(req: Request) {
             select: {
               id: true,
               assetCode: true,
+              govAssetCode: true,
               serialNumber: true,
               sequenceNumber: true,
               location: true,
@@ -176,6 +179,11 @@ export async function GET(req: Request) {
               model: true,
               supplier: true,
               warrantyExpiry: true,
+              condition: true,
+              status: true,
+              cost: true,
+              imageUrl: true,
+              note: true,
               isBorrowable: true,
             },
             orderBy: { sequenceNumber: 'asc' },
@@ -196,6 +204,7 @@ export async function GET(req: Request) {
               piecesRemaining: true,
               quantityRemaining: true,
               openPackRemainder: true,
+              unitCost: true,
               brand: true,
             },
             orderBy: [
@@ -263,6 +272,14 @@ export async function GET(req: Request) {
           usageUnit: item.usageUnit,
           conversionRatio: item.conversionRatio,
           minStockAlert: item.minStockAlert,
+          brand: item.brand,
+          model: item.model,
+          unitCost:
+            item.type === 'EQUIPMENT'
+              ? item.assets?.[0]?.cost || 0
+              : item.stockLots?.[0]?.unitCost || 0,
+          customBadge: (item as any).customBadge || null,
+          customBadgeColor: (item as any).customBadgeColor || null,
           location: item.storageLocation
             ? `${item.storageLocation.name} (${item.storageLocation.roomName || item.storageLocation.code})`
             : (item.location || null),
@@ -435,6 +452,8 @@ export async function POST(req: Request) {
         imageUrl: body.imageUrl ? String(body.imageUrl).trim() : null,
         isBorrowable: body.isBorrowable !== undefined ? Boolean(body.isBorrowable) : true,
         allowExpiredForSim: body.allowExpiredForSim !== undefined ? Boolean(body.allowExpiredForSim) : true,
+        customBadge: body.customBadge ? String(body.customBadge).trim() : null,
+        customBadgeColor: body.customBadgeColor ? String(body.customBadgeColor).trim() : null,
       },
       include: {
         category: true,

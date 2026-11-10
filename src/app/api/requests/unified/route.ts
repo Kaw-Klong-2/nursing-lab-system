@@ -342,10 +342,21 @@ export async function POST(req: Request) {
               status: 'PENDING',
               requisitionRequestId: createdRequisition?.id || null,
               items: {
-                create: validBorrowItems.map((it: any) => ({
-                  itemId: it.itemId,
-                  quantity: Number(it.quantity) || 1,
-                })),
+                create: validBorrowItems.flatMap((it: any) => {
+                  const qty = Number(it.quantity) || 1;
+                  const selectedIds = Array.isArray(it.selectedAssetIds) ? it.selectedAssetIds.filter(Boolean) : [];
+                  if (selectedIds.length > 0) {
+                    return selectedIds.map((aId: string) => ({
+                      itemId: it.itemId,
+                      assetId: aId,
+                      quantity: 1,
+                    }));
+                  }
+                  return [{
+                    itemId: it.itemId,
+                    quantity: qty,
+                  }];
+                }),
               },
             },
             select: {

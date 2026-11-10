@@ -17,6 +17,23 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-11] วางโครงสร้างจัดการเลขเวอร์ชันระบบแบบศูนย์กลางเดียว & ตรวจจับแคชเก่าอัตโนมัติ (Centralized Semantic Versioning & Stale Cache Detector)
+- **หมวดหมู่**: Core Architecture / Release & Version Management / PWA & Cache Integrity
+- **สิ่งที่ดำเนินการ**:
+  - **ศูนย์กลางเลขเวอร์ชันเดียว (`Single Source of Truth`)**: สร้าง [`src/lib/version.ts`](file:///d:/LAB-system/src/lib/version.ts) (`APP_VERSION = '2.6.0'`, `APP_BUILD_DATE = '2026-11-11'`) และซิงก์ตรงกับ [`package.json`](file:///d:/LAB-system/package.json) พร้อมอัปเดต [`AppLauncherModal.tsx`](file:///d:/LAB-system/src/components/layout/AppLauncherModal.tsx) ให้ดึงค่าจากศูนย์กลางแทนการ Hardcode (โดยไม่เพิ่มป้ายเวอร์ชันหรือป๊อปอัป "มีอะไรใหม่" รบกวนหน้าจอตามความต้องการของผู้ใช้)
+  - **สคริปต์อัปเวอร์ชันอัตโนมัติ (`npm run version:patch | version:minor | version:major`)**: สร้าง [`scripts/version-bump.mjs`](file:///d:/LAB-system/scripts/version-bump.mjs) เพื่อปรับเลขเวอร์ชันตามหลัก Semantic Versioning (`MAJOR.MINOR.PATCH`) และอัปเดตวันที่ Build ให้ตรงกันทั้งใน `package.json` และ `src/lib/version.ts` ในคำสั่งเดียว
+  - **API เช็กเวอร์ชันและล้างแคชหน้าเว็บเก่า ([`/api/version`](file:///d:/LAB-system/src/app/api/version/route.ts) & [`PwaRegister.tsx`](file:///d:/LAB-system/src/components/pwa/PwaRegister.tsx))**: เพิ่ม Endpoint `/api/version` (`Cache-Control: no-store`) และระบบตรวจสอบเงียบเมื่อสลับแท็บกลับมา (จำกัดไม่เกิน 1 ครั้งต่อ 10 นาที) เพื่อแจ้งรีเฟรชเฉพาะเมื่อเซิร์ฟเวอร์มีการ Deploy เวอร์ชันใหม่
+  - **อัปเกรดสคริปต์บรรณารักษ์ ([`scripts/librarian-audit.mjs`](file:///d:/LAB-system/scripts/librarian-audit.mjs))**: ให้ตรวจสอบความตรงกันของเลขเวอร์ชันระหว่าง `package.json` และ `src/lib/version.ts` ทุกครั้งที่รัน Audit
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/lib/version.ts`](file:///d:/LAB-system/src/lib/version.ts)
+  - [`src/app/api/version/route.ts`](file:///d:/LAB-system/src/app/api/version/route.ts)
+  - [`scripts/version-bump.mjs`](file:///d:/LAB-system/scripts/version-bump.mjs)
+  - [`scripts/librarian-audit.mjs`](file:///d:/LAB-system/scripts/librarian-audit.mjs)
+  - [`src/components/pwa/PwaRegister.tsx`](file:///d:/LAB-system/src/components/pwa/PwaRegister.tsx)
+  - [`src/components/layout/AppLauncherModal.tsx`](file:///d:/LAB-system/src/components/layout/AppLauncherModal.tsx)
+  - [`package.json`](file:///d:/LAB-system/package.json)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit` ผ่าน 0 error และ `npm run librarian:audit` ผ่าน 100%
+
 ### [2026-11-10] ระบบป้ายกำกับพัสดุแบบกำหนดเองได้ & การเลือกชิ้นครุภัณฑ์รายชิ้น (Customizable Item Badges & Individual Equipment Asset Selector)
 - **หมวดหมู่**: Module 2: Inventory & Equipment / Module 6: Borrow, Requisitions & Visual Catalog
 - **สิ่งที่ดำเนินการ**:

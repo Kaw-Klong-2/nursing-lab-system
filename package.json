@@ -1,6 +1,6 @@
 {
   "name": "nursing-lab-system",
-  "version": "1.0.0",
+  "version": "2.6.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -14,7 +14,10 @@
     "prisma:push": "prisma db push",
     "prisma:seed": "node prisma/seed.js",
     "librarian:audit": "node scripts/librarian-audit.mjs",
-    "librarian:search": "node scripts/librarian-audit.mjs --search"
+    "librarian:search": "node scripts/librarian-audit.mjs --search",
+    "version:patch": "node scripts/version-bump.mjs patch",
+    "version:minor": "node scripts/version-bump.mjs minor",
+    "version:major": "node scripts/version-bump.mjs major"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.20.12",

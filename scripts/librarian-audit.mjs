@@ -232,6 +232,36 @@ function searchKnowledgeBase(keyword) {
   };
 }
 
+function getVersionStatus() {
+  const pkgPath = path.join(ROOT_DIR, 'package.json');
+  const verTsPath = path.join(ROOT_DIR, 'src', 'lib', 'version.ts');
+  let pkgVersion = 'unknown';
+  let libVersion = 'unknown';
+  let buildDate = 'unknown';
+
+  if (fs.existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      pkgVersion = pkg.version || 'unknown';
+    } catch {}
+  }
+
+  if (fs.existsSync(verTsPath)) {
+    const content = fs.readFileSync(verTsPath, 'utf8');
+    const vMatch = content.match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
+    const dMatch = content.match(/APP_BUILD_DATE\s*=\s*['"]([^'"]+)['"]/);
+    if (vMatch) libVersion = vMatch[1];
+    if (dMatch) buildDate = dMatch[1];
+  }
+
+  return {
+    pkgVersion,
+    libVersion,
+    buildDate,
+    inSync: pkgVersion === libVersion && pkgVersion !== 'unknown',
+  };
+}
+
 function main() {
   const args = process.argv.slice(2);
   const isJson = args.includes('--json');
@@ -267,9 +297,11 @@ function main() {
   const { agents, skills } = getAgentsAndSkills();
   const { docs, rootDocs } = getDocumentationFiles();
   const audit = runTerminologyAndMojibakeAudit();
+  const versionInfo = getVersionStatus();
 
   const summary = {
     timestamp: new Date().toISOString(),
+    version: versionInfo,
     counts: {
       pages: pages.length,
       apis: apis.length,
@@ -302,6 +334,11 @@ function main() {
   console.log(`============================================================`);
   console.log(`📚 รายงานการตรวจสอบคลังความรู้โดย AI บรรณารักษ์ (LAB-system)`);
   console.log(`============================================================`);
+  console.log(
+    `🏷️  เวอร์ชันระบบปัจจุบัน     : v${versionInfo.libVersion} (Build: ${versionInfo.buildDate}) ${
+      versionInfo.inSync ? '✅ ซิงก์ตรงกับ package.json' : `⚠️ ไม่ตรงกับ package.json (${versionInfo.pkgVersion})`
+    }`
+  );
   console.log(`📊 สถิติโครงสร้างระบบปัจจุบัน:`);
   console.log(`   • หน้าจอ UI (Pages)         : ${summary.counts.pages} หน้า`);
   console.log(`   • จุดเชื่อมต่อ API (Routes)  : ${summary.counts.apis} รายการ`);

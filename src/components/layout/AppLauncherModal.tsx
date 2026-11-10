@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { X, ChevronRight, LayoutDashboard, Sparkles } from 'lucide-react';
 import { SUB_APPS, SubAppConfig, SubAppId, getSubAppsForUser } from '@/lib/sub-apps';
 import { useAuth } from '@/lib/auth-context';
+import { APP_VERSION, APP_SUITE_NAME } from '@/lib/version';
 
 interface AppLauncherModalProps {
   isOpen: boolean;
@@ -195,7 +196,9 @@ export default function AppLauncherModal({
         {/* Footer info */}
         <div className="px-5 py-3 bg-slate-50 dark:bg-slate-950/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
           <span>คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์</span>
-          <span className="font-mono text-[10px]">KUNurse Lab Suite v2.5</span>
+          <span className="font-mono text-[10px]">
+            {APP_SUITE_NAME} v{APP_VERSION}
+          </span>
         </div>
       </div>
     </div>

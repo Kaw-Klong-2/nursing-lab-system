@@ -326,24 +326,6 @@ function getCustomBadgeMeta(
   };
 }
 
-function isAutoSensitiveAnatomyName(name?: string | null) {
-  if (!name) return false;
-  const n = name.toLowerCase();
-  return (
-    n.includes('คลอด') ||
-    n.includes('ช่องคลอด') ||
-    n.includes('ฝีเย็บ') ||
-    n.includes('สวนปัสสาวะ') ||
-    n.includes('อวัยวะเพศ') ||
-    n.includes('ตรวจภายใน') ||
-    n.includes('ทวารหนัก') ||
-    n.includes('เต้านม') ||
-    n.includes('perineal') ||
-    n.includes('catheterization') ||
-    n.includes('pelvic')
-  );
-}
-
 function getItemBlurState(
   item: CatalogItem,
   override?: { isSensitive?: boolean; blurPercent?: number }
@@ -351,8 +333,7 @@ function getItemBlurState(
   const isSensitive =
     override && override.isSensitive !== undefined
       ? override.isSensitive
-      : item.isSensitiveImage === true ||
-        (item.isSensitiveImage !== false && isAutoSensitiveAnatomyName(item.name));
+      : item.isSensitiveImage === true;
 
   const blurPercent = Math.min(
     100,
@@ -2692,7 +2673,7 @@ export default function BorrowCatalogBrowser({
                         <div className="pt-2.5 border-t border-amber-200/70 dark:border-amber-800/60 space-y-2">
                           <label className="flex items-center justify-between gap-2 cursor-pointer">
                             <span className="text-[11px] font-black text-slate-800 dark:text-slate-100">
-                              🔞 2. เบลอรูปภาพอัตโนมัติ (สำหรับหุ่นคลอด/จุดซ่อนเร้น)
+                              🔞 2. เปิดเบลอรูปภาพรายการนี้ (กดเปิด/ปิดเอง)
                             </span>
                             <input
                               type="checkbox"

@@ -2800,10 +2800,10 @@ export default function InventoryPage() {
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
-                        🔞 เบลอรูปภาพหุ่นกายวิภาค / จุดซ่อนเร้นอัตโนมัติ (Sensitive Image Blur)
+                        🔞 เปิดเบลอรูปภาพรายการนี้ (กดเปิด/ปิดเองเมื่อต้องการพรางรูป)
                       </span>
                       <span className="text-[10px] text-slate-500">
-                        เช่น หุ่นคลอดเห็นช่องคลอด, หุ่นเย็บแผลฝีเย็บ, หุ่นสวนปัสสาวะ (กดดูภาพจริงได้เมื่อต้องการ)
+                        จะเบลอเฉพาะรายการที่ติ๊กเปิดไว้เท่านั้น (กดดูภาพจริงได้เมื่อต้องการ)
                       </span>
                     </div>
                     <input
@@ -3937,10 +3937,10 @@ export default function InventoryPage() {
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
-                        🔞 เบลอรูปภาพหุ่นกายวิภาค / จุดซ่อนเร้นอัตโนมัติ (Sensitive Image Blur)
+                        🔞 เปิดเบลอรูปภาพรายการนี้ (กดเปิด/ปิดเองเมื่อต้องการพรางรูป)
                       </span>
                       <span className="text-[10px] text-slate-500">
-                        เช่น หุ่นคลอดเห็นช่องคลอด, หุ่นเย็บแผลฝีเย็บ, หุ่นสวนปัสสาวะ (กดดูภาพจริงได้เมื่อต้องการ)
+                        จะเบลอเฉพาะรายการที่ติ๊กเปิดไว้เท่านั้น (กดดูภาพจริงได้เมื่อต้องการ)
                       </span>
                     </div>
                     <input

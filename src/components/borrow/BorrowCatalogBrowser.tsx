@@ -38,6 +38,7 @@ import {
   Star,
   ArrowUpDown,
   Eye,
+  EyeOff,
   Tag,
   Info,
   Building2,
@@ -71,6 +72,10 @@ export interface CatalogAssetItem {
   imageUrl?: string | null;
   note?: string | null;
   isBorrowable?: boolean;
+  customBadge?: string | null;
+  customBadgeColor?: string | null;
+  isSensitiveImage?: boolean | null;
+  sensitiveBlurLevel?: number | null;
 }
 
 export interface CatalogItem {
@@ -101,6 +106,8 @@ export interface CatalogItem {
   unitCost?: number;
   customBadge?: string | null;
   customBadgeColor?: string | null;
+  isSensitiveImage?: boolean | null;
+  sensitiveBlurLevel?: number | null;
   categoryId?: string;
   category?: { id: string; name: string };
   isBorrowable?: boolean;
@@ -288,7 +295,7 @@ function getMedicalCategoryMeta(categoryName?: string, itemType?: string) {
 }
 
 function getCustomBadgeMeta(
-  item: CatalogItem,
+  item: { customBadge?: string | null; customBadgeColor?: string | null },
   override?: { badge?: string | null; color?: string | null }
 ) {
   const badgeText =
@@ -316,6 +323,54 @@ function getCustomBadgeMeta(
     label: badgeText.trim(),
     color: colorKey,
     className: colorClasses[colorKey] || colorClasses.AMBER,
+  };
+}
+
+function isAutoSensitiveAnatomyName(name?: string | null) {
+  if (!name) return false;
+  const n = name.toLowerCase();
+  return (
+    n.includes('คลอด') ||
+    n.includes('ช่องคลอด') ||
+    n.includes('ฝีเย็บ') ||
+    n.includes('สวนปัสสาวะ') ||
+    n.includes('อวัยวะเพศ') ||
+    n.includes('ตรวจภายใน') ||
+    n.includes('ทวารหนัก') ||
+    n.includes('เต้านม') ||
+    n.includes('perineal') ||
+    n.includes('catheterization') ||
+    n.includes('pelvic')
+  );
+}
+
+function getItemBlurState(
+  item: CatalogItem,
+  override?: { isSensitive?: boolean; blurPercent?: number }
+) {
+  const isSensitive =
+    override && override.isSensitive !== undefined
+      ? override.isSensitive
+      : item.isSensitiveImage === true ||
+        (item.isSensitiveImage !== false && isAutoSensitiveAnatomyName(item.name));
+
+  const blurPercent = Math.min(
+    100,
+    Math.max(
+      10,
+      override && override.blurPercent !== undefined
+        ? override.blurPercent
+        : Number(item.sensitiveBlurLevel) || 80
+    )
+  );
+
+  // Convert percentage (10% - 100%) to CSS blur radius in px (3px - 32px)
+  const blurPx = Math.max(3, Math.round((blurPercent / 100) * 32));
+
+  return {
+    isSensitive,
+    blurPercent,
+    blurPx,
   };
 }
 
@@ -401,16 +456,32 @@ export default function BorrowCatalogBrowser({
   // Image Preview Modal
   const [previewItem, setPreviewItem] = useState<CatalogItem | null>(null);
 
-  // Custom Badge Overrides & Quick Editor State
+  // Custom Badge Overrides & Quick Editor State (Item-level + Per-Asset level + Sensitive Blur)
   const [badgeOverrides, setBadgeOverrides] = useState<
     Record<string, { badge: string | null; color: string | null }>
   >({});
+  const [assetBadgeOverrides, setAssetBadgeOverrides] = useState<
+    Record<string, { badge: string | null; color: string | null }>
+  >({});
+  const [blurOverrides, setBlurOverrides] = useState<
+    Record<string, { isSensitive: boolean; blurPercent: number }>
+  >({});
+  const [revealedImages, setRevealedImages] = useState<Record<string, boolean>>({});
+
   const [isEditingBadge, setIsEditingBadge] = useState(false);
   const [badgeDraftText, setBadgeDraftText] = useState('');
   const [badgeDraftColor, setBadgeDraftColor] = useState('AMBER');
+  const [blurDraftEnabled, setBlurDraftEnabled] = useState(false);
+  const [blurDraftPercent, setBlurDraftPercent] = useState(80);
   const [savingBadge, setSavingBadge] = useState(false);
 
-  // Sync badge editor draft when previewItem opens
+  // Per-Asset Badge Inline Editor State inside Quick View
+  const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
+  const [assetBadgeDraftText, setAssetBadgeDraftText] = useState('');
+  const [assetBadgeDraftColor, setAssetBadgeDraftColor] = useState('ROSE');
+  const [savingAssetBadge, setSavingAssetBadge] = useState(false);
+
+  // Sync badge & blur editor draft when previewItem opens
   useEffect(() => {
     if (previewItem) {
       const ov = badgeOverrides[previewItem.id];
@@ -418,25 +489,83 @@ export default function BorrowCatalogBrowser({
       const currentColor = ov !== undefined ? ov.color || 'AMBER' : previewItem.customBadgeColor || 'AMBER';
       setBadgeDraftText(currentText);
       setBadgeDraftColor(currentColor);
+
+      const bState = getItemBlurState(previewItem, blurOverrides[previewItem.id]);
+      setBlurDraftEnabled(bState.isSensitive);
+      setBlurDraftPercent(bState.blurPercent);
+
       setIsEditingBadge(false);
+      setEditingAssetId(null);
     }
-  }, [previewItem, badgeOverrides]);
+  }, [previewItem, badgeOverrides, blurOverrides]);
 
   const handleSaveCustomBadge = async (
     item: CatalogItem,
     badgeVal: string | null,
-    colorVal: string | null
+    colorVal: string | null,
+    isSensitiveVal?: boolean,
+    blurPercentVal?: number
   ) => {
     const cleanText = badgeVal && badgeVal.trim() ? badgeVal.trim() : null;
     const cleanColor = cleanText ? colorVal || 'AMBER' : null;
+    const finalSensitive =
+      isSensitiveVal !== undefined ? isSensitiveVal : blurDraftEnabled;
+    const finalBlurPercent = Math.min(
+      100,
+      Math.max(10, blurPercentVal !== undefined ? blurPercentVal : blurDraftPercent)
+    );
+
     setSavingBadge(true);
     try {
       setBadgeOverrides((prev) => ({
         ...prev,
         [item.id]: { badge: cleanText, color: cleanColor },
       }));
+      setBlurOverrides((prev) => ({
+        ...prev,
+        [item.id]: { isSensitive: finalSensitive, blurPercent: finalBlurPercent },
+      }));
 
       await fetch(`/api/items/${item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customBadge: cleanText,
+          customBadgeColor: cleanColor,
+          isSensitiveImage: finalSensitive,
+          sensitiveBlurLevel: finalBlurPercent,
+        }),
+      });
+
+      triggerToast(
+        `✅ บันทึกการตั้งค่า "${item.name}" แล้ว`,
+        `${cleanText ? `ป้าย: ${cleanText} · ` : ''}${
+          finalSensitive ? `เบลอรูปภาพ ${finalBlurPercent}%` : 'แสดงรูปภาพปกติ'
+        }`
+      );
+      setIsEditingBadge(false);
+    } catch {
+      triggerToast('⚠️ ไม่สามารถบันทึกการตั้งค่าลงเซิร์ฟเวอร์ได้');
+    } finally {
+      setSavingBadge(false);
+    }
+  };
+
+  const handleSaveAssetCustomBadge = async (
+    asset: CatalogAssetItem,
+    badgeVal: string | null,
+    colorVal: string | null
+  ) => {
+    const cleanText = badgeVal && badgeVal.trim() ? badgeVal.trim() : null;
+    const cleanColor = cleanText ? colorVal || 'ROSE' : null;
+    setSavingAssetBadge(true);
+    try {
+      setAssetBadgeOverrides((prev) => ({
+        ...prev,
+        [asset.id]: { badge: cleanText, color: cleanColor },
+      }));
+
+      await fetch(`/api/assets/${asset.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -447,14 +576,14 @@ export default function BorrowCatalogBrowser({
 
       triggerToast(
         cleanText
-          ? `🏷️ ตั้งค่าป้าย "${cleanText}" สำหรับ "${item.name}" แล้ว`
-          : `นำป้ายกำกับออกจาก "${item.name}" แล้ว`
+          ? `🏷️ ตั้งป้าย "${cleanText}" สำหรับเครื่อง "${asset.assetCode}" แล้ว`
+          : `นำป้ายกำกับออกจากเครื่อง "${asset.assetCode}" แล้ว`
       );
-      setIsEditingBadge(false);
+      setEditingAssetId(null);
     } catch {
-      triggerToast('⚠️ ไม่สามารถบันทึกป้ายกำกับลงเซิร์ฟเวอร์ได้');
+      triggerToast('⚠️ ไม่สามารถบันทึกป้ายกำกับรายชิ้นได้');
     } finally {
-      setSavingBadge(false);
+      setSavingAssetBadge(false);
     }
   };
 
@@ -1423,6 +1552,8 @@ export default function BorrowCatalogBrowser({
               const catMeta = getMedicalCategoryMeta(item.category?.name, item.type);
               const CatIcon = catMeta.icon;
               const customBadge = getCustomBadgeMeta(item, badgeOverrides[item.id]);
+              const blurState = getItemBlurState(item, blurOverrides[item.id]);
+              const isRevealed = !!revealedImages[item.id];
               const assetPool = item.availableAssets || item.assets || [];
 
               return (
@@ -1440,16 +1571,34 @@ export default function BorrowCatalogBrowser({
                     className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border border-slate-200/80 dark:border-slate-700 overflow-hidden shrink-0 flex items-center justify-center bg-white dark:bg-slate-800 cursor-pointer relative group/thumb"
                   >
                     {hasImage ? (
-                      <img
-                        src={formatImageUrl(item.imageUrl)}
-                        alt={item.name}
-                        referrerPolicy="no-referrer"
-                        loading="lazy"
-                        onError={() =>
-                          setBrokenImages((prev) => ({ ...prev, [item.id]: true }))
-                        }
-                        className="w-full h-full object-contain p-1.5"
-                      />
+                      <>
+                        <img
+                          src={formatImageUrl(item.imageUrl)}
+                          alt={item.name}
+                          referrerPolicy="no-referrer"
+                          loading="lazy"
+                          onError={() =>
+                            setBrokenImages((prev) => ({ ...prev, [item.id]: true }))
+                          }
+                          style={
+                            blurState.isSensitive && !isRevealed
+                              ? {
+                                  filter: `blur(${Math.max(4, Math.round(blurState.blurPx * 0.45))}px)`,
+                                  transform: 'scale(1.1)',
+                                }
+                              : undefined
+                          }
+                          className="w-full h-full object-contain p-1.5 transition-all"
+                        />
+                        {blurState.isSensitive && !isRevealed && (
+                          <span
+                            title={`ภาพหุ่นกายวิภาค (เบลอ ${blurState.blurPercent}%)`}
+                            className="absolute inset-0 flex items-center justify-center bg-slate-900/20 text-[10px]"
+                          >
+                            🩺
+                          </span>
+                        )}
+                      </>
                     ) : (
                       <div className={`w-full h-full flex items-center justify-center bg-gradient-to-br ${catMeta.gradient}`}>
                         <CatIcon className="w-6 h-6 text-slate-500 dark:text-slate-400" />
@@ -1636,6 +1785,8 @@ export default function BorrowCatalogBrowser({
               const catMeta = getMedicalCategoryMeta(item.category?.name, item.type);
               const CatIcon = catMeta.icon;
               const customBadge = getCustomBadgeMeta(item, badgeOverrides[item.id]);
+              const blurState = getItemBlurState(item, blurOverrides[item.id]);
+              const isRevealed = !!revealedImages[item.id];
               const isWishlisted = wishlistIds.includes(item.id);
               const unitCostNum = Number(item.unitCost) || 0;
               const assetPool = item.availableAssets || item.assets || [];
@@ -1757,7 +1908,7 @@ export default function BorrowCatalogBrowser({
                     {hasImage ? (
                       <div
                         onClick={() => setPreviewItem(item)}
-                        className="w-full h-full p-3 sm:p-4 flex items-center justify-center bg-white dark:bg-slate-900 cursor-pointer relative group/photo"
+                        className="w-full h-full p-3 sm:p-4 flex items-center justify-center bg-white dark:bg-slate-900 cursor-pointer relative group/photo overflow-hidden"
                       >
                         <img
                           src={formatImageUrl(item.imageUrl)}
@@ -1767,12 +1918,58 @@ export default function BorrowCatalogBrowser({
                           onError={() =>
                             setBrokenImages((prev) => ({ ...prev, [item.id]: true }))
                           }
-                          className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-500"
+                          style={
+                            blurState.isSensitive && !isRevealed
+                              ? {
+                                  filter: `blur(${blurState.blurPx}px)`,
+                                  transform: 'scale(1.12)',
+                                }
+                              : undefined
+                          }
+                          className="max-w-full max-h-full object-contain group-hover:scale-105 transition-all duration-300"
                         />
-                        <div className="absolute bottom-2.5 right-2.5 px-2 py-1 rounded-full bg-slate-900/80 text-white text-[10px] font-bold opacity-0 group-hover/photo:opacity-100 transition-opacity backdrop-blur-xs flex items-center gap-1">
-                          <Eye className="w-3 h-3" />
-                          <span>ดูสเปก</span>
-                        </div>
+
+                        {/* Sensitive Medical Anatomy Privacy Shield Overlay */}
+                        {blurState.isSensitive && !isRevealed ? (
+                          <div className="absolute inset-0 bg-slate-900/20 dark:bg-slate-950/35 flex flex-col items-center justify-center p-2 text-center z-10">
+                            <div className="px-2.5 py-1.5 rounded-2xl bg-slate-900/80 text-white backdrop-blur-md shadow-md border border-white/15 space-y-1 max-w-[90%]">
+                              <div className="text-[10px] font-black leading-tight">
+                                🩺 ภาพหุ่นจำลองกายวิภาค
+                              </div>
+                              <div className="text-[9px] text-slate-300">
+                                พรางภาพอัตโนมัติ ({blurState.blurPercent}%)
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRevealedImages((prev) => ({ ...prev, [item.id]: true }));
+                                }}
+                                className="mt-0.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-slate-950 text-[9px] font-black transition cursor-pointer"
+                              >
+                                <Eye className="w-2.5 h-2.5" />
+                                <span>ดูภาพจริง</span>
+                              </button>
+                            </div>
+                          </div>
+                        ) : blurState.isSensitive && isRevealed ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRevealedImages((prev) => ({ ...prev, [item.id]: false }));
+                            }}
+                            className="absolute bottom-2.5 right-2.5 z-10 px-2 py-1 rounded-full bg-slate-900/85 hover:bg-slate-900 text-white text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-xs"
+                          >
+                            <EyeOff className="w-3 h-3 text-amber-400" />
+                            <span>เบลอภาพกลับ</span>
+                          </button>
+                        ) : (
+                          <div className="absolute bottom-2.5 right-2.5 px-2 py-1 rounded-full bg-slate-900/80 text-white text-[10px] font-bold opacity-0 group-hover/photo:opacity-100 transition-opacity backdrop-blur-xs flex items-center gap-1">
+                            <Eye className="w-3 h-3" />
+                            <span>ดูสเปก</span>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div
@@ -1864,6 +2061,10 @@ export default function BorrowCatalogBrowser({
                             {assetPool.slice(0, 4).map((asset) => {
                               const isPicked = cartState.selectedAssetIds.includes(asset.id);
                               const isRes = reservedAssetSet.has(asset.id);
+                              const assetBadge = getCustomBadgeMeta(
+                                asset,
+                                assetBadgeOverrides[asset.id]
+                              );
                               return (
                                 <button
                                   key={asset.id}
@@ -1873,11 +2074,13 @@ export default function BorrowCatalogBrowser({
                                   title={
                                     isRes
                                       ? `${asset.assetCode} ติดคิวจองในช่วงเวลานี้`
-                                      : `คลิกเพื่อเลือก/ยกเลิกชิ้น ${asset.assetCode} (${
+                                      : `คลิกเพื่อเลือก/ยกเลิกชิ้น ${asset.assetCode}${
+                                          assetBadge ? ` [${assetBadge.label}]` : ''
+                                        } (${
                                           asset.storageLocation?.name || asset.location || 'คลังพัสดุ'
                                         })`
                                   }
-                                  className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold border transition cursor-pointer ${
+                                  className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold border transition cursor-pointer inline-flex items-center gap-1 ${
                                     isRes
                                       ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900 text-rose-400 line-through cursor-not-allowed'
                                       : isPicked
@@ -1885,7 +2088,14 @@ export default function BorrowCatalogBrowser({
                                       : 'bg-slate-50 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-blue-400 hover:text-blue-600'
                                   }`}
                                 >
-                                  {isPicked ? `✓ ${asset.assetCode}` : asset.assetCode}
+                                  <span>{isPicked ? `✓ ${asset.assetCode}` : asset.assetCode}</span>
+                                  {assetBadge && (
+                                    <span
+                                      className={`px-1.5 py-0.2 rounded-full text-[8px] font-sans font-black border ${assetBadge.className}`}
+                                    >
+                                      {assetBadge.label}
+                                    </span>
+                                  )}
                                 </button>
                               );
                             })}
@@ -2218,6 +2428,15 @@ export default function BorrowCatalogBrowser({
           const catMeta = getMedicalCategoryMeta(previewItem.category?.name, previewItem.type);
           const CatIcon = catMeta.icon;
           const customBadge = getCustomBadgeMeta(previewItem, badgeOverrides[previewItem.id]);
+          const baseBlurState = getItemBlurState(previewItem, blurOverrides[previewItem.id]);
+          const activeBlurSensitive = isEditingBadge
+            ? blurDraftEnabled
+            : baseBlurState.isSensitive;
+          const activeBlurPercent = isEditingBadge
+            ? blurDraftPercent
+            : baseBlurState.blurPercent;
+          const activeBlurPx = Math.max(3, Math.round((activeBlurPercent / 100) * 32));
+          const isModalImageRevealed = !!revealedImages[previewItem.id];
           const isWishlisted = wishlistIds.includes(previewItem.id);
           const unitCostNum = Number(previewItem.unitCost) || 0;
           const assetPool = isEquip ? previewItem.availableAssets || previewItem.assets || [] : [];
@@ -2255,9 +2474,9 @@ export default function BorrowCatalogBrowser({
                         type="button"
                         onClick={() => setIsEditingBadge((v) => !v)}
                         className="text-[10px] font-bold px-2 py-1 rounded-full border border-slate-300/80 dark:border-slate-700 bg-white/90 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-amber-400 hover:text-amber-600 transition cursor-pointer"
-                        title="กำหนดป้ายกำกับพัสดุเอง (Custom Badge)"
+                        title="ตั้งค่าป้ายกำกับพัสดุและระดับการเบลอรูปภาพ"
                       >
-                        🏷️ {customBadge ? 'แก้ป้าย' : '+ ตั้งป้าย'}
+                        🏷️ {customBadge ? 'แก้ป้าย' : '+ ตั้งป้าย'} / 🔞 เบลอรูป
                       </button>
                     </div>
 
@@ -2280,14 +2499,63 @@ export default function BorrowCatalogBrowser({
                   </div>
 
                   {/* Center Image / Illustration */}
-                  <div className="my-4 flex items-center justify-center flex-1">
+                  <div className="my-4 flex items-center justify-center flex-1 relative overflow-hidden rounded-2xl">
                     {hasImage ? (
-                      <img
-                        src={formatImageUrl(previewItem.imageUrl)}
-                        alt={previewItem.name}
-                        referrerPolicy="no-referrer"
-                        className="max-h-[260px] max-w-full object-contain rounded-2xl drop-shadow-md"
-                      />
+                      <div className="relative flex items-center justify-center w-full h-full">
+                        <img
+                          src={formatImageUrl(previewItem.imageUrl)}
+                          alt={previewItem.name}
+                          referrerPolicy="no-referrer"
+                          style={
+                            activeBlurSensitive && !isModalImageRevealed
+                              ? {
+                                  filter: `blur(${activeBlurPx}px)`,
+                                  transform: 'scale(1.08)',
+                                }
+                              : undefined
+                          }
+                          className="max-h-[260px] max-w-full object-contain rounded-2xl drop-shadow-md transition-all duration-200"
+                        />
+                        {activeBlurSensitive && !isModalImageRevealed ? (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
+                            <div className="px-4 py-3 rounded-2xl bg-slate-900/85 text-white backdrop-blur-md shadow-xl border border-white/15 space-y-1.5 max-w-xs">
+                              <div className="text-xs font-black">
+                                🩺 ภาพหุ่นจำลองทางกายวิภาค
+                              </div>
+                              <p className="text-[10px] text-slate-300">
+                                พรางภาพอัตโนมัติที่ความเบลอ {activeBlurPercent}% เพื่อความเหมาะสมในพื้นที่สาธารณะ
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setRevealedImages((prev) => ({
+                                    ...prev,
+                                    [previewItem.id]: true,
+                                  }))
+                                }
+                                className="mt-1 inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 text-[11px] font-black transition cursor-pointer"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>กดดูภาพจริง</span>
+                              </button>
+                            </div>
+                          </div>
+                        ) : activeBlurSensitive && isModalImageRevealed ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setRevealedImages((prev) => ({
+                                ...prev,
+                                [previewItem.id]: false,
+                              }))
+                            }
+                            className="absolute bottom-2 right-2 px-2.5 py-1 rounded-xl bg-slate-900/85 hover:bg-slate-900 text-white text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-md"
+                          >
+                            <EyeOff className="w-3 h-3 text-amber-400" />
+                            <span>เบลอภาพกลับ ({activeBlurPercent}%)</span>
+                          </button>
+                        ) : null}
+                      </div>
                     ) : (
                       <div className="text-center py-8">
                         <div
@@ -2342,93 +2610,185 @@ export default function BorrowCatalogBrowser({
                       </button>
                     </div>
 
-                    {/* Custom Badge Configuration Panel (Expandable via 🏷️ button) */}
+                    {/* Custom Badge & Sensitive Image Blur Configuration Panel */}
                     {isEditingBadge && (
-                      <div className="p-3 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/70 space-y-2.5 animate-in fade-in duration-150">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-black text-amber-900 dark:text-amber-200">
-                            🏷️ กำหนดป้ายกำกับพัสดุเอง (Custom Badge)
-                          </span>
-                          <span className="text-[10px] text-slate-400">
-                            หากเว้นว่างจะไม่แสดงป้ายบนการ์ด
-                          </span>
-                        </div>
+                      <div className="p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/70 space-y-3 animate-in fade-in duration-150">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-black text-amber-900 dark:text-amber-200">
+                              🏷️ 1. ป้ายกำกับรายการพัสดุหลัก (Item Badge)
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              เว้นว่าง = ไม่แสดงป้าย
+                            </span>
+                          </div>
 
-                        {/* Quick Preset Chips */}
-                        <div className="flex flex-wrap gap-1">
-                          {[
-                            { text: '🔥 ยอดนิยม', color: 'AMBER' },
-                            { text: '✨ แนะนำ', color: 'EMERALD' },
-                            { text: '🎯 ใช้สอบ OSCE', color: 'ROSE' },
-                            { text: '🆕 มาใหม่', color: 'INDIGO' },
-                          ].map((p) => (
-                            <button
-                              key={p.text}
-                              type="button"
-                              onClick={() => {
-                                setBadgeDraftText(p.text);
-                                setBadgeDraftColor(p.color);
-                              }}
-                              className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-amber-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-amber-400 cursor-pointer"
-                            >
-                              {p.text}
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Custom Text & Color Swatches */}
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            maxLength={28}
-                            value={badgeDraftText}
-                            onChange={(e) => setBadgeDraftText(e.target.value)}
-                            placeholder="พิมพ์ข้อความป้ายเอง เช่น 🔥 ยอดนิยม..."
-                            className="flex-1 px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-amber-500"
-                          />
-                          <div className="flex items-center gap-1 shrink-0">
+                          {/* Quick Preset Chips */}
+                          <div className="flex flex-wrap gap-1">
                             {[
-                              { key: 'AMBER', cls: 'bg-amber-500' },
-                              { key: 'ROSE', cls: 'bg-rose-600' },
-                              { key: 'EMERALD', cls: 'bg-emerald-600' },
-                              { key: 'INDIGO', cls: 'bg-indigo-600' },
-                              { key: 'PURPLE', cls: 'bg-purple-600' },
-                            ].map((sw) => (
+                              { text: '🔥 ยอดนิยม', color: 'AMBER' },
+                              { text: '✨ แนะนำ', color: 'EMERALD' },
+                              { text: '🎯 ใช้สอบ OSCE', color: 'ROSE' },
+                              { text: '🆕 มาใหม่', color: 'INDIGO' },
+                            ].map((p) => (
                               <button
-                                key={sw.key}
+                                key={p.text}
                                 type="button"
-                                onClick={() => setBadgeDraftColor(sw.key)}
-                                className={`w-5 h-5 rounded-full ${sw.cls} transition cursor-pointer ${
-                                  badgeDraftColor === sw.key
-                                    ? 'ring-2 ring-offset-1 ring-slate-900 dark:ring-white scale-110'
-                                    : 'opacity-65 hover:opacity-100'
-                                }`}
-                                title={`สี ${sw.key}`}
-                              />
+                                onClick={() => {
+                                  setBadgeDraftText(p.text);
+                                  setBadgeDraftColor(p.color);
+                                }}
+                                className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-amber-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-amber-400 cursor-pointer"
+                              >
+                                {p.text}
+                              </button>
                             ))}
+                            {(customBadge || badgeDraftText) && (
+                              <button
+                                type="button"
+                                onClick={() => setBadgeDraftText('')}
+                                className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 border border-rose-200 dark:border-rose-800 cursor-pointer"
+                              >
+                                ✕ ล้างป้าย
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Custom Text & Color Swatches */}
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              maxLength={28}
+                              value={badgeDraftText}
+                              onChange={(e) => setBadgeDraftText(e.target.value)}
+                              placeholder="พิมพ์ข้อความป้ายเอง เช่น 🔥 ยอดนิยม..."
+                              className="flex-1 px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-amber-500"
+                            />
+                            <div className="flex items-center gap-1 shrink-0">
+                              {[
+                                { key: 'AMBER', cls: 'bg-amber-500' },
+                                { key: 'ROSE', cls: 'bg-rose-600' },
+                                { key: 'EMERALD', cls: 'bg-emerald-600' },
+                                { key: 'INDIGO', cls: 'bg-indigo-600' },
+                                { key: 'PURPLE', cls: 'bg-purple-600' },
+                              ].map((sw) => (
+                                <button
+                                  key={sw.key}
+                                  type="button"
+                                  onClick={() => setBadgeDraftColor(sw.key)}
+                                  className={`w-5 h-5 rounded-full ${sw.cls} transition cursor-pointer ${
+                                    badgeDraftColor === sw.key
+                                      ? 'ring-2 ring-offset-1 ring-slate-900 dark:ring-white scale-110'
+                                      : 'opacity-65 hover:opacity-100'
+                                  }`}
+                                  title={`สี ${sw.key}`}
+                                />
+                              ))}
+                            </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-end gap-1.5 pt-1">
-                          {(customBadge || badgeDraftText) && (
-                            <button
-                              type="button"
-                              disabled={savingBadge}
-                              onClick={() => handleSaveCustomBadge(previewItem, null, null)}
-                              className="px-2.5 py-1 rounded-xl text-[10px] font-bold text-rose-600 hover:bg-rose-100/70 dark:hover:bg-rose-950/50 transition cursor-pointer"
-                            >
-                              ลบป้ายออก (ไม่แสดงป้าย)
-                            </button>
+                        {/* Sensitive Image Blur Configuration with Selectable % */}
+                        <div className="pt-2.5 border-t border-amber-200/70 dark:border-amber-800/60 space-y-2">
+                          <label className="flex items-center justify-between gap-2 cursor-pointer">
+                            <span className="text-[11px] font-black text-slate-800 dark:text-slate-100">
+                              🔞 2. เบลอรูปภาพอัตโนมัติ (สำหรับหุ่นคลอด/จุดซ่อนเร้น)
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={blurDraftEnabled}
+                              onChange={(e) => {
+                                setBlurDraftEnabled(e.target.checked);
+                                if (e.target.checked) {
+                                  setRevealedImages((prev) => ({
+                                    ...prev,
+                                    [previewItem.id]: false,
+                                  }));
+                                }
+                              }}
+                              className="w-4 h-4 accent-teal-600 rounded cursor-pointer"
+                            />
+                          </label>
+
+                          {blurDraftEnabled && (
+                            <div className="space-y-1.5 bg-white/80 dark:bg-slate-900/70 p-2.5 rounded-xl border border-amber-200/60 dark:border-slate-700">
+                              <div className="flex items-center justify-between text-[10px]">
+                                <span className="font-bold text-slate-600 dark:text-slate-300">
+                                  เลือกระดับความเบลอของภาพ:
+                                </span>
+                                <span className="font-mono font-black text-teal-600 dark:text-teal-400">
+                                  เบลอ {blurDraftPercent}%
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-4 gap-1">
+                                {[
+                                  { pct: 50, label: '50% (เบา)' },
+                                  { pct: 65, label: '65% (กลาง)' },
+                                  { pct: 80, label: '80% (แนะนำ)' },
+                                  { pct: 95, label: '95% (ทึบ)' },
+                                ].map((lv) => (
+                                  <button
+                                    key={lv.pct}
+                                    type="button"
+                                    onClick={() => {
+                                      setBlurDraftPercent(lv.pct);
+                                      setRevealedImages((prev) => ({
+                                        ...prev,
+                                        [previewItem.id]: false,
+                                      }));
+                                    }}
+                                    className={`py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
+                                      blurDraftPercent === lv.pct
+                                        ? 'bg-teal-600 text-white border-teal-600'
+                                        : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-teal-400'
+                                    }`}
+                                  >
+                                    {lv.label}
+                                  </button>
+                                ))}
+                              </div>
+                              <input
+                                type="range"
+                                min={10}
+                                max={100}
+                                step={5}
+                                value={blurDraftPercent}
+                                onChange={(e) => {
+                                  setBlurDraftPercent(Number(e.target.value));
+                                  setRevealedImages((prev) => ({
+                                    ...prev,
+                                    [previewItem.id]: false,
+                                  }));
+                                }}
+                                className="w-full accent-teal-600 cursor-pointer h-1.5"
+                              />
+                            </div>
                           )}
+                        </div>
+
+                        <div className="flex items-center justify-end gap-1.5 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingBadge(false)}
+                            className="px-2.5 py-1 rounded-xl text-[10px] font-bold text-slate-500 hover:bg-slate-200/60 transition cursor-pointer"
+                          >
+                            ยกเลิก
+                          </button>
                           <button
                             type="button"
                             disabled={savingBadge}
                             onClick={() =>
-                              handleSaveCustomBadge(previewItem, badgeDraftText, badgeDraftColor)
+                              handleSaveCustomBadge(
+                                previewItem,
+                                badgeDraftText,
+                                badgeDraftColor,
+                                blurDraftEnabled,
+                                blurDraftPercent
+                              )
                             }
-                            className="px-3 py-1 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-black transition cursor-pointer shadow-2xs"
+                            className="px-3.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-black transition cursor-pointer shadow-2xs"
                           >
-                            {savingBadge ? 'กำลังบันทึก...' : 'บันทึกป้าย'}
+                            {savingBadge ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
                           </button>
                         </div>
                       </div>
@@ -2522,7 +2882,7 @@ export default function BorrowCatalogBrowser({
                       </p>
                     </div>
 
-                    {/* Specific Equipment Asset Selector inside Quick View */}
+                    {/* Specific Equipment Asset Selector & Per-Asset Custom Badge inside Quick View */}
                     {isEquip && assetPool.length > 0 && (
                       <div className="space-y-2 p-3 rounded-2xl bg-slate-50/90 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80">
                         <div className="flex items-center justify-between gap-2">
@@ -2532,10 +2892,119 @@ export default function BorrowCatalogBrowser({
                           <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
                             {cartState.selectedAssetCodes.length > 0
                               ? `เจาะจงแล้ว ${cartState.selectedAssetCodes.length} ชิ้น`
-                              : 'คลิกที่รหัสเพื่อเลือกชิ้นที่ต้องการ'}
+                              : 'คลิกรหัสเพื่อเลือกชิ้น · กด 🏷️ เพื่อตั้งป้ายแยกชิ้น'}
                           </span>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-40 overflow-y-auto pr-1">
+
+                        {/* Inline Per-Asset Badge Customizer when an asset's 🏷️ button is clicked */}
+                        {editingAssetId &&
+                          (() => {
+                            const targetAsset = assetPool.find((a) => a.id === editingAssetId);
+                            if (!targetAsset) return null;
+                            const existingAssetBadge = getCustomBadgeMeta(
+                              targetAsset,
+                              assetBadgeOverrides[targetAsset.id]
+                            );
+                            return (
+                              <div className="p-2.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 space-y-2 animate-in fade-in duration-150">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-black text-amber-900 dark:text-amber-200">
+                                    🏷️ ตั้งป้ายเฉพาะเครื่อง:{' '}
+                                    <span className="font-mono underline">
+                                      {targetAsset.assetCode}
+                                    </span>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingAssetId(null)}
+                                    className="text-[10px] text-slate-400 hover:text-slate-600 cursor-pointer"
+                                  >
+                                    ✕ ปิด
+                                  </button>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {[
+                                    { text: '🎯 ใช้สอบ OSCE', color: 'ROSE' },
+                                    { text: '🆕 เครื่องใหม่', color: 'EMERALD' },
+                                    { text: '✨ แนะนำ', color: 'AMBER' },
+                                    { text: '⚠️ ใช้เฉพาะในแล็บ', color: 'PURPLE' },
+                                  ].map((p) => (
+                                    <button
+                                      key={p.text}
+                                      type="button"
+                                      onClick={() => {
+                                        setAssetBadgeDraftText(p.text);
+                                        setAssetBadgeDraftColor(p.color);
+                                      }}
+                                      className="text-[9px] font-bold px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-amber-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-amber-400 cursor-pointer"
+                                    >
+                                      {p.text}
+                                    </button>
+                                  ))}
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="text"
+                                    maxLength={24}
+                                    value={assetBadgeDraftText}
+                                    onChange={(e) => setAssetBadgeDraftText(e.target.value)}
+                                    placeholder={`พิมพ์ป้ายสำหรับ ${targetAsset.assetCode}...`}
+                                    className="flex-1 px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-900 dark:text-white"
+                                  />
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {[
+                                      { key: 'ROSE', cls: 'bg-rose-600' },
+                                      { key: 'AMBER', cls: 'bg-amber-500' },
+                                      { key: 'EMERALD', cls: 'bg-emerald-600' },
+                                      { key: 'INDIGO', cls: 'bg-indigo-600' },
+                                      { key: 'PURPLE', cls: 'bg-purple-600' },
+                                    ].map((sw) => (
+                                      <button
+                                        key={sw.key}
+                                        type="button"
+                                        onClick={() => setAssetBadgeDraftColor(sw.key)}
+                                        className={`w-4 h-4 rounded-full ${sw.cls} cursor-pointer ${
+                                          assetBadgeDraftColor === sw.key
+                                            ? 'ring-2 ring-offset-1 ring-slate-900 dark:ring-white'
+                                            : 'opacity-60'
+                                        }`}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {(existingAssetBadge || assetBadgeDraftText) && (
+                                    <button
+                                      type="button"
+                                      disabled={savingAssetBadge}
+                                      onClick={() =>
+                                        handleSaveAssetCustomBadge(targetAsset, null, null)
+                                      }
+                                      className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-rose-600 hover:bg-rose-100/70 cursor-pointer"
+                                    >
+                                      ลบป้ายชิ้นนี้ออก
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    disabled={savingAssetBadge}
+                                    onClick={() =>
+                                      handleSaveAssetCustomBadge(
+                                        targetAsset,
+                                        assetBadgeDraftText,
+                                        assetBadgeDraftColor
+                                      )
+                                    }
+                                    className="px-2.5 py-0.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-black cursor-pointer"
+                                  >
+                                    {savingAssetBadge ? 'กำลังบันทึก...' : 'บันทึกป้ายชิ้นนี้'}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-44 overflow-y-auto pr-1">
                           {assetPool.map((asset) => {
                             const isPicked = cartState.selectedAssetIds.includes(asset.id);
                             const isReserved = reservedSet.has(asset.id);
@@ -2547,22 +3016,28 @@ export default function BorrowCatalogBrowser({
                               previewItem.storageLocation?.name ||
                               previewItem.location ||
                               'พร้อมจ่าย';
+                            const assetBadge = getCustomBadgeMeta(
+                              asset,
+                              assetBadgeOverrides[asset.id]
+                            );
                             return (
-                              <button
+                              <div
                                 key={asset.id}
-                                type="button"
-                                disabled={isReserved}
-                                onClick={() => handleToggleEquipmentAsset(previewItem, asset)}
                                 className={`p-2 rounded-xl border text-left transition flex items-center justify-between gap-1.5 ${
                                   isReserved
-                                    ? 'bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-400 cursor-not-allowed opacity-60'
+                                    ? 'bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-400 opacity-60'
                                     : isPicked
-                                    ? 'bg-blue-600 border-blue-600 text-white shadow-xs cursor-pointer'
-                                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-blue-400 cursor-pointer'
+                                    ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
+                                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-blue-400'
                                 }`}
                               >
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  disabled={isReserved}
+                                  onClick={() => handleToggleEquipmentAsset(previewItem, asset)}
+                                  className="min-w-0 flex-1 text-left cursor-pointer"
+                                >
+                                  <div className="flex items-center gap-1 flex-wrap">
                                     <span className="font-mono text-[11px] font-black truncate">
                                       {asset.assetCode}
                                     </span>
@@ -2575,6 +3050,13 @@ export default function BorrowCatalogBrowser({
                                     >
                                       {isReserved ? 'ติดจอง' : condLabel}
                                     </span>
+                                    {assetBadge && (
+                                      <span
+                                        className={`text-[9px] font-black px-1.5 py-0.2 rounded-full border ${assetBadge.className}`}
+                                      >
+                                        {assetBadge.label}
+                                      </span>
+                                    )}
                                   </div>
                                   <div
                                     className={`text-[10px] truncate mt-0.5 ${
@@ -2583,17 +3065,51 @@ export default function BorrowCatalogBrowser({
                                   >
                                     📍 {locLabel}
                                   </div>
+                                </button>
+
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const ov = assetBadgeOverrides[asset.id];
+                                      setAssetBadgeDraftText(
+                                        ov !== undefined
+                                          ? ov.badge || ''
+                                          : asset.customBadge || ''
+                                      );
+                                      setAssetBadgeDraftColor(
+                                        ov !== undefined
+                                          ? ov.color || 'ROSE'
+                                          : asset.customBadgeColor || 'ROSE'
+                                      );
+                                      setEditingAssetId((prev) =>
+                                        prev === asset.id ? null : asset.id
+                                      );
+                                    }}
+                                    title={`ตั้งป้ายกำกับเฉพาะเครื่อง ${asset.assetCode}`}
+                                    className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] transition cursor-pointer ${
+                                      isPicked
+                                        ? 'bg-white/20 hover:bg-white/30 text-white'
+                                        : 'bg-amber-50 dark:bg-amber-950/50 hover:bg-amber-100 text-amber-600 border border-amber-200/70 dark:border-amber-800'
+                                    }`}
+                                  >
+                                    🏷️
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={isReserved}
+                                    onClick={() => handleToggleEquipmentAsset(previewItem, asset)}
+                                    className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 cursor-pointer ${
+                                      isPicked
+                                        ? 'bg-white text-blue-600'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                                    }`}
+                                  >
+                                    {isPicked ? '✓' : '+'}
+                                  </button>
                                 </div>
-                                <span
-                                  className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 ${
-                                    isPicked
-                                      ? 'bg-white text-blue-600'
-                                      : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-                                  }`}
-                                >
-                                  {isPicked ? '✓' : '+'}
-                                </span>
-                              </button>
+                              </div>
                             );
                           })}
                         </div>

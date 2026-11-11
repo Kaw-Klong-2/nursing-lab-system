@@ -230,6 +230,8 @@ export default function InventoryPage() {
     note: '',
     status: 'AVAILABLE',
     condition: 'GOOD',
+    customBadge: '',
+    customBadgeColor: 'ROSE',
   });
   const [assetSaving, setAssetSaving] = useState(false);
 
@@ -252,6 +254,8 @@ export default function InventoryPage() {
     allowExpiredForSim: true,
     customBadge: '',
     customBadgeColor: 'AMBER',
+    isSensitiveImage: false,
+    sensitiveBlurLevel: 80,
   });
   const [itemSaving, setItemSaving] = useState(false);
 
@@ -272,6 +276,8 @@ export default function InventoryPage() {
       note: asset.note || '',
       status: asset.status || 'AVAILABLE',
       condition: asset.condition || 'GOOD',
+      customBadge: asset.customBadge || '',
+      customBadgeColor: asset.customBadgeColor || 'ROSE',
     });
   };
 
@@ -337,6 +343,8 @@ export default function InventoryPage() {
       allowExpiredForSim: item.allowExpiredForSim !== false,
       customBadge: item.customBadge || '',
       customBadgeColor: item.customBadgeColor || 'AMBER',
+      isSensitiveImage: item.isSensitiveImage === true,
+      sensitiveBlurLevel: typeof item.sensitiveBlurLevel === 'number' ? item.sensitiveBlurLevel : 80,
     });
   };
 
@@ -403,6 +411,8 @@ export default function InventoryPage() {
     allowExpiredForSim: true,
     customBadge: '',
     customBadgeColor: 'AMBER',
+    isSensitiveImage: false,
+    sensitiveBlurLevel: 80,
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -869,6 +879,8 @@ export default function InventoryPage() {
           allowExpiredForSim: true,
           customBadge: '',
           customBadgeColor: 'AMBER',
+          isSensitiveImage: false,
+          sensitiveBlurLevel: 80,
         });
         fetchItems();
       } else {
@@ -1497,6 +1509,8 @@ export default function InventoryPage() {
                     allowExpiredForSim: true,
                     customBadge: '',
                     customBadgeColor: 'AMBER',
+                    isSensitiveImage: false,
+                    sensitiveBlurLevel: 80,
                   });
                   setShowAddModal(true);
                 }}
@@ -1833,13 +1847,18 @@ export default function InventoryPage() {
                                           {/* Card Header: Dual-Code and Status */}
                                           <div className="flex items-start justify-between gap-2">
                                             <div>
-                                              <div className="flex items-center gap-2">
+                                              <div className="flex items-center gap-2 flex-wrap">
                                                 <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-300">
                                                   {item.unit || 'ชิ้น'}ที่ {asset.sequenceNumber || 1}
                                                 </span>
                                                 <span className="font-mono font-black text-slate-900 dark:text-slate-100 text-xs tracking-wider">
                                                   {asset.assetCode}
                                                 </span>
+                                                {asset.customBadge && (
+                                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                                    {asset.customBadge}
+                                                  </span>
+                                                )}
                                               </div>
                                               {asset.govAssetCode && (
                                                 <div className="mt-1 flex items-center gap-1 font-mono text-[10px] text-slate-500 dark:text-slate-400 font-medium">
@@ -2775,6 +2794,77 @@ export default function InventoryPage() {
                     <option value="PURPLE">สีม่วง (Purple)</option>
                   </select>
                 </div>
+
+                {/* Sensitive Anatomy Blur Shield Configuration */}
+                <div className="pt-2.5 mt-2 border-t border-amber-200/70 dark:border-amber-900/50 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                        🔞 เบลอรูปภาพหุ่นกายวิภาค / จุดซ่อนเร้นอัตโนมัติ (Sensitive Image Blur)
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        เช่น หุ่นคลอดเห็นช่องคลอด, หุ่นเย็บแผลฝีเย็บ, หุ่นสวนปัสสาวะ (กดดูภาพจริงได้เมื่อต้องการ)
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(newItem.isSensitiveImage)}
+                      onChange={(e) =>
+                        setNewItem({ ...newItem, isSensitiveImage: e.target.checked })
+                      }
+                      className="w-4 h-4 accent-teal-600 rounded cursor-pointer"
+                    />
+                  </div>
+                  {newItem.isSensitiveImage && (
+                    <div className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-amber-200/80 dark:border-slate-700 space-y-2">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-slate-700 dark:text-slate-200">
+                          ระดับความเบลอ (Blur %):{' '}
+                          <span className="text-teal-600 font-black">
+                            {newItem.sensitiveBlurLevel || 80}%
+                          </span>
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {[
+                            { pct: 50, label: '50%' },
+                            { pct: 65, label: '65%' },
+                            { pct: 80, label: '80% (แนะนำ)' },
+                            { pct: 95, label: '95%' },
+                          ].map((preset) => (
+                            <button
+                              key={preset.pct}
+                              type="button"
+                              onClick={() =>
+                                setNewItem({ ...newItem, sensitiveBlurLevel: preset.pct })
+                              }
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition cursor-pointer ${
+                                (newItem.sensitiveBlurLevel || 80) === preset.pct
+                                  ? 'bg-teal-600 text-white border-teal-600'
+                                  : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <input
+                        type="range"
+                        min={10}
+                        max={100}
+                        step={5}
+                        value={newItem.sensitiveBlurLevel || 80}
+                        onChange={(e) =>
+                          setNewItem({
+                            ...newItem,
+                            sensitiveBlurLevel: Number(e.target.value),
+                          })
+                        }
+                        className="w-full accent-teal-600 cursor-pointer h-1.5"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -3381,6 +3471,81 @@ export default function InventoryPage() {
                 />
               </div>
 
+              {/* Per-Asset Custom Badge Configuration */}
+              <div className="p-3 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-900/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                    🏷️ ป้ายกำกับรายชิ้น (Per-Asset Badge)
+                  </label>
+                  <span className="text-[10px] text-slate-400">
+                    เว้นว่างไว้หากไม่ต้องการให้มีป้ายเฉพาะชิ้นนี้
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { text: '🎯 ใช้สอบ OSCE', color: 'ROSE' },
+                    { text: '✨ สภาพดีเยี่ยม', color: 'EMERALD' },
+                    { text: '🆕 เครื่องใหม่', color: 'INDIGO' },
+                    { text: '🔥 นิยมยืม', color: 'AMBER' },
+                  ].map((p) => (
+                    <button
+                      key={p.text}
+                      type="button"
+                      onClick={() =>
+                        setEditAssetForm({
+                          ...editAssetForm,
+                          customBadge: p.text,
+                          customBadgeColor: p.color,
+                        })
+                      }
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-amber-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-amber-400 cursor-pointer"
+                    >
+                      {p.text}
+                    </button>
+                  ))}
+                  {editAssetForm.customBadge && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditAssetForm({
+                          ...editAssetForm,
+                          customBadge: '',
+                          customBadgeColor: 'ROSE',
+                        })
+                      }
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 border border-rose-200 dark:border-rose-800 cursor-pointer"
+                    >
+                      ✕ ล้างป้ายออก
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    maxLength={28}
+                    placeholder="พิมพ์ข้อความป้ายเฉพาะชิ้นนี้ เช่น 🎯 ใช้สอบ OSCE (เว้นว่าง = ไม่มีป้าย)"
+                    value={editAssetForm.customBadge || ''}
+                    onChange={(e) =>
+                      setEditAssetForm({ ...editAssetForm, customBadge: e.target.value })
+                    }
+                    className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100"
+                  />
+                  <select
+                    value={editAssetForm.customBadgeColor || 'ROSE'}
+                    onChange={(e) =>
+                      setEditAssetForm({ ...editAssetForm, customBadgeColor: e.target.value })
+                    }
+                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200"
+                  >
+                    <option value="ROSE">สีแดง (Rose)</option>
+                    <option value="AMBER">สีส้มทอง (Amber)</option>
+                    <option value="EMERALD">สีเขียว (Emerald)</option>
+                    <option value="INDIGO">สีน้ำเงินคราม (Indigo)</option>
+                    <option value="PURPLE">สีม่วง (Purple)</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
@@ -3765,6 +3930,77 @@ export default function InventoryPage() {
                     <option value="INDIGO">สีน้ำเงินคราม (Indigo)</option>
                     <option value="PURPLE">สีม่วง (Purple)</option>
                   </select>
+                </div>
+
+                {/* Sensitive Anatomy Blur Shield Configuration */}
+                <div className="pt-2.5 mt-2 border-t border-amber-200/70 dark:border-amber-900/50 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                        🔞 เบลอรูปภาพหุ่นกายวิภาค / จุดซ่อนเร้นอัตโนมัติ (Sensitive Image Blur)
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        เช่น หุ่นคลอดเห็นช่องคลอด, หุ่นเย็บแผลฝีเย็บ, หุ่นสวนปัสสาวะ (กดดูภาพจริงได้เมื่อต้องการ)
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editItemForm.isSensitiveImage)}
+                      onChange={(e) =>
+                        setEditItemForm({ ...editItemForm, isSensitiveImage: e.target.checked })
+                      }
+                      className="w-4 h-4 accent-teal-600 rounded cursor-pointer"
+                    />
+                  </div>
+                  {editItemForm.isSensitiveImage && (
+                    <div className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-amber-200/80 dark:border-slate-700 space-y-2">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-slate-700 dark:text-slate-200">
+                          ระดับความเบลอ (Blur %):{' '}
+                          <span className="text-teal-600 font-black">
+                            {editItemForm.sensitiveBlurLevel || 80}%
+                          </span>
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {[
+                            { pct: 50, label: '50%' },
+                            { pct: 65, label: '65%' },
+                            { pct: 80, label: '80% (แนะนำ)' },
+                            { pct: 95, label: '95%' },
+                          ].map((preset) => (
+                            <button
+                              key={preset.pct}
+                              type="button"
+                              onClick={() =>
+                                setEditItemForm({ ...editItemForm, sensitiveBlurLevel: preset.pct })
+                              }
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition cursor-pointer ${
+                                (editItemForm.sensitiveBlurLevel || 80) === preset.pct
+                                  ? 'bg-teal-600 text-white border-teal-600'
+                                  : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <input
+                        type="range"
+                        min={10}
+                        max={100}
+                        step={5}
+                        value={editItemForm.sensitiveBlurLevel || 80}
+                        onChange={(e) =>
+                          setEditItemForm({
+                            ...editItemForm,
+                            sensitiveBlurLevel: Number(e.target.value),
+                          })
+                        }
+                        className="w-full accent-teal-600 cursor-pointer h-1.5"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 

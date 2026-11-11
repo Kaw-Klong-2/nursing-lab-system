@@ -116,7 +116,9 @@ model Item {
   isBorrowable    Boolean  @default(true) // อนุญาตให้ยืมออกนอกห้องได้หรือไม่
   allowExpiredForSim Boolean @default(true)
   customBadge        String?
-  customBadgeColor   String? // อนุญาตให้ใช้เวชภัณฑ์หมดอายุเพื่อฝึกกับหุ่นจำลอง
+  customBadgeColor   String?
+  isSensitiveImage   Boolean  @default(false)
+  sensitiveBlurLevel Int      @default(80)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -156,7 +158,11 @@ model EquipmentAsset {
   imageUrl       String?   // ลิงก์รูปภาพในไดรฟ์
   status         String    @default("AVAILABLE") // "AVAILABLE", "BORROWED", "MAINTENANCE", "RETIRED"
   condition      String    @default("GOOD")      // "GOOD", "FAIR", "DAMAGED"
-  isBorrowable   Boolean   @default(true)        // ควบคุมเฉพาะชิ้น เช่น ติดตั้งประจำห้องห้ามยืม
+  isBorrowable       Boolean   @default(true)        // ควบคุมเฉพาะชิ้น เช่น ติดตั้งประจำห้องห้ามยืม
+  customBadge        String?
+  customBadgeColor   String?
+  isSensitiveImage   Boolean   @default(false)
+  sensitiveBlurLevel Int       @default(80)
   note           String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt

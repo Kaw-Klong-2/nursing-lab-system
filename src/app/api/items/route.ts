@@ -163,6 +163,8 @@ export async function GET(req: Request) {
           allowExpiredForSim: true,
           customBadge: true,
           customBadgeColor: true,
+          isSensitiveImage: true,
+          sensitiveBlurLevel: true,
           categoryId: true,
           category: { select: { id: true, name: true } },
           assets: {
@@ -185,6 +187,10 @@ export async function GET(req: Request) {
               imageUrl: true,
               note: true,
               isBorrowable: true,
+              customBadge: true,
+              customBadgeColor: true,
+              isSensitiveImage: true,
+              sensitiveBlurLevel: true,
             },
             orderBy: { sequenceNumber: 'asc' },
           },
@@ -280,6 +286,8 @@ export async function GET(req: Request) {
               : item.stockLots?.[0]?.unitCost || 0,
           customBadge: (item as any).customBadge || null,
           customBadgeColor: (item as any).customBadgeColor || null,
+          isSensitiveImage: Boolean((item as any).isSensitiveImage),
+          sensitiveBlurLevel: Number((item as any).sensitiveBlurLevel) || 80,
           location: item.storageLocation
             ? `${item.storageLocation.name} (${item.storageLocation.roomName || item.storageLocation.code})`
             : (item.location || null),
@@ -454,6 +462,8 @@ export async function POST(req: Request) {
         allowExpiredForSim: body.allowExpiredForSim !== undefined ? Boolean(body.allowExpiredForSim) : true,
         customBadge: body.customBadge ? String(body.customBadge).trim() : null,
         customBadgeColor: body.customBadgeColor ? String(body.customBadgeColor).trim() : null,
+        isSensitiveImage: body.isSensitiveImage !== undefined ? Boolean(body.isSensitiveImage) : false,
+        sensitiveBlurLevel: body.sensitiveBlurLevel !== undefined ? Number(body.sensitiveBlurLevel) || 80 : 80,
       },
       include: {
         category: true,

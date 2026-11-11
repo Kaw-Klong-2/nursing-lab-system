@@ -551,7 +551,7 @@ export default function BorrowCheckoutDrawer({
                                             onClick={() =>
                                               handleToggleCartEquipmentAsset(item, asset)
                                             }
-                                            className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold border transition ${
+                                            className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold border transition inline-flex items-center gap-1 ${
                                               isReserved
                                                 ? 'bg-slate-100 dark:bg-slate-800 text-slate-300 border-slate-200 dark:border-slate-800 line-through cursor-not-allowed'
                                                 : isPicked
@@ -559,7 +559,12 @@ export default function BorrowCheckoutDrawer({
                                                 : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-400 cursor-pointer'
                                             }`}
                                           >
-                                            {isPicked ? `✓ ${asset.assetCode}` : asset.assetCode}
+                                            <span>{isPicked ? `✓ ${asset.assetCode}` : asset.assetCode}</span>
+                                            {asset.customBadge && (
+                                              <span className="px-1 py-0.2 rounded-sm text-[9px] font-sans font-extrabold bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300">
+                                                {asset.customBadge}
+                                              </span>
+                                            )}
                                           </button>
                                         );
                                       })}

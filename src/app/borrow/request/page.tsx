@@ -764,13 +764,18 @@ function BorrowRequestContent() {
                                       };
                                       setBorrowItems(updated);
                                     }}
-                                    className={`px-2.5 py-1 rounded-xl text-[11px] font-mono font-bold border transition cursor-pointer ${
+                                    className={`px-2.5 py-1 rounded-xl text-[11px] font-mono font-bold border transition cursor-pointer inline-flex items-center gap-1.5 ${
                                       isPicked
                                         ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                                         : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-blue-400'
                                     }`}
                                   >
-                                    {isPicked ? `✓ ${asset.assetCode}` : asset.assetCode}
+                                    <span>{isPicked ? `✓ ${asset.assetCode}` : asset.assetCode}</span>
+                                    {asset.customBadge && (
+                                      <span className="px-1.5 py-0.5 rounded-md text-[10px] font-sans font-extrabold bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300">
+                                        {asset.customBadge}
+                                      </span>
+                                    )}
                                   </button>
                                 );
                               })}

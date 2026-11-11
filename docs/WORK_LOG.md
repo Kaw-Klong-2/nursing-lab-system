@@ -17,6 +17,28 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-11] ป้ายกำกับพัสดุแบบกำหนดเองได้แบบแยกชิ้น (Per-Asset Custom Badges) & ม่านเบลอรูปภาพหุ่นกายวิภาค/จุดซ่อนเร้นแบบเลือก % ความเบลอได้ (Sensitive Anatomy Blur Shield)
+- **หมวดหมู่**: Module 2: Inventory & Equipment / Module 6: Borrow, Requisitions & Visual Catalog
+- **สิ่งที่ดำเนินการ**:
+  - **1. ป้ายกำกับครุภัณฑ์รายชิ้น (`EquipmentAsset.customBadge` & `customBadgeColor`)**:
+    - ขยายฐานข้อมูล [`prisma/schema.prisma`](file:///d:/LAB-system/prisma/schema.prisma) ที่ `model EquipmentAsset` เพิ่ม `customBadge` และ `customBadgeColor` เพื่อให้ครุภัณฑ์ชนิดเดียวกันที่แยกเป็นหลายชิ้น (เช่น `AED-01`, `AED-02`, `AED-03`) สามารถตั้งป้ายแยกชิ้นได้อย่างอิสระ (เช่น `🎯 ใช้สอบ OSCE`, `🆕 เครื่องใหม่`, `✨ สภาพดีเยี่ยม`)
+    - ยึดกฎเหล็ก: **แสดงป้ายเฉพาะชิ้นที่ตั้งค่าไว้เท่านั้น** หากชิ้นใดไม่ได้ตั้งค่า (`null` หรือเว้นว่าง) จะไม่แสดงป้ายใดๆ ทั้งสิ้น
+    - รองรับการตั้งค่าป้ายรายชิ้นได้ทันทีทั้งจากปุ่ม `🏷️` ข้างรหัสเครื่องในหน้าต่างดูรายละเอียดด่วน (`Quick View`) และในหน้าแก้ไขชิ้นครุภัณฑ์ (`/inventory`) พร้อมแสดงป้ายรายชิ้นบนปุ่มเลือกชิ้นครุภัณฑ์ในแคตตาล็อก ลิ้นชักตะกร้ายืม และฟอร์มใบขอยืม
+  - **2. ม่านเบลอรูปภาพหุ่นกายวิภาค/จุดซ่อนเร้นแบบเลือก % ความเบลอได้ (`isSensitiveImage` & `sensitiveBlurLevel`)**:
+    - เพิ่มฟิลด์ `isSensitiveImage Boolean @default(false)` และ `sensitiveBlurLevel Int @default(80)` ในทั้ง `Item` และ `EquipmentAsset` พร้อมระบบตรวจจับคำสำคัญกายวิภาคอัตโนมัติ (`คลอด`, `ช่องคลอด`, `ฝีเย็บ`, `สวนปัสสาวะ`, `อวัยวะเพศ`, `ตรวจภายใน`, `ทวารหนัก`, `เต้านม`)
+    - แสดงม่านเบลอกระจกฝ้า (`🩺 ภาพหุ่นจำลองกายวิภาค`) บนการ์ดแคตตาล็อกและหน้าต่าง Quick View พร้อมปุ่มสลับ **`👁️ ดูภาพจริง`** และ **`🙈 เบลอภาพกลับ`**
+    - รองรับการเลือก % ความเบลอได้อย่างอิสระทั้งปุ่มลัด (`50%`, `65%`, `80% (แนะนำ)`, `95%`) และแถบสไลเดอร์ปรับละเอียด (`10%–100%`) พร้อมดูตัวอย่างความเบลอแบบเรียลไทม์ก่อนบันทึก
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`prisma/schema.prisma`](file:///d:/LAB-system/prisma/schema.prisma)
+  - [`src/app/api/items/route.ts`](file:///d:/LAB-system/src/app/api/items/route.ts)
+  - [`src/app/api/items/[id]/route.ts`](file:///d:/LAB-system/src/app/api/items/%5Bid%5D/route.ts)
+  - [`src/app/api/assets/[id]/route.ts`](file:///d:/LAB-system/src/app/api/assets/%5Bid%5D/route.ts)
+  - [`src/components/borrow/BorrowCatalogBrowser.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCatalogBrowser.tsx)
+  - [`src/components/borrow/BorrowCheckoutDrawer.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCheckoutDrawer.tsx)
+  - [`src/app/borrow/request/page.tsx`](file:///d:/LAB-system/src/app/borrow/request/page.tsx)
+  - [`src/app/inventory/page.tsx`](file:///d:/LAB-system/src/app/inventory/page.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit` ผ่าน 0 error และ `npm run librarian:audit` ผ่าน 100%
+
 ### [2026-11-11] วางโครงสร้างจัดการเลขเวอร์ชันระบบแบบศูนย์กลางเดียว & ตรวจจับแคชเก่าอัตโนมัติ (Centralized Semantic Versioning & Stale Cache Detector)
 - **หมวดหมู่**: Core Architecture / Release & Version Management / PWA & Cache Integrity
 - **สิ่งที่ดำเนินการ**:

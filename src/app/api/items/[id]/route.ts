@@ -67,6 +67,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
               ? String(body.customBadgeColor).trim()
               : null
             : undefined,
+        isSensitiveImage:
+          body.isSensitiveImage !== undefined ? Boolean(body.isSensitiveImage) : undefined,
+        sensitiveBlurLevel:
+          body.sensitiveBlurLevel !== undefined
+            ? Math.min(100, Math.max(10, Number(body.sensitiveBlurLevel) || 80))
+            : undefined,
       },
       include: {
         category: true,

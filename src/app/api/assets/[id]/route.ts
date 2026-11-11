@@ -66,6 +66,24 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         status: status !== undefined ? status : undefined,
         condition: condition !== undefined ? condition : undefined,
         inspectionIntervalDays: body.inspectionIntervalDays !== undefined ? Number(body.inspectionIntervalDays) : undefined,
+        customBadge:
+          body.customBadge !== undefined
+            ? body.customBadge && String(body.customBadge).trim()
+              ? String(body.customBadge).trim()
+              : null
+            : undefined,
+        customBadgeColor:
+          body.customBadgeColor !== undefined
+            ? body.customBadgeColor && String(body.customBadgeColor).trim()
+              ? String(body.customBadgeColor).trim()
+              : null
+            : undefined,
+        isSensitiveImage:
+          body.isSensitiveImage !== undefined ? Boolean(body.isSensitiveImage) : undefined,
+        sensitiveBlurLevel:
+          body.sensitiveBlurLevel !== undefined
+            ? Math.min(100, Math.max(10, Number(body.sensitiveBlurLevel) || 80))
+            : undefined,
       },
       include: {
         item: true,

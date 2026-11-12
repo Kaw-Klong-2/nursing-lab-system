@@ -17,6 +17,21 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-13] เพิ่มพื้นที่ทดลอง Sandbox: ชั้นหนังสืออีบุ๊กและคู่มือห้องปฏิบัติการดิจิทัล (Digital Lab E-Book & Flipbook Library)
+- **หมวดหมู่**: Innovation & Admin Sandbox / Lab Manuals & E-Learning
+- **สิ่งที่ดำเนินการ**:
+  - **สร้างหน้าชั้นหนังสือและเครื่องอ่าน E-Book Flipbook ([`src/app/admin/sandbox/ebooks/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/ebooks/page.tsx))**:
+    - **ชั้นหนังสือ 3D Digital Bookshelf**: จัดแสดงปกหนังสือที่มีมิติสันปกและเงาสันหนังสือ พร้อมตัวกรองหมวดหมู่ (`คู่มือนิสิต`, `ระเบียบความปลอดภัย`, `คู่มือครุภัณฑ์ & SOP`)
+    - **เครื่องอ่าน E-Book เสมือนจริง (Dual-Page Spread Flipbook)**: กางอ่าน 2 หน้าคู่พร้อมเอฟเฟกต์สันหนังสือตรงกลาง รองรับการพลิกหน้าด้วยปุ่มลูกศรคีย์บอร์ด `←` / `→` หรือกดสไลเดอร์ด้านล่าง
+    - **เครื่องมือช่วยอ่าน**: ปรับโทนสีกระดาษได้ 3 โหมด (`ขาวมาตรฐาน`, `ถนอมสายตา Sepia`, `โหมดมืด Dark`), ปรับขนาดตัวอักษร, สารบัญด่วนกระโดดข้ามหน้า, และคั่นหน้าที่อ่านค้างไว้
+    - **ระบบอัปโหลดและสร้างเล่มใหม่**: รองรับทั้งการแนบไฟล์ PDF, พิมพ์บทเรียนรายหน้า, และสร้างป้าย `📱 QR Code ประจำเล่ม` สำหรับพิมพ์ติดหน้าห้องแล็บหรือข้างครุภัณฑ์ให้นิสิตใช้มือถือสแกนเปิดอ่าน
+  - **เชื่อมต่อทางเข้า Sandbox ([`src/app/admin/sandbox/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/page.tsx))**:
+    - เพิ่มการ์ดโครงการทดลองที่ 3 ใน Innovation Sandbox Hub
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/app/admin/sandbox/ebooks/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/ebooks/page.tsx)
+  - [`src/app/admin/sandbox/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/page.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit` ผ่าน 0 error และ `npm run librarian:audit` ผ่าน 100%
+
 ### [2026-11-13] ปรับปรุงข้อความมูลค่าพัสดุหน้าแคตตาล็อก (ถอดคำว่า "เบิกฝึกฟรี" ออกเพื่อความถูกต้องของหลักการคลัง)
 - **หมวดหมู่**: Module 6: Borrow, Requisitions & Visual Catalog / Catalog UI & Pricing Display
 - **สิ่งที่ดำเนินการ**:

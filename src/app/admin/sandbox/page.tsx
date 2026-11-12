@@ -20,6 +20,7 @@ import {
   ArrowLeft,
   ChevronRight,
   Sliders,
+  BookOpen,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 
@@ -87,6 +88,28 @@ export default function AdminSandboxHubPage() {
         'คำนวณวันกำหนดส่งคืนตรงตามปฏิทินภาคการศึกษา',
         'แนะนำครุภัณฑ์ทดแทนเมื่อสต็อกไม่เพียงพอ',
         'คัดแยกสิทธิ์คำตอบอัตโนมัติตามบทบาท (Role-Aware Context)',
+      ],
+      readyForReview: true,
+    },
+    {
+      id: 'lab-ebooks',
+      title: 'ชั้นหนังสือคู่มือห้องแล็บ E-Book & Flipbook',
+      titleEn: 'Digital Lab E-Book & Interactive Flipbook Library',
+      description:
+        'ศูนย์รวมคู่มือการใช้ห้องปฏิบัติการ ระเบียบความปลอดภัย และคู่มือเครื่องมือแพทย์ อัปโหลดไฟล์หรือรูปภาพมาเปิดอ่านกาง 2 หน้าคู่เสมือนหนังสือจริง พร้อมโหมดถนอมสายตาและคั่นหน้าอัตโนมัติ',
+      href: '/admin/sandbox/ebooks',
+      icon: BookOpen,
+      color: 'indigo',
+      badge: 'พร้อมทดสอบ (Beta)',
+      badgeColor: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800',
+      gradient: 'from-indigo-500/10 via-purple-500/5 to-transparent',
+      borderColor: 'hover:border-indigo-500/50',
+      features: [
+        'อ่านกาง 2 หน้าคู่ (Dual-Page) พร้อมเอฟเฟกต์พลิกหน้ากระดาษ',
+        'ปรับโทนสีกระดาษ: ขาวมาตรฐาน, กระดาษถนอมสายตา Sepia, และโหมดมืด',
+        'อัปโหลดไฟล์ PDF หรือชุดรูปภาพเพื่อสร้างเล่มใหม่ได้ทันที',
+        'มีสารบัญ คั่นหน้าอัตโนมัติ และซูมอ่านตัวหนังสือขนาดใหญ่',
+        'สร้าง QR Code ประจำเล่มสำหรับติดหน้าห้องแล็บให้นิสิตสแกนอ่าน',
       ],
       readyForReview: true,
     },

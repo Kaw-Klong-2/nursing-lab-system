@@ -17,6 +17,16 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-13] ปรับปรุงข้อความมูลค่าพัสดุหน้าแคตตาล็อก (ถอดคำว่า "เบิกฝึกฟรี" ออกเพื่อความถูกต้องของหลักการคลัง)
+- **หมวดหมู่**: Module 6: Borrow, Requisitions & Visual Catalog / Catalog UI & Pricing Display
+- **สิ่งที่ดำเนินการ**:
+  - **ถอดคำว่า "เบิกฝึกฟรี" และ "สวัสดิการฝึกปฏิบัติการพยาบาล (เบิกฟรี)" ออกจากระบบ**:
+    - ใน [`src/components/borrow/BorrowCatalogBrowser.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCatalogBrowser.tsx): การ์ดพัสดุจะแสดง "มูลค่า ฿..." เฉพาะเมื่อมีมูลค่าอ้างอิงจริง (`unitCost > 0`) เท่านั้น หากไม่ได้ระบุราคาหรือเป็น 0 บาท จะไม่แสดงข้อความ "เบิกฝึกฟรี" เพื่อป้องกันความเข้าใจผิดเรื่องล็อตรับบริจาค 0 บาท ปะปนกับล็อตจัดซื้อ
+    - ในหน้าต่างดูรายละเอียดด่วน (`Quick View`): กรณีที่ไม่มีมูลค่าอ้างอิง จะแสดงเป็นประเภทรายการ (`ครุภัณฑ์ห้องปฏิบัติการ` หรือ `เวชภัณฑ์/วัสดุฝึกปฏิบัติการ`) แทนคำว่า "เบิกฟรี"
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/components/borrow/BorrowCatalogBrowser.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCatalogBrowser.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit` ผ่าน 0 error และ `npm run librarian:audit` ผ่าน 100%
+
 ### [2026-11-12] อัปเกรดโทนสีหน้าแคตตาล็อกพัสดุ (Clinical Mint & Ocean Blue + ตัวสลับ 5 โทนสีหน้าร้าน)
 - **หมวดหมู่**: Module 6: Borrow, Requisitions & Visual Catalog / UI Theme & Storefront Design
 - **สิ่งที่ดำเนินการ**:

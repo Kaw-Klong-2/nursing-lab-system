@@ -2275,13 +2275,9 @@ export default function BorrowCatalogBrowser({
                               ? `${item.brand || ''} ${item.model || ''}`.trim()
                               : item.category?.name || 'มาตรฐานคลินิก'}
                           </span>
-                          {unitCostNum > 0 ? (
+                          {unitCostNum > 0 && (
                             <span className="font-mono font-bold text-amber-600 dark:text-amber-400 shrink-0">
                               มูลค่า ฿{unitCostNum.toLocaleString()}
-                            </span>
-                          ) : (
-                            <span className="font-semibold text-teal-600 dark:text-teal-400 shrink-0">
-                              เบิกฝึกฟรี
                             </span>
                           )}
                         </div>
@@ -3039,7 +3035,7 @@ export default function BorrowCatalogBrowser({
                     <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between">
                       <div>
                         <div className="text-[10px] font-bold text-slate-400">
-                          {unitCostNum > 0 ? 'มูลค่าอ้างอิงพัสดุต่อหน่วย' : 'สิทธิ์การเบิก-ยืม'}
+                          {unitCostNum > 0 ? 'มูลค่าอ้างอิงพัสดุต่อหน่วย' : 'ประเภทรายการ'}
                         </div>
                         <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
                           {unitCostNum > 0 ? (
@@ -3051,8 +3047,8 @@ export default function BorrowCatalogBrowser({
                               </span>
                             </span>
                           ) : (
-                            <span className="text-teal-600 dark:text-teal-400">
-                              สวัสดิการฝึกปฏิบัติการพยาบาล (เบิกฟรี)
+                            <span className="text-slate-700 dark:text-slate-300 font-medium text-xs">
+                              {isEquip ? 'ครุภัณฑ์ห้องปฏิบัติการ' : 'เวชภัณฑ์/วัสดุฝึกปฏิบัติการ'}
                             </span>
                           )}
                         </div>

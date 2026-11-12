@@ -17,6 +17,19 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-12] อัปเกรดโทนสีหน้าแคตตาล็อกพัสดุ (Clinical Mint & Ocean Blue + ตัวสลับ 5 โทนสีหน้าร้าน)
+- **หมวดหมู่**: Module 6: Borrow, Requisitions & Visual Catalog / UI Theme & Storefront Design
+- **สิ่งที่ดำเนินการ**:
+  - **1. ตั้งค่าโทนสีมาตรฐานใหม่ `🌿 Clinical Mint & Ocean Blue` (`MINT_OCEAN`)**:
+    - ปรับสีแบนเนอร์หน้าร้าน (Hero Banner) จากสีดำ-เขียวเข้มเดิมเป็นโทนเขียวมิ้นต์การแพทย์ไล่เฉดฟ้าน้ำทะเลสว่าง (`from-teal-600 via-cyan-600 to-blue-600`)
+    - ปรับพื้นหลังกรอบรูปสินค้าจากการ์ดขาวล้วนเป็น `Soft Pastel Studio Backdrop` (`from-teal-50/60 via-white to-sky-50/70`) ช่วยขับให้รูปอุปกรณ์การแพทย์ดูสะอาดและมีมิติ
+    - แยกสีประจำประเภทพัสดุอย่างชัดเจนตั้งแต่ปุ่มกด ขอบการ์ด และป้ายสถานะในตะกร้า: **ครุภัณฑ์ (Equipment)** ใช้โทนฟ้าน้ำทะเล (`Ocean Blue / Indigo`) และ **วัสดุสิ้นเปลือง (Consumable)** ใช้โทนเขียวมิ้นต์มรกต (`Clinical Mint / Emerald`) แทนปุ่มสีดำทึบเดิม
+  - **2. เพิ่มปุ่มสลับ 5 โทนสีหน้าร้าน (`🎨 โทนสี` — `CATALOG_THEMES`)**:
+    - รองรับการคลิกสลับโทนสีได้ทันที 5 สไตล์ (`🌿 มิ้นต์-ฟ้า`, `🌸 ชมพู-ม่วง`, `💜 ไอริส-สกาย`, `☀️ เสจ-อำพัน`, `💎 แซฟไฟร์`) พร้อมจดจำค่าไว้ใน `localStorage` (`lab_catalog_color_theme`)
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/components/borrow/BorrowCatalogBrowser.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCatalogBrowser.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit` ผ่าน 0 error และ `npm run librarian:audit` ผ่าน 100%
+
 ### [2026-11-11] ป้ายกำกับพัสดุแบบกำหนดเองได้แบบแยกชิ้น (Per-Asset Custom Badges) & ม่านเบลอรูปภาพหุ่นกายวิภาค/จุดซ่อนเร้นแบบเลือก % ความเบลอได้ (Sensitive Anatomy Blur Shield)
 - **หมวดหมู่**: Module 2: Inventory & Equipment / Module 6: Borrow, Requisitions & Visual Catalog
 - **สิ่งที่ดำเนินการ**:

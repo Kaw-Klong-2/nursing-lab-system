@@ -355,6 +355,219 @@ function getItemBlurState(
   };
 }
 
+export type CatalogColorThemeKey =
+  | 'MINT_OCEAN'
+  | 'ROSE_LAVENDER'
+  | 'IRIS_SKY'
+  | 'SAGE_AMBER'
+  | 'SAPPHIRE_CYAN';
+
+export const CATALOG_THEMES: Record<
+  CatalogColorThemeKey,
+  {
+    key: CatalogColorThemeKey;
+    name: string;
+    shortLabel: string;
+    dotClass: string;
+    heroBanner: string;
+    heroOrbA: string;
+    heroOrbB: string;
+    heroBadge: string;
+    heroCtaBtn: string;
+    activeCategoryPill: string;
+    photoBackdrop: string;
+    equipTabActive: string;
+    consTabActive: string;
+    equipCardActive: string;
+    consCardActive: string;
+    equipCardHover: string;
+    consCardHover: string;
+    equipSelectedPill: string;
+    consSelectedPill: string;
+    equipActionBtn: string;
+    consActionBtn: string;
+    equipStepperWrap: string;
+    consStepperWrap: string;
+    floatingCartBar: string;
+  }
+> = {
+  MINT_OCEAN: {
+    key: 'MINT_OCEAN',
+    name: '🌿 Clinical Mint & Ocean Blue (เขียวมิ้นต์ & ฟ้าน้ำทะเล)',
+    shortLabel: '🌿 มิ้นต์-ฟ้า',
+    dotClass: 'bg-gradient-to-tr from-teal-500 to-blue-600',
+    heroBanner:
+      'bg-gradient-to-r from-teal-600 via-cyan-600 to-blue-600 dark:from-teal-900 dark:via-cyan-900 dark:to-blue-950 border-teal-400/30',
+    heroOrbA: 'bg-white/20',
+    heroOrbB: 'bg-sky-300/25',
+    heroBadge: 'bg-white/20 border-white/30 text-white',
+    heroCtaBtn: 'bg-white hover:bg-teal-50 text-teal-900',
+    activeCategoryPill: 'bg-gradient-to-r from-teal-600 to-cyan-600 text-white font-bold shadow-xs',
+    photoBackdrop:
+      'bg-gradient-to-br from-teal-50/60 via-white to-sky-50/70 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800/80',
+    equipTabActive: 'bg-blue-600 text-white shadow-xs',
+    consTabActive: 'bg-teal-600 text-white shadow-xs',
+    equipCardActive:
+      'bg-white dark:bg-slate-900 border-blue-500 dark:border-blue-500 ring-2 ring-blue-500/25 shadow-md',
+    consCardActive:
+      'bg-white dark:bg-slate-900 border-teal-500 dark:border-teal-500 ring-2 ring-teal-500/25 shadow-md',
+    equipCardHover: 'hover:border-blue-300 dark:hover:border-blue-700',
+    consCardHover: 'hover:border-teal-300 dark:hover:border-teal-700',
+    equipSelectedPill: 'bg-blue-600',
+    consSelectedPill: 'bg-teal-600',
+    equipActionBtn:
+      'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-xs',
+    consActionBtn:
+      'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white shadow-xs',
+    equipStepperWrap:
+      'bg-blue-50/80 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800',
+    consStepperWrap:
+      'bg-teal-50/80 dark:bg-teal-950/40 border-teal-200 dark:border-teal-800',
+    floatingCartBar:
+      'bg-gradient-to-r from-teal-700 via-cyan-700 to-blue-700 text-white border-white/20',
+  },
+  ROSE_LAVENDER: {
+    key: 'ROSE_LAVENDER',
+    name: '🌸 Nursing Rose & Lavender (ชมพูซากุระ & ม่วงลาเวนเดอร์)',
+    shortLabel: '🌸 ชมพู-ม่วง',
+    dotClass: 'bg-gradient-to-tr from-rose-500 to-violet-600',
+    heroBanner:
+      'bg-gradient-to-r from-rose-500 via-pink-500 to-violet-600 dark:from-rose-900 dark:via-pink-900 dark:to-violet-950 border-rose-300/30',
+    heroOrbA: 'bg-white/20',
+    heroOrbB: 'bg-violet-300/25',
+    heroBadge: 'bg-white/20 border-white/30 text-white',
+    heroCtaBtn: 'bg-white hover:bg-rose-50 text-rose-900',
+    activeCategoryPill: 'bg-gradient-to-r from-rose-500 to-violet-600 text-white font-bold shadow-xs',
+    photoBackdrop:
+      'bg-gradient-to-br from-rose-50/60 via-white to-violet-50/60 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800/80',
+    equipTabActive: 'bg-violet-600 text-white shadow-xs',
+    consTabActive: 'bg-rose-500 text-white shadow-xs',
+    equipCardActive:
+      'bg-white dark:bg-slate-900 border-violet-500 dark:border-violet-500 ring-2 ring-violet-500/25 shadow-md',
+    consCardActive:
+      'bg-white dark:bg-slate-900 border-rose-500 dark:border-rose-500 ring-2 ring-rose-500/25 shadow-md',
+    equipCardHover: 'hover:border-violet-300 dark:hover:border-violet-700',
+    consCardHover: 'hover:border-rose-300 dark:hover:border-rose-700',
+    equipSelectedPill: 'bg-violet-600',
+    consSelectedPill: 'bg-rose-500',
+    equipActionBtn:
+      'bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white shadow-xs',
+    consActionBtn:
+      'bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white shadow-xs',
+    equipStepperWrap:
+      'bg-violet-50/80 dark:bg-violet-950/40 border-violet-200 dark:border-violet-800',
+    consStepperWrap:
+      'bg-rose-50/80 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800',
+    floatingCartBar:
+      'bg-gradient-to-r from-rose-600 via-pink-600 to-violet-700 text-white border-white/20',
+  },
+  IRIS_SKY: {
+    key: 'IRIS_SKY',
+    name: '💜 Royal Iris & Sky Studio (ม่วงไอริส & ฟ้าสกาย)',
+    shortLabel: '💜 ไอริส-สกาย',
+    dotClass: 'bg-gradient-to-tr from-indigo-600 to-purple-600',
+    heroBanner:
+      'bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 dark:from-indigo-950 dark:via-violet-950 dark:to-purple-950 border-indigo-400/30',
+    heroOrbA: 'bg-white/20',
+    heroOrbB: 'bg-indigo-300/25',
+    heroBadge: 'bg-white/20 border-white/30 text-white',
+    heroCtaBtn: 'bg-white hover:bg-indigo-50 text-indigo-900',
+    activeCategoryPill: 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-xs',
+    photoBackdrop:
+      'bg-gradient-to-br from-indigo-50/60 via-white to-purple-50/60 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800/80',
+    equipTabActive: 'bg-indigo-600 text-white shadow-xs',
+    consTabActive: 'bg-violet-600 text-white shadow-xs',
+    equipCardActive:
+      'bg-white dark:bg-slate-900 border-indigo-500 dark:border-indigo-500 ring-2 ring-indigo-500/25 shadow-md',
+    consCardActive:
+      'bg-white dark:bg-slate-900 border-violet-500 dark:border-violet-500 ring-2 ring-violet-500/25 shadow-md',
+    equipCardHover: 'hover:border-indigo-300 dark:hover:border-indigo-700',
+    consCardHover: 'hover:border-violet-300 dark:hover:border-violet-700',
+    equipSelectedPill: 'bg-indigo-600',
+    consSelectedPill: 'bg-violet-600',
+    equipActionBtn:
+      'bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white shadow-xs',
+    consActionBtn:
+      'bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white shadow-xs',
+    equipStepperWrap:
+      'bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800',
+    consStepperWrap:
+      'bg-violet-50/80 dark:bg-violet-950/40 border-violet-200 dark:border-violet-800',
+    floatingCartBar:
+      'bg-gradient-to-r from-indigo-700 via-violet-700 to-purple-700 text-white border-white/20',
+  },
+  SAGE_AMBER: {
+    key: 'SAGE_AMBER',
+    name: '☀️ Botanical Sage & Warm Amber (เขียวใบเสจ & ส้มอำพัน)',
+    shortLabel: '☀️ เสจ-อำพัน',
+    dotClass: 'bg-gradient-to-tr from-emerald-600 to-amber-500',
+    heroBanner:
+      'bg-gradient-to-r from-emerald-700 via-teal-600 to-amber-600 dark:from-emerald-950 dark:via-teal-900 dark:to-amber-950 border-emerald-400/30',
+    heroOrbA: 'bg-white/20',
+    heroOrbB: 'bg-amber-300/25',
+    heroBadge: 'bg-white/20 border-white/30 text-white',
+    heroCtaBtn: 'bg-white hover:bg-emerald-50 text-emerald-900',
+    activeCategoryPill: 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold shadow-xs',
+    photoBackdrop:
+      'bg-gradient-to-br from-emerald-50/55 via-white to-amber-50/55 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800/80',
+    equipTabActive: 'bg-emerald-600 text-white shadow-xs',
+    consTabActive: 'bg-amber-500 text-white shadow-xs',
+    equipCardActive:
+      'bg-white dark:bg-slate-900 border-emerald-500 dark:border-emerald-500 ring-2 ring-emerald-500/25 shadow-md',
+    consCardActive:
+      'bg-white dark:bg-slate-900 border-amber-500 dark:border-amber-500 ring-2 ring-amber-500/25 shadow-md',
+    equipCardHover: 'hover:border-emerald-300 dark:hover:border-emerald-700',
+    consCardHover: 'hover:border-amber-300 dark:hover:border-amber-700',
+    equipSelectedPill: 'bg-emerald-600',
+    consSelectedPill: 'bg-amber-500',
+    equipActionBtn:
+      'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-xs',
+    consActionBtn:
+      'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-xs',
+    equipStepperWrap:
+      'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800',
+    consStepperWrap:
+      'bg-amber-50/80 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800',
+    floatingCartBar:
+      'bg-gradient-to-r from-emerald-700 via-teal-700 to-amber-600 text-white border-white/20',
+  },
+  SAPPHIRE_CYAN: {
+    key: 'SAPPHIRE_CYAN',
+    name: '💎 Smart Sim-Center Sapphire (น้ำเงินแซฟไฟร์ & ฟ้าไซอัน)',
+    shortLabel: '💎 แซฟไฟร์',
+    dotClass: 'bg-gradient-to-tr from-blue-800 to-cyan-500',
+    heroBanner:
+      'bg-gradient-to-r from-blue-900 via-indigo-800 to-cyan-600 dark:from-slate-950 dark:via-blue-950 dark:to-cyan-950 border-cyan-400/30',
+    heroOrbA: 'bg-cyan-400/20',
+    heroOrbB: 'bg-blue-400/20',
+    heroBadge: 'bg-cyan-400/20 border-cyan-300/30 text-cyan-100',
+    heroCtaBtn: 'bg-cyan-400 hover:bg-cyan-300 text-slate-950',
+    activeCategoryPill: 'bg-gradient-to-r from-blue-700 to-cyan-600 text-white font-bold shadow-xs',
+    photoBackdrop:
+      'bg-gradient-to-br from-sky-50/65 via-white to-indigo-50/55 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800/80',
+    equipTabActive: 'bg-blue-700 text-white shadow-xs',
+    consTabActive: 'bg-cyan-600 text-white shadow-xs',
+    equipCardActive:
+      'bg-white dark:bg-slate-900 border-blue-600 dark:border-blue-500 ring-2 ring-blue-500/25 shadow-md',
+    consCardActive:
+      'bg-white dark:bg-slate-900 border-cyan-500 dark:border-cyan-500 ring-2 ring-cyan-500/25 shadow-md',
+    equipCardHover: 'hover:border-blue-300 dark:hover:border-blue-700',
+    consCardHover: 'hover:border-cyan-300 dark:hover:border-cyan-700',
+    equipSelectedPill: 'bg-blue-700',
+    consSelectedPill: 'bg-cyan-600',
+    equipActionBtn:
+      'bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 text-white shadow-xs',
+    consActionBtn:
+      'bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white shadow-xs',
+    equipStepperWrap:
+      'bg-blue-50/80 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800',
+    consStepperWrap:
+      'bg-cyan-50/80 dark:bg-cyan-950/40 border-cyan-200 dark:border-cyan-800',
+    floatingCartBar:
+      'bg-gradient-to-r from-blue-800 via-indigo-800 to-cyan-700 text-white border-white/20',
+  },
+};
+
 export default function BorrowCatalogBrowser({
   equipmentList,
   consumablesList,
@@ -394,8 +607,10 @@ export default function BorrowCatalogBrowser({
   const [showKitsSection, setShowKitsSection] = useState(false);
   const [viewMode, setViewMode] = useState<'GALLERY' | 'COMPACT' | 'LIST'>('GALLERY');
   const [activePreset, setActivePreset] = useState<string>('MORNING');
+  const [catalogTheme, setCatalogTheme] = useState<CatalogColorThemeKey>('MINT_OCEAN');
+  const activeTheme = CATALOG_THEMES[catalogTheme] || CATALOG_THEMES.MINT_OCEAN;
 
-  // Load wishlist from localStorage on mount
+  // Load wishlist and catalog color theme from localStorage on mount
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
@@ -404,8 +619,20 @@ export default function BorrowCatalogBrowser({
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) setWishlistIds(parsed);
       }
+      const savedTheme = window.localStorage.getItem('lab_catalog_color_theme') as CatalogColorThemeKey | null;
+      if (savedTheme && CATALOG_THEMES[savedTheme]) {
+        setCatalogTheme(savedTheme);
+      }
     } catch {}
   }, []);
+
+  const handleSelectCatalogTheme = (themeKey: CatalogColorThemeKey) => {
+    setCatalogTheme(themeKey);
+    try {
+      window.localStorage.setItem('lab_catalog_color_theme', themeKey);
+    } catch {}
+    triggerToast(`🎨 เปลี่ยนโทนสีแคตตาล็อกเป็น ${CATALOG_THEMES[themeKey].shortLabel}`);
+  };
 
   const triggerToast = (message: string, subtext?: string) => {
     const toastId = Date.now();
@@ -1101,22 +1328,30 @@ export default function BorrowCatalogBrowser({
 
       {/* 0. E-Commerce Storefront Hero Showcase Banner */}
       {showHeroBanner ? (
-        <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-slate-900 via-teal-950 to-indigo-950 text-white p-5 sm:p-6 shadow-lg border border-teal-500/20">
-          <div className="absolute -right-12 -top-12 w-56 h-56 rounded-full bg-teal-500/15 blur-3xl pointer-events-none" />
-          <div className="absolute right-24 -bottom-16 w-48 h-48 rounded-full bg-blue-500/15 blur-3xl pointer-events-none" />
+        <div
+          className={`relative rounded-3xl overflow-hidden ${activeTheme.heroBanner} text-white p-5 sm:p-6 shadow-lg border transition-colors duration-300`}
+        >
+          <div
+            className={`absolute -right-12 -top-12 w-56 h-56 rounded-full ${activeTheme.heroOrbA} blur-3xl pointer-events-none`}
+          />
+          <div
+            className={`absolute right-24 -bottom-16 w-48 h-48 rounded-full ${activeTheme.heroOrbB} blur-3xl pointer-events-none`}
+          />
 
           <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="space-y-1.5 max-w-2xl">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/20 border border-teal-400/30 text-teal-300 text-[11px] font-bold">
+              <div
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-bold backdrop-blur-xs ${activeTheme.heroBadge}`}
+              >
                 <Store className="w-3.5 h-3.5" />
                 <span>NURSING LAB STOREFRONT • ศูนย์บริการเบิก-ยืมพัสดุออนไลน์</span>
               </div>
-              <h2 className="text-base sm:text-xl font-black tracking-tight text-white">
+              <h2 className="text-base sm:text-xl font-black tracking-tight text-white drop-shadow-2xs">
                 เลือกช้อปครุภัณฑ์และเวชภัณฑ์ฝึกปฏิบัติการพยาบาลครบวงจร
               </h2>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <p className="text-xs text-white/90 leading-relaxed">
                 ค้นหาง่ายเหมือนร้านค้าออนไลน์ เช็กคิวว่างตามช่วงเวลาจริง กดดูสเปกและตำแหน่งตู้จัดเก็บ
-                พร้อมบันทึก <strong className="text-rose-300">❤️ รายการโปรด</strong> สำหรับนิสิตที่ใช้ฝึกสอบ OSCE ประจำ
+                พร้อมบันทึก <strong className="text-white underline decoration-white/60">❤️ รายการโปรด</strong> สำหรับนิสิตที่ใช้ฝึกสอบ OSCE ประจำ
               </p>
             </div>
 
@@ -1125,7 +1360,7 @@ export default function BorrowCatalogBrowser({
                 <button
                   type="button"
                   onClick={() => setShowKitsSection(!showKitsSection)}
-                  className="px-4 py-2.5 rounded-2xl bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-black transition flex items-center gap-1.5 shadow-md cursor-pointer"
+                  className={`px-4 py-2.5 rounded-2xl text-xs font-black transition flex items-center gap-1.5 shadow-md cursor-pointer ${activeTheme.heroCtaBtn}`}
                 >
                   <Sparkles className="w-4 h-4" />
                   <span>ดูเซ็ตหัตถการสำเร็จรูป ({practiceKits.length} ชุด)</span>
@@ -1135,7 +1370,7 @@ export default function BorrowCatalogBrowser({
                 type="button"
                 onClick={() => setShowHeroBanner(false)}
                 title="พับเก็บแบนเนอร์"
-                className="p-2 rounded-xl bg-white/5 hover:bg-white/15 text-slate-300 transition cursor-pointer"
+                className="p-2 rounded-xl bg-white/15 hover:bg-white/25 text-white transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1178,7 +1413,7 @@ export default function BorrowCatalogBrowser({
                 onClick={() => setActiveTab('EQUIPMENT')}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'EQUIPMENT'
-                    ? 'bg-blue-600 text-white shadow-xs'
+                    ? activeTheme.equipTabActive
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                 }`}
               >
@@ -1190,7 +1425,7 @@ export default function BorrowCatalogBrowser({
                 onClick={() => setActiveTab('CONSUMABLE')}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'CONSUMABLE'
-                    ? 'bg-teal-600 text-white shadow-xs'
+                    ? activeTheme.consTabActive
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                 }`}
               >
@@ -1241,6 +1476,33 @@ export default function BorrowCatalogBrowser({
                   )}
                 </button>
               )}
+
+              {/* Color Theme Switcher (5 Curated Palettes, Default: Mint & Ocean) */}
+              <div
+                className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-1.5 rounded-2xl border border-slate-200/70 dark:border-slate-700 shrink-0"
+                title={`โทนสีปัจจุบัน: ${activeTheme.name}`}
+              >
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 hidden xl:inline mr-0.5">
+                  🎨 โทนสี:
+                </span>
+                {(Object.keys(CATALOG_THEMES) as CatalogColorThemeKey[]).map((tKey) => {
+                  const tMeta = CATALOG_THEMES[tKey];
+                  const isCurrent = catalogTheme === tKey;
+                  return (
+                    <button
+                      key={tKey}
+                      type="button"
+                      onClick={() => handleSelectCatalogTheme(tKey)}
+                      title={tMeta.name}
+                      className={`w-4 h-4 rounded-full ${tMeta.dotClass} transition-all cursor-pointer ${
+                        isCurrent
+                          ? 'ring-2 ring-offset-1 ring-slate-900 dark:ring-white scale-115 shadow-xs'
+                          : 'opacity-55 hover:opacity-100 hover:scale-105'
+                      }`}
+                    />
+                  );
+                })}
+              </div>
 
               {/* View Mode Switcher */}
               <div className="hidden sm:inline-flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200/70 dark:border-slate-700">
@@ -1362,7 +1624,7 @@ export default function BorrowCatalogBrowser({
                     onClick={() => setSelectedCategory(cat.id)}
                     className={`px-3 py-1.5 rounded-full text-xs font-medium transition shrink-0 cursor-pointer flex items-center gap-1.5 ${
                       selectedCategory === cat.id
-                        ? 'bg-teal-600 text-white font-bold shadow-2xs'
+                        ? activeTheme.activeCategoryPill
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200/80'
                     }`}
                   >
@@ -1716,8 +1978,8 @@ export default function BorrowCatalogBrowser({
                         className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                           isAvailable
                             ? isEquip
-                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                              : 'bg-teal-600 hover:bg-teal-700 text-white'
+                              ? activeTheme.equipActionBtn
+                              : activeTheme.consActionBtn
                             : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                         }`}
                       >
@@ -1781,9 +2043,11 @@ export default function BorrowCatalogBrowser({
                       ? 'bg-rose-50/30 dark:bg-rose-950/10 border-rose-200/90 dark:border-rose-900/60 opacity-85'
                       : cartState.inCart
                       ? isEquip
-                        ? 'bg-white dark:bg-slate-900 border-blue-500 dark:border-blue-500 ring-2 ring-blue-500/20 shadow-md'
-                        : 'bg-white dark:bg-slate-900 border-teal-500 dark:border-teal-500 ring-2 ring-teal-500/20 shadow-md'
-                      : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800/90 shadow-2xs hover:shadow-xl hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-700'
+                        ? activeTheme.equipCardActive
+                        : activeTheme.consCardActive
+                      : `bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800/90 shadow-2xs hover:shadow-xl hover:-translate-y-0.5 ${
+                          isEquip ? activeTheme.equipCardHover : activeTheme.consCardHover
+                        }`
                   }`}
                 >
                   {/* 1. Clean Image Showcase Area */}
@@ -1797,7 +2061,7 @@ export default function BorrowCatalogBrowser({
                       {cartState.inCart ? (
                         <span
                           className={`text-[10px] font-black px-2.5 py-0.5 rounded-full text-white shadow-xs flex items-center gap-1 ${
-                            isEquip ? 'bg-blue-600' : 'bg-teal-600'
+                            isEquip ? activeTheme.equipSelectedPill : activeTheme.consSelectedPill
                           }`}
                         >
                           <Check className="w-3 h-3" />
@@ -1889,7 +2153,7 @@ export default function BorrowCatalogBrowser({
                     {hasImage ? (
                       <div
                         onClick={() => setPreviewItem(item)}
-                        className="w-full h-full p-3 sm:p-4 flex items-center justify-center bg-white dark:bg-slate-900 cursor-pointer relative group/photo overflow-hidden"
+                        className={`w-full h-full p-3 sm:p-4 flex items-center justify-center ${activeTheme.photoBackdrop} cursor-pointer relative group/photo overflow-hidden`}
                       >
                         <img
                           src={formatImageUrl(item.imageUrl)}
@@ -2144,9 +2408,7 @@ export default function BorrowCatalogBrowser({
                       ) : cartState.inCart ? (
                         <div
                           className={`flex items-center justify-between gap-1 rounded-2xl p-1 border ${
-                            isEquip
-                              ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800'
-                              : 'bg-teal-50/70 dark:bg-teal-950/40 border-teal-200 dark:border-teal-800'
+                            isEquip ? activeTheme.equipStepperWrap : activeTheme.consStepperWrap
                           }`}
                         >
                           <button
@@ -2172,9 +2434,7 @@ export default function BorrowCatalogBrowser({
                               handleSetItemQuantity(item, cartState.quantity + 1, activeIsSub)
                             }
                             className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl text-white flex items-center justify-center transition cursor-pointer shadow-2xs shrink-0 ${
-                              isEquip
-                                ? 'bg-blue-600 hover:bg-blue-700'
-                                : 'bg-teal-600 hover:bg-teal-700'
+                              isEquip ? activeTheme.equipActionBtn : activeTheme.consActionBtn
                             }`}
                           >
                             <Plus className="w-3.5 h-3.5" />
@@ -2187,9 +2447,9 @@ export default function BorrowCatalogBrowser({
                           onClick={() => handleSetItemQuantity(item, 1, activeIsSub)}
                           className={`w-full py-2 px-3 rounded-2xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
                             isAvailable
-                              ? isEquip
-                                ? 'bg-slate-900 hover:bg-blue-600 dark:bg-slate-800 dark:hover:bg-blue-600 text-white cursor-pointer shadow-2xs'
-                                : 'bg-slate-900 hover:bg-teal-600 dark:bg-slate-800 dark:hover:bg-teal-600 text-white cursor-pointer shadow-2xs'
+                              ? `${
+                                  isEquip ? activeTheme.equipActionBtn : activeTheme.consActionBtn
+                                } cursor-pointer`
                               : 'bg-slate-100 dark:bg-slate-800/60 text-slate-400 cursor-not-allowed'
                           }`}
                         >
@@ -2212,12 +2472,12 @@ export default function BorrowCatalogBrowser({
           <button
             type="button"
             onClick={() => setIsCartDrawerOpen(true)}
-            className="pointer-events-auto w-full sm:w-auto flex items-center justify-between sm:justify-start gap-4 px-5 sm:px-6 py-3 sm:py-3.5 rounded-full bg-slate-900/95 dark:bg-white/95 backdrop-blur-md text-white dark:text-slate-900 font-bold shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer ring-4 ring-black/10 dark:ring-white/20 border border-white/10 dark:border-slate-800"
+            className={`pointer-events-auto w-full sm:w-auto flex items-center justify-between sm:justify-start gap-4 px-5 sm:px-6 py-3 sm:py-3.5 rounded-full ${activeTheme.floatingCartBar} backdrop-blur-md font-bold shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer ring-4 ring-black/10 dark:ring-white/20 border`}
           >
             <div className="flex items-center gap-3">
               <div className="relative">
-                <span className="w-8 h-8 rounded-full bg-white/15 dark:bg-slate-900/10 flex items-center justify-center">
-                  <ShoppingCart className="w-4 h-4 text-teal-400 dark:text-teal-600" />
+                <span className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                  <ShoppingCart className="w-4 h-4 text-white" />
                 </span>
                 <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center shadow-xs">
                   {totalCartCount}
@@ -2225,14 +2485,14 @@ export default function BorrowCatalogBrowser({
               </div>
               <div className="text-left leading-tight">
                 <div className="text-xs font-black">ตะกร้าพัสดุที่เลือกไว้</div>
-                <div className="text-[10px] opacity-75">
+                <div className="text-[10px] opacity-85">
                   {totalBorrowQty > 0 && `ยืม ${totalBorrowQty} ชิ้น `}
                   {totalReqQty > 0 && `เบิก ${totalReqQty} หน่วย`}
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-1 pl-3 border-l border-white/20 dark:border-slate-300 text-xs text-teal-400 dark:text-teal-600 font-bold">
+            <div className="flex items-center gap-1 pl-3 border-l border-white/25 text-xs text-white font-bold">
               <span>ดูรายการ</span>
               <ChevronRight className="w-4 h-4" />
             </div>

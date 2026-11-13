@@ -17,6 +17,21 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-13] แก้ไขปัญหา ENOENT บน Vercel Serverless และอัปเกรด PDF-to-Flipbook Reader ใน E-Book Sandbox
+- **หมวดหมู่**: Innovation & Admin Sandbox / Vercel Serverless Upload & PDF.js Flipbook Engine
+- **สิ่งที่ดำเนินการ**:
+  - **แก้ไขข้อผิดพลาด `ENOENT: no such file or directory, mkdir '/var/task/public/uploads/manuals'` บน Vercel ([`src/app/api/manuals/upload/route.ts`](file:///d:/LAB-system/src/app/api/manuals/upload/route.ts))**:
+    - ตรวจสอบ `process.env.VERCEL` และหลีกเลี่ยงการสร้าง/เขียนโฟลเดอร์ใน `public/uploads/manuals/` เมื่อรันบน Vercel Serverless Read-Only Filesystem โดยใช้ `os.tmpdir()` เป็น fallback อย่างปลอดภัย
+    - เพิ่ม `GET` และคำสั่ง JSON (`SAVE_EBOOK` / `DELETE_EBOOK`) บนตาราง `ActivityLog` (`entityType: 'SANDBOX_EBOOK'`) เพื่อให้รายชื่อ E-Book คงอยู่ถาวรและซิงก์ข้ามอุปกรณ์ได้
+  - **อัปเกรด E-Book Sandbox เป็นเครื่องแปลงหน้า PDF เป็น Flipbook จริง ([`src/app/admin/sandbox/ebooks/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/ebooks/page.tsx))**:
+    - ผสาน PDF.js บนฝั่งเบราว์เซอร์แปลงไฟล์ PDF ทุกหน้าเป็นภาพหน้ากระดาษ E-Book พร้อมดึงสารบัญและข้อความสำหรับค้นหา
+    - จัดเก็บหน้า E-Book ความละเอียดสูงลงใน **IndexedDB** (`kunurse_ebooks_db`) แทน `localStorage` เพื่อป้องกันปัญหาพื้นที่เต็มบนมือถือ
+    - เพิ่มปุ่มสลับโหมดอ่าน **1 หน้า / 2 หน้าคู่**, ปุ่มซูม `100% / 125% / 150%`, ตัวแสดงผล Google Drive Preview Iframe โดยตรงในเครื่องอ่าน, และรองรับเปิดเล่มอัตโนมัติจากพารามิเตอร์ `?id=` ของ QR Code
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/app/api/manuals/upload/route.ts`](file:///d:/LAB-system/src/app/api/manuals/upload/route.ts)
+  - [`src/app/admin/sandbox/ebooks/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/ebooks/page.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `node scripts/librarian-audit.mjs` และ `npm run build` ผ่าน 100%
+
 ### [2026-11-13] เพิ่มระบบอัปโหลด PDF ตรงและวางลิงก์ Google Drive ใน E-Book Sandbox (Dual Import Engine)
 - **หมวดหมู่**: Innovation & Admin Sandbox / Lab E-Books & Google Drive Integration
 - **สิ่งที่ดำเนินการ**:

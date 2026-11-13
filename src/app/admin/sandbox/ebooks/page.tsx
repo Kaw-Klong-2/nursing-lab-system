@@ -64,10 +64,164 @@ export interface EBookItem {
   coverPattern?: string;
   totalPages: number;
   pdfUrl?: string;
+  embedUrl?: string;
   pages: EBookPage[];
   isCustomUploaded?: boolean;
   uploadedAt?: string;
   lastReadPage?: number;
+}
+
+const IDB_NAME = 'kunurse_ebooks_db';
+const IDB_STORE = 'ebooks';
+const IDB_KEY = 'custom_ebooks';
+
+function extractGoogleDriveFileId(url: string): string | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+  const fileDMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (fileDMatch) return fileDMatch[1];
+  const idMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (idMatch) return idMatch[1];
+  const openMatch = trimmed.match(/\/open\?id=([a-zA-Z0-9_-]+)/);
+  if (openMatch) return openMatch[1];
+  return null;
+}
+
+function openEBookDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined' || !window.indexedDB) {
+      reject(new Error('IndexedDB unavailable'));
+      return;
+    }
+    const request = window.indexedDB.open(IDB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function idbLoadEBooks(): Promise<EBookItem[]> {
+  try {
+    const db = await openEBookDatabase();
+    return await new Promise((resolve) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const store = tx.objectStore(IDB_STORE);
+      const req = store.get(IDB_KEY);
+      req.onsuccess = () => resolve(Array.isArray(req.result) ? req.result : []);
+      req.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+}
+
+async function idbSaveEBooks(books: EBookItem[]): Promise<void> {
+  try {
+    const db = await openEBookDatabase();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      const store = tx.objectStore(IDB_STORE);
+      store.put(books, IDB_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.warn('IndexedDB save skipped:', err);
+  }
+}
+
+async function loadPdfJs(): Promise<any> {
+  if (typeof window === 'undefined') {
+    throw new Error('PDF.js can only run in browser');
+  }
+  const win = window as any;
+  if (win.pdfjsLib) {
+    win.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    return win.pdfjsLib;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector('script[data-pdfjs="3.11.174"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve());
+      existing.addEventListener('error', () => reject(new Error('โหลดตัวประมวลผล PDF ล้มเหลว')));
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    script.async = true;
+    script.dataset.pdfjs = '3.11.174';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('ไม่สามารถโหลดตัวอ่าน PDF ได้ กรุณาตรวจสอบอินเทอร์เน็ต'));
+    document.head.appendChild(script);
+  });
+
+  if (!win.pdfjsLib) {
+    throw new Error('ไม่สามารถเริ่มต้นตัวประมวลผล PDF ได้');
+  }
+  win.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  return win.pdfjsLib;
+}
+
+async function renderPdfFileToPages(
+  file: File,
+  onProgress: (message: string) => void
+): Promise<EBookPage[]> {
+  onProgress('กำลังเตรียมตัวแปลงไฟล์ PDF เป็นหน้า E-Book...');
+  const pdfjsLib = await loadPdfJs();
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const maxPages = Math.min(pdf.numPages, 50);
+  const pages: EBookPage[] = [];
+
+  for (let i = 1; i <= maxPages; i++) {
+    onProgress(`กำลังแปลงหน้าเอกสารเป็น E-Book (หน้า ${i} / ${maxPages})...`);
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 1.5 });
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) continue;
+
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+
+    await page.render({ canvasContext: context, viewport }).promise;
+    const imageUrl = canvas.toDataURL('image/jpeg', 0.82);
+
+    // Extract text for TOC title & searchability
+    let extractedText = '';
+    let extractedTitle = `หน้า ${i}`;
+    try {
+      const textContent = await page.getTextContent();
+      const strings = (textContent?.items || [])
+        .map((item: any) => (typeof item?.str === 'string' ? item.str.trim() : ''))
+        .filter(Boolean);
+      extractedText = strings.join(' ').slice(0, 1500);
+      const firstLine = strings.find((s: string) => s.length >= 3);
+      if (firstLine) {
+        extractedTitle = firstLine.slice(0, 80);
+      }
+    } catch {
+      // Text extraction is best-effort
+    }
+
+    pages.push({
+      pageNumber: i,
+      chapterTitle: file.name.replace(/\.pdf$/i, ''),
+      title: extractedTitle,
+      content: extractedText || `เอกสารหน้าที่ ${i} จาก ${maxPages}`,
+      imageUrl,
+    });
+  }
+
+  return pages;
 }
 
 const DEFAULT_EBOOKS: EBookItem[] = [
@@ -409,25 +563,15 @@ export default function AdminEBooksSandboxPage() {
   const router = useRouter();
   const { currentUser, isOfficer, isAdmin, isLoading } = useAuth();
 
-  const [eBooks, setEBooks] = useState<EBookItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('kunurse_sandbox_ebooks');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch (e) {}
-    }
-    return DEFAULT_EBOOKS;
-  });
-
+  const [eBooks, setEBooks] = useState<EBookItem[]>(DEFAULT_EBOOKS);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
 
   // Active Reading State
   const [activeBook, setActiveBook] = useState<EBookItem | null>(null);
-  const [currentSpreadIndex, setCurrentSpreadIndex] = useState(0); // 0 = page 1 (+2 on dual view)
+  const [currentSpreadIndex, setCurrentSpreadIndex] = useState(0);
+  const [viewMode, setViewMode] = useState<'DUAL' | 'SINGLE'>('DUAL');
+  const [zoomLevel, setZoomLevel] = useState<1 | 1.25 | 1.5>(1);
   const [paperTheme, setPaperTheme] = useState<'WHITE' | 'SEPIA' | 'DARK'>('WHITE');
   const [fontSize, setFontSize] = useState<'NORMAL' | 'LARGE' | 'XLARGE'>('NORMAL');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -456,14 +600,77 @@ export default function AdminEBooksSandboxPage() {
 
   const readerContainerRef = useRef<HTMLDivElement>(null);
 
-  // Sync to localStorage
+  // Set default mobile-friendly single-page mode on small viewports
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('kunurse_sandbox_ebooks', JSON.stringify(eBooks));
-      } catch (e) {}
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setViewMode('SINGLE');
     }
-  }, [eBooks]);
+  }, []);
+
+  // Load persisted custom E-Books from IndexedDB + PostgreSQL and handle ?id= query param
+  useEffect(() => {
+    let cancelled = false;
+    async function hydrateBooks() {
+      const idbBooks = await idbLoadEBooks();
+
+      let lsCustomBooks: EBookItem[] = [];
+      try {
+        const saved = localStorage.getItem('kunurse_sandbox_ebooks');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            lsCustomBooks = parsed.filter((b: EBookItem) => b && b.isCustomUploaded);
+          }
+        }
+      } catch {}
+
+      let dbBooks: EBookItem[] = [];
+      try {
+        const res = await fetch('/api/manuals/upload');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data?.ebooks)) {
+            dbBooks = data.ebooks;
+          }
+        }
+      } catch {}
+
+      if (cancelled) return;
+
+      const customMap = new Map<string, EBookItem>();
+      // Prioritize IndexedDB copy (contains full rendered page images), then localStorage, then DB
+      for (const b of [...dbBooks, ...lsCustomBooks]) {
+        if (b && b.id && !DEFAULT_EBOOKS.some((d) => d.id === b.id)) {
+          customMap.set(b.id, b);
+        }
+      }
+      for (const b of idbBooks) {
+        if (b && b.id && !DEFAULT_EBOOKS.some((d) => d.id === b.id)) {
+          customMap.set(b.id, b);
+        }
+      }
+
+      const mergedList = [...Array.from(customMap.values()), ...DEFAULT_EBOOKS];
+      setEBooks(mergedList);
+
+      // Auto-open book if ?id= is provided (e.g. from QR Code scan)
+      if (typeof window !== 'undefined') {
+        const targetId = new URLSearchParams(window.location.search).get('id');
+        if (targetId) {
+          const match = mergedList.find((b) => b.id === targetId);
+          if (match) {
+            setActiveBook(match);
+            setCurrentSpreadIndex(0);
+          }
+        }
+      }
+    }
+
+    hydrateBooks();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Keyboard navigation for turning pages
   useEffect(() => {
@@ -483,7 +690,7 @@ export default function AdminEBooksSandboxPage() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeBook, currentSpreadIndex, isFullscreen]);
+  }, [activeBook, currentSpreadIndex, isFullscreen, viewMode]);
 
   const filteredBooks = useMemo(() => {
     return eBooks.filter((b) => {
@@ -497,17 +704,21 @@ export default function AdminEBooksSandboxPage() {
     });
   }, [eBooks, selectedCategory, searchQuery]);
 
+  const pageStep = viewMode === 'SINGLE' ? 1 : 2;
+
   // Open Book Handler
   const handleOpenBook = (book: EBookItem) => {
     setActiveBook(book);
+    setZoomLevel(1);
     const startPage = book.lastReadPage && book.lastReadPage > 0 ? book.lastReadPage - 1 : 0;
-    setCurrentSpreadIndex(Math.floor(startPage / 2) * 2);
+    const step = viewMode === 'SINGLE' ? 1 : 2;
+    setCurrentSpreadIndex(Math.floor(startPage / step) * step);
     setShowToc(false);
   };
 
   const handleNextPage = () => {
     if (!activeBook) return;
-    const nextIdx = currentSpreadIndex + 2;
+    const nextIdx = currentSpreadIndex + pageStep;
     if (nextIdx < activeBook.pages.length) {
       setCurrentSpreadIndex(nextIdx);
       updateLastRead(activeBook.id, nextIdx + 1);
@@ -516,8 +727,8 @@ export default function AdminEBooksSandboxPage() {
 
   const handlePrevPage = () => {
     if (!activeBook) return;
-    const prevIdx = currentSpreadIndex - 2;
-    if (prevIdx >= 0) {
+    const prevIdx = Math.max(0, currentSpreadIndex - pageStep);
+    if (prevIdx !== currentSpreadIndex) {
       setCurrentSpreadIndex(prevIdx);
       updateLastRead(activeBook.id, prevIdx + 1);
     }
@@ -537,56 +748,72 @@ export default function AdminEBooksSandboxPage() {
     }
 
     let finalPdfUrl = newBookForm.pdfUrl;
-
-    // Handle File Upload
-    if (uploadMode === 'AUTO_UPLOAD' && selectedFile) {
-      setIsUploadingFile(true);
-      setUploadProgress('กำลังอัปโหลดและประมวลผลไฟล์ PDF...');
-      try {
-        const formData = new FormData();
-        formData.append('file', selectedFile);
-
-        const res = await fetch('/api/manuals/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || 'การอัปโหลดไฟล์ล้มเหลว');
-        }
-
-        finalPdfUrl = data.url;
-      } catch (err: any) {
-        alert(err.message || 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์');
-        setIsUploadingFile(false);
-        return;
-      } finally {
-        setIsUploadingFile(false);
-      }
-    } else if (uploadMode === 'DRIVE_LINK' && newBookForm.driveUrl) {
-      // Validate or format Google Drive link
-      finalPdfUrl = newBookForm.driveUrl.trim();
-    }
-
-    // Generate basic pages from text or defaults
+    let finalEmbedUrl: string | undefined;
     let generatedPages: EBookPage[] = [];
 
-    if (uploadMode === 'AUTO_UPLOAD' || uploadMode === 'DRIVE_LINK') {
-      const isDrive = finalPdfUrl.includes('drive.google.com');
+    if (uploadMode === 'AUTO_UPLOAD') {
+      if (!selectedFile) {
+        alert('กรุณาเลือกไฟล์ PDF ที่ต้องการอัปโหลด');
+        return;
+      }
+
+      setIsUploadingFile(true);
+      setUploadProgress('กำลังประมวลผลไฟล์ PDF เป็น E-Book...');
+
+      try {
+        // 1. Render real PDF pages in browser via PDF.js
+        generatedPages = await renderPdfFileToPages(selectedFile, setUploadProgress);
+        if (generatedPages.length === 0) {
+          throw new Error('ไม่พบหน้าเอกสารภายในไฟล์ PDF นี้');
+        }
+
+        // 2. Non-blocking server upload (works on local dev, safely processed on Vercel)
+        setUploadProgress('กำลังบันทึกข้อมูลคู่มือลงระบบ...');
+        try {
+          if (selectedFile.size <= 4 * 1024 * 1024) {
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            const res = await fetch('/api/manuals/upload', {
+              method: 'POST',
+              body: formData,
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data?.url) finalPdfUrl = data.url;
+            }
+          }
+        } catch (uploadErr) {
+          console.warn('Optional server file sync skipped:', uploadErr);
+        }
+      } catch (err: any) {
+        alert(err?.message || 'เกิดข้อผิดพลาดในการประมวลผลไฟล์ PDF');
+        setIsUploadingFile(false);
+        setUploadProgress('');
+        return;
+      }
+    } else if (uploadMode === 'DRIVE_LINK') {
+      if (!newBookForm.driveUrl.trim()) {
+        alert('กรุณาวางลิงก์ Google Drive ของเอกสารคู่มือ');
+        return;
+      }
+      const trimmedUrl = newBookForm.driveUrl.trim();
+      finalPdfUrl = trimmedUrl;
+      const driveId = extractGoogleDriveFileId(trimmedUrl);
+      finalEmbedUrl = driveId
+        ? `https://drive.google.com/file/d/${driveId}/preview`
+        : trimmedUrl;
+
       generatedPages = [
         {
           pageNumber: 1,
-          chapterTitle: isDrive ? 'Google Drive เอกสารคู่มือ' : 'เอกสารคู่มือฉบับเต็ม (PDF Document)',
-          title: newBookForm.title,
+          chapterTitle: 'Google Drive เอกสารคู่มือ',
+          title: newBookForm.title.trim(),
           content:
-            newBookForm.subtitle ||
-            'เอกสารคู่มือการปฏิบัติงานฉบับดิจิทัล เปิดอ่านและดาวน์โหลดไฟล์ฉบับเต็มได้ทันที',
+            newBookForm.subtitle.trim() ||
+            'เอกสารคู่มือการปฏิบัติงานฉบับดิจิทัลจาก Google Drive',
           bulletPoints: [
-            isDrive
-              ? 'เชื่อมต่อเอกสารจาก Google Drive กลางของคณะพยาบาลศาสตร์'
-              : 'สามารถเลื่อนอ่านแบบหน้าเดี่ยวหรือซูมดูรายละเอียดภาพและตารางได้',
-            'คลิกปุ่มดาวน์โหลดหรือเปิด PDF เพื่อบันทึกไฟล์เก็บไว้อ่านแบบออฟไลน์',
+            'เชื่อมต่อเอกสารจาก Google Drive กลางของคณะพยาบาลศาสตร์',
+            'เปิดอ่านไฟล์ PDF ต้นฉบับได้โดยตรงภายในหน้าต่างนี้',
           ],
         },
       ];
@@ -620,12 +847,40 @@ export default function AdminEBooksSandboxPage() {
       coverIcon: newBookForm.coverIcon || '📖',
       totalPages: generatedPages.length,
       pdfUrl: finalPdfUrl || undefined,
+      embedUrl: finalEmbedUrl,
       pages: generatedPages,
       isCustomUploaded: true,
       uploadedAt: new Date().toLocaleDateString('th-TH'),
     };
 
-    setEBooks((prev) => [newBook, ...prev]);
+    const updatedBooks = [newBook, ...eBooks];
+    const customOnly = updatedBooks.filter((b) => b.isCustomUploaded);
+
+    // Persist full rendered book in IndexedDB (avoids 5MB localStorage limit on mobile)
+    await idbSaveEBooks(customOnly);
+
+    // Persist metadata (and images if within serverless body limit) to PostgreSQL
+    try {
+      const serialized = JSON.stringify(newBook);
+      const dbBook: EBookItem =
+        serialized.length > 3_500_000
+          ? {
+              ...newBook,
+              pages: newBook.pages.map(({ imageUrl: _img, ...rest }) => rest),
+            }
+          : newBook;
+      await fetch('/api/manuals/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'SAVE_EBOOK', ebook: dbBook }),
+      });
+    } catch (dbErr) {
+      console.warn('Database sync skipped:', dbErr);
+    }
+
+    setEBooks(updatedBooks);
+    setIsUploadingFile(false);
+    setUploadProgress('');
     setShowUploadModal(false);
     setSelectedFile(null);
     setNewBookForm({
@@ -643,18 +898,30 @@ export default function AdminEBooksSandboxPage() {
     handleOpenBook(newBook);
   };
 
-  const handleDeleteBook = (bookId: string, e: React.MouseEvent) => {
+  const handleDeleteBook = async (bookId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm('คุณต้องการลบหนังสือคู่มือเล่มนี้ออกจากชั้นหนังสือใช่หรือไม่?')) {
-      setEBooks((prev) => prev.filter((b) => b.id !== bookId));
+      const updated = eBooks.filter((b) => b.id !== bookId);
+      setEBooks(updated);
+      await idbSaveEBooks(updated.filter((b) => b.isCustomUploaded));
+      try {
+        await fetch('/api/manuals/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'DELETE_EBOOK', id: bookId }),
+        });
+      } catch {}
       if (activeBook?.id === bookId) setActiveBook(null);
     }
   };
 
-  const handleResetDefaults = () => {
+  const handleResetDefaults = async () => {
     if (confirm('ต้องการรีเซ็ตชั้นหนังสือกลับสู่คู่มือมาตรฐานเริ่มต้นใช่หรือไม่?')) {
       setEBooks(DEFAULT_EBOOKS);
-      localStorage.removeItem('kunurse_sandbox_ebooks');
+      await idbSaveEBooks([]);
+      try {
+        localStorage.removeItem('kunurse_sandbox_ebooks');
+      } catch {}
     }
   };
 
@@ -667,14 +934,21 @@ export default function AdminEBooksSandboxPage() {
     );
   }
 
-  // Get current 2 pages in spread
+  // Get current page(s) in reader
   const leftPage = activeBook ? activeBook.pages[currentSpreadIndex] : null;
-  const rightPage = activeBook ? activeBook.pages[currentSpreadIndex + 1] : null;
+  const rightPage =
+    activeBook && viewMode === 'DUAL' ? activeBook.pages[currentSpreadIndex + 1] : null;
 
   const paperThemeClasses = {
     WHITE: 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-800',
     SEPIA: 'bg-[#fcf8ed] text-[#433422] border-[#ecdcc3]',
     DARK: 'bg-[#181a1b] text-[#e8e6e3] border-[#2c3032]',
+  };
+
+  const imageThemeClasses = {
+    WHITE: '',
+    SEPIA: 'sepia-[.28] contrast-[.97]',
+    DARK: 'brightness-90 contrast-105',
   };
 
   const fontSizeClasses = {
@@ -897,12 +1171,12 @@ export default function AdminEBooksSandboxPage() {
             }`}
           >
             {/* Top Reader Toolbar */}
-            <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-3 text-white">
-              <div className="flex items-center gap-2 min-w-0">
+            <div className="px-3 sm:px-4 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-2 text-white flex-wrap">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
                 <button
                   type="button"
                   onClick={() => setActiveBook(null)}
-                  className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                  className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer shrink-0"
                   title="ปิดหน้าต่างอ่าน"
                 >
                   <ArrowLeft className="w-4 h-4" />
@@ -910,13 +1184,68 @@ export default function AdminEBooksSandboxPage() {
                 <div className="truncate">
                   <div className="text-xs sm:text-sm font-black truncate">{activeBook.title}</div>
                   <div className="text-[10px] text-slate-400 font-mono truncate">
-                    หน้า {currentSpreadIndex + 1} - {Math.min(currentSpreadIndex + 2, activeBook.pages.length)} จาก {activeBook.pages.length} หน้า
+                    {activeBook.embedUrl
+                      ? 'Google Drive Document Preview'
+                      : viewMode === 'SINGLE'
+                      ? `หน้า ${currentSpreadIndex + 1} จาก ${activeBook.pages.length} หน้า`
+                      : `หน้า ${currentSpreadIndex + 1} - ${Math.min(
+                          currentSpreadIndex + 2,
+                          activeBook.pages.length
+                        )} จาก ${activeBook.pages.length} หน้า`}
                   </div>
                 </div>
               </div>
 
-              {/* Reader Controls: Theme, Font, TOC, Fullscreen */}
-              <div className="flex items-center gap-1.5 shrink-0">
+              {/* Reader Controls: View Mode, Zoom, Theme, Font, TOC, Fullscreen */}
+              <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                {!activeBook.embedUrl && (
+                  <>
+                    {/* Single / Dual Page View Toggle */}
+                    <div className="flex items-center bg-slate-800 p-1 rounded-xl gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setViewMode('SINGLE')}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                          viewMode === 'SINGLE'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                        title="โหมดอ่านทีละ 1 หน้า (ขยายเต็มตา เหมาะกับมือถือ)"
+                      >
+                        1 หน้า
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewMode('DUAL');
+                          setCurrentSpreadIndex((idx) => Math.floor(idx / 2) * 2);
+                        }}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                          viewMode === 'DUAL'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                        title="โหมดกางหนังสือ 2 หน้าคู่"
+                      >
+                        2 หน้าคู่
+                      </button>
+                    </div>
+
+                    {/* Zoom Cycle Toggle */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setZoomLevel((z) => (z === 1 ? 1.25 : z === 1.25 ? 1.5 : 1))
+                      }
+                      className="px-2.5 py-1.5 rounded-xl bg-slate-800 text-[11px] font-bold text-slate-300 hover:text-white cursor-pointer flex items-center gap-1"
+                      title="ซูมเข้า / รีเซ็ตขนาดหน้ากระดาษ"
+                    >
+                      <ZoomIn className="w-3.5 h-3.5" />
+                      <span>{Math.round(zoomLevel * 100)}%</span>
+                    </button>
+                  </>
+                )}
+
                 {/* Paper Theme Switcher */}
                 <div className="flex items-center bg-slate-800 p-1 rounded-xl gap-1">
                   <button
@@ -954,37 +1283,41 @@ export default function AdminEBooksSandboxPage() {
                   </button>
                 </div>
 
-                {/* Font Size Toggle */}
-                <div className="hidden sm:flex items-center bg-slate-800 p-1 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setFontSize(
-                        fontSize === 'NORMAL'
-                          ? 'LARGE'
-                          : fontSize === 'LARGE'
-                          ? 'XLARGE'
-                          : 'NORMAL'
-                      )
-                    }
-                    className="px-2 py-1 text-[11px] font-bold text-slate-300 hover:text-white cursor-pointer"
-                    title="ปรับขนาดตัวอักษร"
-                  >
-                    A{fontSize === 'LARGE' ? '+' : fontSize === 'XLARGE' ? '++' : ''}
-                  </button>
-                </div>
+                {/* Font Size Toggle (for text-based pages) */}
+                {!activeBook.embedUrl && !leftPage?.imageUrl && (
+                  <div className="hidden sm:flex items-center bg-slate-800 p-1 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFontSize(
+                          fontSize === 'NORMAL'
+                            ? 'LARGE'
+                            : fontSize === 'LARGE'
+                            ? 'XLARGE'
+                            : 'NORMAL'
+                        )
+                      }
+                      className="px-2 py-1 text-[11px] font-bold text-slate-300 hover:text-white cursor-pointer"
+                      title="ปรับขนาดตัวอักษร"
+                    >
+                      A{fontSize === 'LARGE' ? '+' : fontSize === 'XLARGE' ? '++' : ''}
+                    </button>
+                  </div>
+                )}
 
                 {/* TOC Drawer Button */}
-                <button
-                  type="button"
-                  onClick={() => setShowToc(!showToc)}
-                  className={`p-2 rounded-xl transition cursor-pointer ${
-                    showToc ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:text-white'
-                  }`}
-                  title="สารบัญเนื้อหา"
-                >
-                  <BookMarked className="w-4 h-4" />
-                </button>
+                {!activeBook.embedUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setShowToc(!showToc)}
+                    className={`p-2 rounded-xl transition cursor-pointer ${
+                      showToc ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:text-white'
+                    }`}
+                    title="สารบัญเนื้อหา"
+                  >
+                    <BookMarked className="w-4 h-4" />
+                  </button>
+                )}
 
                 {/* PDF Original File Download/Open */}
                 {activeBook.pdfUrl && (
@@ -992,7 +1325,7 @@ export default function AdminEBooksSandboxPage() {
                     href={activeBook.pdfUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="p-2 rounded-xl bg-slate-800 text-teal-400 hover:text-teal-300 transition cursor-pointer hidden md:inline-flex"
+                    className="p-2 rounded-xl bg-slate-800 text-teal-400 hover:text-teal-300 transition cursor-pointer inline-flex"
                     title="เปิดไฟล์ PDF ต้นฉบับ"
                   >
                     <Download className="w-4 h-4" />
@@ -1015,10 +1348,10 @@ export default function AdminEBooksSandboxPage() {
               </div>
             </div>
 
-            {/* Main Dual-Page Book Display Area */}
-            <div className="relative flex-1 overflow-hidden flex items-center justify-center p-3 sm:p-6 bg-slate-950">
+            {/* Main Book Display Area */}
+            <div className="relative flex-1 overflow-hidden flex items-center justify-center p-2 sm:p-5 bg-slate-950">
               {/* Table of Contents Drawer Overlay */}
-              {showToc && (
+              {showToc && !activeBook.embedUrl && (
                 <div className="absolute top-0 bottom-0 left-0 w-72 sm:w-80 bg-slate-900 border-r border-slate-800 z-30 p-4 space-y-3 overflow-y-auto animate-in slide-in-from-left duration-200">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                     <span className="text-xs font-bold text-white flex items-center gap-1.5">
@@ -1034,207 +1367,224 @@ export default function AdminEBooksSandboxPage() {
                     </button>
                   </div>
                   <div className="space-y-1">
-                    {activeBook.pages.map((p, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          setCurrentSpreadIndex(Math.floor(idx / 2) * 2);
-                          setShowToc(false);
-                        }}
-                        className={`w-full text-left p-2 rounded-xl text-xs transition cursor-pointer flex items-center justify-between ${
-                          idx === currentSpreadIndex || idx === currentSpreadIndex + 1
-                            ? 'bg-indigo-600 text-white font-bold'
-                            : 'text-slate-300 hover:bg-slate-800'
-                        }`}
-                      >
-                        <div className="truncate pr-2">
-                          <div className="text-[10px] opacity-70">หน้า {p.pageNumber}</div>
-                          <div className="truncate">{p.title}</div>
-                        </div>
-                        <span className="text-[10px] opacity-60">→</span>
-                      </button>
-                    ))}
+                    {activeBook.pages.map((p, idx) => {
+                      const isActive =
+                        viewMode === 'SINGLE'
+                          ? idx === currentSpreadIndex
+                          : idx === currentSpreadIndex || idx === currentSpreadIndex + 1;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setCurrentSpreadIndex(
+                              viewMode === 'SINGLE' ? idx : Math.floor(idx / 2) * 2
+                            );
+                            setShowToc(false);
+                          }}
+                          className={`w-full text-left p-2 rounded-xl text-xs transition cursor-pointer flex items-center justify-between ${
+                            isActive
+                              ? 'bg-indigo-600 text-white font-bold'
+                              : 'text-slate-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          <div className="truncate pr-2">
+                            <div className="text-[10px] opacity-70">หน้า {p.pageNumber}</div>
+                            <div className="truncate">{p.title}</div>
+                          </div>
+                          <span className="text-[10px] opacity-60">→</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
-              {/* Book Spine Shadow and Realistic Gutter Effect */}
-              <div className="w-full max-w-5xl h-full flex items-stretch justify-center relative perspective-[1200px]">
-                {/* Prev Navigation Arrow Button */}
-                <button
-                  type="button"
-                  disabled={currentSpreadIndex <= 0}
-                  onClick={handlePrevPage}
-                  className="absolute -left-2 sm:-left-5 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-800/90 hover:bg-indigo-600 text-white flex items-center justify-center shadow-2xl transition disabled:opacity-20 disabled:pointer-events-none cursor-pointer border border-white/10"
-                  title="หน้าก่อนหน้า (หรือกดลูกศรซ้ายบนคีย์บอร์ด)"
-                >
-                  <ChevronLeft className="w-6 h-6" />
-                </button>
-
-                {/* Dual-Page Spread Container */}
-                <div className="w-full h-full flex flex-col md:flex-row items-stretch rounded-2xl overflow-hidden shadow-2xl border border-slate-700/80">
-                  {/* Left Page */}
-                  <div
-                    className={`flex-1 p-5 sm:p-7 md:p-8 flex flex-col justify-between overflow-y-auto relative border-b md:border-b-0 md:border-r border-slate-300/40 dark:border-slate-800 ${paperThemeClasses[paperTheme]}`}
-                  >
-                    {leftPage ? (
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between text-[11px] font-bold text-indigo-600 dark:text-indigo-400 pb-2 border-b border-current/10">
-                          <span>{leftPage.chapterTitle || activeBook.title}</span>
-                          <span className="font-mono">{leftPage.pageNumber}</span>
-                        </div>
-                        <h2 className="text-base sm:text-xl font-black leading-snug">
-                          {leftPage.title}
-                        </h2>
-                        <p className={`${fontSizeClasses[fontSize]} whitespace-pre-line leading-relaxed`}>
-                          {leftPage.content}
-                        </p>
-                        {leftPage.bulletPoints && leftPage.bulletPoints.length > 0 && (
-                          <ul className="space-y-2 pt-2">
-                            {leftPage.bulletPoints.map((bp, bIdx) => (
-                              <li key={bIdx} className="flex items-start gap-2 text-xs sm:text-sm">
-                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                                <span>{bp}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                        {leftPage.callout && (
-                          <div
-                            className={`p-3.5 rounded-2xl border text-xs sm:text-sm space-y-1 ${
-                              leftPage.callout.type === 'warning'
-                                ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900 text-rose-900 dark:text-rose-200'
-                                : 'bg-teal-50 dark:bg-teal-950/40 border-teal-200 dark:border-teal-900 text-teal-900 dark:text-teal-200'
-                            }`}
-                          >
-                            <div className="font-bold flex items-center gap-1.5">
-                              {leftPage.callout.type === 'warning' ? (
-                                <ShieldAlert className="w-4 h-4 text-rose-600" />
-                              ) : (
-                                <Info className="w-4 h-4 text-teal-600" />
-                              )}
-                              <span>ข้อควรระวัง / คำแนะนำ</span>
-                            </div>
-                            <p>{leftPage.callout.text}</p>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-slate-400 text-xs">
-                        ปกหน้าด้านใน
-                      </div>
-                    )}
-                    <div className="text-[10px] text-center opacity-60 font-mono pt-3">
-                      - {leftPage?.pageNumber || 1} -
-                    </div>
-                  </div>
-
-                  {/* Central Spine Shadow (สันหนังสือตรงกลาง) */}
-                  <div className="hidden md:block w-3 bg-gradient-to-r from-black/25 via-black/10 to-transparent shrink-0 pointer-events-none" />
-
-                  {/* Right Page */}
-                  <div
-                    className={`flex-1 p-5 sm:p-7 md:p-8 flex flex-col justify-between overflow-y-auto relative ${paperThemeClasses[paperTheme]}`}
-                  >
-                    {rightPage ? (
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between text-[11px] font-bold text-indigo-600 dark:text-indigo-400 pb-2 border-b border-current/10">
-                          <span>{rightPage.chapterTitle || activeBook.title}</span>
-                          <span className="font-mono">{rightPage.pageNumber}</span>
-                        </div>
-                        <h2 className="text-base sm:text-xl font-black leading-snug">
-                          {rightPage.title}
-                        </h2>
-                        <p className={`${fontSizeClasses[fontSize]} whitespace-pre-line leading-relaxed`}>
-                          {rightPage.content}
-                        </p>
-                        {rightPage.bulletPoints && rightPage.bulletPoints.length > 0 && (
-                          <ul className="space-y-2 pt-2">
-                            {rightPage.bulletPoints.map((bp, bIdx) => (
-                              <li key={bIdx} className="flex items-start gap-2 text-xs sm:text-sm">
-                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                                <span>{bp}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                        {rightPage.callout && (
-                          <div
-                            className={`p-3.5 rounded-2xl border text-xs sm:text-sm space-y-1 ${
-                              rightPage.callout.type === 'warning'
-                                ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900 text-rose-900 dark:text-rose-200'
-                                : 'bg-teal-50 dark:bg-teal-950/40 border-teal-200 dark:border-teal-900 text-teal-900 dark:text-teal-200'
-                            }`}
-                          >
-                            <div className="font-bold flex items-center gap-1.5">
-                              {rightPage.callout.type === 'warning' ? (
-                                <ShieldAlert className="w-4 h-4 text-rose-600" />
-                              ) : (
-                                <Info className="w-4 h-4 text-teal-600" />
-                              )}
-                              <span>ข้อควรระวัง / คำแนะนำ</span>
-                            </div>
-                            <p>{rightPage.callout.text}</p>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-full text-center space-y-2 p-6">
-                        <div className="text-3xl">🎉</div>
-                        <div className="font-bold text-sm text-slate-500">จบคู่มือฉบับนี้แล้ว</div>
-                        <p className="text-xs text-slate-400">
-                          สามารถกดปุ่มย้อนกลับหรือเปิดดูสารบัญเพื่อทบทวนบทเรียนก่อนหน้า
-                        </p>
-                      </div>
-                    )}
-                    <div className="text-[10px] text-center opacity-60 font-mono pt-3">
-                      {rightPage ? `- ${rightPage.pageNumber} -` : ''}
-                    </div>
-                  </div>
+              {activeBook.embedUrl ? (
+                <div className="w-full max-w-5xl h-full flex flex-col">
+                  <iframe
+                    src={activeBook.embedUrl}
+                    className="w-full flex-1 min-h-[70vh] rounded-2xl border border-slate-800 bg-white shadow-2xl"
+                    allow="autoplay"
+                    title={activeBook.title}
+                  />
                 </div>
-
-                {/* Next Navigation Arrow Button */}
-                <button
-                  type="button"
-                  disabled={currentSpreadIndex + 2 >= activeBook.pages.length}
-                  onClick={handleNextPage}
-                  className="absolute -right-2 sm:-right-5 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-800/90 hover:bg-indigo-600 text-white flex items-center justify-center shadow-2xl transition disabled:opacity-20 disabled:pointer-events-none cursor-pointer border border-white/10"
-                  title="หน้าถัดไป (หรือกดลูกศรขวาบนคีย์บอร์ด)"
+              ) : (
+                /* Book Spine Shadow and Realistic Gutter Effect */
+                <div
+                  className={`w-full h-full flex items-stretch justify-center relative perspective-[1200px] ${
+                    viewMode === 'SINGLE' ? 'max-w-3xl' : 'max-w-6xl'
+                  }`}
                 >
-                  <ChevronRight className="w-6 h-6" />
-                </button>
-              </div>
+                  {/* Prev Navigation Arrow Button */}
+                  <button
+                    type="button"
+                    disabled={currentSpreadIndex <= 0}
+                    onClick={handlePrevPage}
+                    className="absolute -left-1 sm:-left-5 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-800/90 hover:bg-indigo-600 text-white flex items-center justify-center shadow-2xl transition disabled:opacity-20 disabled:pointer-events-none cursor-pointer border border-white/10"
+                    title="หน้าก่อนหน้า (หรือกดลูกศรซ้ายบนคีย์บอร์ด)"
+                  >
+                    <ChevronLeft className="w-6 h-6" />
+                  </button>
+
+                  {/* Page(s) Container */}
+                  <div className="w-full h-full flex flex-col md:flex-row items-stretch rounded-2xl overflow-hidden shadow-2xl border border-slate-700/80">
+                    {(viewMode === 'SINGLE' ? [leftPage] : [leftPage, rightPage]).map(
+                      (pageItem, slotIdx) => {
+                        const isLeftSlot = slotIdx === 0;
+                        return (
+                          <React.Fragment key={slotIdx}>
+                            {!isLeftSlot && (
+                              /* Central Spine Shadow (สันหนังสือตรงกลาง) */
+                              <div className="hidden md:block w-3 bg-gradient-to-r from-black/25 via-black/10 to-transparent shrink-0 pointer-events-none" />
+                            )}
+                            <div
+                              className={`flex-1 flex flex-col justify-between overflow-auto relative ${
+                                pageItem?.imageUrl ? 'p-2 sm:p-4' : 'p-5 sm:p-7 md:p-8'
+                              } ${
+                                viewMode === 'DUAL' && isLeftSlot
+                                  ? 'border-b md:border-b-0 md:border-r border-slate-300/40 dark:border-slate-800'
+                                  : ''
+                              } ${paperThemeClasses[paperTheme]}`}
+                            >
+                              {pageItem ? (
+                                pageItem.imageUrl ? (
+                                  <div className="flex flex-col items-center justify-start min-h-full gap-2">
+                                    <div
+                                      style={{
+                                        width: zoomLevel > 1 ? `${zoomLevel * 100}%` : '100%',
+                                      }}
+                                      className="transition-all duration-200 mx-auto"
+                                    >
+                                      <img
+                                        src={pageItem.imageUrl}
+                                        alt={pageItem.title || `หน้า ${pageItem.pageNumber}`}
+                                        className={`w-full h-auto rounded-lg shadow-md object-contain mx-auto ${imageThemeClasses[paperTheme]}`}
+                                      />
+                                    </div>
+                                    <div className="text-[10px] text-center opacity-60 font-mono py-1">
+                                      - หน้า {pageItem.pageNumber} / {activeBook.pages.length} -
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="space-y-4">
+                                      <div className="flex items-center justify-between text-[11px] font-bold text-indigo-600 dark:text-indigo-400 pb-2 border-b border-current/10">
+                                        <span>{pageItem.chapterTitle || activeBook.title}</span>
+                                        <span className="font-mono">{pageItem.pageNumber}</span>
+                                      </div>
+                                      <h2 className="text-base sm:text-xl font-black leading-snug">
+                                        {pageItem.title}
+                                      </h2>
+                                      <p
+                                        className={`${fontSizeClasses[fontSize]} whitespace-pre-line leading-relaxed`}
+                                      >
+                                        {pageItem.content}
+                                      </p>
+                                      {pageItem.bulletPoints && pageItem.bulletPoints.length > 0 && (
+                                        <ul className="space-y-2 pt-2">
+                                          {pageItem.bulletPoints.map((bp, bIdx) => (
+                                            <li
+                                              key={bIdx}
+                                              className="flex items-start gap-2 text-xs sm:text-sm"
+                                            >
+                                              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                                              <span>{bp}</span>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                      {pageItem.callout && (
+                                        <div
+                                          className={`p-3.5 rounded-2xl border text-xs sm:text-sm space-y-1 ${
+                                            pageItem.callout.type === 'warning'
+                                              ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900 text-rose-900 dark:text-rose-200'
+                                              : 'bg-teal-50 dark:bg-teal-950/40 border-teal-200 dark:border-teal-900 text-teal-900 dark:text-teal-200'
+                                          }`}
+                                        >
+                                          <div className="font-bold flex items-center gap-1.5">
+                                            {pageItem.callout.type === 'warning' ? (
+                                              <ShieldAlert className="w-4 h-4 text-rose-600" />
+                                            ) : (
+                                              <Info className="w-4 h-4 text-teal-600" />
+                                            )}
+                                            <span>ข้อควรระวัง / คำแนะนำ</span>
+                                          </div>
+                                          <p>{pageItem.callout.text}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="text-[10px] text-center opacity-60 font-mono pt-3">
+                                      - {pageItem.pageNumber} -
+                                    </div>
+                                  </>
+                                )
+                              ) : isLeftSlot ? (
+                                <div className="flex items-center justify-center h-full text-slate-400 text-xs">
+                                  ปกหน้าด้านใน
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-center space-y-2 p-6">
+                                  <div className="text-3xl">🎉</div>
+                                  <div className="font-bold text-sm text-slate-500">
+                                    จบคู่มือฉบับนี้แล้ว
+                                  </div>
+                                  <p className="text-xs text-slate-400">
+                                    สามารถกดปุ่มย้อนกลับหรือเปิดดูสารบัญเพื่อทบทวนบทเรียนก่อนหน้า
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </React.Fragment>
+                        );
+                      }
+                    )}
+                  </div>
+
+                  {/* Next Navigation Arrow Button */}
+                  <button
+                    type="button"
+                    disabled={currentSpreadIndex + pageStep >= activeBook.pages.length}
+                    onClick={handleNextPage}
+                    className="absolute -right-1 sm:-right-5 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-800/90 hover:bg-indigo-600 text-white flex items-center justify-center shadow-2xl transition disabled:opacity-20 disabled:pointer-events-none cursor-pointer border border-white/10"
+                    title="หน้าถัดไป (หรือกดลูกศรขวาบนคีย์บอร์ด)"
+                  >
+                    <ChevronRight className="w-6 h-6" />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Bottom Scrubber & Progress Bar */}
-            <div className="px-5 py-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-4 text-white">
-              <div className="text-xs text-slate-400 font-mono shrink-0">
-                หน้า {currentSpreadIndex + 1} / {activeBook.pages.length}
-              </div>
+            {!activeBook.embedUrl && (
+              <div className="px-5 py-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-4 text-white">
+                <div className="text-xs text-slate-400 font-mono shrink-0">
+                  หน้า {currentSpreadIndex + 1} / {activeBook.pages.length}
+                </div>
 
-              {/* Progress Slider */}
-              <input
-                type="range"
-                min={0}
-                max={Math.max(0, activeBook.pages.length - 2)}
-                step={2}
-                value={currentSpreadIndex}
-                onChange={(e) => setCurrentSpreadIndex(Number(e.target.value))}
-                className="w-full accent-indigo-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
-              />
+                {/* Progress Slider */}
+                <input
+                  type="range"
+                  min={0}
+                  max={Math.max(0, activeBook.pages.length - pageStep)}
+                  step={pageStep}
+                  value={currentSpreadIndex}
+                  onChange={(e) => setCurrentSpreadIndex(Number(e.target.value))}
+                  className="w-full accent-indigo-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
+                />
 
-              <div className="flex items-center gap-1 shrink-0 text-xs text-slate-400">
-                <span className="hidden sm:inline">กด</span>
-                <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-mono border border-slate-700">
-                  ←
-                </kbd>
-                <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-mono border border-slate-700">
-                  →
-                </kbd>
-                <span className="hidden sm:inline">เพื่อพลิกหน้า</span>
+                <div className="flex items-center gap-1 shrink-0 text-xs text-slate-400">
+                  <span className="hidden sm:inline">กด</span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-mono border border-slate-700">
+                    ←
+                  </kbd>
+                  <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-mono border border-slate-700">
+                    →
+                  </kbd>
+                  <span className="hidden sm:inline">เพื่อพลิกหน้า</span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}

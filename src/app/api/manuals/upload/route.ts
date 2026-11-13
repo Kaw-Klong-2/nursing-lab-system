@@ -5,7 +5,7 @@ import path from 'path';
 /**
  * Helper to extract Google Drive file ID from multiple URL formats
  */
-export function extractGoogleDriveId(url: string): string | null {
+function extractGoogleDriveId(url: string): string | null {
   if (!url) return null;
   const trimmed = url.trim();
 

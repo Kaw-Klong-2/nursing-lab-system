@@ -17,6 +17,20 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-13] เพิ่มระบบอัปโหลด PDF ตรงและวางลิงก์ Google Drive ใน E-Book Sandbox (Dual Import Engine)
+- **หมวดหมู่**: Innovation & Admin Sandbox / Lab E-Books & Google Drive Integration
+- **สิ่งที่ดำเนินการ**:
+  - **สร้าง API อัปโหลดไฟล์คู่มือและแยกแยะ Google Drive Link ([`src/app/api/manuals/upload/route.ts`](file:///d:/LAB-system/src/app/api/manuals/upload/route.ts))**:
+    - รองรับการรับไฟล์ PDF ขนาดสูงสุด 50MB และเซฟเข้าโฟลเดอร์ `public/uploads/manuals/` พร้อมเตรียมช่องเชื่อมต่อ Service Account สำหรับซิงก์เข้าไดรฟ์กลางคณะอัตโนมัติ
+    - มีฟังก์ชัน `extractGoogleDriveId` ดึง ID จากลิงก์ Google Drive เพื่อสร้างลิงก์พรีวิวเปิดอ่านในระบบได้ทันที
+  - **อัปเกรดหน้าต่างเพิ่มคู่มือใน E-Book Sandbox ([`src/app/admin/sandbox/ebooks/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/ebooks/page.tsx))**:
+    - เพิ่มแถบเลือก 3 วิธี: **"อัปโหลด PDF ตรง"**, **"ลิงก์ Google Drive"**, และ **"พิมพ์บทเรียนเอง"**
+    - มีพื้นที่ลากวางไฟล์ (Drag & Drop) พร้อมแสดงขนาดไฟล์และสถานะความคืบหน้าระหว่างบันทึก
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/app/api/manuals/upload/route.ts`](file:///d:/LAB-system/src/app/api/manuals/upload/route.ts)
+  - [`src/app/admin/sandbox/ebooks/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/ebooks/page.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit` ผ่าน 0 error และ `npm run librarian:audit` ผ่าน 100%
+
 ### [2026-11-13] เพิ่มพื้นที่ทดลอง Sandbox: ชั้นหนังสืออีบุ๊กและคู่มือห้องปฏิบัติการดิจิทัล (Digital Lab E-Book & Flipbook Library)
 - **หมวดหมู่**: Innovation & Admin Sandbox / Lab Manuals & E-Learning
 - **สิ่งที่ดำเนินการ**:

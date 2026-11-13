@@ -436,7 +436,11 @@ export default function AdminEBooksSandboxPage() {
 
   // New E-Book Creator Modal State
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadMode, setUploadMode] = useState<'PDF' | 'IMAGE' | 'TEXT'>('PDF');
+  const [uploadMode, setUploadMode] = useState<'AUTO_UPLOAD' | 'DRIVE_LINK' | 'TEXT'>('AUTO_UPLOAD');
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
   const [newBookForm, setNewBookForm] = useState({
     title: '',
     subtitle: '',
@@ -446,6 +450,7 @@ export default function AdminEBooksSandboxPage() {
     coverIcon: '📘',
     coverGradient: 'from-teal-600 to-blue-700',
     pdfUrl: '',
+    driveUrl: '',
     pageContentText: '',
   });
 
@@ -524,29 +529,64 @@ export default function AdminEBooksSandboxPage() {
     );
   };
 
-  const handleCreateNewBook = (e: React.FormEvent) => {
+  const handleCreateNewBook = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newBookForm.title.trim()) {
       alert('กรุณากรอกชื่อคู่มือ');
       return;
     }
 
+    let finalPdfUrl = newBookForm.pdfUrl;
+
+    // Handle File Upload
+    if (uploadMode === 'AUTO_UPLOAD' && selectedFile) {
+      setIsUploadingFile(true);
+      setUploadProgress('กำลังอัปโหลดและประมวลผลไฟล์ PDF...');
+      try {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        const res = await fetch('/api/manuals/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'การอัปโหลดไฟล์ล้มเหลว');
+        }
+
+        finalPdfUrl = data.url;
+      } catch (err: any) {
+        alert(err.message || 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์');
+        setIsUploadingFile(false);
+        return;
+      } finally {
+        setIsUploadingFile(false);
+      }
+    } else if (uploadMode === 'DRIVE_LINK' && newBookForm.driveUrl) {
+      // Validate or format Google Drive link
+      finalPdfUrl = newBookForm.driveUrl.trim();
+    }
+
     // Generate basic pages from text or defaults
     let generatedPages: EBookPage[] = [];
 
-    if (uploadMode === 'PDF') {
-      const targetPdf = newBookForm.pdfUrl || '/manuals/student_user_manual.pdf';
+    if (uploadMode === 'AUTO_UPLOAD' || uploadMode === 'DRIVE_LINK') {
+      const isDrive = finalPdfUrl.includes('drive.google.com');
       generatedPages = [
         {
           pageNumber: 1,
-          chapterTitle: 'เอกสารคู่มือฉบับเต็ม (PDF Document)',
+          chapterTitle: isDrive ? 'Google Drive เอกสารคู่มือ' : 'เอกสารคู่มือฉบับเต็ม (PDF Document)',
           title: newBookForm.title,
           content:
             newBookForm.subtitle ||
             'เอกสารคู่มือการปฏิบัติงานฉบับดิจิทัล เปิดอ่านและดาวน์โหลดไฟล์ฉบับเต็มได้ทันที',
           bulletPoints: [
-            'สามารถเลื่อนอ่านแบบหน้าเดี่ยวหรือซูมดูรายละเอียดภาพและตารางได้',
-            'คลิกปุ่มดาวน์โหลดด้านล่างเพื่อบันทึกไฟล์เก็บไว้อ่านแบบออฟไลน์',
+            isDrive
+              ? 'เชื่อมต่อเอกสารจาก Google Drive กลางของคณะพยาบาลศาสตร์'
+              : 'สามารถเลื่อนอ่านแบบหน้าเดี่ยวหรือซูมดูรายละเอียดภาพและตารางได้',
+            'คลิกปุ่มดาวน์โหลดหรือเปิด PDF เพื่อบันทึกไฟล์เก็บไว้อ่านแบบออฟไลน์',
           ],
         },
       ];
@@ -579,7 +619,7 @@ export default function AdminEBooksSandboxPage() {
       coverGradient: newBookForm.coverGradient,
       coverIcon: newBookForm.coverIcon || '📖',
       totalPages: generatedPages.length,
-      pdfUrl: uploadMode === 'PDF' ? newBookForm.pdfUrl || '/manuals/student_user_manual.pdf' : undefined,
+      pdfUrl: finalPdfUrl || undefined,
       pages: generatedPages,
       isCustomUploaded: true,
       uploadedAt: new Date().toLocaleDateString('th-TH'),
@@ -587,6 +627,7 @@ export default function AdminEBooksSandboxPage() {
 
     setEBooks((prev) => [newBook, ...prev]);
     setShowUploadModal(false);
+    setSelectedFile(null);
     setNewBookForm({
       title: '',
       subtitle: '',
@@ -596,6 +637,7 @@ export default function AdminEBooksSandboxPage() {
       coverIcon: '📘',
       coverGradient: 'from-teal-600 to-blue-700',
       pdfUrl: '',
+      driveUrl: '',
       pageContentText: '',
     });
     handleOpenBook(newBook);
@@ -1219,31 +1261,43 @@ export default function AdminEBooksSandboxPage() {
               </button>
             </div>
 
-            {/* Mode Segmented Switcher */}
-            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl text-xs font-bold">
+            {/* Mode Segmented Switcher (3 Import Methods: Direct Auto Upload, Google Drive Link, Rich Text) */}
+            <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl text-[11px] font-bold">
               <button
                 type="button"
-                onClick={() => setUploadMode('PDF')}
-                className={`py-2 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                  uploadMode === 'PDF'
+                onClick={() => setUploadMode('AUTO_UPLOAD')}
+                className={`py-2 px-1 rounded-xl transition cursor-pointer flex items-center justify-center gap-1 ${
+                  uploadMode === 'AUTO_UPLOAD'
                     ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
                     : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
               >
-                <FileUp className="w-4 h-4" />
-                <span>ไฟล์ PDF คู่มือ</span>
+                <Upload className="w-3.5 h-3.5 text-teal-600" />
+                <span>อัปโหลด PDF ตรง</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setUploadMode('DRIVE_LINK')}
+                className={`py-2 px-1 rounded-xl transition cursor-pointer flex items-center justify-center gap-1 ${
+                  uploadMode === 'DRIVE_LINK'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                <FileUp className="w-3.5 h-3.5 text-indigo-600" />
+                <span>ลิงก์ Google Drive</span>
               </button>
               <button
                 type="button"
                 onClick={() => setUploadMode('TEXT')}
-                className={`py-2 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                className={`py-2 px-1 rounded-xl transition cursor-pointer flex items-center justify-center gap-1 ${
                   uploadMode === 'TEXT'
                     ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
                     : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
               >
-                <FileText className="w-4 h-4" />
-                <span>พิมพ์บทเรียนรายหน้า</span>
+                <FileText className="w-3.5 h-3.5 text-amber-600" />
+                <span>พิมพ์บทเรียนเอง</span>
               </button>
             </div>
 
@@ -1320,44 +1374,81 @@ export default function AdminEBooksSandboxPage() {
                 </div>
               </div>
 
-              {uploadMode === 'PDF' ? (
-                <div className="space-y-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-dashed border-slate-300 dark:border-slate-700 text-center">
-                  <FileUp className="w-8 h-8 text-indigo-500 mx-auto" />
-                  <div className="font-bold text-slate-700 dark:text-slate-200 text-xs">
-                    ลิงก์ไฟล์ PDF หรือเลือกเอกสารตัวอย่าง
+              {/* Dynamic Content Input according to Import Mode */}
+              {uploadMode === 'AUTO_UPLOAD' ? (
+                <div className="space-y-3 p-4 rounded-2xl bg-teal-50/50 dark:bg-teal-950/20 border border-teal-200/80 dark:border-teal-900/50 text-center">
+                  <div className="w-10 h-10 rounded-2xl bg-teal-100 dark:bg-teal-900/60 text-teal-600 dark:text-teal-300 flex items-center justify-center mx-auto shadow-xs">
+                    <Upload className="w-5 h-5" />
                   </div>
+                  <div>
+                    <div className="font-black text-slate-900 dark:text-white text-xs">
+                      ลากไฟล์ PDF มาวางที่นี่ หรือคลิกเพื่อเลือกไฟล์จากคอมพิวเตอร์
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      ระบบจะจัดเก็บไฟล์ลงคลังคู่มือและเปิดอ่านเป็น E-Book กาง 2 หน้าคู่อัตโนมัติ (สูงสุด 50MB)
+                    </p>
+                  </div>
+
                   <input
-                    type="text"
-                    placeholder="วาง URL ไฟล์ PDF (เช่น /manuals/nursing_lab_complete_manual.pdf)"
-                    value={newBookForm.pdfUrl}
-                    onChange={(e) => setNewBookForm({ ...newBookForm, pdfUrl: e.target.value })}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] || null;
+                      setSelectedFile(f);
+                      if (f && !newBookForm.title) {
+                        const nameWithoutExt = f.name.replace(/\.pdf$/i, '');
+                        setNewBookForm((prev) => ({ ...prev, title: nameWithoutExt }));
+                      }
+                    }}
+                    className="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-teal-600 file:text-white hover:file:bg-teal-700 cursor-pointer"
                   />
-                  <div className="flex flex-wrap gap-1 justify-center pt-1">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setNewBookForm({
-                          ...newBookForm,
-                          pdfUrl: '/manuals/nursing_lab_complete_manual.pdf',
-                        })
-                      }
-                      className="px-2 py-1 rounded text-[10px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 cursor-pointer"
-                    >
-                      + ใช้ไฟล์คู่มือฉบับสมบูรณ์ (PDF ในระบบ)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setNewBookForm({
-                          ...newBookForm,
-                          pdfUrl: '/manuals/student_user_manual.pdf',
-                        })
-                      }
-                      className="px-2 py-1 rounded text-[10px] bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-800 cursor-pointer"
-                    >
-                      + ใช้ไฟล์คู่มือนิสิต (PDF ในระบบ)
-                    </button>
+
+                  {selectedFile && (
+                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-teal-200 dark:border-teal-800 text-[11px] text-teal-800 dark:text-teal-300 flex items-center justify-between">
+                      <span className="font-bold truncate">📄 {selectedFile.name}</span>
+                      <span className="font-mono text-[10px]">
+                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                      </span>
+                    </div>
+                  )}
+
+                  {isUploadingFile && (
+                    <div className="text-xs font-bold text-teal-600 animate-pulse">
+                      {uploadProgress || 'กำลังอัปโหลด...'}
+                    </div>
+                  )}
+                </div>
+              ) : uploadMode === 'DRIVE_LINK' ? (
+                <div className="space-y-3 p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/80 dark:border-indigo-900/50">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shrink-0">
+                      <FileUp className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="font-black text-slate-900 dark:text-white text-xs">
+                        วางลิงก์ Google Drive ของเอกสารคู่มือ
+                      </div>
+                      <p className="text-[10px] text-slate-500">
+                        เช่น https://drive.google.com/file/d/... หรือลิงก์ที่แชร์จากไดรฟ์ของคณะ
+                      </p>
+                    </div>
+                  </div>
+
+                  <input
+                    type="url"
+                    placeholder="https://drive.google.com/file/d/..."
+                    value={newBookForm.driveUrl}
+                    onChange={(e) =>
+                      setNewBookForm({ ...newBookForm, driveUrl: e.target.value })
+                    }
+                    className="w-full bg-white dark:bg-slate-900 border border-indigo-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                  />
+
+                  <div className="p-2.5 rounded-xl bg-white/70 dark:bg-slate-900/70 border border-indigo-100 dark:border-indigo-950 text-[10px] text-indigo-900 dark:text-indigo-300 space-y-1">
+                    <div className="font-bold">💡 คำแนะนำการตั้งค่าใน Google Drive:</div>
+                    <p>
+                      ให้ตั้งค่าแชร์ไฟล์เป็น <strong>"ทุกคนที่มีลิงก์ (Anyone with the link) มีสิทธิ์ดู"</strong> เพื่อให้นิสิตและอาจารย์สามารถเปิดอ่านได้ทันที
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -1387,9 +1478,10 @@ export default function AdminEBooksSandboxPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 cursor-pointer"
+                  disabled={isUploadingFile}
+                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold text-xs shadow-md shadow-indigo-600/20 cursor-pointer transition flex items-center gap-1.5"
                 >
-                  สร้างหนังสือและเปิดอ่านทันที
+                  <span>{isUploadingFile ? 'กำลังบันทึก...' : 'สร้างหนังสือและเปิดอ่านทันที'}</span>
                 </button>
               </div>
             </form>

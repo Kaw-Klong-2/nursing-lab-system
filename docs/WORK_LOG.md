@@ -17,6 +17,18 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-14] อัปเกรดฟิสิกส์พลิกหน้ากระดาษ 3 มิติ (3D Page-Curl Flipbook) และเสียงกระดาษธรรมชาติ 3 ชั้นใน E-Book Sandbox
+- **หมวดหมู่**: Innovation & Admin Sandbox / Interactive E-Book Reader UX
+- **สิ่งที่ดำเนินการ**:
+  - **ระบบพลิกหน้ากระดาษ 3 มิติเสมือนจริง (`flipTransition` + Keyframes) ใน [`src/app/admin/sandbox/ebooks/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/ebooks/page.tsx)**:
+    - เปลี่ยนจากเอียงกล่อง 150ms เป็น **3D Page-Turning Leaf** (`transform-style: preserve-3d`, `backface-visibility: hidden`) ที่ยึดขอบสันหนังสือแล้วโค้งยกพลิกข้ามสัน `0° → ±180°` (ในโหมด 2 หน้าคู่) และแผ่นพลิกม้วนโค้ง (ในโหมด 1 หน้า/มือถือ) ตลอด `560ms`
+    - เพิ่มแสงเงาโค้งทรงกระบอก (Cylindrical Specular Highlight), เงาตกกระทบบนหน้าถัดไปด้านล่าง, สันขอบกระดาษซ้อนหลายแผ่น, ร่องสันหนังสือกลางเล่ม, โซนคลิกขอบกระดาษพร้อม **มุมพับกระดาษ (Dog-Ear Curl on Hover)** และ **การปัดนิ้วบนมือถือ (Touch Swipe)**
+  - **อัปเกรดเสียงเปิดหน้ากระดาษ (`playPaperFlipSound`) เป็นโมเดลอะคูสติก 3 ชั้น**:
+    - ใช้ **Paul Kellet 1/f Pink Noise** ผสมคลื่นใยกระดาษ (แทน White Noise) ร่วมกับ Wide Low-Q Formant Bandpass, Lowpass Smooth (`2600Hz`), เสียงลมยก/วางกระดาษนุ่มนวล (`240Hz → 115Hz`) และเสียงดีดขอบกระดาษช่วงต้น ซิงก์จังหวะกับแอนิเมชันพลิกหน้า `560ms`
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/app/admin/sandbox/ebooks/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/ebooks/page.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `node scripts/librarian-audit.mjs` และ `npm run build` ผ่าน 100%
+
 ### [2026-11-14] เพิ่มเสียงเปิดหน้ากระดาษ (Web Audio Synthesizer) และอนิเมชันพลิกหน้า 3 มิติใน E-Book Sandbox
 - **หมวดหมู่**: Innovation & Admin Sandbox / Interactive E-Book Reader UX
 - **สิ่งที่ดำเนินการ**:

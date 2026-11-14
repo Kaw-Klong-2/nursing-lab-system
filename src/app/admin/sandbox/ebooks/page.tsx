@@ -227,7 +227,7 @@ async function renderPdfFileToPages(
 }
 
 /**
- * Synthesize realistic tactile paper-flip sound using Web Audio API (zero external audio files)
+ * Synthesize 3-stage organic paper-flip sound using Web Audio API (Paul Kellet 1/f Pink Noise + fiber crinkle + body settle thump)
  */
 function playPaperFlipSound(type: 'next' | 'prev' | 'open' = 'next'): void {
   if (typeof window === 'undefined') return;
@@ -244,73 +244,121 @@ function playPaperFlipSound(type: 'next' | 'prev' | 'open' = 'next'): void {
     }
 
     const now = ctx.currentTime;
-    const duration = type === 'open' ? 0.22 : 0.17;
-    const sampleCount = Math.floor(ctx.sampleRate * duration);
+    const duration = type === 'open' ? 0.45 : 0.38;
+    const sampleRate = ctx.sampleRate;
+    const sampleCount = Math.floor(sampleRate * duration);
 
-    // Layer 1: Shaped noise swoosh mimicking sliding paper sheets
-    const buffer = ctx.createBuffer(1, sampleCount, ctx.sampleRate);
-    const channel = buffer.getChannelData(0);
-    for (let i = 0; i < sampleCount; i++) {
-      const progress = i / sampleCount;
-      const envelope = Math.sin(Math.PI * progress) * (1 - progress * 0.45);
-      channel[i] = (Math.random() * 2 - 1) * envelope;
-    }
+    // Helper: generate Paul Kellet 1/f Pink Noise so paper texture sounds warm & fibrous rather than hissy white noise
+    const generatePinkBuffer = (count: number, modulator: (progress: number, idx: number) => number) => {
+      const buf = ctx.createBuffer(1, count, sampleRate);
+      const data = buf.getChannelData(0);
+      let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+      for (let i = 0; i < count; i++) {
+        const white = Math.random() * 2 - 1;
+        b0 = 0.99886 * b0 + white * 0.0555179;
+        b1 = 0.99332 * b1 + white * 0.0750759;
+        b2 = 0.96900 * b2 + white * 0.1538520;
+        b3 = 0.86650 * b3 + white * 0.3104856;
+        b4 = 0.55000 * b4 + white * 0.5329522;
+        b5 = -0.7616 * b5 - white * 0.0168980;
+        const pink = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+        b6 = white * 0.115926;
+        data[i] = pink * modulator(i / count, i);
+      }
+      return buf;
+    };
 
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
+    // Layer 1: Organic Paper Fiber Slide (arching page turn friction over ~380ms)
+    const slideBuf = generatePinkBuffer(sampleCount, (progress, idx) => {
+      const envelope = Math.pow(Math.sin(Math.PI * progress), 1.35) * (1 - progress * 0.35);
+      const microCrinkle = 0.82 + 0.18 * Math.sin(idx * 0.037) * Math.cos(idx * 0.013);
+      return envelope * microCrinkle;
+    });
 
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.Q.value = 1.3;
+    const slideSource = ctx.createBufferSource();
+    slideSource.buffer = slideBuf;
+
+    const slideBandpass = ctx.createBiquadFilter();
+    slideBandpass.type = 'bandpass';
+    slideBandpass.Q.value = 0.55;
+
+    const slideLowpass = ctx.createBiquadFilter();
+    slideLowpass.type = 'lowpass';
+    slideLowpass.frequency.setValueAtTime(2600, now);
 
     if (type === 'next') {
-      filter.frequency.setValueAtTime(900, now);
-      filter.frequency.exponentialRampToValueAtTime(2400, now + 0.08);
-      filter.frequency.exponentialRampToValueAtTime(700, now + duration);
+      slideBandpass.frequency.setValueAtTime(520, now);
+      slideBandpass.frequency.exponentialRampToValueAtTime(1350, now + duration * 0.44);
+      slideBandpass.frequency.exponentialRampToValueAtTime(440, now + duration);
     } else if (type === 'prev') {
-      filter.frequency.setValueAtTime(1100, now);
-      filter.frequency.exponentialRampToValueAtTime(2100, now + 0.07);
-      filter.frequency.exponentialRampToValueAtTime(650, now + duration);
+      slideBandpass.frequency.setValueAtTime(480, now);
+      slideBandpass.frequency.exponentialRampToValueAtTime(1200, now + duration * 0.42);
+      slideBandpass.frequency.exponentialRampToValueAtTime(420, now + duration);
     } else {
-      filter.frequency.setValueAtTime(600, now);
-      filter.frequency.exponentialRampToValueAtTime(1800, now + 0.1);
-      filter.frequency.exponentialRampToValueAtTime(500, now + duration);
+      slideBandpass.frequency.setValueAtTime(380, now);
+      slideBandpass.frequency.exponentialRampToValueAtTime(1150, now + duration * 0.48);
+      slideBandpass.frequency.exponentialRampToValueAtTime(360, now + duration);
     }
 
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.01, now);
-    gain.gain.linearRampToValueAtTime(0.28, now + 0.035);
-    gain.gain.exponentialRampToValueAtTime(0.005, now + duration);
+    const slideGain = ctx.createGain();
+    slideGain.gain.setValueAtTime(0.008, now);
+    slideGain.gain.linearRampToValueAtTime(0.24, now + duration * 0.32);
+    slideGain.gain.exponentialRampToValueAtTime(0.004, now + duration);
 
-    source.connect(filter);
-    filter.connect(gain);
-    gain.connect(ctx.destination);
-    source.start(now);
+    slideSource.connect(slideBandpass);
+    slideBandpass.connect(slideLowpass);
+    slideLowpass.connect(slideGain);
+    slideGain.connect(ctx.destination);
+    slideSource.start(now);
 
-    // Layer 2: Crisp initial paper edge flick
-    const flickCount = Math.floor(ctx.sampleRate * 0.04);
-    const flickBuf = ctx.createBuffer(1, flickCount, ctx.sampleRate);
-    const flickData = flickBuf.getChannelData(0);
-    for (let i = 0; i < flickCount; i++) {
-      const p = i / flickCount;
-      flickData[i] = (Math.random() * 2 - 1) * (1 - p) * 0.7;
-    }
+    // Layer 2: Paper Body Lift & Soft Landing Cushion (low-mid air displacement resonance)
+    const bodyBuf = generatePinkBuffer(sampleCount, (progress) => {
+      const liftPulse = Math.exp(-Math.pow((progress - 0.08) / 0.055, 2)) * 0.7;
+      const settlePulse = Math.exp(-Math.pow((progress - 0.78) / 0.08, 2)) * 0.95;
+      return liftPulse + settlePulse;
+    });
 
-    const flickSource = ctx.createBufferSource();
-    flickSource.buffer = flickBuf;
+    const bodySource = ctx.createBufferSource();
+    bodySource.buffer = bodyBuf;
 
-    const highpass = ctx.createBiquadFilter();
-    highpass.type = 'highpass';
-    highpass.frequency.value = 2800;
+    const bodyLowpass = ctx.createBiquadFilter();
+    bodyLowpass.type = 'lowpass';
+    bodyLowpass.frequency.setValueAtTime(240, now);
+    bodyLowpass.frequency.exponentialRampToValueAtTime(115, now + duration);
 
-    const flickGain = ctx.createGain();
-    flickGain.gain.setValueAtTime(0.08, now);
-    flickGain.gain.exponentialRampToValueAtTime(0.002, now + 0.04);
+    const bodyGain = ctx.createGain();
+    bodyGain.gain.setValueAtTime(0.14, now);
+    bodyGain.gain.exponentialRampToValueAtTime(0.006, now + duration);
 
-    flickSource.connect(highpass);
-    highpass.connect(flickGain);
-    flickGain.connect(ctx.destination);
-    flickSource.start(now);
+    bodySource.connect(bodyLowpass);
+    bodyLowpass.connect(bodyGain);
+    bodyGain.connect(ctx.destination);
+    bodySource.start(now);
+
+    // Layer 3: Crisp Corner Peel Micro-Rustle (initial thumb-lift paper edge texture)
+    const peelCount = Math.floor(sampleRate * 0.065);
+    const peelBuf = generatePinkBuffer(peelCount, (p, idx) => {
+      const env = Math.sin(Math.PI * p) * (1 - p * 0.4);
+      const fiberGrain = 0.75 + 0.25 * Math.cos(idx * 0.061);
+      return env * fiberGrain;
+    });
+
+    const peelSource = ctx.createBufferSource();
+    peelSource.buffer = peelBuf;
+
+    const peelBandpass = ctx.createBiquadFilter();
+    peelBandpass.type = 'bandpass';
+    peelBandpass.frequency.setValueAtTime(1850, now);
+    peelBandpass.Q.value = 0.7;
+
+    const peelGain = ctx.createGain();
+    peelGain.gain.setValueAtTime(0.055, now);
+    peelGain.gain.exponentialRampToValueAtTime(0.002, now + 0.065);
+
+    peelSource.connect(peelBandpass);
+    peelBandpass.connect(peelGain);
+    peelGain.connect(ctx.destination);
+    peelSource.start(now);
   } catch {
     // Audio playback may be blocked until first user interaction; fail silently
   }
@@ -670,7 +718,11 @@ export default function AdminEBooksSandboxPage() {
   const [showToc, setShowToc] = useState(false);
   const [showQrModal, setShowQrModal] = useState<EBookItem | null>(null);
   const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(true);
-  const [flipAnim, setFlipAnim] = useState<'next' | 'prev' | null>(null);
+  const [flipTransition, setFlipTransition] = useState<{
+    direction: 'next' | 'prev';
+    fromIndex: number;
+    toIndex: number;
+  } | null>(null);
 
   // New E-Book Creator Modal State
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -694,6 +746,15 @@ export default function AdminEBooksSandboxPage() {
 
   const readerContainerRef = useRef<HTMLDivElement>(null);
   const flipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (flipTimerRef.current) {
+        clearTimeout(flipTimerRef.current);
+      }
+    };
+  }, []);
 
   // Set default mobile-friendly single-page mode & load sound preference
   useEffect(() => {
@@ -809,18 +870,30 @@ export default function AdminEBooksSandboxPage() {
 
   const pageStep = viewMode === 'SINGLE' ? 1 : 2;
 
-  const triggerPageFlip = (direction: 'next' | 'prev' | 'open') => {
+  const turnToSpread = (targetIdx: number, direction?: 'next' | 'prev') => {
+    if (!activeBook) return;
+    if (targetIdx === currentSpreadIndex) return;
+    const resolvedDir: 'next' | 'prev' =
+      direction ?? (targetIdx > currentSpreadIndex ? 'next' : 'prev');
+
     if (isSoundEnabled) {
-      playPaperFlipSound(direction);
+      playPaperFlipSound(resolvedDir);
     }
-    const visualDir: 'next' | 'prev' = direction === 'prev' ? 'prev' : 'next';
-    setFlipAnim(visualDir);
+
+    setFlipTransition({
+      direction: resolvedDir,
+      fromIndex: currentSpreadIndex,
+      toIndex: targetIdx,
+    });
+    setCurrentSpreadIndex(targetIdx);
+    updateLastRead(activeBook.id, targetIdx + 1);
+
     if (flipTimerRef.current) {
       clearTimeout(flipTimerRef.current);
     }
     flipTimerRef.current = setTimeout(() => {
-      setFlipAnim(null);
-    }, 180);
+      setFlipTransition(null);
+    }, 560);
   };
 
   const toggleSound = () => {
@@ -838,20 +911,21 @@ export default function AdminEBooksSandboxPage() {
   const handleOpenBook = (book: EBookItem) => {
     setActiveBook(book);
     setZoomLevel(1);
+    setFlipTransition(null);
     const startPage = book.lastReadPage && book.lastReadPage > 0 ? book.lastReadPage - 1 : 0;
     const step = viewMode === 'SINGLE' ? 1 : 2;
     setCurrentSpreadIndex(Math.floor(startPage / step) * step);
     setShowToc(false);
-    triggerPageFlip('open');
+    if (isSoundEnabled) {
+      playPaperFlipSound('open');
+    }
   };
 
   const handleNextPage = () => {
     if (!activeBook) return;
     const nextIdx = currentSpreadIndex + pageStep;
     if (nextIdx < activeBook.pages.length) {
-      setCurrentSpreadIndex(nextIdx);
-      updateLastRead(activeBook.id, nextIdx + 1);
-      triggerPageFlip('next');
+      turnToSpread(nextIdx, 'next');
     }
   };
 
@@ -859,9 +933,33 @@ export default function AdminEBooksSandboxPage() {
     if (!activeBook) return;
     const prevIdx = Math.max(0, currentSpreadIndex - pageStep);
     if (prevIdx !== currentSpreadIndex) {
-      setCurrentSpreadIndex(prevIdx);
-      updateLastRead(activeBook.id, prevIdx + 1);
-      triggerPageFlip('prev');
+      turnToSpread(prevIdx, 'prev');
+    }
+  };
+
+  const handleBookTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (zoomLevel > 1 || e.touches.length !== 1) {
+      touchStartRef.current = null;
+      return;
+    }
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+    };
+  };
+
+  const handleBookTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!touchStartRef.current || zoomLevel > 1 || e.changedTouches.length === 0) return;
+    const dx = e.changedTouches[0].clientX - touchStartRef.current.x;
+    const dy = e.changedTouches[0].clientY - touchStartRef.current.y;
+    touchStartRef.current = null;
+
+    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+      if (dx < 0) {
+        handleNextPage();
+      } else {
+        handlePrevPage();
+      }
     }
   };
 
@@ -1086,6 +1184,121 @@ export default function AdminEBooksSandboxPage() {
     NORMAL: 'text-xs sm:text-sm leading-relaxed',
     LARGE: 'text-sm sm:text-base leading-relaxed',
     XLARGE: 'text-base sm:text-lg leading-loose',
+  };
+
+  const renderPageSheetContent = (
+    pageItem: EBookPage | null | undefined,
+    slotRole: 'left' | 'right' | 'single',
+    isAnimatedLeaf = false
+  ) => {
+    if (!activeBook) return null;
+
+    const spineEdgeShadow =
+      viewMode === 'DUAL' && slotRole === 'left'
+        ? 'linear-gradient(to left, rgba(15,23,42,0.16) 0%, rgba(15,23,42,0.05) 14px, transparent 42px)'
+        : viewMode === 'DUAL' && slotRole === 'right'
+        ? 'linear-gradient(to right, rgba(15,23,42,0.18) 0%, rgba(15,23,42,0.06) 16px, transparent 46px)'
+        : 'linear-gradient(to right, rgba(15,23,42,0.12) 0%, rgba(15,23,42,0.03) 12px, transparent 34px)';
+
+    return (
+      <div
+        className={`w-full h-full flex flex-col justify-between relative ${
+          isAnimatedLeaf ? 'overflow-hidden pointer-events-none select-none' : 'overflow-y-auto'
+        } ${pageItem?.imageUrl ? 'p-2 sm:p-4' : 'p-5 sm:p-7 md:p-8'} ${
+          paperThemeClasses[paperTheme]
+        }`}
+      >
+        {/* Subtle physical book gutter & paper curvature lighting */}
+        <div
+          className="absolute inset-0 pointer-events-none z-10"
+          style={{ background: spineEdgeShadow }}
+        />
+
+        <div className="relative z-0 flex-1 flex flex-col justify-between min-h-full">
+          {pageItem ? (
+            pageItem.imageUrl ? (
+              <div className="flex flex-col items-center justify-start min-h-full gap-2">
+                <div
+                  style={{
+                    width: !isAnimatedLeaf && zoomLevel > 1 ? `${zoomLevel * 100}%` : '100%',
+                  }}
+                  className="transition-all duration-200 mx-auto"
+                >
+                  <img
+                    src={pageItem.imageUrl}
+                    alt={pageItem.title || `หน้า ${pageItem.pageNumber}`}
+                    draggable={false}
+                    className={`w-full h-auto rounded-lg shadow-md object-contain mx-auto select-none ${imageThemeClasses[paperTheme]}`}
+                  />
+                </div>
+                <div className="text-[10px] text-center opacity-60 font-mono py-1">
+                  - หน้า {pageItem.pageNumber} / {activeBook.pages.length} -
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-indigo-600 dark:text-indigo-400 pb-2 border-b border-current/10">
+                    <span>{pageItem.chapterTitle || activeBook.title}</span>
+                    <span className="font-mono">{pageItem.pageNumber}</span>
+                  </div>
+                  <h2 className="text-base sm:text-xl font-black leading-snug">
+                    {pageItem.title}
+                  </h2>
+                  <p className={`${fontSizeClasses[fontSize]} whitespace-pre-line leading-relaxed`}>
+                    {pageItem.content}
+                  </p>
+                  {pageItem.bulletPoints && pageItem.bulletPoints.length > 0 && (
+                    <ul className="space-y-2 pt-2">
+                      {pageItem.bulletPoints.map((bp, bIdx) => (
+                        <li key={bIdx} className="flex items-start gap-2 text-xs sm:text-sm">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                          <span>{bp}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {pageItem.callout && (
+                    <div
+                      className={`p-3.5 rounded-2xl border text-xs sm:text-sm space-y-1 ${
+                        pageItem.callout.type === 'warning'
+                          ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900 text-rose-900 dark:text-rose-200'
+                          : 'bg-teal-50 dark:bg-teal-950/40 border-teal-200 dark:border-teal-900 text-teal-900 dark:text-teal-200'
+                      }`}
+                    >
+                      <div className="font-bold flex items-center gap-1.5">
+                        {pageItem.callout.type === 'warning' ? (
+                          <ShieldAlert className="w-4 h-4 text-rose-600" />
+                        ) : (
+                          <Info className="w-4 h-4 text-teal-600" />
+                        )}
+                        <span>ข้อควรระวัง / คำแนะนำ</span>
+                      </div>
+                      <p>{pageItem.callout.text}</p>
+                    </div>
+                  )}
+                </div>
+                <div className="text-[10px] text-center opacity-60 font-mono pt-3">
+                  - {pageItem.pageNumber} -
+                </div>
+              </>
+            )
+          ) : slotRole === 'left' ? (
+            <div className="flex items-center justify-center h-full text-slate-400 text-xs">
+              ปกหน้าด้านใน
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-center space-y-2 p-6">
+              <div className="text-3xl">🎉</div>
+              <div className="font-bold text-sm text-slate-500">จบคู่มือฉบับนี้แล้ว</div>
+              <p className="text-xs text-slate-400">
+                สามารถกดปุ่มย้อนกลับหรือเปิดดูสารบัญเพื่อทบทวนบทเรียนก่อนหน้า
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -1529,10 +1742,8 @@ export default function AdminEBooksSandboxPage() {
                             const targetIdx =
                               viewMode === 'SINGLE' ? idx : Math.floor(idx / 2) * 2;
                             if (targetIdx !== currentSpreadIndex) {
-                              triggerPageFlip(targetIdx > currentSpreadIndex ? 'next' : 'prev');
-                              updateLastRead(activeBook.id, targetIdx + 1);
+                              turnToSpread(targetIdx);
                             }
-                            setCurrentSpreadIndex(targetIdx);
                             setShowToc(false);
                           }}
                           className={`w-full text-left p-2 rounded-xl text-xs transition cursor-pointer flex items-center justify-between ${
@@ -1563,158 +1774,375 @@ export default function AdminEBooksSandboxPage() {
                   />
                 </div>
               ) : (
-                /* Book Spine Shadow and Realistic Gutter Effect */
-                <div
-                  className={`w-full h-full flex items-stretch justify-center relative perspective-[1200px] ${
-                    viewMode === 'SINGLE' ? 'max-w-3xl' : 'max-w-6xl'
-                  }`}
-                >
-                  {/* Prev Navigation Arrow Button */}
-                  <button
-                    type="button"
-                    disabled={currentSpreadIndex <= 0}
-                    onClick={handlePrevPage}
-                    className="absolute -left-1 sm:-left-5 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-800/90 hover:bg-indigo-600 text-white flex items-center justify-center shadow-2xl transition disabled:opacity-20 disabled:pointer-events-none cursor-pointer border border-white/10"
-                    title="หน้าก่อนหน้า (หรือกดลูกศรซ้ายบนคีย์บอร์ด)"
-                  >
-                    <ChevronLeft className="w-6 h-6" />
-                  </button>
+                /* 3D Flipbook Stage with Page-Curl Leaf Physics, Spine Gutter & Touch Swipe */
+                (() => {
+                  const isFlipNext = flipTransition?.direction === 'next';
+                  const isFlipPrev = flipTransition?.direction === 'prev';
+                  const canGoPrev = currentSpreadIndex > 0;
+                  const canGoNext = currentSpreadIndex + pageStep < activeBook.pages.length;
 
-                  {/* Page(s) Container */}
-                  <div
-                    style={{
-                      transform:
-                        flipAnim === 'next'
-                          ? 'perspective(1200px) rotateY(-4deg) scale(0.985)'
-                          : flipAnim === 'prev'
-                          ? 'perspective(1200px) rotateY(4deg) scale(0.985)'
-                          : 'perspective(1200px) rotateY(0deg) scale(1)',
-                    }}
-                    className="w-full h-full flex flex-col md:flex-row items-stretch rounded-2xl overflow-hidden shadow-2xl border border-slate-700/80 transition-transform duration-150 ease-out"
-                  >
-                    {(viewMode === 'SINGLE' ? [leftPage] : [leftPage, rightPage]).map(
-                      (pageItem, slotIdx) => {
-                        const isLeftSlot = slotIdx === 0;
-                        return (
-                          <React.Fragment key={slotIdx}>
-                            {!isLeftSlot && (
-                              /* Central Spine Shadow (สันหนังสือตรงกลาง) */
-                              <div className="hidden md:block w-3 bg-gradient-to-r from-black/25 via-black/10 to-transparent shrink-0 pointer-events-none" />
-                            )}
-                            <div
-                              className={`flex-1 flex flex-col justify-between overflow-auto relative ${
-                                pageItem?.imageUrl ? 'p-2 sm:p-4' : 'p-5 sm:p-7 md:p-8'
-                              } ${
-                                viewMode === 'DUAL' && isLeftSlot
-                                  ? 'border-b md:border-b-0 md:border-r border-slate-300/40 dark:border-slate-800'
-                                  : ''
-                              } ${paperThemeClasses[paperTheme]}`}
-                            >
-                              {pageItem ? (
-                                pageItem.imageUrl ? (
-                                  <div className="flex flex-col items-center justify-start min-h-full gap-2">
-                                    <div
-                                      style={{
-                                        width: zoomLevel > 1 ? `${zoomLevel * 100}%` : '100%',
-                                      }}
-                                      className="transition-all duration-200 mx-auto"
-                                    >
-                                      <img
-                                        src={pageItem.imageUrl}
-                                        alt={pageItem.title || `หน้า ${pageItem.pageNumber}`}
-                                        className={`w-full h-auto rounded-lg shadow-md object-contain mx-auto ${imageThemeClasses[paperTheme]}`}
-                                      />
-                                    </div>
-                                    <div className="text-[10px] text-center opacity-60 font-mono py-1">
-                                      - หน้า {pageItem.pageNumber} / {activeBook.pages.length} -
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <div className="space-y-4">
-                                      <div className="flex items-center justify-between text-[11px] font-bold text-indigo-600 dark:text-indigo-400 pb-2 border-b border-current/10">
-                                        <span>{pageItem.chapterTitle || activeBook.title}</span>
-                                        <span className="font-mono">{pageItem.pageNumber}</span>
-                                      </div>
-                                      <h2 className="text-base sm:text-xl font-black leading-snug">
-                                        {pageItem.title}
-                                      </h2>
-                                      <p
-                                        className={`${fontSizeClasses[fontSize]} whitespace-pre-line leading-relaxed`}
-                                      >
-                                        {pageItem.content}
-                                      </p>
-                                      {pageItem.bulletPoints && pageItem.bulletPoints.length > 0 && (
-                                        <ul className="space-y-2 pt-2">
-                                          {pageItem.bulletPoints.map((bp, bIdx) => (
-                                            <li
-                                              key={bIdx}
-                                              className="flex items-start gap-2 text-xs sm:text-sm"
-                                            >
-                                              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                                              <span>{bp}</span>
-                                            </li>
-                                          ))}
-                                        </ul>
-                                      )}
-                                      {pageItem.callout && (
-                                        <div
-                                          className={`p-3.5 rounded-2xl border text-xs sm:text-sm space-y-1 ${
-                                            pageItem.callout.type === 'warning'
-                                              ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900 text-rose-900 dark:text-rose-200'
-                                              : 'bg-teal-50 dark:bg-teal-950/40 border-teal-200 dark:border-teal-900 text-teal-900 dark:text-teal-200'
-                                          }`}
-                                        >
-                                          <div className="font-bold flex items-center gap-1.5">
-                                            {pageItem.callout.type === 'warning' ? (
-                                              <ShieldAlert className="w-4 h-4 text-rose-600" />
-                                            ) : (
-                                              <Info className="w-4 h-4 text-teal-600" />
-                                            )}
-                                            <span>ข้อควรระวัง / คำแนะนำ</span>
-                                          </div>
-                                          <p>{pageItem.callout.text}</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="text-[10px] text-center opacity-60 font-mono pt-3">
-                                      - {pageItem.pageNumber} -
-                                    </div>
-                                  </>
-                                )
-                              ) : isLeftSlot ? (
-                                <div className="flex items-center justify-center h-full text-slate-400 text-xs">
-                                  ปกหน้าด้านใน
-                                </div>
-                              ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-center space-y-2 p-6">
-                                  <div className="text-3xl">🎉</div>
-                                  <div className="font-bold text-sm text-slate-500">
-                                    จบคู่มือฉบับนี้แล้ว
-                                  </div>
-                                  <p className="text-xs text-slate-400">
-                                    สามารถกดปุ่มย้อนกลับหรือเปิดดูสารบัญเพื่อทบทวนบทเรียนก่อนหน้า
-                                  </p>
-                                </div>
+                  const baseLeftPage =
+                    viewMode === 'DUAL'
+                      ? isFlipNext && flipTransition
+                        ? activeBook.pages[flipTransition.fromIndex]
+                        : leftPage
+                      : isFlipNext && flipTransition
+                      ? activeBook.pages[flipTransition.toIndex]
+                      : isFlipPrev && flipTransition
+                      ? activeBook.pages[flipTransition.fromIndex]
+                      : leftPage;
+
+                  const baseRightPage =
+                    isFlipPrev && flipTransition
+                      ? activeBook.pages[flipTransition.fromIndex + 1]
+                      : rightPage;
+
+                  const dualFrontPage = flipTransition
+                    ? isFlipNext
+                      ? activeBook.pages[flipTransition.fromIndex + 1]
+                      : activeBook.pages[flipTransition.fromIndex]
+                    : null;
+
+                  const dualBackPage = flipTransition
+                    ? isFlipNext
+                      ? activeBook.pages[flipTransition.toIndex]
+                      : activeBook.pages[flipTransition.toIndex + 1]
+                    : null;
+
+                  const singlePeelPage = flipTransition
+                    ? isFlipNext
+                      ? activeBook.pages[flipTransition.fromIndex]
+                      : activeBook.pages[flipTransition.toIndex]
+                    : null;
+
+                  return (
+                    <div
+                      onTouchStart={handleBookTouchStart}
+                      onTouchEnd={handleBookTouchEnd}
+                      className={`w-full h-full flex items-stretch justify-center relative select-none touch-pan-y ${
+                        viewMode === 'SINGLE' ? 'max-w-3xl' : 'max-w-6xl'
+                      }`}
+                      style={{ perspective: '2400px' }}
+                    >
+                      <style>{`
+                        @keyframes ebookFlipNextDual {
+                          0% { transform: rotateY(0deg) skewY(0deg) translateZ(1px); }
+                          25% { transform: rotateY(-42deg) skewY(-2.4deg) translateZ(3px); }
+                          50% { transform: rotateY(-90deg) skewY(-2.8deg) translateZ(5px); }
+                          75% { transform: rotateY(-138deg) skewY(-1.8deg) translateZ(3px); }
+                          100% { transform: rotateY(-180deg) skewY(0deg) translateZ(1px); }
+                        }
+                        @keyframes ebookFlipPrevDual {
+                          0% { transform: rotateY(0deg) skewY(0deg) translateZ(1px); }
+                          25% { transform: rotateY(42deg) skewY(2.4deg) translateZ(3px); }
+                          50% { transform: rotateY(90deg) skewY(2.8deg) translateZ(5px); }
+                          75% { transform: rotateY(138deg) skewY(1.8deg) translateZ(3px); }
+                          100% { transform: rotateY(180deg) skewY(0deg) translateZ(1px); }
+                        }
+                        @keyframes ebookFlipNextSingle {
+                          0% { transform: rotateY(0deg) skewY(0deg) translateZ(2px); opacity: 1; }
+                          35% { transform: rotateY(-56deg) skewY(-2.6deg) translateZ(5px); opacity: 1; }
+                          72% { transform: rotateY(-118deg) skewY(-2deg) translateZ(3px); opacity: 0.92; }
+                          100% { transform: rotateY(-165deg) skewY(0deg) translateZ(1px); opacity: 0; }
+                        }
+                        @keyframes ebookFlipPrevSingle {
+                          0% { transform: rotateY(-165deg) skewY(-2deg) translateZ(2px); opacity: 0.15; }
+                          22% { transform: rotateY(-116deg) skewY(-2.4deg) translateZ(4px); opacity: 1; }
+                          60% { transform: rotateY(-48deg) skewY(-2deg) translateZ(5px); opacity: 1; }
+                          100% { transform: rotateY(0deg) skewY(0deg) translateZ(1px); opacity: 1; }
+                        }
+                        @keyframes ebookUnderShadow {
+                          0% { opacity: 0.55; }
+                          50% { opacity: 0.28; }
+                          100% { opacity: 0; }
+                        }
+                        @keyframes ebookCurlHighlightNext {
+                          0% { opacity: 0.1; transform: translateX(45%); }
+                          45% { opacity: 0.8; transform: translateX(0%); }
+                          100% { opacity: 0.2; transform: translateX(-40%); }
+                        }
+                        @keyframes ebookCurlHighlightPrev {
+                          0% { opacity: 0.1; transform: translateX(-45%); }
+                          45% { opacity: 0.8; transform: translateX(0%); }
+                          100% { opacity: 0.2; transform: translateX(40%); }
+                        }
+                      `}</style>
+
+                      {/* Prev Navigation Arrow Button */}
+                      <button
+                        type="button"
+                        disabled={!canGoPrev}
+                        onClick={handlePrevPage}
+                        className="absolute -left-1 sm:-left-5 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-800/90 hover:bg-indigo-600 text-white flex items-center justify-center shadow-2xl transition disabled:opacity-20 disabled:pointer-events-none cursor-pointer border border-white/10"
+                        title="หน้าก่อนหน้า (หรือกดลูกศรซ้ายบนคีย์บอร์ด)"
+                      >
+                        <ChevronLeft className="w-6 h-6" />
+                      </button>
+
+                      {/* Physical Book Cover & Page Stack Stage (transform-style preserve-3d, no overflow-hidden here!) */}
+                      <div
+                        className="w-full h-full relative flex items-stretch rounded-2xl shadow-[0_25px_65px_-15px_rgba(0,0,0,0.75)] border border-slate-700/80"
+                        style={{ transformStyle: 'preserve-3d' }}
+                      >
+                        {/* Stacked Paper Edges (ความหนากระดาษขอบเล่ม) */}
+                        <div className="pointer-events-none hidden sm:block absolute -left-1.5 top-2 bottom-2 w-1.5 rounded-l-lg bg-gradient-to-r from-slate-400/50 via-slate-200/70 to-slate-300/60 dark:from-slate-700/60 dark:via-slate-600/50 dark:to-slate-700/70" />
+                        <div className="pointer-events-none hidden sm:block absolute -right-1.5 top-2 bottom-2 w-1.5 rounded-r-lg bg-gradient-to-l from-slate-400/50 via-slate-200/70 to-slate-300/60 dark:from-slate-700/60 dark:via-slate-600/50 dark:to-slate-700/70" />
+
+                        {viewMode === 'DUAL' ? (
+                          <>
+                            {/* Base Left Half */}
+                            <div className="w-1/2 h-full relative rounded-l-2xl overflow-hidden border-r border-slate-300/40 dark:border-slate-800">
+                              {renderPageSheetContent(baseLeftPage, 'left')}
+
+                              {/* Cast shadow when Prev leaf lifts from left */}
+                              {isFlipPrev && flipTransition && (
+                                <div
+                                  key={`under-left-${flipTransition.fromIndex}-${flipTransition.toIndex}`}
+                                  className="absolute inset-0 pointer-events-none z-20"
+                                  style={{
+                                    background:
+                                      'linear-gradient(to left, rgba(15,23,42,0.48), rgba(15,23,42,0.14) 45%, transparent)',
+                                    animation: 'ebookUnderShadow 560ms ease-out forwards',
+                                  }}
+                                />
                               )}
                             </div>
-                          </React.Fragment>
-                        );
-                      }
-                    )}
-                  </div>
 
-                  {/* Next Navigation Arrow Button */}
-                  <button
-                    type="button"
-                    disabled={currentSpreadIndex + pageStep >= activeBook.pages.length}
-                    onClick={handleNextPage}
-                    className="absolute -right-1 sm:-right-5 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-800/90 hover:bg-indigo-600 text-white flex items-center justify-center shadow-2xl transition disabled:opacity-20 disabled:pointer-events-none cursor-pointer border border-white/10"
-                    title="หน้าถัดไป (หรือกดลูกศรขวาบนคีย์บอร์ด)"
-                  >
-                    <ChevronRight className="w-6 h-6" />
-                  </button>
-                </div>
+                            {/* Base Right Half */}
+                            <div className="w-1/2 h-full relative rounded-r-2xl overflow-hidden">
+                              {renderPageSheetContent(baseRightPage, 'right')}
+
+                              {/* Cast shadow when Next leaf lifts from right */}
+                              {isFlipNext && flipTransition && (
+                                <div
+                                  key={`under-right-${flipTransition.fromIndex}-${flipTransition.toIndex}`}
+                                  className="absolute inset-0 pointer-events-none z-20"
+                                  style={{
+                                    background:
+                                      'linear-gradient(to right, rgba(15,23,42,0.5), rgba(15,23,42,0.15) 45%, transparent)',
+                                    animation: 'ebookUnderShadow 560ms ease-out forwards',
+                                  }}
+                                />
+                              )}
+                            </div>
+
+                            {/* Center Book Spine Crease (ร่องสันหนังสือตรงกลาง) */}
+                            <div
+                              className="pointer-events-none absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-6 z-20"
+                              style={{
+                                background:
+                                  'linear-gradient(to right, transparent, rgba(15,23,42,0.14) 38%, rgba(15,23,42,0.34) 50%, rgba(15,23,42,0.12) 62%, transparent)',
+                              }}
+                            />
+
+                            {/* True 3D Flipping Paper Leaf (Dual Spread) */}
+                            {flipTransition && (
+                              <div
+                                key={`dual-leaf-${flipTransition.direction}-${flipTransition.fromIndex}-${flipTransition.toIndex}`}
+                                className="pointer-events-none absolute top-0 bottom-0 z-[25]"
+                                style={{
+                                  left: isFlipNext ? '50%' : '0%',
+                                  width: '50%',
+                                  transformOrigin: isFlipNext ? 'left center' : 'right center',
+                                  transformStyle: 'preserve-3d',
+                                  animation: `${
+                                    isFlipNext ? 'ebookFlipNextDual' : 'ebookFlipPrevDual'
+                                  } 560ms cubic-bezier(0.32, 0.08, 0.24, 1) forwards`,
+                                }}
+                              >
+                                {/* Leaf Front Face (0deg..90deg) */}
+                                <div
+                                  className={`absolute inset-0 overflow-hidden shadow-2xl ${
+                                    isFlipNext ? 'rounded-r-2xl' : 'rounded-l-2xl'
+                                  }`}
+                                  style={{
+                                    backfaceVisibility: 'hidden',
+                                    WebkitBackfaceVisibility: 'hidden',
+                                    transform: 'rotateY(0deg) translateZ(1px)',
+                                  }}
+                                >
+                                  {renderPageSheetContent(
+                                    dualFrontPage,
+                                    isFlipNext ? 'right' : 'left',
+                                    true
+                                  )}
+                                  {/* Cylindrical curl specular highlight & fold shadow */}
+                                  <div
+                                    className="absolute inset-0 pointer-events-none z-20"
+                                    style={{
+                                      background:
+                                        'linear-gradient(90deg, rgba(0,0,0,0.06) 0%, rgba(255,255,255,0.36) 46%, rgba(0,0,0,0.22) 72%, transparent 100%)',
+                                      animation: `${
+                                        isFlipNext
+                                          ? 'ebookCurlHighlightNext'
+                                          : 'ebookCurlHighlightPrev'
+                                      } 560ms ease-in-out forwards`,
+                                    }}
+                                  />
+                                </div>
+
+                                {/* Leaf Back Face (90deg..180deg) */}
+                                <div
+                                  className={`absolute inset-0 overflow-hidden shadow-2xl ${
+                                    isFlipNext ? 'rounded-l-2xl' : 'rounded-r-2xl'
+                                  }`}
+                                  style={{
+                                    backfaceVisibility: 'hidden',
+                                    WebkitBackfaceVisibility: 'hidden',
+                                    transform: 'rotateY(180deg) translateZ(1px)',
+                                  }}
+                                >
+                                  {renderPageSheetContent(
+                                    dualBackPage,
+                                    isFlipNext ? 'left' : 'right',
+                                    true
+                                  )}
+                                  <div
+                                    className="absolute inset-0 pointer-events-none z-20"
+                                    style={{
+                                      background:
+                                        'linear-gradient(90deg, rgba(0,0,0,0.18) 0%, rgba(255,255,255,0.28) 52%, transparent 100%)',
+                                      animation: `${
+                                        isFlipNext
+                                          ? 'ebookCurlHighlightPrev'
+                                          : 'ebookCurlHighlightNext'
+                                      } 560ms ease-in-out forwards`,
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            {/* Base Single Sheet */}
+                            <div className="w-full h-full relative rounded-2xl overflow-hidden">
+                              {renderPageSheetContent(baseLeftPage, 'single')}
+
+                              {flipTransition && (
+                                <div
+                                  key={`under-single-${flipTransition.fromIndex}-${flipTransition.toIndex}`}
+                                  className="absolute inset-0 pointer-events-none z-20"
+                                  style={{
+                                    background:
+                                      'linear-gradient(to right, rgba(15,23,42,0.52), rgba(15,23,42,0.16) 50%, transparent)',
+                                    animation: 'ebookUnderShadow 560ms ease-out forwards',
+                                  }}
+                                />
+                              )}
+                            </div>
+
+                            {/* True 3D Peeling Paper Sheet (Single / Mobile View) */}
+                            {flipTransition && (
+                              <div
+                                key={`single-leaf-${flipTransition.direction}-${flipTransition.fromIndex}-${flipTransition.toIndex}`}
+                                className="pointer-events-none absolute inset-0 z-[25]"
+                                style={{
+                                  transformOrigin: 'left center',
+                                  transformStyle: 'preserve-3d',
+                                  animation: `${
+                                    isFlipNext ? 'ebookFlipNextSingle' : 'ebookFlipPrevSingle'
+                                  } 560ms cubic-bezier(0.32, 0.08, 0.24, 1) forwards`,
+                                }}
+                              >
+                                {/* Front Content Face */}
+                                <div
+                                  className="absolute inset-0 rounded-2xl overflow-hidden shadow-2xl"
+                                  style={{
+                                    backfaceVisibility: 'hidden',
+                                    WebkitBackfaceVisibility: 'hidden',
+                                    transform: 'rotateY(0deg) translateZ(2px)',
+                                  }}
+                                >
+                                  {renderPageSheetContent(singlePeelPage, 'single', true)}
+                                  <div
+                                    className="absolute inset-0 pointer-events-none z-20"
+                                    style={{
+                                      background:
+                                        'linear-gradient(90deg, rgba(0,0,0,0.08) 0%, rgba(255,255,255,0.34) 48%, rgba(0,0,0,0.22) 76%, transparent 100%)',
+                                      animation: `${
+                                        isFlipNext
+                                          ? 'ebookCurlHighlightNext'
+                                          : 'ebookCurlHighlightPrev'
+                                      } 560ms ease-in-out forwards`,
+                                    }}
+                                  />
+                                </div>
+
+                                {/* Textured Paper Reverse Side when page curls past 90deg */}
+                                <div
+                                  className={`absolute inset-0 rounded-2xl overflow-hidden shadow-2xl ${paperThemeClasses[paperTheme]}`}
+                                  style={{
+                                    backfaceVisibility: 'hidden',
+                                    WebkitBackfaceVisibility: 'hidden',
+                                    transform: 'rotateY(180deg) translateZ(2px)',
+                                  }}
+                                >
+                                  <div
+                                    className="w-full h-full opacity-80"
+                                    style={{
+                                      background:
+                                        'linear-gradient(to left, rgba(15,23,42,0.18), transparent 28%, rgba(255,255,255,0.22) 65%, rgba(15,23,42,0.12))',
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {/* Interactive Clickable Page-Edge & Dog-Ear Corner Curl Zones (when zoomed 100%) */}
+                        {zoomLevel === 1 && !flipTransition && (
+                          <>
+                            {canGoPrev && (
+                              <button
+                                type="button"
+                                onClick={handlePrevPage}
+                                title="คลิกขอบกระดาษเพื่อเปิดหน้าก่อนหน้า"
+                                className="group absolute left-0 top-0 bottom-0 w-10 sm:w-16 z-20 cursor-pointer focus:outline-none"
+                              >
+                                <span
+                                  className="pointer-events-none absolute bottom-0 left-0 w-6 h-6 sm:w-8 sm:h-8 group-hover:w-11 group-hover:h-11 transition-all duration-200 rounded-tr-xl opacity-45 group-hover:opacity-95 shadow-lg"
+                                  style={{
+                                    background:
+                                      'linear-gradient(45deg, rgba(148,163,184,0.35) 0%, rgba(226,232,240,0.85) 48%, rgba(15,23,42,0.22) 50%, transparent 52%)',
+                                  }}
+                                />
+                              </button>
+                            )}
+                            {canGoNext && (
+                              <button
+                                type="button"
+                                onClick={handleNextPage}
+                                title="คลิกมุมหรือขอบกระดาษเพื่อเปิดหน้าถัดไป"
+                                className="group absolute right-0 top-0 bottom-0 w-10 sm:w-16 z-20 cursor-pointer focus:outline-none"
+                              >
+                                <span
+                                  className="pointer-events-none absolute bottom-0 right-0 w-7 h-7 sm:w-9 sm:h-9 group-hover:w-12 group-hover:h-12 transition-all duration-200 rounded-tl-xl opacity-60 group-hover:opacity-100 shadow-lg"
+                                  style={{
+                                    background:
+                                      'linear-gradient(-45deg, rgba(148,163,184,0.35) 0%, rgba(241,245,249,0.92) 48%, rgba(15,23,42,0.25) 50%, transparent 52%)',
+                                  }}
+                                />
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+
+                      {/* Next Navigation Arrow Button */}
+                      <button
+                        type="button"
+                        disabled={!canGoNext}
+                        onClick={handleNextPage}
+                        className="absolute -right-1 sm:-right-5 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-800/90 hover:bg-indigo-600 text-white flex items-center justify-center shadow-2xl transition disabled:opacity-20 disabled:pointer-events-none cursor-pointer border border-white/10"
+                        title="หน้าถัดไป (หรือกดลูกศรขวาบนคีย์บอร์ด)"
+                      >
+                        <ChevronRight className="w-6 h-6" />
+                      </button>
+                    </div>
+                  );
+                })()
               )}
             </div>
 
@@ -1735,9 +2163,7 @@ export default function AdminEBooksSandboxPage() {
                   onChange={(e) => {
                     const nextVal = Number(e.target.value);
                     if (nextVal !== currentSpreadIndex) {
-                      triggerPageFlip(nextVal > currentSpreadIndex ? 'next' : 'prev');
-                      updateLastRead(activeBook.id, nextVal + 1);
-                      setCurrentSpreadIndex(nextVal);
+                      turnToSpread(nextVal);
                     }
                   }}
                   className="w-full accent-indigo-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg"

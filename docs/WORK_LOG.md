@@ -17,6 +17,19 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-14] เพิ่มเสียงเปิดหน้ากระดาษ (Web Audio Synthesizer) และอนิเมชันพลิกหน้า 3 มิติใน E-Book Sandbox
+- **หมวดหมู่**: Innovation & Admin Sandbox / Interactive E-Book Reader UX
+- **สิ่งที่ดำเนินการ**:
+  - **เพิ่มระบบสังเคราะห์เสียงเปิดหน้ากระดาษ (`playPaperFlipSound`) ใน [`src/app/admin/sandbox/ebooks/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/ebooks/page.tsx)**:
+    - ใช้ Web Audio API สร้างเสียงพลิกกระดาษแบบ Real-time ทั้ง 2 เลเยอร์ (เสียงกระดาษพริ้วผ่าน Bandpass Filter และเสียงดีดขอบกระดาษ Highpass Burst) แยกโทนเสียงระหว่างเปิดเล่ม หน้าถัดไป และย้อนกลับ โดยไม่ต้องพึ่งไฟล์เสียงภายนอก
+    - เล่นเสียงอัตโนมัติเมื่อเปิดหนังสือ กดปุ่มเลื่อนหน้า ใช้ปุ่มลูกศรคีย์บอร์ด เลือกสารบัญ หรือเลื่อนแถบ Scrubber ด้านล่าง
+    - เพิ่มปุ่มเปิด/ปิดเสียง (`Volume2` / `VolumeX`) บนแถบเครื่องมือเครื่องอ่าน พร้อมจำค่าลงใน `localStorage` (`kunurse_ebook_sound`)
+  - **เพิ่มอนิเมชันเอียงกระดาษ 3 มิติขณะพลิกหน้า (`flipAnim`)**:
+    - แสดงเอฟเฟกต์ perspective rotateY และ scale 150ms บนคอนเทนเนอร์หน้ากระดาษทุกครั้งที่เปลี่ยนหน้า
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/app/admin/sandbox/ebooks/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/ebooks/page.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `node scripts/librarian-audit.mjs` และ `npm run build` ผ่าน 100%
+
 ### [2026-11-13] แก้ไขปัญหา ENOENT บน Vercel Serverless และอัปเกรด PDF-to-Flipbook Reader ใน E-Book Sandbox
 - **หมวดหมู่**: Innovation & Admin Sandbox / Vercel Serverless Upload & PDF.js Flipbook Engine
 - **สิ่งที่ดำเนินการ**:

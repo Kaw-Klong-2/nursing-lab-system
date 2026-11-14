@@ -36,6 +36,8 @@ import {
   RotateCcw,
   BookMarked,
   Info,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 
@@ -222,6 +224,96 @@ async function renderPdfFileToPages(
   }
 
   return pages;
+}
+
+/**
+ * Synthesize realistic tactile paper-flip sound using Web Audio API (zero external audio files)
+ */
+function playPaperFlipSound(type: 'next' | 'prev' | 'open' = 'next'): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const win = window as any;
+    const AudioCtx = window.AudioContext || win.webkitAudioContext;
+    if (!AudioCtx) return;
+
+    const ctx: AudioContext = win.__kunurseAudioCtx || new AudioCtx();
+    win.__kunurseAudioCtx = ctx;
+
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
+    const now = ctx.currentTime;
+    const duration = type === 'open' ? 0.22 : 0.17;
+    const sampleCount = Math.floor(ctx.sampleRate * duration);
+
+    // Layer 1: Shaped noise swoosh mimicking sliding paper sheets
+    const buffer = ctx.createBuffer(1, sampleCount, ctx.sampleRate);
+    const channel = buffer.getChannelData(0);
+    for (let i = 0; i < sampleCount; i++) {
+      const progress = i / sampleCount;
+      const envelope = Math.sin(Math.PI * progress) * (1 - progress * 0.45);
+      channel[i] = (Math.random() * 2 - 1) * envelope;
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.Q.value = 1.3;
+
+    if (type === 'next') {
+      filter.frequency.setValueAtTime(900, now);
+      filter.frequency.exponentialRampToValueAtTime(2400, now + 0.08);
+      filter.frequency.exponentialRampToValueAtTime(700, now + duration);
+    } else if (type === 'prev') {
+      filter.frequency.setValueAtTime(1100, now);
+      filter.frequency.exponentialRampToValueAtTime(2100, now + 0.07);
+      filter.frequency.exponentialRampToValueAtTime(650, now + duration);
+    } else {
+      filter.frequency.setValueAtTime(600, now);
+      filter.frequency.exponentialRampToValueAtTime(1800, now + 0.1);
+      filter.frequency.exponentialRampToValueAtTime(500, now + duration);
+    }
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.01, now);
+    gain.gain.linearRampToValueAtTime(0.28, now + 0.035);
+    gain.gain.exponentialRampToValueAtTime(0.005, now + duration);
+
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(now);
+
+    // Layer 2: Crisp initial paper edge flick
+    const flickCount = Math.floor(ctx.sampleRate * 0.04);
+    const flickBuf = ctx.createBuffer(1, flickCount, ctx.sampleRate);
+    const flickData = flickBuf.getChannelData(0);
+    for (let i = 0; i < flickCount; i++) {
+      const p = i / flickCount;
+      flickData[i] = (Math.random() * 2 - 1) * (1 - p) * 0.7;
+    }
+
+    const flickSource = ctx.createBufferSource();
+    flickSource.buffer = flickBuf;
+
+    const highpass = ctx.createBiquadFilter();
+    highpass.type = 'highpass';
+    highpass.frequency.value = 2800;
+
+    const flickGain = ctx.createGain();
+    flickGain.gain.setValueAtTime(0.08, now);
+    flickGain.gain.exponentialRampToValueAtTime(0.002, now + 0.04);
+
+    flickSource.connect(highpass);
+    highpass.connect(flickGain);
+    flickGain.connect(ctx.destination);
+    flickSource.start(now);
+  } catch {
+    // Audio playback may be blocked until first user interaction; fail silently
+  }
 }
 
 const DEFAULT_EBOOKS: EBookItem[] = [
@@ -577,6 +669,8 @@ export default function AdminEBooksSandboxPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showToc, setShowToc] = useState(false);
   const [showQrModal, setShowQrModal] = useState<EBookItem | null>(null);
+  const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(true);
+  const [flipAnim, setFlipAnim] = useState<'next' | 'prev' | null>(null);
 
   // New E-Book Creator Modal State
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -599,11 +693,20 @@ export default function AdminEBooksSandboxPage() {
   });
 
   const readerContainerRef = useRef<HTMLDivElement>(null);
+  const flipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Set default mobile-friendly single-page mode on small viewports
+  // Set default mobile-friendly single-page mode & load sound preference
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      setViewMode('SINGLE');
+    if (typeof window !== 'undefined') {
+      if (window.innerWidth < 768) {
+        setViewMode('SINGLE');
+      }
+      try {
+        const savedSound = localStorage.getItem('kunurse_ebook_sound');
+        if (savedSound === 'false') {
+          setIsSoundEnabled(false);
+        }
+      } catch {}
     }
   }, []);
 
@@ -690,7 +793,7 @@ export default function AdminEBooksSandboxPage() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeBook, currentSpreadIndex, isFullscreen, viewMode]);
+  }, [activeBook, currentSpreadIndex, isFullscreen, viewMode, isSoundEnabled]);
 
   const filteredBooks = useMemo(() => {
     return eBooks.filter((b) => {
@@ -706,6 +809,31 @@ export default function AdminEBooksSandboxPage() {
 
   const pageStep = viewMode === 'SINGLE' ? 1 : 2;
 
+  const triggerPageFlip = (direction: 'next' | 'prev' | 'open') => {
+    if (isSoundEnabled) {
+      playPaperFlipSound(direction);
+    }
+    const visualDir: 'next' | 'prev' = direction === 'prev' ? 'prev' : 'next';
+    setFlipAnim(visualDir);
+    if (flipTimerRef.current) {
+      clearTimeout(flipTimerRef.current);
+    }
+    flipTimerRef.current = setTimeout(() => {
+      setFlipAnim(null);
+    }, 180);
+  };
+
+  const toggleSound = () => {
+    const nextState = !isSoundEnabled;
+    setIsSoundEnabled(nextState);
+    try {
+      localStorage.setItem('kunurse_ebook_sound', String(nextState));
+    } catch {}
+    if (nextState) {
+      playPaperFlipSound('next');
+    }
+  };
+
   // Open Book Handler
   const handleOpenBook = (book: EBookItem) => {
     setActiveBook(book);
@@ -714,6 +842,7 @@ export default function AdminEBooksSandboxPage() {
     const step = viewMode === 'SINGLE' ? 1 : 2;
     setCurrentSpreadIndex(Math.floor(startPage / step) * step);
     setShowToc(false);
+    triggerPageFlip('open');
   };
 
   const handleNextPage = () => {
@@ -722,6 +851,7 @@ export default function AdminEBooksSandboxPage() {
     if (nextIdx < activeBook.pages.length) {
       setCurrentSpreadIndex(nextIdx);
       updateLastRead(activeBook.id, nextIdx + 1);
+      triggerPageFlip('next');
     }
   };
 
@@ -731,6 +861,7 @@ export default function AdminEBooksSandboxPage() {
     if (prevIdx !== currentSpreadIndex) {
       setCurrentSpreadIndex(prevIdx);
       updateLastRead(activeBook.id, prevIdx + 1);
+      triggerPageFlip('prev');
     }
   };
 
@@ -1243,6 +1374,24 @@ export default function AdminEBooksSandboxPage() {
                       <ZoomIn className="w-3.5 h-3.5" />
                       <span>{Math.round(zoomLevel * 100)}%</span>
                     </button>
+
+                    {/* Paper Flip Sound Toggle */}
+                    <button
+                      type="button"
+                      onClick={toggleSound}
+                      className={`p-2 rounded-xl transition cursor-pointer ${
+                        isSoundEnabled
+                          ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-600/30'
+                          : 'bg-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                      title={isSoundEnabled ? 'ปิดเสียงพลิกกระดาษ' : 'เปิดเสียงพลิกกระดาษ'}
+                    >
+                      {isSoundEnabled ? (
+                        <Volume2 className="w-4 h-4" />
+                      ) : (
+                        <VolumeX className="w-4 h-4" />
+                      )}
+                    </button>
                   </>
                 )}
 
@@ -1377,9 +1526,13 @@ export default function AdminEBooksSandboxPage() {
                           key={idx}
                           type="button"
                           onClick={() => {
-                            setCurrentSpreadIndex(
-                              viewMode === 'SINGLE' ? idx : Math.floor(idx / 2) * 2
-                            );
+                            const targetIdx =
+                              viewMode === 'SINGLE' ? idx : Math.floor(idx / 2) * 2;
+                            if (targetIdx !== currentSpreadIndex) {
+                              triggerPageFlip(targetIdx > currentSpreadIndex ? 'next' : 'prev');
+                              updateLastRead(activeBook.id, targetIdx + 1);
+                            }
+                            setCurrentSpreadIndex(targetIdx);
                             setShowToc(false);
                           }}
                           className={`w-full text-left p-2 rounded-xl text-xs transition cursor-pointer flex items-center justify-between ${
@@ -1428,7 +1581,17 @@ export default function AdminEBooksSandboxPage() {
                   </button>
 
                   {/* Page(s) Container */}
-                  <div className="w-full h-full flex flex-col md:flex-row items-stretch rounded-2xl overflow-hidden shadow-2xl border border-slate-700/80">
+                  <div
+                    style={{
+                      transform:
+                        flipAnim === 'next'
+                          ? 'perspective(1200px) rotateY(-4deg) scale(0.985)'
+                          : flipAnim === 'prev'
+                          ? 'perspective(1200px) rotateY(4deg) scale(0.985)'
+                          : 'perspective(1200px) rotateY(0deg) scale(1)',
+                    }}
+                    className="w-full h-full flex flex-col md:flex-row items-stretch rounded-2xl overflow-hidden shadow-2xl border border-slate-700/80 transition-transform duration-150 ease-out"
+                  >
                     {(viewMode === 'SINGLE' ? [leftPage] : [leftPage, rightPage]).map(
                       (pageItem, slotIdx) => {
                         const isLeftSlot = slotIdx === 0;
@@ -1569,7 +1732,14 @@ export default function AdminEBooksSandboxPage() {
                   max={Math.max(0, activeBook.pages.length - pageStep)}
                   step={pageStep}
                   value={currentSpreadIndex}
-                  onChange={(e) => setCurrentSpreadIndex(Number(e.target.value))}
+                  onChange={(e) => {
+                    const nextVal = Number(e.target.value);
+                    if (nextVal !== currentSpreadIndex) {
+                      triggerPageFlip(nextVal > currentSpreadIndex ? 'next' : 'prev');
+                      updateLastRead(activeBook.id, nextVal + 1);
+                      setCurrentSpreadIndex(nextVal);
+                    }
+                  }}
                   className="w-full accent-indigo-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
                 />
 

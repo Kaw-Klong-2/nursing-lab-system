@@ -43,6 +43,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 
 export interface EBookPage {
   pageNumber: number;
+  isCover?: boolean;
   chapterTitle?: string;
   title: string;
   content: string; // Markdown or rich text
@@ -53,6 +54,13 @@ export interface EBookPage {
     text: string;
   };
 }
+
+const COVER_CATEGORY_LABELS: Record<EBookItem['category'], string> = {
+  STUDENT_MANUAL: 'คู่มือนิสิต',
+  LAB_SAFETY: 'ความปลอดภัยห้องแล็บ',
+  EQUIPMENT_SOP: 'SOP เครื่องมือแพทย์',
+  STAFF_TEACHER: 'อาจารย์ & เจ้าหน้าที่',
+};
 
 export interface EBookItem {
   id: string;
@@ -836,6 +844,27 @@ export default function AdminEBooksSandboxPage() {
     };
   }, []);
 
+  // Build reader pages starting with a standalone Front Cover (index 0)
+  const readerPages = useMemo<EBookPage[]>(() => {
+    if (!activeBook) return [];
+    if (activeBook.pages[0]?.imageUrl) {
+      return activeBook.pages.map((p, idx) => (idx === 0 ? { ...p, isCover: true } : p));
+    }
+    const coverPage: EBookPage = {
+      pageNumber: 0,
+      isCover: true,
+      chapterTitle: 'หน้าปก (Front Cover)',
+      title: activeBook.title,
+      content: activeBook.subtitle,
+    };
+    return [coverPage, ...activeBook.pages];
+  }, [activeBook]);
+
+  const alignIndexToViewMode = (idx: number, mode: 'DUAL' | 'SINGLE'): number => {
+    if (mode === 'SINGLE' || idx <= 0) return Math.max(0, idx);
+    return idx % 2 === 1 ? idx : idx - 1;
+  };
+
   // Keyboard navigation for turning pages
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -854,7 +883,7 @@ export default function AdminEBooksSandboxPage() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeBook, currentSpreadIndex, isFullscreen, viewMode, isSoundEnabled]);
+  }, [activeBook, currentSpreadIndex, isFullscreen, viewMode, isSoundEnabled, readerPages.length]);
 
   const filteredBooks = useMemo(() => {
     return eBooks.filter((b) => {
@@ -907,14 +936,12 @@ export default function AdminEBooksSandboxPage() {
     }
   };
 
-  // Open Book Handler
+  // Open Book Handler — always start on closed Front Cover (index 0)
   const handleOpenBook = (book: EBookItem) => {
     setActiveBook(book);
     setZoomLevel(1);
     setFlipTransition(null);
-    const startPage = book.lastReadPage && book.lastReadPage > 0 ? book.lastReadPage - 1 : 0;
-    const step = viewMode === 'SINGLE' ? 1 : 2;
-    setCurrentSpreadIndex(Math.floor(startPage / step) * step);
+    setCurrentSpreadIndex(0);
     setShowToc(false);
     if (isSoundEnabled) {
       playPaperFlipSound('open');
@@ -923,15 +950,25 @@ export default function AdminEBooksSandboxPage() {
 
   const handleNextPage = () => {
     if (!activeBook) return;
-    const nextIdx = currentSpreadIndex + pageStep;
-    if (nextIdx < activeBook.pages.length) {
+    const nextIdx =
+      viewMode === 'SINGLE'
+        ? currentSpreadIndex + 1
+        : currentSpreadIndex === 0
+        ? 1
+        : currentSpreadIndex + 2;
+    if (nextIdx < readerPages.length) {
       turnToSpread(nextIdx, 'next');
     }
   };
 
   const handlePrevPage = () => {
     if (!activeBook) return;
-    const prevIdx = Math.max(0, currentSpreadIndex - pageStep);
+    const prevIdx =
+      viewMode === 'SINGLE'
+        ? Math.max(0, currentSpreadIndex - 1)
+        : currentSpreadIndex <= 1
+        ? 0
+        : currentSpreadIndex - 2;
     if (prevIdx !== currentSpreadIndex) {
       turnToSpread(prevIdx, 'prev');
     }
@@ -1163,10 +1200,12 @@ export default function AdminEBooksSandboxPage() {
     );
   }
 
-  // Get current page(s) in reader
-  const leftPage = activeBook ? activeBook.pages[currentSpreadIndex] : null;
+  // Get current page(s) in reader (using readerPages which always starts with a Front Cover at index 0)
+  const leftPage = activeBook ? readerPages[currentSpreadIndex] : null;
   const rightPage =
-    activeBook && viewMode === 'DUAL' ? activeBook.pages[currentSpreadIndex + 1] : null;
+    activeBook && viewMode === 'DUAL' && currentSpreadIndex > 0
+      ? readerPages[currentSpreadIndex + 1]
+      : null;
 
   const paperThemeClasses = {
     WHITE: 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-800',
@@ -1192,6 +1231,134 @@ export default function AdminEBooksSandboxPage() {
     isAnimatedLeaf = false
   ) => {
     if (!activeBook) return null;
+
+    // Dedicated Front Cover View (PDF cover page 1 OR hardcover design for built-in/text books)
+    if (pageItem?.isCover) {
+      const canClickCoverToOpen =
+        !isAnimatedLeaf && currentSpreadIndex === 0 && !flipTransition && zoomLevel === 1;
+
+      if (pageItem.imageUrl) {
+        return (
+          <div
+            onClick={canClickCoverToOpen ? handleNextPage : undefined}
+            title={canClickCoverToOpen ? 'คลิกหน้าปกเพื่อเปิดอ่านหนังสือ' : undefined}
+            className={`w-full h-full flex flex-col justify-between relative p-2 sm:p-4 ${
+              paperThemeClasses[paperTheme]
+            } ${isAnimatedLeaf ? 'overflow-hidden pointer-events-none select-none' : 'overflow-y-auto'} ${
+              canClickCoverToOpen ? 'cursor-pointer group' : ''
+            }`}
+          >
+            {/* Front cover left spine binding groove */}
+            <div
+              className="absolute inset-y-0 left-0 w-7 pointer-events-none z-10"
+              style={{
+                background:
+                  'linear-gradient(to right, rgba(15,23,42,0.4) 0%, rgba(255,255,255,0.16) 9px, rgba(15,23,42,0.08) 18px, transparent 100%)',
+              }}
+            />
+            <div className="relative z-0 flex-1 flex flex-col items-center justify-center min-h-full gap-2">
+              <div
+                style={{
+                  width: !isAnimatedLeaf && zoomLevel > 1 ? `${zoomLevel * 100}%` : '100%',
+                }}
+                className="transition-all duration-200 mx-auto"
+              >
+                <img
+                  src={pageItem.imageUrl}
+                  alt={`หน้าปก - ${activeBook.title}`}
+                  draggable={false}
+                  className={`w-full h-auto rounded-lg shadow-md object-contain mx-auto select-none ${imageThemeClasses[paperTheme]}`}
+                />
+              </div>
+              <div className="flex items-center justify-center gap-2 text-[10px] opacity-75 font-mono py-1">
+                <span>หน้าปก (1 / {activeBook.pages.length})</span>
+                {canClickCoverToOpen && readerPages.length > 1 && (
+                  <span className="px-2 py-0.5 rounded-full bg-indigo-600 text-white font-sans font-bold shadow-xs group-hover:scale-105 transition">
+                    คลิกเพื่อเปิดอ่าน →
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // Full-bleed Hardcover E-Book Cover for built-in & custom text manuals
+      return (
+        <div
+          onClick={canClickCoverToOpen ? handleNextPage : undefined}
+          title={canClickCoverToOpen ? 'คลิกหน้าปกเพื่อเปิดอ่านหนังสือ' : undefined}
+          className={`w-full h-full flex flex-col justify-between relative overflow-hidden bg-gradient-to-br ${
+            activeBook.coverGradient
+          } text-white p-6 sm:p-9 ${isAnimatedLeaf ? 'pointer-events-none select-none' : ''} ${
+            canClickCoverToOpen ? 'cursor-pointer group' : ''
+          }`}
+        >
+          {/* Decorative background lighting */}
+          <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full bg-white/10 blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -left-12 w-64 h-64 rounded-full bg-black/20 blur-3xl pointer-events-none" />
+
+          {/* Realistic Hardcover Spine Groove on Left Edge */}
+          <div
+            className="absolute inset-y-0 left-0 w-7 sm:w-8 pointer-events-none z-10"
+            style={{
+              background:
+                'linear-gradient(to right, rgba(0,0,0,0.45) 0%, rgba(255,255,255,0.22) 8px, rgba(0,0,0,0.28) 14px, rgba(255,255,255,0.08) 20px, transparent 100%)',
+            }}
+          />
+
+          {/* Framed Cover Inner Border */}
+          <div className="relative z-10 flex-1 flex flex-col justify-between pl-4 sm:pl-5 border border-white/20 rounded-2xl p-5 sm:p-7 bg-black/10 backdrop-blur-[2px]">
+            {/* Top Category & Edition Row */}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="px-3 py-1 rounded-full text-[11px] font-bold tracking-wide bg-white/15 border border-white/25 backdrop-blur-xs">
+                {COVER_CATEGORY_LABELS[activeBook.category] || 'คู่มือห้องปฏิบัติการ'}
+              </span>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/25 text-white/90 border border-white/15">
+                {activeBook.edition}
+              </span>
+            </div>
+
+            {/* Center Cover Emblem + Title */}
+            <div className="my-auto py-6 text-center space-y-4">
+              <div className="mx-auto w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white/15 border border-white/30 backdrop-blur-md shadow-2xl flex items-center justify-center text-4xl sm:text-5xl group-hover:scale-105 transition-transform duration-300">
+                {activeBook.coverIcon}
+              </div>
+              <div className="space-y-2 max-w-md mx-auto">
+                <div className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] text-white/75">
+                  KUNurse Lab Digital E-Book
+                </div>
+                <h2 className="text-lg sm:text-2xl font-black leading-snug drop-shadow-sm">
+                  {activeBook.title}
+                </h2>
+                <p className="text-xs sm:text-sm text-white/85 leading-relaxed">
+                  {activeBook.subtitle}
+                </p>
+              </div>
+            </div>
+
+            {/* Bottom Author & Open Prompt */}
+            <div className="pt-4 border-t border-white/20 flex items-center justify-between gap-3 flex-wrap">
+              <div className="text-left">
+                <div className="text-[10px] text-white/70">จัดทำโดย</div>
+                <div className="text-xs font-bold">{activeBook.author}</div>
+              </div>
+
+              {canClickCoverToOpen && readerPages.length > 1 ? (
+                <div className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white text-slate-900 font-black text-xs shadow-lg group-hover:translate-x-0.5 transition">
+                  <span>เปิดอ่าน ({activeBook.pages.length} หน้า)</span>
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              ) : (
+                <div className="text-[11px] font-mono text-white/80">
+                  {activeBook.pages.length} หน้า
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     const spineEdgeShadow =
       viewMode === 'DUAL' && slotRole === 'left'
@@ -1530,12 +1697,13 @@ export default function AdminEBooksSandboxPage() {
                   <div className="text-[10px] text-slate-400 font-mono truncate">
                     {activeBook.embedUrl
                       ? 'Google Drive Document Preview'
+                      : currentSpreadIndex === 0
+                      ? `หน้าปก (Cover) • ทั้งหมด ${activeBook.pages.length} หน้า`
                       : viewMode === 'SINGLE'
-                      ? `หน้า ${currentSpreadIndex + 1} จาก ${activeBook.pages.length} หน้า`
-                      : `หน้า ${currentSpreadIndex + 1} - ${Math.min(
-                          currentSpreadIndex + 2,
-                          activeBook.pages.length
-                        )} จาก ${activeBook.pages.length} หน้า`}
+                      ? `หน้า ${leftPage?.pageNumber || currentSpreadIndex + 1} จาก ${activeBook.pages.length} หน้า`
+                      : `หน้า ${leftPage?.pageNumber || currentSpreadIndex}${
+                          rightPage ? ` - ${rightPage.pageNumber}` : ''
+                        } จาก ${activeBook.pages.length} หน้า`}
                   </div>
                 </div>
               </div>
@@ -1548,7 +1716,10 @@ export default function AdminEBooksSandboxPage() {
                     <div className="flex items-center bg-slate-800 p-1 rounded-xl gap-0.5">
                       <button
                         type="button"
-                        onClick={() => setViewMode('SINGLE')}
+                        onClick={() => {
+                          setViewMode('SINGLE');
+                          setFlipTransition(null);
+                        }}
                         className={`px-2 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer ${
                           viewMode === 'SINGLE'
                             ? 'bg-indigo-600 text-white shadow-2xs'
@@ -1562,7 +1733,8 @@ export default function AdminEBooksSandboxPage() {
                         type="button"
                         onClick={() => {
                           setViewMode('DUAL');
-                          setCurrentSpreadIndex((idx) => Math.floor(idx / 2) * 2);
+                          setFlipTransition(null);
+                          setCurrentSpreadIndex((idx) => alignIndexToViewMode(idx, 'DUAL'));
                         }}
                         className={`px-2 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer ${
                           viewMode === 'DUAL'
@@ -1729,9 +1901,9 @@ export default function AdminEBooksSandboxPage() {
                     </button>
                   </div>
                   <div className="space-y-1">
-                    {activeBook.pages.map((p, idx) => {
+                    {readerPages.map((p, idx) => {
                       const isActive =
-                        viewMode === 'SINGLE'
+                        viewMode === 'SINGLE' || currentSpreadIndex === 0
                           ? idx === currentSpreadIndex
                           : idx === currentSpreadIndex || idx === currentSpreadIndex + 1;
                       return (
@@ -1739,8 +1911,7 @@ export default function AdminEBooksSandboxPage() {
                           key={idx}
                           type="button"
                           onClick={() => {
-                            const targetIdx =
-                              viewMode === 'SINGLE' ? idx : Math.floor(idx / 2) * 2;
+                            const targetIdx = alignIndexToViewMode(idx, viewMode);
                             if (targetIdx !== currentSpreadIndex) {
                               turnToSpread(targetIdx);
                             }
@@ -1753,7 +1924,9 @@ export default function AdminEBooksSandboxPage() {
                           }`}
                         >
                           <div className="truncate pr-2">
-                            <div className="text-[10px] opacity-70">หน้า {p.pageNumber}</div>
+                            <div className="text-[10px] opacity-70">
+                              {p.isCover ? 'หน้าปก (Front Cover)' : `หน้า ${p.pageNumber}`}
+                            </div>
                             <div className="truncate">{p.title}</div>
                           </div>
                           <span className="text-[10px] opacity-60">→</span>
@@ -1774,45 +1947,68 @@ export default function AdminEBooksSandboxPage() {
                   />
                 </div>
               ) : (
-                /* 3D Flipbook Stage with Page-Curl Leaf Physics, Spine Gutter & Touch Swipe */
+                /* 3D Flipbook Stage with Closed-Cover Centered View, Page-Curl Leaf Physics & Touch Swipe */
                 (() => {
                   const isFlipNext = flipTransition?.direction === 'next';
                   const isFlipPrev = flipTransition?.direction === 'prev';
+                  const isCoverRest = viewMode === 'DUAL' && currentSpreadIndex === 0 && !flipTransition;
+                  const isOpeningCover =
+                    viewMode === 'DUAL' &&
+                    Boolean(flipTransition && isFlipNext && flipTransition.fromIndex === 0);
+                  const isClosingCover =
+                    viewMode === 'DUAL' &&
+                    Boolean(flipTransition && isFlipPrev && flipTransition.toIndex === 0);
+                  const isDualClosedFrame = isCoverRest || isClosingCover;
+
                   const canGoPrev = currentSpreadIndex > 0;
-                  const canGoNext = currentSpreadIndex + pageStep < activeBook.pages.length;
+                  const canGoNext =
+                    viewMode === 'SINGLE'
+                      ? currentSpreadIndex + 1 < readerPages.length
+                      : currentSpreadIndex === 0
+                      ? readerPages.length > 1
+                      : currentSpreadIndex + 2 < readerPages.length;
 
                   const baseLeftPage =
                     viewMode === 'DUAL'
-                      ? isFlipNext && flipTransition
-                        ? activeBook.pages[flipTransition.fromIndex]
+                      ? isCoverRest || isOpeningCover || isClosingCover
+                        ? null
+                        : isFlipNext && flipTransition
+                        ? readerPages[flipTransition.fromIndex]
                         : leftPage
                       : isFlipNext && flipTransition
-                      ? activeBook.pages[flipTransition.toIndex]
+                      ? readerPages[flipTransition.toIndex]
                       : isFlipPrev && flipTransition
-                      ? activeBook.pages[flipTransition.fromIndex]
+                      ? readerPages[flipTransition.fromIndex]
                       : leftPage;
 
-                  const baseRightPage =
-                    isFlipPrev && flipTransition
-                      ? activeBook.pages[flipTransition.fromIndex + 1]
-                      : rightPage;
+                  const baseRightPage = isCoverRest
+                    ? readerPages[0]
+                    : isFlipPrev && flipTransition
+                    ? readerPages[flipTransition.fromIndex + 1]
+                    : rightPage;
 
                   const dualFrontPage = flipTransition
-                    ? isFlipNext
-                      ? activeBook.pages[flipTransition.fromIndex + 1]
-                      : activeBook.pages[flipTransition.fromIndex]
+                    ? isOpeningCover
+                      ? readerPages[0]
+                      : isFlipNext
+                      ? readerPages[flipTransition.fromIndex + 1]
+                      : readerPages[flipTransition.fromIndex]
                     : null;
 
                   const dualBackPage = flipTransition
-                    ? isFlipNext
-                      ? activeBook.pages[flipTransition.toIndex]
-                      : activeBook.pages[flipTransition.toIndex + 1]
+                    ? isOpeningCover
+                      ? readerPages[flipTransition.toIndex]
+                      : isClosingCover
+                      ? readerPages[0]
+                      : isFlipNext
+                      ? readerPages[flipTransition.toIndex]
+                      : readerPages[flipTransition.toIndex + 1]
                     : null;
 
                   const singlePeelPage = flipTransition
                     ? isFlipNext
-                      ? activeBook.pages[flipTransition.fromIndex]
-                      : activeBook.pages[flipTransition.toIndex]
+                      ? readerPages[flipTransition.fromIndex]
+                      : readerPages[flipTransition.toIndex]
                     : null;
 
                   return (
@@ -1879,23 +2075,45 @@ export default function AdminEBooksSandboxPage() {
                         <ChevronLeft className="w-6 h-6" />
                       </button>
 
-                      {/* Physical Book Cover & Page Stack Stage (transform-style preserve-3d, no overflow-hidden here!) */}
+                      {/* Physical Book Cover & Page Stack Stage (centered via translateX(-25%) when closed on cover in DUAL mode) */}
                       <div
-                        className="w-full h-full relative flex items-stretch rounded-2xl shadow-[0_25px_65px_-15px_rgba(0,0,0,0.75)] border border-slate-700/80"
-                        style={{ transformStyle: 'preserve-3d' }}
+                        className={`w-full h-full relative flex items-stretch rounded-2xl transition-transform duration-500 ease-[cubic-bezier(0.32,0.08,0.24,1)] ${
+                          viewMode === 'SINGLE'
+                            ? 'shadow-[0_25px_65px_-15px_rgba(0,0,0,0.75)] border border-slate-700/80'
+                            : isDualClosedFrame || isOpeningCover
+                            ? ''
+                            : 'shadow-[0_25px_65px_-15px_rgba(0,0,0,0.75)] border border-slate-700/80'
+                        }`}
+                        style={{
+                          transformStyle: 'preserve-3d',
+                          transform: isDualClosedFrame ? 'translateX(-25%)' : 'translateX(0%)',
+                        }}
                       >
                         {/* Stacked Paper Edges (ความหนากระดาษขอบเล่ม) */}
-                        <div className="pointer-events-none hidden sm:block absolute -left-1.5 top-2 bottom-2 w-1.5 rounded-l-lg bg-gradient-to-r from-slate-400/50 via-slate-200/70 to-slate-300/60 dark:from-slate-700/60 dark:via-slate-600/50 dark:to-slate-700/70" />
+                        <div
+                          className={`pointer-events-none hidden sm:block absolute -left-1.5 top-2 bottom-2 w-1.5 rounded-l-lg bg-gradient-to-r from-slate-400/50 via-slate-200/70 to-slate-300/60 dark:from-slate-700/60 dark:via-slate-600/50 dark:to-slate-700/70 transition-opacity duration-300 ${
+                            isDualClosedFrame || isOpeningCover ? 'opacity-0' : 'opacity-100'
+                          }`}
+                        />
                         <div className="pointer-events-none hidden sm:block absolute -right-1.5 top-2 bottom-2 w-1.5 rounded-r-lg bg-gradient-to-l from-slate-400/50 via-slate-200/70 to-slate-300/60 dark:from-slate-700/60 dark:via-slate-600/50 dark:to-slate-700/70" />
 
                         {viewMode === 'DUAL' ? (
                           <>
-                            {/* Base Left Half */}
-                            <div className="w-1/2 h-full relative rounded-l-2xl overflow-hidden border-r border-slate-300/40 dark:border-slate-800">
-                              {renderPageSheetContent(baseLeftPage, 'left')}
+                            {/* Base Left Half (hidden while closed on Front Cover or during cover-open/close transition) */}
+                            <div
+                              className={`w-1/2 h-full relative rounded-l-2xl overflow-hidden border-r border-slate-300/40 dark:border-slate-800 ${
+                                isCoverRest || isOpeningCover || isClosingCover
+                                  ? 'opacity-0 pointer-events-none'
+                                  : 'opacity-100'
+                              }`}
+                            >
+                              {!isCoverRest &&
+                                !isOpeningCover &&
+                                !isClosingCover &&
+                                renderPageSheetContent(baseLeftPage, 'left')}
 
                               {/* Cast shadow when Prev leaf lifts from left */}
-                              {isFlipPrev && flipTransition && (
+                              {isFlipPrev && !isClosingCover && flipTransition && (
                                 <div
                                   key={`under-left-${flipTransition.fromIndex}-${flipTransition.toIndex}`}
                                   className="absolute inset-0 pointer-events-none z-20"
@@ -1908,11 +2126,17 @@ export default function AdminEBooksSandboxPage() {
                               )}
                             </div>
 
-                            {/* Base Right Half */}
-                            <div className="w-1/2 h-full relative rounded-r-2xl overflow-hidden">
+                            {/* Base Right Half (holds Front Cover when closed, or revealed right page underneath) */}
+                            <div
+                              className={`w-1/2 h-full relative overflow-hidden ${
+                                isCoverRest
+                                  ? 'rounded-2xl shadow-[0_28px_65px_-12px_rgba(0,0,0,0.85)] border border-white/15'
+                                  : 'rounded-r-2xl'
+                              }`}
+                            >
                               {renderPageSheetContent(baseRightPage, 'right')}
 
-                              {/* Cast shadow when Next leaf lifts from right */}
+                              {/* Cast shadow when Next leaf or Front Cover lifts from right */}
                               {isFlipNext && flipTransition && (
                                 <div
                                   key={`under-right-${flipTransition.fromIndex}-${flipTransition.toIndex}`}
@@ -1926,16 +2150,18 @@ export default function AdminEBooksSandboxPage() {
                               )}
                             </div>
 
-                            {/* Center Book Spine Crease (ร่องสันหนังสือตรงกลาง) */}
-                            <div
-                              className="pointer-events-none absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-6 z-20"
-                              style={{
-                                background:
-                                  'linear-gradient(to right, transparent, rgba(15,23,42,0.14) 38%, rgba(15,23,42,0.34) 50%, rgba(15,23,42,0.12) 62%, transparent)',
-                              }}
-                            />
+                            {/* Center Book Spine Crease (ร่องสันหนังสือตรงกลาง - แสดงเฉพาะตอนกางเล่มแล้ว) */}
+                            {!isCoverRest && !isClosingCover && (
+                              <div
+                                className="pointer-events-none absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-6 z-20"
+                                style={{
+                                  background:
+                                    'linear-gradient(to right, transparent, rgba(15,23,42,0.14) 38%, rgba(15,23,42,0.34) 50%, rgba(15,23,42,0.12) 62%, transparent)',
+                                }}
+                              />
+                            )}
 
-                            {/* True 3D Flipping Paper Leaf (Dual Spread) */}
+                            {/* True 3D Flipping Paper Leaf (Dual Spread & Front Cover Open/Close) */}
                             {flipTransition && (
                               <div
                                 key={`dual-leaf-${flipTransition.direction}-${flipTransition.fromIndex}-${flipTransition.toIndex}`}
@@ -1953,7 +2179,11 @@ export default function AdminEBooksSandboxPage() {
                                 {/* Leaf Front Face (0deg..90deg) */}
                                 <div
                                   className={`absolute inset-0 overflow-hidden shadow-2xl ${
-                                    isFlipNext ? 'rounded-r-2xl' : 'rounded-l-2xl'
+                                    isOpeningCover
+                                      ? 'rounded-2xl'
+                                      : isFlipNext
+                                      ? 'rounded-r-2xl'
+                                      : 'rounded-l-2xl'
                                   }`}
                                   style={{
                                     backfaceVisibility: 'hidden',
@@ -1984,7 +2214,11 @@ export default function AdminEBooksSandboxPage() {
                                 {/* Leaf Back Face (90deg..180deg) */}
                                 <div
                                   className={`absolute inset-0 overflow-hidden shadow-2xl ${
-                                    isFlipNext ? 'rounded-l-2xl' : 'rounded-r-2xl'
+                                    isClosingCover
+                                      ? 'rounded-2xl'
+                                      : isFlipNext
+                                      ? 'rounded-l-2xl'
+                                      : 'rounded-r-2xl'
                                   }`}
                                   style={{
                                     backfaceVisibility: 'hidden',
@@ -2091,14 +2325,18 @@ export default function AdminEBooksSandboxPage() {
                           </>
                         )}
 
-                        {/* Interactive Clickable Page-Edge & Dog-Ear Corner Curl Zones (when zoomed 100%) */}
-                        {zoomLevel === 1 && !flipTransition && (
+                        {/* Interactive Clickable Page-Edge & Dog-Ear Corner Curl Zones (when zoomed 100% & past cover) */}
+                        {zoomLevel === 1 && !flipTransition && currentSpreadIndex > 0 && (
                           <>
                             {canGoPrev && (
                               <button
                                 type="button"
                                 onClick={handlePrevPage}
-                                title="คลิกขอบกระดาษเพื่อเปิดหน้าก่อนหน้า"
+                                title={
+                                  currentSpreadIndex === 1 && viewMode === 'DUAL'
+                                    ? 'คลิกขอบกระดาษเพื่อปิดกลับหน้าปก'
+                                    : 'คลิกขอบกระดาษเพื่อเปิดหน้าก่อนหน้า'
+                                }
                                 className="group absolute left-0 top-0 bottom-0 w-10 sm:w-16 z-20 cursor-pointer focus:outline-none"
                               >
                                 <span
@@ -2130,13 +2368,19 @@ export default function AdminEBooksSandboxPage() {
                         )}
                       </div>
 
-                      {/* Next Navigation Arrow Button */}
+                      {/* Next Navigation Arrow Button (hugs closed cover edge cleanly when centered) */}
                       <button
                         type="button"
                         disabled={!canGoNext}
                         onClick={handleNextPage}
-                        className="absolute -right-1 sm:-right-5 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-800/90 hover:bg-indigo-600 text-white flex items-center justify-center shadow-2xl transition disabled:opacity-20 disabled:pointer-events-none cursor-pointer border border-white/10"
-                        title="หน้าถัดไป (หรือกดลูกศรขวาบนคีย์บอร์ด)"
+                        className={`absolute top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-800/90 hover:bg-indigo-600 text-white flex items-center justify-center shadow-2xl transition-all duration-500 disabled:opacity-20 disabled:pointer-events-none cursor-pointer border border-white/10 ${
+                          isDualClosedFrame ? 'right-[20%] sm:right-[21%]' : '-right-1 sm:-right-5'
+                        }`}
+                        title={
+                          currentSpreadIndex === 0
+                            ? 'เปิดหน้าปกเพื่อเริ่มอ่าน (หรือกดลูกศรขวาบนคีย์บอร์ด)'
+                            : 'หน้าถัดไป (หรือกดลูกศรขวาบนคีย์บอร์ด)'
+                        }
                       >
                         <ChevronRight className="w-6 h-6" />
                       </button>
@@ -2150,19 +2394,21 @@ export default function AdminEBooksSandboxPage() {
             {!activeBook.embedUrl && (
               <div className="px-5 py-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-4 text-white">
                 <div className="text-xs text-slate-400 font-mono shrink-0">
-                  หน้า {currentSpreadIndex + 1} / {activeBook.pages.length}
+                  {currentSpreadIndex === 0
+                    ? `หน้าปก • ${activeBook.pages.length} หน้า`
+                    : `หน้า ${leftPage?.pageNumber || currentSpreadIndex} / ${activeBook.pages.length}`}
                 </div>
 
                 {/* Progress Slider */}
                 <input
                   type="range"
                   min={0}
-                  max={Math.max(0, activeBook.pages.length - pageStep)}
-                  step={pageStep}
+                  max={Math.max(0, readerPages.length - 1)}
+                  step={1}
                   value={currentSpreadIndex}
                   onChange={(e) => {
-                    const nextVal = Number(e.target.value);
-                    if (nextVal !== currentSpreadIndex) {
+                    const nextVal = alignIndexToViewMode(Number(e.target.value), viewMode);
+                    if (nextVal !== currentSpreadIndex && nextVal < readerPages.length) {
                       turnToSpread(nextVal);
                     }
                   }}

@@ -17,6 +17,17 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-14] แสดงหน้าปก (Front Cover) เป็นหน้าเริ่มต้นแบบหนังสือจริง พร้อมแอนิเมชันเปิดปกกางเล่ม 3 มิติใน E-Book Sandbox
+- **หมวดหมู่**: Innovation & Admin Sandbox / Interactive E-Book Reader UX
+- **สิ่งที่ดำเนินการ**:
+  - **เพิ่มระบบหน้าปกหนังสือเริ่มต้น (`readerPages` + `isCover`) ใน [`src/app/admin/sandbox/ebooks/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/ebooks/page.tsx)**:
+    - เมื่อเปิด E-Book ทุกเล่มจะเริ่มที่ **หน้าปกปิดเล่ม (Front Cover)** จัดกึ่งกลางหน้าจอก่อนเป็นอันดับแรก (หนังสือข้อความ/ค่าเริ่มต้นจะสร้างหน้าปกแข็งสีไล่ระดับพร้อมไอคอน ชื่อเล่ม ผู้จัดทำ และสันปก ส่วนไฟล์ PDF ที่อัปโหลดจะใช้ PDF หน้า 1 เป็นหน้าปกเดี่ยว)
+    - คลิกที่หน้าปก กดปุ่มเปิดหน้า หรือปัดซ้าย จะเปิดปกพลิกแบบ 3 มิติ `0° → -180°` พร้อมเลื่อนตัวเล่มจาก `translateX(-25%) → translateX(0%)` กางออกเป็นคู่หน้า `[หน้า 1, หน้า 2]` (หรือ `[หน้า 2, หน้า 3]` สำหรับ PDF) และพับปิดกลับเป็นหน้าปกได้เมื่อย้อนกลับ
+    - ปรับตัวจัดดัชนีคู่หน้า (`alignIndexToViewMode`) ทั้งในสารบัญ, Scrubber และปุ่มสลับโหมด `1 หน้า / 2 หน้าคู่`
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/app/admin/sandbox/ebooks/page.tsx`](file:///d:/LAB-system/src/app/admin/sandbox/ebooks/page.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `node scripts/librarian-audit.mjs` และ `npm run build` ผ่าน 100%
+
 ### [2026-11-14] อัปเกรดฟิสิกส์พลิกหน้ากระดาษ 3 มิติ (3D Page-Curl Flipbook) และเสียงกระดาษธรรมชาติ 3 ชั้นใน E-Book Sandbox
 - **หมวดหมู่**: Innovation & Admin Sandbox / Interactive E-Book Reader UX
 - **สิ่งที่ดำเนินการ**:

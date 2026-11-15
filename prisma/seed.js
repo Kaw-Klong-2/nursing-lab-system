@@ -56,7 +56,7 @@ async function cleanAndSeed() {
       email: 'admin@lab.nurse.ac.th',
       password: 'admin',
       role: 'ADMIN',
-      department: 'ศูนย์เทคโนโลยีสารสนเทศ คณะพยาบาลศาสตร์',
+      department: 'งานบริหารห้องปฏิบัติการพยาบาล คณะพยาบาลศาสตร์',
       phone: '02-123-4567 ต่อ 101',
     },
   });

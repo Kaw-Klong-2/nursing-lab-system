@@ -17,6 +17,17 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-15] ปรับชื่อสังกัดเริ่มต้นของบัญชี Admin และไฟล์ตัวอย่างนำเข้าผู้ใช้เป็น "งานบริหารห้องปฏิบัติการพยาบาล"
+- **หมวดหมู่**: User Management & Seed Configuration
+- **สิ่งที่ดำเนินการ**:
+  - เปลี่ยนชื่อสังกัดบัญชีผู้ดูแลระบบเริ่มต้นใน [`prisma/seed.js`](file:///d:/LAB-system/prisma/seed.js#L59) จากชื่อหน่วยงานเดิม (IT Center) เป็น `'งานบริหารห้องปฏิบัติการพยาบาล คณะพยาบาลศาสตร์'`
+  - เปลี่ยนตัวอย่าง `'ภาควิชา/คณะ'` ในฟังก์ชันดาวน์โหลด Excel Template (`handleDownloadTemplate`) ของ [`src/app/users/page.tsx`](file:///d:/LAB-system/src/app/users/page.tsx#L476) เป็น `'งานบริหารห้องปฏิบัติการพยาบาล'`
+  - ตรวจสอบฐานข้อมูลตาราง `User` เรียบร้อย ไม่พบข้อมูลสังกัดเก่าตกค้าง
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`prisma/seed.js`](file:///d:/LAB-system/prisma/seed.js)
+  - [`src/app/users/page.tsx`](file:///d:/LAB-system/src/app/users/page.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `node scripts/librarian-audit.mjs` ผ่าน 100%
+
 ### [2026-11-14] แสดงหน้าปก (Front Cover) เป็นหน้าเริ่มต้นแบบหนังสือจริง พร้อมแอนิเมชันเปิดปกกางเล่ม 3 มิติใน E-Book Sandbox
 - **หมวดหมู่**: Innovation & Admin Sandbox / Interactive E-Book Reader UX
 - **สิ่งที่ดำเนินการ**:

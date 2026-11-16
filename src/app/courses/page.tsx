@@ -1139,6 +1139,16 @@ export default function CoursesPage() {
                               : 'เปิดใช้งานรายวิชา'}
                           </span>
                         </button>
+
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/practice?tab=HOURS_LOG&courseId=${selectedCourse.id}`)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold transition cursor-pointer shadow-xs border border-indigo-200 dark:border-indigo-800"
+                          title="เปิดดูบันทึกการเข้าฝึกปฏิบัติของนิสิตในรายวิชานี้"
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          <span>ดูการเข้าฝึกของนิสิตในวิชานี้</span>
+                        </button>
                       </div>
                     )}
                   </div>

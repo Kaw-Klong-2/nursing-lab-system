@@ -68,6 +68,21 @@ export default function PracticePage() {
 
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<'TIMETABLE' | 'BOOKINGS' | 'SCANNER' | 'HOURS_LOG' | 'SETTINGS'>('TIMETABLE');
+  const [initialCourseId, setInitialCourseId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      const courseParam = params.get('courseId');
+      if (tabParam === 'HOURS_LOG') {
+        setActiveTab('HOURS_LOG');
+      }
+      if (courseParam) {
+        setInitialCourseId(courseParam);
+      }
+    }
+  }, []);
 
   // Main Data States
   const [slots, setSlots] = useState<any[]>([]);
@@ -204,7 +219,7 @@ export default function PracticePage() {
         fetch(`/api/practice/bookings${currentUser?.role === 'USER' && !isTeacher ? `?userId=${currentUser.id}` : ''}`),
         fetch('/api/practice/config'),
         fetch(`/api/practice/stats${currentUser?.id ? `?userId=${currentUser.id}` : ''}`),
-        fetch('/api/courses?compact=true'),
+        fetch('/api/courses?compact=true&status=all'),
         fetch('/api/kits'),
         fetch('/api/users?role=APPROVER'),
       ]);
@@ -2920,6 +2935,8 @@ export default function PracticePage() {
           isAdmin={isAdmin}
           canManageSlots={canManageSlots}
           rooms={rooms}
+          courses={courses}
+          initialCourseId={initialCourseId}
           onOpenQrCode={(b) => setActiveBookingForQr(b)}
         />
       )}

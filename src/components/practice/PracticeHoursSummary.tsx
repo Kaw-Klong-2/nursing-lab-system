@@ -29,7 +29,15 @@ import {
   QrCode
 } from 'lucide-react';
 import { formatUserName, formatTeacherName } from '@/lib/user-utils';
-import { formatTermName, getAcademicTermByDate, AcademicTermInfo } from '@/lib/academicTerm';
+import { formatTermName, getAcademicTermByDate, toLegacySemesterCode, AcademicTermInfo } from '@/lib/academicTerm';
+
+function normalizeInstructorKey(name?: string | null): string {
+  if (!name) return '';
+  return name
+    .replace(/^(ศ\.ดร\.|รศ\.ดร\.|ผศ\.ดร\.|ผศ\.|รศ\.|ศ\.|ดร\.|อาจารย์|อ\.|นางสาว|นาง|นาย)\s*/g, '')
+    .trim()
+    .toLowerCase();
+}
 
 interface PracticeHoursSummaryProps {
   bookings: any[];
@@ -40,6 +48,8 @@ interface PracticeHoursSummaryProps {
   isAdmin: boolean;
   canManageSlots: boolean;
   rooms?: any[];
+  courses?: any[];
+  initialCourseId?: string | null;
   onOpenQrCode?: (booking: any) => void;
 }
 
@@ -52,6 +62,8 @@ export default function PracticeHoursSummary({
   isAdmin,
   canManageSlots,
   rooms = [],
+  courses = [],
+  initialCourseId = null,
   onOpenQrCode,
 }: PracticeHoursSummaryProps) {
   const isStudent = currentUser?.role === 'USER' && !isTeacher && !isOfficer && !isAdmin;
@@ -59,6 +71,19 @@ export default function PracticeHoursSummary({
   // Academic Terms State
   const [academicTerms, setAcademicTerms] = useState<AcademicTermInfo[]>([]);
   const [selectedTermId, setSelectedTermId] = useState<string>('ALL');
+  const [selectedCourseId, setSelectedCourseId] = useState<string>(initialCourseId || 'ALL');
+  const [selectedAdvisor, setSelectedAdvisor] = useState<string>('ALL');
+  const [onlyMyCourses, setOnlyMyCourses] = useState<boolean>(false);
+  const [teacherViewMode, setTeacherViewMode] = useState<'BY_COURSE' | 'BY_STUDENT' | 'BY_SESSION'>(
+    initialCourseId ? 'BY_STUDENT' : 'BY_COURSE'
+  );
+
+  useEffect(() => {
+    if (initialCourseId) {
+      setSelectedCourseId(initialCourseId);
+      setTeacherViewMode('BY_STUDENT');
+    }
+  }, [initialCourseId]);
 
   useEffect(() => {
     fetch('/api/academic-terms')
@@ -82,13 +107,83 @@ export default function PracticeHoursSummary({
     if (!activeTerm) return bookings;
     const start = new Date(activeTerm.startDate!);
     const end = new Date(new Date(activeTerm.endDate!).getTime() + 86399999);
+    const termSem = toLegacySemesterCode(activeTerm.term);
+    const termYear = String(activeTerm.academicYear || '');
     return bookings.filter((b) => {
       const dStr = b.slot?.date || b.createdAt;
-      if (!dStr) return false;
-      const d = new Date(dStr);
-      return d >= start && d <= end;
+      if (dStr) {
+        const d = new Date(dStr);
+        if (d >= start && d <= end) return true;
+      }
+      if (b.course && termYear && String(b.course.academicYear) === termYear && String(b.course.semester) === termSem) {
+        return true;
+      }
+      return false;
     });
   }, [bookings, activeTerm]);
+
+  // Smart Course List: all ACTIVE courses (matching selected term if chosen) + any closed course with bookings in that term
+  const availableCourses = useMemo(() => {
+    const bookedCourseIds = new Set(termFilteredBookings.map((b) => b.courseId).filter(Boolean));
+    const termSem = activeTerm ? toLegacySemesterCode(activeTerm.term) : null;
+    const termYear = activeTerm?.academicYear ? String(activeTerm.academicYear) : null;
+
+    return courses.filter((c) => {
+      if (bookedCourseIds.has(c.id)) return true;
+      if ((c.status || 'ACTIVE') !== 'ACTIVE') return false;
+      if (termSem && termYear) {
+        return String(c.semester) === termSem && String(c.academicYear) === termYear;
+      }
+      return true;
+    });
+  }, [courses, termFilteredBookings, activeTerm]);
+
+  // Unique Advisors / Course Instructors for filter dropdown
+  const availableAdvisors = useMemo(() => {
+    const names = new Set<string>();
+    availableCourses.forEach((c) => {
+      if (c.instructorName) names.add(formatTeacherName(c.instructorName));
+    });
+    termFilteredBookings.forEach((b) => {
+      if (b.advisorName) names.add(formatTeacherName(b.advisorName));
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [availableCourses, termFilteredBookings]);
+
+  const currentUserInstructorKey = useMemo(
+    () => normalizeInstructorKey(formatUserName(currentUser) || currentUser?.name),
+    [currentUser]
+  );
+
+  // Bookings filtered by Term + Course + Instructor
+  const scopedBookings = useMemo(() => {
+    return termFilteredBookings.filter((b) => {
+      if (selectedCourseId === 'NONE') {
+        if (b.courseId) return false;
+      } else if (selectedCourseId !== 'ALL') {
+        if (b.courseId !== selectedCourseId) return false;
+      }
+
+      if (onlyMyCourses && currentUserInstructorKey) {
+        const advKey = normalizeInstructorKey(b.advisorName);
+        const courseInstKey = normalizeInstructorKey(b.course?.instructorName);
+        if (!advKey.includes(currentUserInstructorKey) && !courseInstKey.includes(currentUserInstructorKey)) {
+          return false;
+        }
+      }
+
+      if (selectedAdvisor !== 'ALL') {
+        const targetKey = normalizeInstructorKey(selectedAdvisor);
+        const advKey = normalizeInstructorKey(b.advisorName);
+        const courseInstKey = normalizeInstructorKey(b.course?.instructorName);
+        if (advKey !== targetKey && courseInstKey !== targetKey) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [termFilteredBookings, selectedCourseId, onlyMyCourses, currentUserInstructorKey, selectedAdvisor]);
 
   // Search & Filter States
   const [searchTerm, setSearchTerm] = useState('');
@@ -100,10 +195,10 @@ export default function PracticeHoursSummary({
   // Student Personal Bookings
   const studentBookings = useMemo(() => {
     if (isStudent) {
-      return termFilteredBookings.filter(b => b.userId === currentUser?.id || !b.userId);
+      return scopedBookings.filter(b => b.userId === currentUser?.id || !b.userId);
     }
     return [];
-  }, [termFilteredBookings, currentUser, isStudent]);
+  }, [scopedBookings, currentUser, isStudent]);
 
   // Student KPI Calculations
   const studentStats = useMemo(() => {
@@ -126,6 +221,107 @@ export default function PracticeHoursSummary({
     };
   }, [studentBookings]);
 
+  // Aggregated Course Summary for Teachers / Staff (BY_COURSE view)
+  const courseSummaryList = useMemo(() => {
+    const map: Record<
+      string,
+      {
+        courseId: string;
+        code: string;
+        name: string;
+        semester: string;
+        academicYear: string;
+        instructorName: string;
+        enrolledCount: number;
+        studentIds: Set<string>;
+        totalBookings: number;
+        completedCount: number;
+        totalMinutes: number;
+        skillsCount: Record<string, number>;
+      }
+    > = {};
+
+    // Seed with available courses matching active filters so courses with 0 sessions still appear clearly
+    availableCourses.forEach((c) => {
+      if (selectedCourseId !== 'ALL' && selectedCourseId !== c.id) return;
+      if (onlyMyCourses && currentUserInstructorKey) {
+        if (!normalizeInstructorKey(c.instructorName).includes(currentUserInstructorKey)) return;
+      }
+      if (selectedAdvisor !== 'ALL') {
+        if (normalizeInstructorKey(c.instructorName) !== normalizeInstructorKey(selectedAdvisor)) return;
+      }
+      map[c.id] = {
+        courseId: c.id,
+        code: c.code || '-',
+        name: c.name || 'รายวิชา',
+        semester: c.semester || '-',
+        academicYear: c.academicYear || '-',
+        instructorName: c.instructorName ? formatTeacherName(c.instructorName) : '-',
+        enrolledCount: Number(c.studentCount) || 0,
+        studentIds: new Set<string>(),
+        totalBookings: 0,
+        completedCount: 0,
+        totalMinutes: 0,
+        skillsCount: {},
+      };
+    });
+
+    scopedBookings.forEach((b) => {
+      const cid = b.courseId || 'NONE';
+      if (!map[cid]) {
+        map[cid] = {
+          courseId: cid,
+          code: b.course?.code || (cid === 'NONE' ? 'GENERAL' : '-'),
+          name: b.course?.name || (cid === 'NONE' ? 'ฝึกทักษะทั่วไป (ไม่ระบุรายวิชา)' : 'รายวิชา'),
+          semester: b.course?.semester || '-',
+          academicYear: b.course?.academicYear || '-',
+          instructorName: b.course?.instructorName
+            ? formatTeacherName(b.course.instructorName)
+            : b.advisorName
+            ? formatTeacherName(b.advisorName)
+            : '-',
+          enrolledCount: Number(b.course?.studentCount) || 0,
+          studentIds: new Set<string>(),
+          totalBookings: 0,
+          completedCount: 0,
+          totalMinutes: 0,
+          skillsCount: {},
+        };
+      }
+      const g = map[cid];
+      if (b.userId) g.studentIds.add(b.userId);
+      g.totalBookings += 1;
+      if (b.status === 'COMPLETED') {
+        g.completedCount += 1;
+        g.totalMinutes += Number(b.actualMinutes) || 0;
+        if (b.skillTopic) {
+          g.skillsCount[b.skillTopic] = (g.skillsCount[b.skillTopic] || 0) + 1;
+        }
+      }
+    });
+
+    return Object.values(map)
+      .filter((c) => {
+        if (!searchTerm.trim()) return true;
+        const q = searchTerm.toLowerCase();
+        return (
+          c.code.toLowerCase().includes(q) ||
+          c.name.toLowerCase().includes(q) ||
+          c.instructorName.toLowerCase().includes(q)
+        );
+      })
+      .map((c) => ({
+        ...c,
+        activeStudentCount: c.studentIds.size,
+        totalHoursFormatted: (c.totalMinutes / 60).toFixed(1),
+        topSkills: Object.entries(c.skillsCount)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([skill]) => skill),
+      }))
+      .sort((a, b) => b.totalMinutes - a.totalMinutes || a.code.localeCompare(b.code));
+  }, [availableCourses, scopedBookings, selectedCourseId, onlyMyCourses, currentUserInstructorKey, selectedAdvisor, searchTerm]);
+
   // Aggregated Cohort Data for Teachers / Staff
   const cohortData = useMemo(() => {
     const studentMap: Record<string, {
@@ -137,11 +333,12 @@ export default function PracticeHoursSummary({
       completedCount: number;
       totalMinutes: number;
       skillsCount: Record<string, number>;
+      coursesMap: Record<string, { code: string; name: string }>;
       lastDate: string;
       records: any[];
     }> = {};
 
-    termFilteredBookings.forEach(b => {
+    scopedBookings.forEach(b => {
       const u = b.user || {};
       const uid = b.userId || u.id || u.studentId || 'UNKNOWN';
       const studentId = u.studentId || '-';
@@ -158,12 +355,25 @@ export default function PracticeHoursSummary({
           completedCount: 0,
           totalMinutes: 0,
           skillsCount: {},
+          coursesMap: {},
           lastDate: '',
           records: [],
         };
       }
 
       studentMap[uid].records.push(b);
+
+      if (b.course) {
+        studentMap[uid].coursesMap[b.course.id] = {
+          code: b.course.code,
+          name: b.course.name,
+        };
+      } else {
+        studentMap[uid].coursesMap['NONE'] = {
+          code: 'ฝึกทั่วไป',
+          name: 'ฝึกทักษะทั่วไป',
+        };
+      }
 
       if (b.status === 'COMPLETED') {
         studentMap[uid].completedCount += 1;
@@ -188,6 +398,7 @@ export default function PracticeHoursSummary({
 
       return {
         ...s,
+        coursesList: Object.values(s.coursesMap),
         totalHours: parseFloat(totalHours),
         totalHoursFormatted: totalHours,
         topSkills,
@@ -195,7 +406,7 @@ export default function PracticeHoursSummary({
     });
 
     return list;
-  }, [termFilteredBookings]);
+  }, [scopedBookings]);
 
   // Filtered & Sorted Cohort List
   const filteredCohort = useMemo(() => {
@@ -203,7 +414,8 @@ export default function PracticeHoursSummary({
       const matchSearch =
         !searchTerm ||
         s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.studentId.toLowerCase().includes(searchTerm.toLowerCase());
+        s.studentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.coursesList.some((c) => c.code.toLowerCase().includes(searchTerm.toLowerCase()) || c.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
       const matchDept = selectedDept === 'ALL' || s.department === selectedDept;
 
@@ -227,6 +439,26 @@ export default function PracticeHoursSummary({
     return result;
   }, [cohortData, searchTerm, selectedDept, hourFilter, sortBy]);
 
+  // Filtered Session Log List (BY_SESSION view)
+  const filteredSessions = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return scopedBookings
+      .filter((b) => {
+        if (!q) return true;
+        const sName = (formatUserName(b.user) || b.user?.name || '').toLowerCase();
+        const sId = (b.user?.studentId || '').toLowerCase();
+        const cName = (b.course?.name || '').toLowerCase();
+        const cCode = (b.course?.code || '').toLowerCase();
+        const sk = (b.skillTopic || '').toLowerCase();
+        return sName.includes(q) || sId.includes(q) || cName.includes(q) || cCode.includes(q) || sk.includes(q);
+      })
+      .sort((a, b) => {
+        const da = a.slot?.date || a.createdAt || '';
+        const db = b.slot?.date || b.createdAt || '';
+        return db.localeCompare(da);
+      });
+  }, [scopedBookings, searchTerm]);
+
   // Overall Cohort Metrics
   const cohortMetrics = useMemo(() => {
     const totalStudents = cohortData.length;
@@ -243,14 +475,25 @@ export default function PracticeHoursSummary({
     };
   }, [cohortData]);
 
-  // Export to Excel handler (Teacher / Staff Cohort)
+  // Export to Excel handler (Teacher / Staff Cohort — 3 Sheets)
   const handleExportExcel = () => {
     try {
-      const termLabel = activeTerm
-        ? `${formatTermName(activeTerm.term)} ${activeTerm.academicYear || ''}`.trim()
-        : 'ทุกภาคการศึกษา';
+      // 1. Course Summary Sheet
+      const courseRows = courseSummaryList.map((c, index) => ({
+        ลำดับ: index + 1,
+        รหัสวิชา: c.code,
+        ชื่อรายวิชา: c.name,
+        ภาคการศึกษา: c.semester !== '-' ? formatTermName(c.semester) : 'ทุกภาคการศึกษา',
+        ปีการศึกษา: c.academicYear,
+        อาจารย์ผู้รับผิดชอบ: c.instructorName,
+        'นิสิตที่เข้าฝึก (คน)': c.activeStudentCount,
+        'นิสิตในวิชา (คน)': c.enrolledCount || '-',
+        'รอบฝึกสำเร็จ (ครั้ง)': c.completedCount,
+        'ชั่วโมงสะสมรวม (ชม.)': c.totalHoursFormatted,
+        หัตถการยอดนิยม: c.topSkills.join(', ') || '-',
+      }));
 
-      // 1. Summary Sheet
+      // 2. Student Summary Sheet
       const summaryRows = filteredCohort.map((s, index) => {
         const lastTerm = s.lastDate ? getAcademicTermByDate(s.lastDate, academicTerms) : null;
         return {
@@ -258,6 +501,7 @@ export default function PracticeHoursSummary({
           รหัสนิสิต: s.studentId,
           'ชื่อ-นามสกุล': s.name,
           สาขาวิชา: s.department,
+          รายวิชาที่เข้าฝึก: s.coursesList.map((c) => `${c.code} ${c.name}`).join(', ') || '-',
           ภาคการศึกษา: activeTerm ? formatTermName(activeTerm.term) : (lastTerm?.termName || 'ทุกภาคการศึกษา'),
           ปีการศึกษา: activeTerm ? (activeTerm.academicYear || '-') : (lastTerm?.academicYear || '-'),
           'จำนวนครั้งที่ฝึก (ครั้ง)': s.completedCount,
@@ -268,7 +512,7 @@ export default function PracticeHoursSummary({
         };
       });
 
-      // 2. Itemized Raw Sessions Sheet
+      // 3. Itemized Raw Sessions Sheet
       const rawRows: any[] = [];
       let rawIdx = 1;
       filteredCohort.forEach(s => {
@@ -279,8 +523,10 @@ export default function PracticeHoursSummary({
             ลำดับ: rawIdx++,
             รหัสนิสิต: s.studentId,
             'ชื่อ-นามสกุล': s.name,
-            ภาคการศึกษา: termInfo.termName,
-            ปีการศึกษา: termInfo.academicYear,
+            รหัสวิชา: r.course?.code || '-',
+            ชื่อรายวิชา: r.course?.name || 'ฝึกทักษะทั่วไป',
+            ภาคการศึกษา: r.course?.semester ? formatTermName(r.course.semester) : termInfo.termName,
+            ปีการศึกษา: r.course?.academicYear || termInfo.academicYear,
             วันที่ฝึก: r.slot?.date ? new Date(r.slot.date).toLocaleDateString('th-TH') : '-',
             ช่วงเวลา: r.slot ? `${r.slot.startTime} - ${r.slot.endTime}` : '-',
             ห้องปฏิบัติการ: r.slot?.room?.name || r.slot?.room?.code || '-',
@@ -296,15 +542,15 @@ export default function PracticeHoursSummary({
       });
 
       const wb = XLSX.utils.book_new();
-      const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
-      const wsRaw = XLSX.utils.json_to_sheet(rawRows);
-
-      XLSX.utils.book_append_sheet(wb, wsSummary, 'สรุปชั่วโมงนิสิต');
-      XLSX.utils.book_append_sheet(wb, wsRaw, 'บันทึกเวลาฝึกรายครั้ง');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(courseRows), 'สรุปตามรายวิชา');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), 'สรุปชั่วโมงนิสิต');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rawRows), 'บันทึกเวลาฝึกรายครั้ง');
 
       const dateStr = new Date().toISOString().slice(0, 10);
+      const selectedCourseObj = availableCourses.find((c) => c.id === selectedCourseId);
+      const fileCourseSuffix = selectedCourseObj ? `_${selectedCourseObj.code}` : '';
       const fileTermSuffix = activeTerm ? `_${(activeTerm.name || activeTerm.term || 'term').replace(/\s+/g, '_')}` : '';
-      XLSX.writeFile(wb, `รายงานสรุปชั่วโมงฝึกปฏิบัติการพยาบาล${fileTermSuffix}_${dateStr}.xlsx`);
+      XLSX.writeFile(wb, `รายงานสรุปชั่วโมงฝึกปฏิบัติการพยาบาล${fileCourseSuffix}${fileTermSuffix}_${dateStr}.xlsx`);
     } catch (err) {
       console.error('Export Excel failed:', err);
       alert('เกิดข้อผิดพลาดในการส่งออกไฟล์ Excel');
@@ -323,8 +569,10 @@ export default function PracticeHoursSummary({
           ลำดับ: idx + 1,
           รหัสนิสิต: studentId,
           'ชื่อ-นามสกุล': studentName,
-          ภาคการศึกษา: termInfo.termName,
-          ปีการศึกษา: termInfo.academicYear,
+          รหัสวิชา: b.course?.code || '-',
+          ชื่อรายวิชา: b.course?.name || 'ฝึกทักษะทั่วไป',
+          ภาคการศึกษา: b.course?.semester ? formatTermName(b.course.semester) : termInfo.termName,
+          ปีการศึกษา: b.course?.academicYear || termInfo.academicYear,
           วันที่ฝึก: b.slot?.date ? new Date(b.slot.date).toLocaleDateString('th-TH') : '-',
           ช่วงเวลา: b.slot ? `${b.slot.startTime} - ${b.slot.endTime}` : '-',
           ห้องปฏิบัติการ: b.slot?.room?.name || b.slot?.room?.code || '-',
@@ -530,8 +778,13 @@ export default function PracticeHoursSummary({
                           </td>
                           <td className="py-3.5 px-4">
                             <div className="font-bold text-slate-900 dark:text-slate-100">{b.skillTopic || '-'}</div>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold">
+                                {b.course ? `${b.course.code} ${b.course.name}` : 'ฝึกทักษะทั่วไป'}
+                              </span>
+                            </div>
                             {b.objectives && (
-                              <div className="text-[11px] text-slate-400 line-clamp-1">{b.objectives}</div>
+                              <div className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">{b.objectives}</div>
                             )}
                           </td>
                           <td className="py-3.5 px-4 text-center font-mono text-slate-600 dark:text-slate-400">
@@ -683,7 +936,8 @@ export default function PracticeHoursSummary({
 
           {/* Search, Filter & Export Action Bar */}
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-5 shadow-sm space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {/* Row 1: Search, Quick View Tabs & Export/Print */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
               {/* Search Box */}
               <div className="relative flex-1 max-w-md">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -691,69 +945,275 @@ export default function PracticeHoursSummary({
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="ค้นหาชื่อนิสิต หรือ รหัสนิสิต..."
+                  placeholder="ค้นหาชื่อนิสิต, รหัสนิสิต, รหัสวิชา หรือหัตถการ..."
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
 
-              {/* Filters & Export Button */}
-              <div className="flex flex-wrap items-center gap-2.5">
-                {/* Academic Term Filter */}
-                <select
-                  value={selectedTermId}
-                  onChange={(e) => setSelectedTermId(e.target.value)}
-                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
-                  title="เลือกกรองข้อมูลตามภาคการศึกษา"
-                >
-                  <option value="ALL">ภาคการศึกษา: ทั้งหมด</option>
-                  {academicTerms.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} {t.isCurrent ? '(ปัจจุบัน)' : ''}
-                    </option>
-                  ))}
-                </select>
-
-                {/* Hours Range Filter */}
-                <select
-                  value={hourFilter}
-                  onChange={(e) => setHourFilter(e.target.value as any)}
-                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
-                >
-                  <option value="ALL">ชั่วโมงฝึก: ทั้งหมด</option>
-                  <option value="GE10">สะสม ≥ 10 ชั่วโมง</option>
-                  <option value="5TO10">สะสม 5 - 9.9 ชั่วโมง</option>
-                  <option value="LT5">สะสม &lt; 5 ชั่วโมง</option>
-                </select>
-
-                {/* Sort By */}
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
-                >
-                  <option value="HOURS_DESC">เรียงตาม: ชั่วโมงฝึกมากสุด</option>
-                  <option value="HOURS_ASC">เรียงตาม: ชั่วโมงฝึกน้อยสุด</option>
-                  <option value="ID_ASC">เรียงตาม: รหัสนิสิต</option>
-                  <option value="NAME_ASC">เรียงตาม: ชื่อ ก-ฮ</option>
-                  <option value="DATE_DESC">เรียงตาม: เข้าฝึกล่าสุด</option>
-                </select>
+              {/* View Mode Switcher & Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2 print:hidden">
+                <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setTeacherViewMode('BY_COURSE')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      teacherViewMode === 'BY_COURSE'
+                        ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
+                    }`}
+                  >
+                    สรุปตามรายวิชา
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTeacherViewMode('BY_STUDENT')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      teacherViewMode === 'BY_STUDENT'
+                        ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-300 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
+                    }`}
+                  >
+                    สรุปรายบุคคล
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTeacherViewMode('BY_SESSION')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      teacherViewMode === 'BY_SESSION'
+                        ? 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-300 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
+                    }`}
+                  >
+                    บันทึกรายครั้ง
+                  </button>
+                </div>
 
                 {/* Export Excel Button */}
                 <button
                   type="button"
                   onClick={handleExportExcel}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-md shadow-emerald-600/20 transition cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-md shadow-emerald-600/20 transition cursor-pointer"
                 >
                   <FileSpreadsheet className="w-4 h-4" />
                   <span>ส่งออก Excel</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition cursor-pointer"
+                  title="พิมพ์รายงานสรุปการเข้าฝึก (A4)"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span className="hidden sm:inline">พิมพ์สรุป</span>
+                </button>
               </div>
+            </div>
+
+            {/* Row 2: Academic Term, Course, Instructor & Hour Filters */}
+            <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+              {/* Academic Term Filter */}
+              <select
+                value={selectedTermId}
+                onChange={(e) => setSelectedTermId(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+                title="เลือกกรองข้อมูลตามภาคการศึกษา"
+              >
+                <option value="ALL">ภาคการศึกษา: ทั้งหมด</option>
+                {academicTerms.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} {t.isCurrent ? '(ปัจจุบัน)' : ''}
+                  </option>
+                ))}
+              </select>
+
+              {/* Smart Course Filter (Active courses + Past courses with records in selected term) */}
+              <select
+                value={selectedCourseId}
+                onChange={(e) => setSelectedCourseId(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/60 dark:bg-indigo-950/40 text-xs font-bold text-indigo-900 dark:text-indigo-200 focus:outline-none cursor-pointer max-w-xs"
+                title="เลือกกรองข้อมูลตามรายวิชา"
+              >
+                <option value="ALL">รายวิชา: ทั้งหมด</option>
+                {availableCourses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.code} {c.name}
+                    {(c.status || 'ACTIVE') !== 'ACTIVE' ? ' (ปิดแล้ว)' : ''}
+                  </option>
+                ))}
+                <option value="NONE">ไม่ระบุรายวิชา (ฝึกทักษะทั่วไป)</option>
+              </select>
+
+              {/* Advisor / Instructor Filter */}
+              <select
+                value={selectedAdvisor}
+                onChange={(e) => setSelectedAdvisor(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer max-w-[220px]"
+                title="เลือกกรองตามอาจารย์ผู้รับผิดชอบ"
+              >
+                <option value="ALL">อาจารย์ผู้สอน: ทั้งหมด</option>
+                {availableAdvisors.map((adv) => (
+                  <option key={adv} value={adv}>
+                    {adv}
+                  </option>
+                ))}
+              </select>
+
+              {/* Quick Filter: My Courses / Students */}
+              {(isTeacher || isApprover || isAdmin) && currentUserInstructorKey && (
+                <button
+                  type="button"
+                  onClick={() => setOnlyMyCourses((v) => !v)}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center gap-1.5 ${
+                    onlyMyCourses
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40'
+                  }`}
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>เฉพาะวิชา/นิสิตของฉัน</span>
+                </button>
+              )}
+
+              {/* Hours Range Filter & Sort (for Student View) */}
+              {teacherViewMode === 'BY_STUDENT' && (
+                <>
+                  <select
+                    value={hourFilter}
+                    onChange={(e) => setHourFilter(e.target.value as any)}
+                    className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+                  >
+                    <option value="ALL">ชั่วโมงฝึก: ทั้งหมด</option>
+                    <option value="GE10">สะสม ≥ 10 ชั่วโมง</option>
+                    <option value="5TO10">สะสม 5 - 9.9 ชั่วโมง</option>
+                    <option value="LT5">สะสม &lt; 5 ชั่วโมง</option>
+                  </select>
+
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+                  >
+                    <option value="HOURS_DESC">เรียงตาม: ชั่วโมงฝึกมากสุด</option>
+                    <option value="HOURS_ASC">เรียงตาม: ชั่วโมงฝึกน้อยสุด</option>
+                    <option value="ID_ASC">เรียงตาม: รหัสนิสิต</option>
+                    <option value="NAME_ASC">เรียงตาม: ชื่อ ก-ฮ</option>
+                    <option value="DATE_DESC">เรียงตาม: เข้าฝึกล่าสุด</option>
+                  </select>
+                </>
+              )}
             </div>
           </div>
 
-          {/* Aggregated Student Table */}
+          {/* VIEW 1: COURSE-GROUPED SUMMARY (BY_COURSE) */}
+          {teacherViewMode === 'BY_COURSE' && (
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                    สรุปการเข้าฝึกปฏิบัติของนิสิตแยกตามรายวิชา ({courseSummaryList.length} รายวิชา)
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    คลิกที่รายวิชาใดก็ได้เพื่อดูรายชื่อนิสิตและบันทึกชั่วโมงสะสมเฉพาะวิชานั้น
+                  </p>
+                </div>
+              </div>
+
+              {courseSummaryList.length === 0 ? (
+                <div className="p-12 text-center text-slate-400 space-y-3">
+                  <BookOpen className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 stroke-[1.5]" />
+                  <p className="text-sm font-bold text-slate-600 dark:text-slate-400">ไม่พบข้อมูลรายวิชาตามเงื่อนไขที่เลือก</p>
+                  <p className="text-xs text-slate-400">ลองเปลี่ยนตัวกรองภาคการศึกษาหรืออาจารย์ผู้รับผิดชอบ</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-black">
+                        <th className="py-3.5 px-4">รหัสวิชา</th>
+                        <th className="py-3.5 px-4">ชื่อรายวิชา / อาจารย์ผู้รับผิดชอบ</th>
+                        <th className="py-3.5 px-4">ภาค/ปีการศึกษา</th>
+                        <th className="py-3.5 px-4 text-center">นิสิตที่เข้าฝึก</th>
+                        <th className="py-3.5 px-4 text-center">ฝึกสำเร็จ (ครั้ง)</th>
+                        <th className="py-3.5 px-4 text-center">ชั่วโมงสะสมรวม</th>
+                        <th className="py-3.5 px-4">หัตถการที่ฝึกบ่อย</th>
+                        <th className="py-3.5 px-4 text-center">ดูรายชื่อ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300 font-medium">
+                      {courseSummaryList.map((c) => (
+                        <tr
+                          key={c.courseId}
+                          onClick={() => {
+                            setSelectedCourseId(c.courseId);
+                            setTeacherViewMode('BY_STUDENT');
+                          }}
+                          className="hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition cursor-pointer"
+                        >
+                          <td className="py-3.5 px-4 whitespace-nowrap font-mono font-bold text-indigo-700 dark:text-indigo-300">
+                            {c.code}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="font-bold text-slate-900 dark:text-slate-100">{c.name}</div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                              อาจารย์: {c.instructorName}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            {c.semester !== '-' ? (
+                              <span className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                {formatTermName(c.semester)}/{c.academicYear}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                            <span className="font-black text-slate-900 dark:text-white">{c.activeStudentCount}</span>
+                            {c.enrolledCount > 0 && (
+                              <span className="text-slate-400 text-[11px]"> / {c.enrolledCount} คน</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 text-center font-bold">{c.completedCount}</td>
+                          <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 font-black text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/70 px-2.5 py-1 rounded-lg border border-teal-200 dark:border-teal-800/60">
+                              <Clock className="w-3.5 h-3.5" />
+                              <span>{c.totalHoursFormatted} ชม.</span>
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            {c.topSkills.length > 0 ? (
+                              <div className="flex flex-wrap gap-1 max-w-xs">
+                                {c.topSkills.map((sk, idx) => (
+                                  <span key={idx} className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                    {sk}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200/80 dark:border-indigo-800/60">
+                              <Users className="w-3.5 h-3.5" />
+                              <span>ดูรายชื่อ</span>
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VIEW 2: AGGREGATED STUDENT TABLE (BY_STUDENT) */}
+          {teacherViewMode === 'BY_STUDENT' && (
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
               <div>
                 <h3 className="text-base font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
                   <Users className="w-5 h-5 text-teal-600 dark:text-teal-400" />
@@ -763,13 +1223,22 @@ export default function PracticeHoursSummary({
                   คลิกที่แถวหรือปุ่ม "ดูประวัติ" เพื่อดูรายละเอียดรอบฝึกทั้งหมดของนิสิตแต่ละคน
                 </p>
               </div>
+              {selectedCourseId !== 'ALL' && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCourseId('ALL')}
+                  className="text-xs font-bold text-indigo-600 hover:underline cursor-pointer"
+                >
+                  ↺ แสดงทุกรายวิชา
+                </button>
+              )}
             </div>
 
             {filteredCohort.length === 0 ? (
               <div className="p-12 text-center text-slate-400 space-y-3">
                 <Users className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 stroke-[1.5]" />
                 <p className="text-sm font-bold text-slate-600 dark:text-slate-400">ไม่พบนิสิตตามเงื่อนไขที่ค้นหา</p>
-                <p className="text-xs text-slate-400">ลองเปลี่ยนคำค้นหาหรือตัวกรองช่วงชั่วโมง</p>
+                <p className="text-xs text-slate-400">ลองเปลี่ยนคำค้นหาหรือตัวกรองรายวิชา/ภาคการศึกษา</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -779,7 +1248,7 @@ export default function PracticeHoursSummary({
                       <th className="py-3.5 px-4 text-center w-12">#</th>
                       <th className="py-3.5 px-4">รหัสนิสิต</th>
                       <th className="py-3.5 px-4">ชื่อ-นามสกุล</th>
-                      <th className="py-3.5 px-4">สาขาวิชา</th>
+                      <th className="py-3.5 px-4">รายวิชาที่เข้าฝึก</th>
                       <th className="py-3.5 px-4 text-center">ฝึกสำเร็จ (ครั้ง)</th>
                       <th className="py-3.5 px-4 text-center">ชั่วโมงสะสม</th>
                       <th className="py-3.5 px-4">หัตถการหลักที่ฝึก</th>
@@ -807,9 +1276,20 @@ export default function PracticeHoursSummary({
                           </td>
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <div className="font-bold text-slate-900 dark:text-slate-100">{student.name}</div>
+                            <div className="text-[10px] text-slate-400">{student.department}</div>
                           </td>
-                          <td className="py-3.5 px-4 whitespace-nowrap text-slate-500 dark:text-slate-400">
-                            {student.department}
+                          <td className="py-3.5 px-4">
+                            <div className="flex flex-wrap gap-1 max-w-[200px]">
+                              {student.coursesList.map((c, cIdx) => (
+                                <span
+                                  key={cIdx}
+                                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/60"
+                                  title={c.name}
+                                >
+                                  {c.code}
+                                </span>
+                              ))}
+                            </div>
                           </td>
                           <td className="py-3.5 px-4 text-center font-bold text-slate-900 dark:text-slate-100">
                             {student.completedCount}
@@ -857,6 +1337,106 @@ export default function PracticeHoursSummary({
               </div>
             )}
           </div>
+          )}
+
+          {/* VIEW 3: ITEMIZED CHRONOLOGICAL SESSION LOG (BY_SESSION) */}
+          {teacherViewMode === 'BY_SESSION' && (
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="p-5 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="text-base font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <History className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                  ประวัติการเข้าฝึกรายครั้งทั้งหมด ({filteredSessions.length} รายการ)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  แสดงบันทึกวัน-เวลาที่เข้าฝึกจริง เรียงตามวันที่ล่าสุด พร้อมรายวิชา ห้องแล็บ และอาจารย์ผู้รับรอง
+                </p>
+              </div>
+
+              {filteredSessions.length === 0 ? (
+                <div className="p-12 text-center text-slate-400 space-y-3">
+                  <History className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 stroke-[1.5]" />
+                  <p className="text-sm font-bold text-slate-600 dark:text-slate-400">ไม่พบบันทึกการเข้าฝึกตามเงื่อนไขที่เลือก</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-black">
+                        <th className="py-3.5 px-4">วันที่ฝึก</th>
+                        <th className="py-3.5 px-4">นิสิต</th>
+                        <th className="py-3.5 px-4">รายวิชา</th>
+                        <th className="py-3.5 px-4">ห้องแล็บ</th>
+                        <th className="py-3.5 px-4">หัตถการ / อาจารย์</th>
+                        <th className="py-3.5 px-4 text-center">เช็คอิน - ออก</th>
+                        <th className="py-3.5 px-4 text-center">เวลาจริง</th>
+                        <th className="py-3.5 px-4 text-center">สถานะ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300 font-medium">
+                      {filteredSessions.map((r: any) => {
+                        const sessionDate = r.slot?.date || r.createdAt;
+                        const dateStr = r.slot?.date ? new Date(r.slot.date).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+                        const termInfo = getAcademicTermByDate(sessionDate, academicTerms);
+                        const inTime = r.checkInTime ? new Date(r.checkInTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
+                        const outTime = r.checkOutTime ? new Date(r.checkOutTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
+                        const uName = formatUserName(r.user) || r.user?.name || 'ไม่ระบุชื่อ';
+
+                        return (
+                          <tr key={r.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <div className="font-bold text-slate-900 dark:text-slate-100">{dateStr}</div>
+                              <div className="text-[10px] text-slate-400">
+                                {termInfo.termName} {termInfo.academicYear}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <div className="font-bold text-slate-900 dark:text-slate-100">{uName}</div>
+                              <div className="text-[10px] font-mono text-teal-700 dark:text-teal-400">{r.user?.studentId || '-'}</div>
+                            </td>
+                            <td className="py-3 px-4">
+                              {r.course ? (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/60">
+                                  {r.course.code} {r.course.name}
+                                </span>
+                              ) : (
+                                <span className="text-[11px] text-slate-400">ฝึกทักษะทั่วไป</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap text-teal-700 dark:text-teal-400 font-bold">
+                              {r.slot?.room?.name || r.slot?.room?.code || '-'}
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="font-bold">{r.skillTopic || '-'}</div>
+                              {r.advisorName && (
+                                <div className="text-[10px] text-slate-400">อาจารย์: {formatTeacherName(r.advisorName)}</div>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-center font-mono text-[11px] text-slate-500 whitespace-nowrap">
+                              {inTime} - {outTime}
+                            </td>
+                            <td className="py-3 px-4 text-center whitespace-nowrap font-bold text-teal-700 dark:text-teal-300">
+                              {r.actualMinutes ? `${(r.actualMinutes / 60).toFixed(1)} ชม.` : '-'}
+                            </td>
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                r.status === 'COMPLETED'
+                                  ? 'bg-teal-50 text-teal-700 dark:bg-teal-950/70 dark:text-teal-300'
+                                  : r.status === 'CHECKED_IN'
+                                  ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300'
+                                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                              }`}>
+                                {r.status === 'COMPLETED' ? 'ฝึกสำเร็จ' : r.status === 'CHECKED_IN' ? 'กำลังฝึก' : r.status}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -949,6 +1529,9 @@ export default function PracticeHoursSummary({
                         </td>
                         <td className="py-2.5 px-3">
                           <span className="font-bold">{r.skillTopic || '-'}</span>
+                          <div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 mt-0.5">
+                            {r.course ? `${r.course.code} ${r.course.name}` : 'ฝึกทักษะทั่วไป'}
+                          </div>
                           {r.advisorName && <div className="text-[10px] text-slate-400">อาจารย์: {formatTeacherName(r.advisorName)}</div>}
                         </td>
                         <td className="py-2.5 px-3 text-center font-mono text-[11px] text-slate-500 whitespace-nowrap">

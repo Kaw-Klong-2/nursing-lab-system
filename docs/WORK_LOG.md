@@ -17,6 +17,24 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-16] เพิ่มระบบเรียกดูและรายงานการเข้าฝึกของนิสิตแยกตามภาคการศึกษา รายวิชา และอาจารย์ผู้สอน (`/practice` & `/courses`)
+- **หมวดหมู่**: Student Practice & Instructor Reporting (`PracticeHoursSummary`, `/practice`, `/courses`)
+- **สิ่งที่ดำเนินการ**:
+  - **ขยาย API [`src/app/api/practice/bookings/route.ts`](file:///d:/LAB-system/src/app/api/practice/bookings/route.ts)**:
+    - รองรับการกรองข้อมูลการจองเข้าฝึกด้วย `courseId` (รวมถึง `NONE`), `advisorName`, `semester` และ `academicYear`
+  - **อัปเกรด [`src/components/practice/PracticeHoursSummary.tsx`](file:///d:/LAB-system/src/components/practice/PracticeHoursSummary.tsx)**:
+    - เพิ่มตัวกรองครบ 4 มิติ: ภาคการศึกษา (`AcademicTerm`), รายวิชาแบบ Smart Filter (แสดงรายวิชาที่เปิดอยู่ `ACTIVE` + รายวิชาที่เคยเปิดและมีประวัติฝึกในภาคเรียนนั้น), อาจารย์ผู้รับผิดชอบ, และปุ่มลัด `"เฉพาะวิชา/นิสิตของฉัน"`
+    - เพิ่ม 3 มุมมองการดูข้อมูลสำหรับอาจารย์/เจ้าหน้าที่: **สรุปตามรายวิชา** (แสดงจำนวนนิสิตที่เข้าฝึกเทียบยอดลงทะเบียน + คลิกดูรายชื่อนิสิตในวิชานั้นได้ทันที), **สรุปรายบุคคล** (พร้อมคอลัมน์รายวิชาที่เข้าฝึก), และ **บันทึกรายครั้ง**
+    - อัปเกรดการส่งออก **Excel (.xlsx 3 ชีต)** เพิ่มชีต `สรุปตามรายวิชา` และคอลัมน์รายวิชาครบทุกชีต พร้อมปุ่มพิมพ์รายงาน A4
+  - **เชื่อมหน้า [`src/app/practice/page.tsx`](file:///d:/LAB-system/src/app/practice/page.tsx) และ [`src/app/courses/page.tsx`](file:///d:/LAB-system/src/app/courses/page.tsx)**:
+    - รองรับ URL Deep-link `?tab=HOURS_LOG&courseId=...` และเพิ่มปุ่ม `"ดูการเข้าฝึกของนิสิตในวิชานี้"` ในหน้ารายละเอียดรายวิชา (`/courses`)
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/app/api/practice/bookings/route.ts`](file:///d:/LAB-system/src/app/api/practice/bookings/route.ts)
+  - [`src/components/practice/PracticeHoursSummary.tsx`](file:///d:/LAB-system/src/components/practice/PracticeHoursSummary.tsx)
+  - [`src/app/practice/page.tsx`](file:///d:/LAB-system/src/app/practice/page.tsx)
+  - [`src/app/courses/page.tsx`](file:///d:/LAB-system/src/app/courses/page.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `node scripts/librarian-audit.mjs` และ `npm run build` ผ่าน 100%
+
 ### [2026-11-16] ยกระดับแดชบอร์ดผู้บริหาร (`/executive`) ครบชุด: แท็บงบประมาณรายวิชา, กราฟแนวโน้มทั้งปี 12 เดือน, Strategic Insights ไดนามิก & ส่งออกรายงานประชุม A4/Excel
 - **หมวดหมู่**: Executive Cockpit 360° / Budget & Yearly Analytics / Boardroom Reporting
 - **สิ่งที่ดำเนินการ**:

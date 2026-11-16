@@ -12,11 +12,27 @@ export async function GET(req: Request) {
     const userId = searchParams.get('userId');
     const status = searchParams.get('status');
     const slotId = searchParams.get('slotId');
+    const courseId = searchParams.get('courseId');
+    const advisorName = searchParams.get('advisorName');
+    const semester = searchParams.get('semester');
+    const academicYear = searchParams.get('academicYear');
 
     const where: any = {};
     if (userId) where.userId = userId;
     if (status && status !== 'ALL') where.status = status;
     if (slotId) where.slotId = slotId;
+    if (courseId && courseId !== 'ALL') {
+      where.courseId = courseId === 'NONE' ? null : courseId;
+    }
+    if (advisorName && advisorName !== 'ALL') {
+      where.advisorName = { contains: advisorName, mode: 'insensitive' };
+    }
+    if (semester || academicYear) {
+      where.course = {
+        ...(semester ? { semester } : {}),
+        ...(academicYear ? { academicYear } : {}),
+      };
+    }
 
     const bookings = await prisma.practiceBooking.findMany({
       where,

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import {
   TrendingUp,
@@ -101,6 +101,7 @@ export default function ExecutiveDashboardPage() {
   const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getFullYear());
 
   const THAI_MONTHS = [
+    { value: 0, label: 'รวมทุกเดือน (ทั้งปี)' },
     { value: 1, label: 'มกราคม' },
     { value: 2, label: 'กุมภาพันธ์' },
     { value: 3, label: 'มีนาคม' },
@@ -116,18 +117,31 @@ export default function ExecutiveDashboardPage() {
   ];
 
   const years = [2024, 2025, 2026, 2027, 2028];
+  const hasInitializedMonthRef = useRef(false);
+  const skipNextFetchRef = useRef(false);
 
-  const fetchStats = async (manual = false, m = selectedMonth, y = selectedYear) => {
+  const fetchStats = async (manual = false, m = selectedMonth, y = selectedYear, auto = false) => {
     if (manual) setRefreshing(true);
     else setLoading(true);
 
     try {
-      const res = await fetch(`/api/executive/stats?month=${m}&year=${y}`, {
-        cache: 'no-store',
-      });
+      const res = await fetch(
+        `/api/executive/stats?month=${m}&year=${y}${auto ? '&auto=1' : ''}`,
+        { cache: 'no-store' }
+      );
       if (res.ok) {
         const json = await res.json();
         setData(json);
+        if (
+          auto &&
+          typeof json.currentMonth === 'number' &&
+          typeof json.currentYear === 'number' &&
+          (json.currentMonth !== m || json.currentYear !== y)
+        ) {
+          skipNextFetchRef.current = true;
+          setSelectedMonth(json.currentMonth);
+          setSelectedYear(json.currentYear);
+        }
       }
     } catch (e) {
       console.error('Failed to load executive stats', e);
@@ -138,7 +152,13 @@ export default function ExecutiveDashboardPage() {
   };
 
   useEffect(() => {
-    fetchStats(false, selectedMonth, selectedYear);
+    if (skipNextFetchRef.current) {
+      skipNextFetchRef.current = false;
+      return;
+    }
+    const isInitial = !hasInitializedMonthRef.current;
+    hasInitializedMonthRef.current = true;
+    fetchStats(false, selectedMonth, selectedYear, isInitial);
   }, [selectedMonth, selectedYear]);
 
   const kpis = data?.kpis;
@@ -148,6 +168,25 @@ export default function ExecutiveDashboardPage() {
   const topDemand = kpis?.topDemandEquipment || [];
   const aiInsights = kpis?.aiStrategicInsights || [];
   const nearExpiryItems = kpis?.nearExpiryItems || [];
+
+  const labUtilizationSummary = useMemo(() => {
+    const teachingTotal = Math.round(labUtilization.reduce((s: number, r: any) => s + (r.teachingHours || 0), 0) * 10) / 10;
+    const practiceTotal = Math.round(labUtilization.reduce((s: number, r: any) => s + (r.studentPracticeHours || 0), 0) * 10) / 10;
+    const examTotal = Math.round(labUtilization.reduce((s: number, r: any) => s + (r.examHours || 0), 0) * 10) / 10;
+    const grandTotal = Math.round((teachingTotal + practiceTotal + examTotal) * 10) / 10;
+    const activeUsageRooms = labUtilization.filter((r: any) => (r.totalHours || 0) > 0);
+    const sortedByTotal = [...activeUsageRooms].sort((a: any, b: any) => (b.totalHours || 0) - (a.totalHours || 0));
+    const practiceRooms = labUtilization.filter((r: any) => (r.studentPracticeHours || 0) > 0);
+    return {
+      teachingTotal,
+      practiceTotal,
+      examTotal,
+      grandTotal,
+      topRoom: sortedByTotal[0] || null,
+      secondRoom: sortedByTotal[1] || null,
+      practiceRooms,
+    };
+  }, [labUtilization]);
 
   // Active AI Insight
   const currentInsight = useMemo(() => {
@@ -749,22 +788,22 @@ export default function ExecutiveDashboardPage() {
           </div>
 
           {/* ROW 2: LAB SPACE UTILIZATION BY PURPOSE (3RD CHART) */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
                   <h3 className="text-base font-black text-slate-900 dark:text-white">
-                    3. สถิติชั่วโมงการใช้งานห้องปฏิบัติการ 9 ห้อง แยกตามวัตถุประสงค์ (คัดแยกห้องเก็บของออกแล้ว)
+                    3. สถิติชั่วโมงการใช้งานห้องปฏิบัติการ {labUtilization.length || 10} ห้อง แยกตามวัตถุประสงค์ (คัดแยกห้องเก็บของออกแล้ว)
                   </h3>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  สะท้อนความคุ้มค่าของการใช้พื้นที่ระหว่าง "การสอนตามตารางวิชา" vs "นิสิตจองฝึกทักษะอิสระ" vs "การสอบ OSCE"
+                  ชั่วโมงใช้งานจริงจากการเรียนการสอน นิสิตฝึกทักษะ และสอบ OSCE ({THAI_MONTHS.find((m) => m.value === selectedMonth)?.label} พ.ศ. {selectedYear + 543})
                 </p>
               </div>
 
               {/* Custom Legend */}
-              <div className="flex items-center gap-3 text-xs bg-slate-50 dark:bg-slate-800/80 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+              <div className="flex flex-wrap items-center gap-3 text-xs bg-slate-50 dark:bg-slate-800/80 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
                 <div className="flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded-sm bg-blue-500"></span>
                   <span className="text-slate-700 dark:text-slate-300 font-medium">การสอนตามตารางวิชา</span>
@@ -782,7 +821,7 @@ export default function ExecutiveDashboardPage() {
 
             <div className="h-72 w-full pt-2">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={labUtilization} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
+                <BarChart data={labUtilization} margin={{ top: 10, right: 10, left: -20, bottom: 25 }} barCategoryGap="24%">
                   <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
                   <XAxis
                     dataKey="shortName"
@@ -791,7 +830,7 @@ export default function ExecutiveDashboardPage() {
                     angle={-20}
                     textAnchor="end"
                   />
-                  <YAxis tick={{ fill: '#64748b', fontSize: 11 }} unit=" ชม." />
+                  <YAxis tick={{ fill: '#64748b', fontSize: 11 }} unit=" ชม." allowDecimals={false} />
                   <RechartsTooltip
                     content={({ active, payload }) => {
                       if (!active || !payload || !payload.length) return null;
@@ -821,21 +860,93 @@ export default function ExecutiveDashboardPage() {
                       );
                     }}
                   />
-                  <Bar dataKey="teachingHours" name="การสอนตามตารางวิชา" stackId="purpose" fill="#3b82f6" />
-                  <Bar dataKey="studentPracticeHours" name="นิสิตจองฝึกอิสระ" stackId="purpose" fill="#10b981" />
-                  <Bar dataKey="examHours" name="การสอบ OSCE" stackId="purpose" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="teachingHours" name="การสอนตามตารางวิชา" stackId="purpose" fill="#3b82f6" maxBarSize={46} />
+                  <Bar dataKey="studentPracticeHours" name="นิสิตจองฝึกอิสระ" stackId="purpose" fill="#10b981" maxBarSize={46} />
+                  <Bar dataKey="examHours" name="การสอบ OSCE" stackId="purpose" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={46} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
 
-            {/* Strategic Decision Insight */}
+            {/* Room Utilization Breakdown Table (ตารางตัวเลขชั่วโมงจริงรายห้อง) */}
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50 dark:bg-slate-950/60 text-slate-600 dark:text-slate-400 font-bold border-b border-slate-200 dark:border-slate-800">
+                  <tr>
+                    <th className="p-3">รหัสห้อง</th>
+                    <th className="p-3">ห้องปฏิบัติการ</th>
+                    <th className="p-3 text-right text-blue-700 dark:text-blue-400">การสอนตามตารางวิชา (ชม.)</th>
+                    <th className="p-3 text-right text-emerald-700 dark:text-emerald-400">นิสิตจองฝึกอิสระ (ชม.)</th>
+                    <th className="p-3 text-right text-amber-700 dark:text-amber-400">สอบประเมิน/OSCE (ชม.)</th>
+                    <th className="p-3 text-right">รวมทั้งหมด (ชม.)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {labUtilization.map((r: any) => (
+                    <tr key={r.roomId} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                      <td className="p-2.5 px-3 font-mono font-bold text-indigo-700 dark:text-indigo-400 whitespace-nowrap">
+                        {r.roomCode}
+                      </td>
+                      <td className="p-2.5 px-3 font-medium text-slate-800 dark:text-slate-200">
+                        {r.shortName}
+                        <span className="hidden md:inline text-[11px] text-slate-400 ml-1.5 font-normal">
+                          ({r.roomName})
+                        </span>
+                      </td>
+                      <td className="p-2.5 px-3 text-right font-mono tabular-nums text-blue-600 dark:text-blue-400 font-semibold">
+                        {r.teachingHours > 0 ? r.teachingHours.toFixed(1) : '-'}
+                      </td>
+                      <td className="p-2.5 px-3 text-right font-mono tabular-nums text-emerald-600 dark:text-emerald-400 font-semibold">
+                        {r.studentPracticeHours > 0 ? r.studentPracticeHours.toFixed(1) : '-'}
+                      </td>
+                      <td className="p-2.5 px-3 text-right font-mono tabular-nums text-amber-600 dark:text-amber-400 font-semibold">
+                        {r.examHours > 0 ? r.examHours.toFixed(1) : '-'}
+                      </td>
+                      <td className="p-2.5 px-3 text-right font-mono tabular-nums font-black text-slate-900 dark:text-white">
+                        {r.totalHours.toFixed(1)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-indigo-50/60 dark:bg-indigo-950/30 border-t-2 border-indigo-200/80 dark:border-indigo-800/60 font-bold">
+                  <tr>
+                    <td colSpan={2} className="p-3 text-slate-800 dark:text-slate-100">
+                      รวมชั่วโมงใช้งานทางวิชาการทั้งหมด ({labUtilization.length} ห้อง)
+                    </td>
+                    <td className="p-3 text-right font-mono tabular-nums text-blue-700 dark:text-blue-300">
+                      {labUtilizationSummary.teachingTotal.toFixed(1)}
+                    </td>
+                    <td className="p-3 text-right font-mono tabular-nums text-emerald-700 dark:text-emerald-300">
+                      {labUtilizationSummary.practiceTotal.toFixed(1)}
+                    </td>
+                    <td className="p-3 text-right font-mono tabular-nums text-amber-700 dark:text-amber-300">
+                      {labUtilizationSummary.examTotal.toFixed(1)}
+                    </td>
+                    <td className="p-3 text-right font-mono tabular-nums font-black text-indigo-800 dark:text-indigo-200">
+                      {labUtilizationSummary.grandTotal.toFixed(1)} ชม.
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Strategic Decision Insight (Dynamic) */}
             <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-500/30 text-xs text-indigo-900 dark:text-indigo-200 flex items-start gap-2.5">
               <span className="text-base shrink-0">💡</span>
               <div>
                 <strong className="font-bold text-indigo-950 dark:text-indigo-100 block mb-0.5">
                   ข้อเสนอแนะเชิงกลยุทธ์ (Strategic Insight):
                 </strong>
-                ห้องปฏิบัติการพื้นฐาน 1/3 และห้องปฏิบัติการผู้ใหญ่/ผู้สูงอายุ มีอัตรานิสิตเข้าฝึกทักษะด้วยตนเองอย่างต่อเนื่อง สะท้อนถึงการส่งเสริมการเรียนรู้เชิงรุก (Active Learning) จึงเสนอแนะให้พิจารณาความพร้อมในการจัดสรรเวลาเปิดให้บริการเพิ่มเติมในช่วงก่อนการสอบประเมินสมรรถนะ
+                {labUtilizationSummary.grandTotal === 0 ? (
+                  <span>
+                    ยังไม่มีบันทึกการใช้งานห้องปฏิบัติการเพื่อการเรียนการสอนในเดือนที่เลือก — กรุณาเลือกเดือนที่มีการบันทึกข้อมูล (เช่น ตุลาคม 2569) หรือเลือก <strong>&quot;รวมทุกเดือน (ทั้งปี)&quot;</strong> เพื่อดูภาพรวมตลอดปีการศึกษา
+                  </span>
+                ) : (
+                  <span>
+                    ช่วงเวลาที่เลือกมีการใช้ห้องปฏิบัติการรวม <strong>{labUtilizationSummary.grandTotal.toFixed(1)} ชม.</strong> (การสอน {labUtilizationSummary.teachingTotal.toFixed(1)} ชม. • นิสิตฝึกซ้อม {labUtilizationSummary.practiceTotal.toFixed(1)} ชม. • สอบ OSCE {labUtilizationSummary.examTotal.toFixed(1)} ชม.) โดยห้องที่มีชั่วโมงใช้งานสูงสุดคือ <strong>{labUtilizationSummary.topRoom?.roomName}</strong> ({labUtilizationSummary.topRoom?.totalHours} ชม.)
+                    {labUtilizationSummary.practiceRooms.length > 0 &&
+                      ` และพบนิสิตเข้าฝึกซ้อมทักษะเด่นชัดในห้อง ${labUtilizationSummary.practiceRooms.map((p: any) => p.shortName).join(', ')} จึงควรเตรียมอุปกรณ์และช่วงเวลาเปิดให้บริการให้เพียงพอก่อนช่วงสอบ OSCE`}
+                  </span>
+                )}
               </div>
             </div>
           </div>

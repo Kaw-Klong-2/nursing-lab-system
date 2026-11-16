@@ -6,14 +6,76 @@ import { ORG_CONFIG } from '@/lib/constants/organization';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+function classifyAcSession(
+  purposeStr?: string | null,
+  noteStr?: string | null,
+  isStorageRoom = false
+): 'TEACHING' | 'PRACTICE' | 'EXAM' | 'PRESERVE' {
+  const pText = (purposeStr || '').trim();
+  const nText = (noteStr || '').trim();
+
+  // 1. Student self-practice / skill training (including practice before exam)
+  if (
+    pText.includes('ฝึกซ้อม') ||
+    pText.includes('ฝึกทักษะ') ||
+    pText.includes('ฝึกอิสระ') ||
+    (!isStorageRoom && nText.includes('ฝึกซ้อมของนิสิต'))
+  ) {
+    return 'PRACTICE';
+  }
+
+  // 2. Assessment / OSCE exam
+  if (pText.includes('สอบ') || pText.toUpperCase().includes('OSCE')) {
+    return 'EXAM';
+  }
+
+  // 3. Scheduled class teaching / academic conference / training
+  if (
+    pText.includes('การเรียนการสอน') ||
+    pText.includes('สอน') ||
+    pText.includes('เรียน') ||
+    pText.includes('ประชุม') ||
+    pText.includes('อบรม') ||
+    (!isStorageRoom &&
+      (nText.includes('conference') || nText.includes('อ.') || nText.includes('โรงเรียน')))
+  ) {
+    return 'TEACHING';
+  }
+
+  // 4. Equipment preservation, room setup/teardown, maintenance, or storage room logs
+  return 'PRESERVE';
+}
+
+function getMonthDateRange(month: number, year: number) {
+  if (month === 0) {
+    return {
+      start: new Date(Date.UTC(year, 0, 1)),
+      end: new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999)),
+    };
+  }
+  return {
+    start: new Date(Date.UTC(year, month - 1, 1)),
+    end: new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)),
+  };
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const currentMonth = parseInt(searchParams.get('month') || String(new Date().getMonth() + 1));
-    const currentYear = parseInt(searchParams.get('year') || String(new Date().getFullYear()));
+    const rawMonth = searchParams.get('month');
+    const rawYear = searchParams.get('year');
+    const isAuto = searchParams.get('auto') === '1';
 
-    const startDateMonth = new Date(Date.UTC(currentYear, currentMonth - 1, 1));
-    const endDateMonth = new Date(Date.UTC(currentYear, currentMonth, 0, 23, 59, 59, 999));
+    let currentMonth =
+      rawMonth !== null && !Number.isNaN(Number(rawMonth))
+        ? parseInt(rawMonth, 10)
+        : new Date().getMonth() + 1;
+    let currentYear =
+      rawYear !== null && !Number.isNaN(Number(rawYear))
+        ? parseInt(rawYear, 10)
+        : new Date().getFullYear();
+
+    let { start: startDateMonth, end: endDateMonth } = getMonthDateRange(currentMonth, currentYear);
 
     // 1. Equipment Assets Metrics
     const assets = await prisma.equipmentAsset.findMany({
@@ -58,7 +120,7 @@ export async function GET(req: Request) {
       totalAssetsCount > 0 ? Math.round(((availableCount + borrowedCount) / totalAssetsCount) * 1000) / 10 : 100;
 
     // 2. AC Energy & Operation Hours (only logs with usageHours > 0)
-    const acLogs = await prisma.acOperationLog.findMany({
+    let acLogs = await prisma.acOperationLog.findMany({
       where: {
         date: {
           gte: startDateMonth,
@@ -71,6 +133,34 @@ export async function GET(req: Request) {
       },
     });
 
+    // If initial auto-load hits an empty month (e.g. current month has no logs yet), jump to latest month with data
+    if (isAuto && currentMonth > 0 && acLogs.length === 0) {
+      const latestLog = await prisma.acOperationLog.findFirst({
+        where: { usageHours: { gt: 0 } },
+        orderBy: { date: 'desc' },
+        select: { date: true },
+      });
+      if (latestLog) {
+        currentMonth = latestLog.date.getUTCMonth() + 1;
+        currentYear = latestLog.date.getUTCFullYear();
+        const updatedRange = getMonthDateRange(currentMonth, currentYear);
+        startDateMonth = updatedRange.start;
+        endDateMonth = updatedRange.end;
+        acLogs = await prisma.acOperationLog.findMany({
+          where: {
+            date: {
+              gte: startDateMonth,
+              lte: endDateMonth,
+            },
+            usageHours: { gt: 0 },
+          },
+          include: {
+            room: { select: { id: true, name: true, code: true } },
+          },
+        });
+      }
+    }
+
     let totalAcHoursMonth = 0;
     let maintenanceAcHours = 0;
     let teachingAcHours = 0;
@@ -80,6 +170,9 @@ export async function GET(req: Request) {
         roomId: string;
         roomCode: string;
         roomName: string;
+        classTeachingHours: number;
+        studentPracticeHours: number;
+        examHours: number;
         teachingHours: number;
         preservationHours: number;
         totalHours: number;
@@ -101,6 +194,9 @@ export async function GET(req: Request) {
           roomId: rId,
           roomCode: rCode,
           roomName: rName,
+          classTeachingHours: 0,
+          studentPracticeHours: 0,
+          examHours: 0,
           teachingHours: 0,
           preservationHours: 0,
           totalHours: 0,
@@ -117,70 +213,49 @@ export async function GET(req: Request) {
         }
       }
 
-      if (Array.isArray(parsedSessions) && parsedSessions.length > 0) {
-        parsedSessions.forEach((s) => {
-          const sh = Number(s.hours) || 0;
-          if (sh <= 0) return;
-          totalAcHoursMonth += sh;
-          const isTeaching =
-            (s.purpose?.includes('สอน') || s.purpose?.includes('เรียน') || s.purpose?.includes('ฝึก')) &&
-            !s.purpose?.includes('รักษาอุปกรณ์');
+      const entries =
+        Array.isArray(parsedSessions) && parsedSessions.length > 0
+          ? parsedSessions.map((s) => ({
+              hours: Number(s.hours) || 0,
+              purpose: s.purpose || l.purpose,
+            }))
+          : [{ hours: h, purpose: l.purpose }];
 
-          const isFacilityPrep =
-            l.note?.includes('จัดห้อง') ||
-            l.note?.includes('เตรียมห้อง') ||
-            l.note?.includes('เคลียร์ห้อง') ||
-            s.purpose?.includes('จัดห้อง');
+      entries.forEach((entry) => {
+        const eh = entry.hours;
+        if (eh <= 0) return;
 
-          const isPreserve =
-            !isTeaching &&
-            (isStorageRoom ||
-              isFacilityPrep ||
-              s.purpose?.includes('รักษาอุปกรณ์') ||
-              s.purpose?.includes('ถนอมรักษา') ||
-              s.purpose?.includes('บำรุงรักษา'));
+        totalAcHoursMonth += eh;
+        const category = classifyAcSession(entry.purpose, l.note, isStorageRoom);
 
-          if (isPreserve) {
-            maintenanceAcHours += sh;
-            roomAcHoursMap[rId].preservationHours += sh;
-          } else {
-            teachingAcHours += sh;
-            roomAcHoursMap[rId].teachingHours += sh;
-          }
-          roomAcHoursMap[rId].totalHours += sh;
-        });
-      } else {
-        totalAcHoursMonth += h;
-        const isTeaching =
-          (l.purpose?.includes('สอน') || l.purpose?.includes('เรียน') || l.purpose?.includes('ฝึก')) &&
-          !l.purpose?.includes('รักษาอุปกรณ์');
-
-        const isFacilityPrep =
-          l.note?.includes('จัดห้อง') ||
-          l.note?.includes('เตรียมห้อง') ||
-          l.note?.includes('เคลียร์ห้อง') ||
-          l.purpose?.includes('จัดห้อง');
-
-        const isPreserve =
-          !isTeaching &&
-          (isStorageRoom ||
-            isFacilityPrep ||
-            l.purpose?.includes('รักษาอุปกรณ์') ||
-            l.purpose?.includes('ถนอมรักษา') ||
-            l.purpose?.includes('บำรุงรักษา'));
-
-        if (isPreserve) {
-          maintenanceAcHours += h;
-          roomAcHoursMap[rId].preservationHours += h;
+        if (category === 'PRESERVE') {
+          maintenanceAcHours += eh;
+          roomAcHoursMap[rId].preservationHours += eh;
         } else {
-          teachingAcHours += h;
-          roomAcHoursMap[rId].teachingHours += h;
+          if (category === 'TEACHING') {
+            roomAcHoursMap[rId].classTeachingHours += eh;
+          } else if (category === 'PRACTICE') {
+            roomAcHoursMap[rId].studentPracticeHours += eh;
+          } else if (category === 'EXAM') {
+            roomAcHoursMap[rId].examHours += eh;
+          }
+
+          if (isStorageRoom) {
+            maintenanceAcHours += eh;
+            roomAcHoursMap[rId].preservationHours += eh;
+          } else {
+            teachingAcHours += eh;
+            roomAcHoursMap[rId].teachingHours += eh;
+          }
         }
-        roomAcHoursMap[rId].totalHours += h;
-      }
+        roomAcHoursMap[rId].totalHours += eh;
+      });
     });
 
     Object.values(roomAcHoursMap).forEach((r) => {
+      r.classTeachingHours = Math.round(r.classTeachingHours * 10) / 10;
+      r.studentPracticeHours = Math.round(r.studentPracticeHours * 10) / 10;
+      r.examHours = Math.round(r.examHours * 10) / 10;
       r.teachingHours = Math.round(r.teachingHours * 10) / 10;
       r.preservationHours = Math.round(r.preservationHours * 10) / 10;
       r.totalHours = Math.round(r.totalHours * 10) / 10;
@@ -289,11 +364,9 @@ export async function GET(req: Request) {
 
     const labUtilizationBreakdown = mainPracticeRooms.map((room) => {
       const roomLog = roomAcHoursMap[room.id];
-      const baseHours = roomLog ? roomLog.teachingHours : 0;
-      // ประเมินสัดส่วน: การสอน 60%, นิสิตฝึกอิสระ 28%, สอบประเมิน/OSCE 12%
-      const teachingHours = Math.round(baseHours * 0.6 * 10) / 10;
-      const studentPracticeHours = Math.round(baseHours * 0.28 * 10) / 10;
-      const examHours = Math.round(baseHours * 0.12 * 10) / 10;
+      const teachingHours = roomLog ? Math.round(roomLog.classTeachingHours * 10) / 10 : 0;
+      const studentPracticeHours = roomLog ? Math.round(roomLog.studentPracticeHours * 10) / 10 : 0;
+      const examHours = roomLog ? Math.round(roomLog.examHours * 10) / 10 : 0;
       const totalHours = Math.round((teachingHours + studentPracticeHours + examHours) * 10) / 10;
 
       return {
@@ -301,12 +374,16 @@ export async function GET(req: Request) {
         roomCode: room.code,
         roomName: room.name,
         shortName: getRoomShortName(room.name),
-        teachingHours: teachingHours || 12.0,
-        studentPracticeHours: studentPracticeHours || 6.5,
-        examHours: examHours || 2.5,
-        totalHours: totalHours || 21.0,
+        teachingHours,
+        studentPracticeHours,
+        examHours,
+        totalHours,
       };
     });
+
+    const totalRoomSelfPracticeHours = Math.round(
+      labUtilizationBreakdown.reduce((sum, r) => sum + r.studentPracticeHours, 0) * 10
+    ) / 10;
 
     // 8. Top 5 High-Demand Equipment (5 อันดับครุภัณฑ์ที่มีความต้องการยืมสูงสุด)
     const borrowItems = await prisma.borrowItem.findMany({
@@ -429,8 +506,11 @@ export async function GET(req: Request) {
             .sort((a, b) => b.hours - a.hours),
           totalConsumablesValuation,
           expiringLotsCount: expiringCount,
-          totalPracticeHours: Math.round(totalPracticeHours * 10) / 10,
-          totalRoomsCount,
+          totalPracticeHours:
+            totalPracticeHours > 0
+              ? Math.round(totalPracticeHours * 10) / 10
+              : totalRoomSelfPracticeHours,
+          totalRoomsCount: mainPracticeRooms.length || totalRoomsCount,
           categoryDistribution,
           labUtilizationBreakdown,
           topDemandEquipment,

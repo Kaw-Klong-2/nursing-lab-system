@@ -422,22 +422,186 @@ export async function GET(req: Request) {
       ];
     }
 
-    // 9. AI Strategic Insights (Zero-PII Synthesized Insights)
-    const simRatio = categoryDistribution.find((c) => c.name.includes('หุ่น') || c.name.includes('Sim'))?.percentage || 55.2;
+    // 9. 12-Month Trend Analytics (Jan - Dec of currentYear)
+    const THAI_SHORT_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    const yearStart = new Date(Date.UTC(currentYear, 0, 1));
+    const yearEnd = new Date(Date.UTC(currentYear, 11, 31, 23, 59, 59, 999));
+    const yearlyAcLogs = await prisma.acOperationLog.findMany({
+      where: {
+        date: { gte: yearStart, lte: yearEnd },
+        usageHours: { gt: 0 },
+      },
+      include: { room: { select: { code: true } } },
+    });
+
+    const monthlyTrends = THAI_SHORT_MONTHS.map((label, idx) => ({
+      month: idx + 1,
+      label,
+      teachingHours: 0,
+      studentPracticeHours: 0,
+      examHours: 0,
+      academicHours: 0,
+      preservationHours: 0,
+      totalAcHours: 0,
+    }));
+
+    yearlyAcLogs.forEach((l) => {
+      const mIdx = l.date.getUTCMonth();
+      if (mIdx < 0 || mIdx > 11) return;
+      const bucket = monthlyTrends[mIdx];
+      const rCode = l.room?.code || '';
+      const isStorageRoom = rCode.startsWith('LAB-EQ') || rCode.startsWith('LAB-CS');
+
+      let parsedSessions: any[] = [];
+      if (l.sessionsJson) {
+        try {
+          parsedSessions = JSON.parse(l.sessionsJson);
+        } catch {
+          parsedSessions = [];
+        }
+      }
+
+      const entries =
+        Array.isArray(parsedSessions) && parsedSessions.length > 0
+          ? parsedSessions.map((s) => ({
+              hours: Number(s.hours) || 0,
+              purpose: s.purpose || l.purpose,
+            }))
+          : [{ hours: Number(l.usageHours) || 0, purpose: l.purpose }];
+
+      entries.forEach((entry) => {
+        const eh = entry.hours;
+        if (eh <= 0) return;
+        const category = classifyAcSession(entry.purpose, l.note, isStorageRoom);
+        if (category === 'PRESERVE' || isStorageRoom) {
+          bucket.preservationHours += eh;
+        } else {
+          if (category === 'TEACHING') bucket.teachingHours += eh;
+          else if (category === 'PRACTICE') bucket.studentPracticeHours += eh;
+          else if (category === 'EXAM') bucket.examHours += eh;
+          bucket.academicHours += eh;
+        }
+        bucket.totalAcHours += eh;
+      });
+    });
+
+    monthlyTrends.forEach((b) => {
+      b.teachingHours = Math.round(b.teachingHours * 10) / 10;
+      b.studentPracticeHours = Math.round(b.studentPracticeHours * 10) / 10;
+      b.examHours = Math.round(b.examHours * 10) / 10;
+      b.academicHours = Math.round(b.academicHours * 10) / 10;
+      b.preservationHours = Math.round(b.preservationHours * 10) / 10;
+      b.totalAcHours = Math.round(b.totalAcHours * 10) / 10;
+    });
+
+    // 10. Course Budget & Consumable Cost Analytics
+    const activeCourses = await prisma.course.findMany({
+      where: { status: 'ACTIVE' },
+      include: {
+        stockTransactions: {
+          where: { type: 'OUT_REQUISITION' },
+          select: { totalCost: true },
+        },
+        requisitionRequests: {
+          where: { status: 'DISPENSED' },
+          include: { items: true },
+        },
+      },
+      orderBy: { code: 'asc' },
+    });
+
+    let totalAllocatedBudget = 0;
+    let totalSpentAmount = 0;
+    let totalStudentsEnrolled = 0;
+
+    const courseRows = activeCourses.map((course) => {
+      const allocatedBudget = Number(course.allocatedBudget) || 0;
+      const txSpent = course.stockTransactions.reduce((sum, tx) => sum + Math.abs(tx.totalCost || 0), 0);
+      let reqSpent = 0;
+      if (txSpent === 0 && course.requisitionRequests.length > 0) {
+        course.requisitionRequests.forEach((req) => {
+          req.items.forEach((reqItem) => {
+            reqSpent +=
+              Number(reqItem.totalCost) ||
+              (reqItem.quantityDispensed || reqItem.quantityRequested) * (reqItem.unitCost || 0);
+          });
+        });
+      }
+      const spentAmount = Math.round((txSpent > 0 ? txSpent : reqSpent) * 100) / 100;
+      const remainingBudget = Math.round((allocatedBudget - spentAmount) * 100) / 100;
+      const utilizationPercent =
+        allocatedBudget > 0 ? Math.round((spentAmount / allocatedBudget) * 1000) / 10 : 0;
+      const studentCount = Number(course.studentCount) || 0;
+      const costPerStudent =
+        studentCount > 0 ? Math.round((spentAmount / studentCount) * 100) / 100 : 0;
+
+      totalAllocatedBudget += allocatedBudget;
+      totalSpentAmount += spentAmount;
+      totalStudentsEnrolled += studentCount;
+
+      return {
+        id: course.id,
+        code: course.code,
+        name: course.name,
+        shortLabel: `${course.code}`,
+        semester: course.semester,
+        academicYear: course.academicYear,
+        instructorName: course.instructorName || '-',
+        allocatedBudget,
+        spentAmount,
+        remainingBudget,
+        utilizationPercent,
+        studentCount,
+        costPerStudent,
+        requisitionCount: course.requisitionRequests.length,
+      };
+    });
+
+    const totalRemainingBudget = Math.round((totalAllocatedBudget - totalSpentAmount) * 100) / 100;
+    const overallUtilizationPercent =
+      totalAllocatedBudget > 0
+        ? Math.round((totalSpentAmount / totalAllocatedBudget) * 1000) / 10
+        : 0;
+    const avgCostPerStudent =
+      totalStudentsEnrolled > 0
+        ? Math.round((totalSpentAmount / totalStudentsEnrolled) * 100) / 100
+        : 0;
+
+    const courseBudgetAnalytics = {
+      totalAllocatedBudget,
+      totalSpentAmount: Math.round(totalSpentAmount * 100) / 100,
+      totalRemainingBudget,
+      overallUtilizationPercent,
+      totalStudentsEnrolled,
+      avgCostPerStudent,
+      courses: courseRows,
+    };
+
+    // 11. AI Strategic Insights (Zero-PII Synthesized Insights)
+    const topCategory = categoryDistribution[0];
     const aiStrategicInsights = [
       {
         id: 'INSIGHT-CAPITAL',
         topic: 'โครงสร้างการลงทุนในสินทรัพย์ (Capital Allocation)',
         priority: 'HIGH',
-        summary: `ครุภัณฑ์กลุ่มหุ่นจำลองเสมือนจริงขั้นสูงคิดเป็นสัดส่วนสูงที่สุด (${simRatio}% ของมูลค่าสินทรัพย์รวม ฿${(totalValuation / 1000000).toFixed(2)}M)`,
-        recommendation: 'เป็นสินทรัพย์ยุทธศาสตร์หลัก ควรจัดสรรงบประมาณสำหรับ Preventive Maintenance รายปี และควบคุมการเปิดแอร์ควบคุมความชื้นเพื่อป้องกันความเสียหายต่อบอร์ดเซนเซอร์ภายใน',
+        summary: topCategory
+          ? `หมวดหมู่ "${topCategory.name}" มีมูลค่าลงทุนสูงสุด (${topCategory.percentage}% จากมูลค่ารวม ฿${(totalValuation / 1000000).toFixed(2)}M)`
+          : `มูลค่าสินทรัพย์ครุภัณฑ์รวม ฿${(totalValuation / 1000000).toFixed(2)}M`,
+        recommendation: 'ควรจัดสรรงบประมาณสำหรับ Preventive Maintenance รายปี และควบคุมการเปิดแอร์ควบคุมความชื้นเพื่อป้องกันความเสียหายต่อบอร์ดเซนเซอร์ภายในหุ่นจำลองขั้นสูง',
       },
       {
         id: 'INSIGHT-READINESS',
         topic: 'ดัชนีสุขภาวะและความพร้อมใช้งาน (Asset Health & Readiness)',
         priority: readinessRate >= 95 ? 'NORMAL' : 'HIGH',
-        summary: `อัตราความพร้อมใช้งานอยู่ที่ ${readinessRate}% (สูงกว่าเป้าหมาย 90%) มีครุภัณฑ์ส่งซ่อมบำรุง ${maintenanceCount} ชิ้น และชำรุด ${damagedCount} ชิ้น`,
+        summary: `อัตราความพร้อมใช้งานอยู่ที่ ${readinessRate}% (${readinessRate >= 90 ? 'สูงกว่าเป้าหมาย 90%' : 'ต่ำกว่าเกณฑ์มาตรฐาน 90%'}) มีครุภัณฑ์ส่งซ่อมบำรุง ${maintenanceCount} ชิ้น และชำรุด ${damagedCount} ชิ้น`,
         recommendation: maintenanceCount > 0 ? 'ควรเร่งติดตามใบสั่งซ่อมและอะไหล่จากศูนย์ตัวแทน เพื่อไม่ให้กระทบต่อช่วงสอบประเมินสมรรถนะของนิสิต' : 'สถานะครุภัณฑ์มีความพร้อมสมบูรณ์สำหรับการเรียนการสอนและฝึกทักษะ',
+      },
+      {
+        id: 'INSIGHT-BUDGET',
+        topic: 'งบประมาณและต้นทุนเวชภัณฑ์รายวิชา (Course Budget)',
+        priority: overallUtilizationPercent > 85 ? 'HIGH' : 'NORMAL',
+        summary: `งบประมาณรายวิชาที่เปิดสอนทั้งหมด ฿${totalAllocatedBudget.toLocaleString()} เบิกจ่ายเวชภัณฑ์จริงแล้ว ฿${Math.round(totalSpentAmount).toLocaleString()} (${overallUtilizationPercent}%) ต้นทุนเฉลี่ย ฿${avgCostPerStudent.toLocaleString()} / นิสิต`,
+        recommendation: 'ติดตามอัตราการเบิกจ่ายวัสดุสิ้นเปลืองรายวิชาเปรียบเทียบกับจำนวนนิสิตที่ลงทะเบียน เพื่อใช้ประกอบการจัดสรรงบประมาณปีการศึกษาถัดไปอย่างคุ้มค่า',
       },
       {
         id: 'INSIGHT-GREEN-LAB',
@@ -514,6 +678,8 @@ export async function GET(req: Request) {
           categoryDistribution,
           labUtilizationBreakdown,
           topDemandEquipment,
+          monthlyTrends,
+          courseBudgetAnalytics,
           aiStrategicInsights,
           nearExpiryItems,
         },

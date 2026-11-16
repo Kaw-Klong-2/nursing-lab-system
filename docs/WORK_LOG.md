@@ -17,6 +17,22 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-16] ยกระดับแดชบอร์ดผู้บริหาร (`/executive`) ครบชุด: แท็บงบประมาณรายวิชา, กราฟแนวโน้มทั้งปี 12 เดือน, Strategic Insights ไดนามิก & ส่งออกรายงานประชุม A4/Excel
+- **หมวดหมู่**: Executive Cockpit 360° / Budget & Yearly Analytics / Boardroom Reporting
+- **สิ่งที่ดำเนินการ**:
+  - **ขยาย API [`src/app/api/executive/stats/route.ts`](file:///d:/LAB-system/src/app/api/executive/stats/route.ts)**:
+    - คำนวณ `monthlyTrends` ตลอด 12 เดือน (`ม.ค.–ธ.ค.`) แยกชั่วโมงการสอน นิสิตฝึกอิสระ สอบ OSCE และชั่วโมงถนอมรักษาอุปกรณ์/จัดห้อง
+    - คำนวณ `courseBudgetAnalytics` ดึงข้อมูลจริงจาก `Course`, `StockTransaction` และ `RequisitionRequest` สรุปงบจัดสรร ยอดเบิกจริง คงเหลือ และต้นทุนต่อนิสิต 1 คน พร้อมเพิ่มมิติ `INSIGHT-BUDGET` ใน AI Executive Advisor
+  - **อัปเกรดหน้าจอ [`src/app/executive/page.tsx`](file:///d:/LAB-system/src/app/executive/page.tsx)**:
+    - เพิ่ม **กราฟที่ 6**: แนวโน้มการใช้ห้องปฏิบัติการและพลังงานรายเดือนตลอดปี พ.ศ. 2569 พร้อม Yearly Trend Insight
+    - เพิ่มแท็บใหม่ **งบประมาณ & ต้นทุนรายวิชา (`BUDGET`)**: แสดง 4 การ์ดสรุปงบ กราฟแท่งเปรียบเทียบงบจัดสรร vs ใช้จริง และตารางต้นทุนต่อนิสิตรายวิชา
+    - ปรับ Strategic Insights ใต้กราฟที่ 1, 2, 4, 5 ให้คำนวณจากตัวเลขจริงในฐานข้อมูลทั้งหมด 100%
+    - เพิ่มปุ่มส่งออก **Excel (.xlsx 4 ชีต)** และ **พิมพ์รายงานประชุม 1 หน้า A4 (`Print Boardroom Summary`)** พร้อมเลย์เอาต์ `@media print`
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/app/api/executive/stats/route.ts`](file:///d:/LAB-system/src/app/api/executive/stats/route.ts)
+  - [`src/app/executive/page.tsx`](file:///d:/LAB-system/src/app/executive/page.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `node scripts/librarian-audit.mjs` และ `npm run build` ผ่าน 100%
+
 ### [2026-11-16] แก้ไขกราฟและตารางสถิติชั่วโมงการใช้งานห้องปฏิบัติการ 10 ห้องในแดชบอร์ดผู้บริหาร (`/executive`) ให้ดึงข้อมูลจริง 100%
 - **หมวดหมู่**: Executive Cockpit 360° / Data Analytics & Reporting
 - **สิ่งที่ดำเนินการ**:

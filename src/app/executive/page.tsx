@@ -41,7 +41,12 @@ import {
   Activity,
   BarChart3,
   SlidersHorizontal,
+  Printer,
+  Download,
+  Wallet,
+  BookOpen,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useAuth } from '@/lib/auth-context';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { formatUserName, getRoleLabel } from '@/lib/user-utils';
@@ -71,7 +76,7 @@ export default function ExecutiveDashboardPage() {
   const [isFocusMode, setIsFocusMode] = useState(false);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'ENERGY' | 'ASSETS' | 'CONSUMABLES'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'BUDGET' | 'ENERGY' | 'ASSETS' | 'CONSUMABLES'>('OVERVIEW');
 
   // AI Advisor Interactive Inquiry
   const [selectedInquiryId, setSelectedInquiryId] = useState<string>('INSIGHT-CAPITAL');
@@ -166,8 +171,79 @@ export default function ExecutiveDashboardPage() {
   const categoryDistribution = kpis?.categoryDistribution || [];
   const labUtilization = kpis?.labUtilizationBreakdown || [];
   const topDemand = kpis?.topDemandEquipment || [];
+  const monthlyTrends = kpis?.monthlyTrends || [];
+  const courseBudget = kpis?.courseBudgetAnalytics || null;
   const aiInsights = kpis?.aiStrategicInsights || [];
   const nearExpiryItems = kpis?.nearExpiryItems || [];
+
+  const peakMonthSummary = useMemo(() => {
+    if (!monthlyTrends.length) return null;
+    const sorted = [...monthlyTrends].sort((a: any, b: any) => (b.totalAcHours || 0) - (a.totalAcHours || 0));
+    const peak = sorted[0];
+    if (!peak || peak.totalAcHours <= 0) return null;
+    const totalYearHours = Math.round(monthlyTrends.reduce((s: number, m: any) => s + (m.totalAcHours || 0), 0) * 10) / 10;
+    const totalAcademicYear = Math.round(monthlyTrends.reduce((s: number, m: any) => s + (m.academicHours || 0), 0) * 10) / 10;
+    return { peak, totalYearHours, totalAcademicYear };
+  }, [monthlyTrends]);
+
+  const handleExportExecutiveExcel = () => {
+    const periodLabel = `${THAI_MONTHS.find((m) => m.value === selectedMonth)?.label || ''} พ.ศ. ${selectedYear + 543}`;
+    const summaryRows = [
+      { หัวข้อตัวชี้วัด: 'ช่วงเวลาที่รายงาน', ค่าที่ได้: periodLabel, หน่วย: '-' },
+      { หัวข้อตัวชี้วัด: 'มูลค่าครุภัณฑ์รวม', ค่าที่ได้: kpis?.totalValuation || 0, หน่วย: 'บาท' },
+      { หัวข้อตัวชี้วัด: 'จำนวนครุภัณฑ์ทั้งหมด', ค่าที่ได้: kpis?.totalAssetsCount || 0, หน่วย: 'ชิ้น' },
+      { หัวข้อตัวชี้วัด: 'อัตราพร้อมใช้งาน', ค่าที่ได้: kpis?.readinessRate || 100, หน่วย: '%' },
+      { หัวข้อตัวชี้วัด: 'ชั่วโมงเปิดแอร์ช่วงเวลาที่เลือก', ค่าที่ได้: kpis?.totalAcHoursMonth || 0, หน่วย: 'ชม.' },
+      { หัวข้อตัวชี้วัด: 'ชั่วโมงเปิดแอร์เพื่อถนอมรักษาอุปกรณ์', ค่าที่ได้: kpis?.maintenanceAcHours || 0, หน่วย: 'ชม.' },
+      { หัวข้อตัวชี้วัด: 'ชั่วโมงฝึกทักษะของนิสิต', ค่าที่ได้: kpis?.totalPracticeHours || 0, หน่วย: 'ชม.' },
+      { หัวข้อตัวชี้วัด: 'มูลค่าเวชภัณฑ์คงคลังรวม', ค่าที่ได้: Math.round(kpis?.totalConsumablesValuation || 0), หน่วย: 'บาท' },
+      { หัวข้อตัวชี้วัด: 'งบประมาณรายวิชาที่เปิดสอนรวม', ค่าที่ได้: courseBudget?.totalAllocatedBudget || 0, หน่วย: 'บาท' },
+      { หัวข้อตัวชี้วัด: 'ยอดเบิกจ่ายเวชภัณฑ์จริงรวม', ค่าที่ได้: courseBudget?.totalSpentAmount || 0, หน่วย: 'บาท' },
+    ];
+
+    const labRows = labUtilization.map((r: any) => ({
+      'รหัสห้อง': r.roomCode,
+      'ห้องปฏิบัติการ': r.roomName,
+      'การสอนตามตารางวิชา (ชม.)': r.teachingHours,
+      'นิสิตจองฝึกอิสระ (ชม.)': r.studentPracticeHours,
+      'สอบประเมิน/OSCE (ชม.)': r.examHours,
+      'รวมใช้งานทางวิชาการ (ชม.)': r.totalHours,
+    }));
+
+    const trendRows = monthlyTrends.map((m: any) => ({
+      'เดือน': m.label,
+      'การสอน (ชม.)': m.teachingHours,
+      'นิสิตฝึกอิสระ (ชม.)': m.studentPracticeHours,
+      'สอบ OSCE (ชม.)': m.examHours,
+      'ถนอมรักษาอุปกรณ์ (ชม.)': m.preservationHours,
+      'ชั่วโมงแอร์รวม (ชม.)': m.totalAcHours,
+    }));
+
+    const budgetRows = (courseBudget?.courses || []).map((c: any) => ({
+      'รหัสวิชา': c.code,
+      'ชื่อรายวิชา': c.name,
+      'อาจารย์ผู้รับผิดชอบ': c.instructorName,
+      'จำนวนนิสิต (คน)': c.studentCount,
+      'งบจัดสรร (บาท)': c.allocatedBudget,
+      'เบิกใช้จริง (บาท)': c.spentAmount,
+      'คงเหลือ (บาท)': c.remainingBudget,
+      'อัตราใช้งบ (%)': c.utilizationPercent,
+      'ต้นทุนต่อนิสิต (บาท/คน)': c.costPerStudent,
+    }));
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), 'สรุปผู้บริหาร');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(labRows), 'ชั่วโมงห้องปฏิบัติการ');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(trendRows), 'แนวโน้มรายเดือน');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(budgetRows), 'งบประมาณรายวิชา');
+    XLSX.writeFile(wb, `Executive_Dashboard_${selectedYear + 543}_M${selectedMonth}.xlsx`);
+  };
+
+  const handlePrintExecutiveSummary = () => {
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
+  };
 
   const labUtilizationSummary = useMemo(() => {
     const teachingTotal = Math.round(labUtilization.reduce((s: number, r: any) => s + (r.teachingHours || 0), 0) * 10) / 10;
@@ -281,6 +357,14 @@ export default function ExecutiveDashboardPage() {
 
   return (
     <div className={`space-y-6 pb-16 transition-all duration-300 ${isFocusMode ? 'max-w-full px-2' : ''}`}>
+      <style>{`
+        @media print {
+          @page { size: A4 portrait; margin: 12mm; }
+          body { background: #ffffff !important; color: #0f172a !important; }
+          nav, aside, header { display: none !important; }
+        }
+      `}</style>
+      <div className="space-y-6 print:hidden">
       {/* ---------------------------------------------------- */}
       {/* 1. EXECUTIVE COCKPIT 360° BANNER HEADER              */}
       {/* ---------------------------------------------------- */}
@@ -295,18 +379,39 @@ export default function ExecutiveDashboardPage() {
               <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse"></span>
               <span>Executive Cockpit 360° | คณะพยาบาลศาสตร์</span>
               <span className="px-2 py-0.5 rounded-full text-[10px] bg-purple-200/70 dark:bg-purple-800/50 text-purple-900 dark:text-purple-200 font-black">
-                5 กราฟตัดสินใจเชิงยุทธศาสตร์
+                6 กราฟตัดสินใจเชิงยุทธศาสตร์
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
               <span>แดชบอร์ดผู้บริหารและการวิเคราะห์เชิงกลยุทธ์</span>
             </h1>
             <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 max-w-2xl">
-              ศูนย์การเรียนรู้ปฏิบัติการทางการพยาบาลเสมือนจริง • ติดตามสุขภาวะสินทรัพย์ ความคุ้มค่าการใช้พื้นที่ และนโยบายห้องปฏิบัติการสีเขียว (Green Lab)
+              ศูนย์การเรียนรู้ปฏิบัติการทางการพยาบาลเสมือนจริง • ติดตามสุขภาวะสินทรัพย์ งบประมาณรายวิชา ความคุ้มค่าพื้นที่ และพลังงานสีเขียว (Green Lab)
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {/* Export Excel & Print Board Summary */}
+            <button
+              type="button"
+              onClick={handleExportExecutiveExcel}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800/60 shadow-xs transition cursor-pointer"
+              title="ส่งออกไฟล์สรุปสำหรับผู้บริหารเป็น Excel (.xlsx)"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Excel</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePrintExecutiveSummary}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-800 dark:text-indigo-300 text-xs font-bold border border-indigo-200 dark:border-indigo-800/60 shadow-xs transition cursor-pointer"
+              title="พิมพ์สรุป 1 หน้า A4 สำหรับแนบวาระการประชุมบอร์ด"
+            >
+              <Printer className="w-4 h-4" />
+              <span className="hidden sm:inline">พิมพ์รายงานประชุม</span>
+            </button>
+
             {/* Focus / Boardroom Mode Toggle */}
             <button
               type="button"
@@ -553,7 +658,8 @@ export default function ExecutiveDashboardPage() {
       {/* ---------------------------------------------------- */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-slate-200 dark:border-slate-800">
         {[
-          { key: 'OVERVIEW', label: 'ภาพรวม 5 กราฟตัดสินใจ', icon: BarChart3 },
+          { key: 'OVERVIEW', label: 'ภาพรวม 6 กราฟตัดสินใจ', icon: BarChart3 },
+          { key: 'BUDGET', label: 'งบประมาณ & ต้นทุนรายวิชา', icon: Wallet },
           { key: 'ENERGY', label: 'กรีนแล็บ & การใช้พลังงาน', icon: Wind },
           { key: 'ASSETS', label: 'สำรวจครุภัณฑ์เชิงลึก', icon: Boxes },
           { key: 'CONSUMABLES', label: 'คลังเวชภัณฑ์ & ความเสี่ยง', icon: FlaskConical },
@@ -661,14 +767,22 @@ export default function ExecutiveDashboardPage() {
                 </div>
               </div>
 
-              {/* Strategic Decision Insight */}
+              {/* Strategic Decision Insight (Dynamic) */}
               <div className="p-4 rounded-2xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-500/30 text-xs text-teal-900 dark:text-teal-200 flex items-start gap-2.5">
                 <span className="text-base shrink-0">💡</span>
                 <div>
                   <strong className="font-bold text-teal-950 dark:text-teal-100 block mb-0.5">
                     ข้อเสนอแนะเชิงกลยุทธ์ (Strategic Insight):
                   </strong>
-                  ครุภัณฑ์กลุ่มหุ่นจำลองเสมือนจริงขั้นสูงคิดเป็นสัดส่วนมูลค่าสูงสุดในพอร์ตสินทรัพย์ จึงแนะนำให้พิจารณาแผนบำรุงรักษาเชิงป้องกัน (Preventive Maintenance) รายปี และควบคุมอุณหภูมิห้องแล็บให้สม่ำเสมอเพื่อปกป้องเซนเซอร์อิเล็กทรอนิกส์ภายใน
+                  {categoryDistribution[0] ? (
+                    <>
+                      หมวด <strong>{categoryDistribution[0].name}</strong> มีมูลค่าลงทุนสูงสุดในพอร์ตสินทรัพย์ (฿{(categoryDistribution[0].value / 1000000).toFixed(2)}M หรือ <strong>{categoryDistribution[0].percentage}%</strong> ของทั้งหมด
+                      {categoryDistribution[1] ? ` รองลงมาคือ ${categoryDistribution[1].name} ${categoryDistribution[1].percentage}%` : ''}
+                      ) จึงควรให้ความสำคัญกับแผนบำรุงรักษาเชิงป้องกัน (Preventive Maintenance) และการควบคุมอุณหภูมิห้องแล็บเป็นพิเศษ
+                    </>
+                  ) : (
+                    'ยังไม่มีข้อมูลมูลค่าครุภัณฑ์แยกหมวดหมู่ในระบบ'
+                  )}
                 </div>
               </div>
             </div>
@@ -774,14 +888,17 @@ export default function ExecutiveDashboardPage() {
                 </div>
               </div>
 
-              {/* Strategic Decision Insight */}
+              {/* Strategic Decision Insight (Dynamic) */}
               <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/30 text-xs text-emerald-900 dark:text-emerald-200 flex items-start gap-2.5">
                 <span className="text-base shrink-0">💡</span>
                 <div>
                   <strong className="font-bold text-emerald-950 dark:text-emerald-100 block mb-0.5">
                     ข้อเสนอแนะเชิงกลยุทธ์ (Strategic Insight):
                   </strong>
-                  อัตราความพร้อมใช้งานของครุภัณฑ์อยู่ที่ {kpis?.readinessRate || 100}% ซึ่งอยู่ในเกณฑ์ดีเยี่ยม (สูงกว่าเกณฑ์มาตรฐาน 90%) ไม่พบรายการติดค้างซ่อมบำรุงที่ส่งผลกระทบต่อตารางการฝึกหัตถการของนิสิต
+                  อัตราความพร้อมใช้งานของครุภัณฑ์อยู่ที่ <strong>{kpis?.readinessRate || 100}%</strong> ({(kpis?.readinessRate || 100) >= 90 ? 'สูงกว่าเกณฑ์มาตรฐาน 90%' : 'ต่ำกว่าเกณฑ์มาตรฐาน 90%'}) โดยมีครุภัณฑ์พร้อมใช้ {kpis?.availableCount || 0} ชิ้น กำลังถูกยืม {kpis?.borrowedCount || 0} ชิ้น
+                  {(kpis?.maintenanceCount || 0) > 0
+                    ? ` และส่งซ่อมบำรุง ${kpis.maintenanceCount} ชิ้น แนะนำติดตามความคืบหน้างานซ่อมเพื่อไม่ให้กระทบการฝึกปฏิบัติของนิสิต`
+                    : ' และไม่มีรายการค้างส่งซ่อม พร้อมรองรับตารางการฝึกหัตถการของนิสิตเต็มประสิทธิภาพ'}
                 </div>
               </div>
             </div>
@@ -998,14 +1115,22 @@ export default function ExecutiveDashboardPage() {
                 </div>
               </div>
 
-              {/* Strategic Decision Insight */}
+              {/* Strategic Decision Insight (Dynamic) */}
               <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-500/30 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
                 <span className="text-base shrink-0">💡</span>
                 <div>
                   <strong className="font-bold text-amber-950 dark:text-amber-100 block mb-0.5">
                     ข้อเสนอแนะเชิงกลยุทธ์ (Strategic Insight):
                   </strong>
-                  เครื่องกระตุกหัวใจ AED สาธิต และหุ่นแขนฝึกฉีดยา มีสถิติการยืมสูงสุดอย่างมีนัยสำคัญ ข้อมูลเชิงประจักษ์นี้สามารถนำไปใช้ประกอบการตั้งคำของบประมาณจัดซื้อเพิ่มเติม เพื่อให้เพียงพอต่ออัตราส่วนนิสิตต่อเครื่องมือ
+                  {topDemand[0] ? (
+                    <>
+                      <strong>{topDemand[0].name}</strong> มีความต้องการยืมสะสมสูงสุด ({topDemand[0].count} ชิ้น/ครั้ง)
+                      {topDemand[1] ? ` รองลงมาคือ ${topDemand[1].name} (${topDemand[1].count} ชิ้น/ครั้ง)` : ''}
+                      {' '}สามารถใช้ข้อมูลสถิติจริงนี้ประกอบการวางแผนจัดซื้อครุภัณฑ์เพิ่มเติมให้สอดคล้องกับจำนวนนิสิต
+                    </>
+                  ) : (
+                    'ยังไม่มีสถิติการยืมครุภัณฑ์สะสมในระบบ'
+                  )}
                 </div>
               </div>
             </div>
@@ -1054,17 +1179,250 @@ export default function ExecutiveDashboardPage() {
                 </div>
               </div>
 
-              {/* Strategic Decision Insight */}
+              {/* Strategic Decision Insight (Dynamic) */}
               <div className="p-4 rounded-2xl bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-500/30 text-xs text-cyan-900 dark:text-cyan-200 flex items-start gap-2.5">
                 <span className="text-base shrink-0">💡</span>
                 <div>
                   <strong className="font-bold text-cyan-950 dark:text-cyan-100 block mb-0.5">
                     ข้อเสนอแนะเชิงกลยุทธ์ (Strategic Insight):
                   </strong>
-                  ชั่วโมงการเปิดเครื่องปรับอากาศในห้อง SIM MAN และห้องเก็บครุภัณฑ์ส่วนใหญ่เป็นไปตามเกณฑ์การควบคุมอุณหภูมิเพื่อรักษาสภาพวัสดุและเซนเซอร์ของหุ่นจำลองขั้นสูง เพื่อสนับสนุนนโยบายอนุรักษ์พลังงาน (Green Lab) อาจพิจารณาเสริมระบบควบคุมเวลาและอุณหภูมิอัตโนมัติเพื่อให้การใช้พลังงานเกิดประสิทธิภาพสูงสุด
+                  {kpis?.roomAcBreakdown?.[0] ? (
+                    <>
+                      ช่วงเวลาที่เลือกมีการเปิดเครื่องปรับอากาศรวม <strong>{kpis?.totalAcHoursMonth || 0} ชม.</strong> โดยห้องที่มีชั่วโมงเปิดแอร์สูงสุดคือ <strong>{kpis.roomAcBreakdown[0].roomName}</strong> ({kpis.roomAcBreakdown[0].totalHours} ชม.) และใช้เพื่อถนอมรักษาอุปกรณ์/เตรียมห้องทั้งศูนย์ <strong>{kpis?.maintenanceAcHours || 0} ชม.</strong> ({kpis?.totalAcHoursMonth > 0 ? Math.round(((kpis?.maintenanceAcHours || 0) / kpis.totalAcHoursMonth) * 100) : 0}%)
+                    </>
+                  ) : (
+                    'ยังไม่มีบันทึกชั่วโมงเครื่องปรับอากาศในเดือนที่เลือก'
+                  )}
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* ROW 4: 12-MONTH YEARLY TREND CHART (6TH CHART) */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    6. แนวโน้มชั่วโมงการใช้งานห้องปฏิบัติการและพลังงานรายเดือนตลอดปี พ.ศ. {selectedYear + 543}
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  เปรียบเทียบภาพรวม ม.ค. – ธ.ค. ระหว่างชั่วโมงเรียนการสอน นิสิตฝึกอิสระ สอบ OSCE และชั่วโมงถนอมรักษาอุปกรณ์
+                </p>
+              </div>
+              <span className="px-2.5 py-1 rounded-xl bg-purple-50 text-purple-800 dark:bg-purple-950 dark:text-purple-300 text-[11px] font-bold border border-purple-200 dark:border-purple-800 self-start sm:self-center">
+                Yearly Trend
+              </span>
+            </div>
+
+            <div className="h-72 w-full pt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlyTrends} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
+                  <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} />
+                  <YAxis tick={{ fill: '#64748b', fontSize: 11 }} unit=" ชม." allowDecimals={false} />
+                  <RechartsTooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload || !payload.length) return null;
+                      const d = payload[0].payload;
+                      return (
+                        <div className="bg-slate-900 text-white text-xs p-3 rounded-xl shadow-xl border border-slate-700 space-y-1">
+                          <div className="font-bold border-b border-slate-700 pb-1 mb-1 text-slate-200">
+                            เดือน {d.label} พ.ศ. {selectedYear + 543}
+                          </div>
+                          <div className="flex justify-between gap-4 text-blue-300">
+                            <span>การสอนตามตาราง:</span>
+                            <span className="font-mono font-bold">{d.teachingHours} ชม.</span>
+                          </div>
+                          <div className="flex justify-between gap-4 text-emerald-300">
+                            <span>นิสิตฝึกอิสระ:</span>
+                            <span className="font-mono font-bold">{d.studentPracticeHours} ชม.</span>
+                          </div>
+                          <div className="flex justify-between gap-4 text-amber-300">
+                            <span>สอบ OSCE:</span>
+                            <span className="font-mono font-bold">{d.examHours} ชม.</span>
+                          </div>
+                          <div className="flex justify-between gap-4 text-cyan-300">
+                            <span>ถนอมรักษาอุปกรณ์/จัดห้อง:</span>
+                            <span className="font-mono font-bold">{d.preservationHours} ชม.</span>
+                          </div>
+                          <div className="flex justify-between gap-4 pt-1 border-t border-slate-800 font-bold text-white">
+                            <span>รวมทั้งเดือน:</span>
+                            <span className="font-mono font-black">{d.totalAcHours} ชม.</span>
+                          </div>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Bar dataKey="teachingHours" name="การสอนตามตาราง" stackId="trend" fill="#3b82f6" />
+                  <Bar dataKey="studentPracticeHours" name="นิสิตฝึกอิสระ" stackId="trend" fill="#10b981" />
+                  <Bar dataKey="examHours" name="สอบ OSCE" stackId="trend" fill="#f59e0b" />
+                  <Bar dataKey="preservationHours" name="ถนอมรักษา/จัดห้อง" stackId="trend" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Strategic Decision Insight (Dynamic) */}
+            <div className="p-4 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-500/30 text-xs text-purple-900 dark:text-purple-200 flex items-start gap-2.5">
+              <span className="text-base shrink-0">💡</span>
+              <div>
+                <strong className="font-bold text-purple-950 dark:text-purple-100 block mb-0.5">
+                  ข้อเสนอแนะเชิงกลยุทธ์ (Yearly Trend Insight):
+                </strong>
+                {peakMonthSummary ? (
+                  <span>
+                    ตลอดปี พ.ศ. {selectedYear + 543} มียอดเปิดใช้งานห้องปฏิบัติการสะสม <strong>{peakMonthSummary.totalYearHours} ชม.</strong> (ภาคการสอน/ฝึก/สอบ {peakMonthSummary.totalAcademicYear} ชม.) โดยเดือนที่มีความหนาแน่นสูงสุดคือ <strong>เดือน {peakMonthSummary.peak.label}</strong> ({peakMonthSummary.peak.totalAcHours} ชม.) แนะนำให้ใช้ข้อมูลแนวโน้มนี้วางแผนจัดสรรบุคลากรและงบค่าพลังงานล่วงหน้า
+                  </span>
+                ) : (
+                  <span>ยังไม่มีสถิติรายเดือนสำหรับปี พ.ศ. {selectedYear + 543}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* 5.5 TAB CONTENT: COURSE BUDGET & COST ANALYTICS       */}
+      {/* ---------------------------------------------------- */}
+      {activeTab === 'BUDGET' && (
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 shadow-sm space-y-6 animate-in fade-in duration-300">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <Wallet className="w-5 h-5 text-indigo-600" />
+                <span>การวิเคราะห์งบประมาณและต้นทุนเวชภัณฑ์รายวิชา (Course Cost & Budget)</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                เปรียบเทียบงบประมาณจัดสรรกับยอดเบิกจ่ายเวชภัณฑ์จริงและคำนวณต้นทุนเฉลี่ยต่อนิสิต 1 คนในรายวิชาที่เปิดสอน
+              </p>
+            </div>
+
+            <Link
+              href="/courses"
+              className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold shadow-xs hover:bg-indigo-500 transition flex items-center gap-1.5 self-start sm:self-center"
+            >
+              <span>จัดการรายวิชา & รายงานต้นทุน</span>
+              <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800">
+              <span className="text-xs text-slate-500 block font-semibold">งบประมาณจัดสรรรวม</span>
+              <span className="text-2xl font-mono font-black text-indigo-900 dark:text-indigo-300 mt-1 block">
+                ฿{(courseBudget?.totalAllocatedBudget || 0).toLocaleString()}
+              </span>
+            </div>
+            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
+              <span className="text-xs text-slate-500 block font-semibold">เบิกจ่ายเวชภัณฑ์จริง</span>
+              <span className="text-2xl font-mono font-black text-amber-900 dark:text-amber-300 mt-1 block">
+                ฿{Math.round(courseBudget?.totalSpentAmount || 0).toLocaleString()}
+              </span>
+              <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400">
+                ใช้งบไป {courseBudget?.overallUtilizationPercent || 0}%
+              </span>
+            </div>
+            <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
+              <span className="text-xs text-slate-500 block font-semibold">งบประมาณคงเหลือ</span>
+              <span className="text-2xl font-mono font-black text-emerald-900 dark:text-emerald-300 mt-1 block">
+                ฿{Math.round(courseBudget?.totalRemainingBudget || 0).toLocaleString()}
+              </span>
+            </div>
+            <div className="p-4 rounded-2xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800">
+              <span className="text-xs text-slate-500 block font-semibold">ต้นทุนเฉลี่ยต่อนิสิต</span>
+              <span className="text-2xl font-mono font-black text-teal-900 dark:text-teal-300 mt-1 block">
+                ฿{(courseBudget?.avgCostPerStudent || 0).toLocaleString()}
+              </span>
+              <span className="text-[11px] font-bold text-teal-700 dark:text-teal-400">
+                จำนวนนิสิตรวม {courseBudget?.totalStudentsEnrolled || 0} คน
+              </span>
+            </div>
+          </div>
+
+          {(courseBudget?.courses || []).length > 0 && (
+            <div className="h-64 w-full pt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={courseBudget.courses} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
+                  <XAxis dataKey="code" tick={{ fill: '#64748b', fontSize: 11 }} />
+                  <YAxis tick={{ fill: '#64748b', fontSize: 11 }} />
+                  <RechartsTooltip
+                    formatter={(val: any, name: any) => [`฿${Number(val).toLocaleString()}`, name]}
+                  />
+                  <Bar dataKey="allocatedBudget" name="งบประมาณจัดสรร" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={56} />
+                  <Bar dataKey="spentAmount" name="ยอดเบิกจ่ายจริง" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={56} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-slate-50 dark:bg-slate-950/60 text-slate-600 dark:text-slate-400 font-bold border-b border-slate-200 dark:border-slate-800">
+                <tr>
+                  <th className="p-3">รหัสวิชา</th>
+                  <th className="p-3">ชื่อรายวิชา / ผู้สอน</th>
+                  <th className="p-3 text-right">จำนวนนิสิต</th>
+                  <th className="p-3 text-right">งบจัดสรร (บาท)</th>
+                  <th className="p-3 text-right">เบิกใช้จริง (บาท)</th>
+                  <th className="p-3 text-right">คงเหลือ (บาท)</th>
+                  <th className="p-3 text-right">ต้นทุน/นิสิต</th>
+                  <th className="p-3 text-center">อัตราใช้งบ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {(courseBudget?.courses || []).length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="p-8 text-center text-slate-400">
+                      ไม่พบข้อมูลรายวิชาที่เปิดสอนในระบบ
+                    </td>
+                  </tr>
+                ) : (
+                  (courseBudget?.courses || []).map((c: any) => (
+                    <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                      <td className="p-3 font-mono font-bold text-indigo-700 dark:text-indigo-400 whitespace-nowrap">
+                        {c.code}
+                      </td>
+                      <td className="p-3">
+                        <div className="font-bold text-slate-900 dark:text-white">{c.name}</div>
+                        <div className="text-[11px] text-slate-500">
+                          {c.instructorName} • เทอม {c.semester}/{c.academicYear}
+                        </div>
+                      </td>
+                      <td className="p-3 text-right font-mono">{c.studentCount.toLocaleString()} คน</td>
+                      <td className="p-3 text-right font-mono font-bold text-slate-800 dark:text-slate-200">
+                        ฿{c.allocatedBudget.toLocaleString()}
+                      </td>
+                      <td className="p-3 text-right font-mono font-bold text-amber-600 dark:text-amber-400">
+                        ฿{c.spentAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                        ฿{c.remainingBudget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-3 text-right font-mono font-bold text-teal-700 dark:text-teal-300">
+                        ฿{c.costPerStudent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-3 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-16 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${
+                                c.utilizationPercent > 85 ? 'bg-rose-500' : 'bg-indigo-500'
+                              }`}
+                              style={{ width: `${Math.min(100, c.utilizationPercent)}%` }}
+                            />
+                          </div>
+                          <span className="font-mono text-[11px] font-bold">{c.utilizationPercent}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -1687,6 +2045,122 @@ export default function ExecutiveDashboardPage() {
           </div>
         </div>
       )}
+      </div>
+
+      {/* ---------------------------------------------------- */}
+      {/* 10. PRINT-ONLY 1-PAGE BOARDROOM EXECUTIVE SUMMARY A4 */}
+      {/* ---------------------------------------------------- */}
+      <div className="hidden print:block bg-white text-slate-900 p-2 space-y-4 text-xs">
+        <div className="flex items-start justify-between border-b-2 border-slate-900 pb-3">
+          <div>
+            <h1 className="text-lg font-black text-slate-900">
+              รายงานสรุปผู้บริหารห้องปฏิบัติการพยาบาล (Executive Cockpit Summary)
+            </h1>
+            <p className="text-xs text-slate-600 mt-0.5">
+              {ORG_CONFIG.FULL_CUSTODIAN_LABEL} • ประจำช่วงเวลา: {THAI_MONTHS.find((m) => m.value === selectedMonth)?.label} พ.ศ. {selectedYear + 543}
+            </p>
+          </div>
+          <div className="text-right text-[11px] text-slate-600">
+            <div>วันที่พิมพ์: {new Date().toLocaleDateString('th-TH')}</div>
+            <div>ผู้พิมพ์: {currentUser ? formatUserName(currentUser) || currentUser.name : '-'}</div>
+          </div>
+        </div>
+
+        {/* KPI Snapshot Grid */}
+        <div className="grid grid-cols-4 gap-3">
+          <div className="p-3 rounded-xl border border-slate-300">
+            <div className="text-[10px] text-slate-500 font-bold">มูลค่าครุภัณฑ์รวม</div>
+            <div className="text-base font-black font-mono mt-0.5">฿{((kpis?.totalValuation || 0) / 1000000).toFixed(2)}M</div>
+            <div className="text-[10px] text-emerald-700 font-bold">พร้อมใช้ {kpis?.readinessRate || 100}% ({kpis?.totalAssetsCount || 0} ชิ้น)</div>
+          </div>
+          <div className="p-3 rounded-xl border border-slate-300">
+            <div className="text-[10px] text-slate-500 font-bold">ชั่วโมงเปิดแอร์ทั้งศูนย์</div>
+            <div className="text-base font-black font-mono mt-0.5">{kpis?.totalAcHoursMonth || 0} ชม.</div>
+            <div className="text-[10px] text-slate-600">ถนอมหุ่น/อุปกรณ์ {kpis?.maintenanceAcHours || 0} ชม.</div>
+          </div>
+          <div className="p-3 rounded-xl border border-slate-300">
+            <div className="text-[10px] text-slate-500 font-bold">ชั่วโมงฝึกของนิสิต</div>
+            <div className="text-base font-black font-mono mt-0.5">{kpis?.totalPracticeHours || 0} ชม.</div>
+            <div className="text-[10px] text-slate-600">{kpis?.totalRoomsCount || 10} ห้องปฏิบัติการ</div>
+          </div>
+          <div className="p-3 rounded-xl border border-slate-300">
+            <div className="text-[10px] text-slate-500 font-bold">งบเวชภัณฑ์รายวิชา</div>
+            <div className="text-base font-black font-mono mt-0.5">฿{Math.round(courseBudget?.totalSpentAmount || 0).toLocaleString()}</div>
+            <div className="text-[10px] text-slate-600">จากงบ ฿{(courseBudget?.totalAllocatedBudget || 0).toLocaleString()} ({courseBudget?.overallUtilizationPercent || 0}%)</div>
+          </div>
+        </div>
+
+        {/* Lab Utilization Compact Print Table */}
+        <div>
+          <h2 className="text-xs font-black text-slate-900 mb-1.5">
+            1. สถิติชั่วโมงการใช้งานห้องปฏิบัติการ {labUtilization.length || 10} ห้อง แยกตามวัตถุประสงค์
+          </h2>
+          <table className="w-full text-[11px] border-collapse border border-slate-400">
+            <thead className="bg-slate-100 font-bold">
+              <tr>
+                <th className="border border-slate-400 p-1.5 text-left">รหัส</th>
+                <th className="border border-slate-400 p-1.5 text-left">ห้องปฏิบัติการ</th>
+                <th className="border border-slate-400 p-1.5 text-right">สอนตารางวิชา (ชม.)</th>
+                <th className="border border-slate-400 p-1.5 text-right">นิสิตฝึกอิสระ (ชม.)</th>
+                <th className="border border-slate-400 p-1.5 text-right">สอบ OSCE (ชม.)</th>
+                <th className="border border-slate-400 p-1.5 text-right">รวม (ชม.)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {labUtilization.map((r: any) => (
+                <tr key={r.roomId}>
+                  <td className="border border-slate-300 p-1.5 font-mono">{r.roomCode}</td>
+                  <td className="border border-slate-300 p-1.5">{r.roomName}</td>
+                  <td className="border border-slate-300 p-1.5 text-right font-mono">{r.teachingHours.toFixed(1)}</td>
+                  <td className="border border-slate-300 p-1.5 text-right font-mono">{r.studentPracticeHours.toFixed(1)}</td>
+                  <td className="border border-slate-300 p-1.5 text-right font-mono">{r.examHours.toFixed(1)}</td>
+                  <td className="border border-slate-300 p-1.5 text-right font-mono font-bold">{r.totalHours.toFixed(1)}</td>
+                </tr>
+              ))}
+              <tr className="bg-slate-100 font-bold">
+                <td colSpan={2} className="border border-slate-400 p-1.5">รวมทั้งหมด ({labUtilization.length} ห้อง)</td>
+                <td className="border border-slate-400 p-1.5 text-right font-mono">{labUtilizationSummary.teachingTotal.toFixed(1)}</td>
+                <td className="border border-slate-400 p-1.5 text-right font-mono">{labUtilizationSummary.practiceTotal.toFixed(1)}</td>
+                <td className="border border-slate-400 p-1.5 text-right font-mono">{labUtilizationSummary.examTotal.toFixed(1)}</td>
+                <td className="border border-slate-400 p-1.5 text-right font-mono">{labUtilizationSummary.grandTotal.toFixed(1)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Course Budget Compact Print Table */}
+        {(courseBudget?.courses || []).length > 0 && (
+          <div>
+            <h2 className="text-xs font-black text-slate-900 mb-1.5">
+              2. สรุปงบประมาณและต้นทุนเวชภัณฑ์รายวิชาที่เปิดสอน
+            </h2>
+            <table className="w-full text-[11px] border-collapse border border-slate-400">
+              <thead className="bg-slate-100 font-bold">
+                <tr>
+                  <th className="border border-slate-400 p-1.5 text-left">รหัสวิชา</th>
+                  <th className="border border-slate-400 p-1.5 text-left">ชื่อรายวิชา</th>
+                  <th className="border border-slate-400 p-1.5 text-right">นิสิต</th>
+                  <th className="border border-slate-400 p-1.5 text-right">งบจัดสรร</th>
+                  <th className="border border-slate-400 p-1.5 text-right">เบิกใช้จริง</th>
+                  <th className="border border-slate-400 p-1.5 text-right">ต้นทุน/นิสิต</th>
+                </tr>
+              </thead>
+              <tbody>
+                {courseBudget.courses.map((c: any) => (
+                  <tr key={c.id}>
+                    <td className="border border-slate-300 p-1.5 font-mono">{c.code}</td>
+                    <td className="border border-slate-300 p-1.5">{c.name}</td>
+                    <td className="border border-slate-300 p-1.5 text-right font-mono">{c.studentCount}</td>
+                    <td className="border border-slate-300 p-1.5 text-right font-mono">฿{c.allocatedBudget.toLocaleString()}</td>
+                    <td className="border border-slate-300 p-1.5 text-right font-mono">฿{c.spentAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                    <td className="border border-slate-300 p-1.5 text-right font-mono">฿{c.costPerStudent.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

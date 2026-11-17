@@ -197,6 +197,7 @@ interface BorrowCatalogBrowserProps {
   isSimulation?: boolean;
   simulatedRole?: 'STUDENT' | 'TEACHER';
   onSubmitRealRequest?: (payload: any) => Promise<{ success: boolean; data?: any; error?: string }>;
+  embeddedInRequestPage?: boolean;
 }
 
 function getMedicalCategoryMeta(categoryName?: string, itemType?: string) {
@@ -585,17 +586,23 @@ export default function BorrowCatalogBrowser({
   isSimulation = true,
   simulatedRole = 'STUDENT',
   onSubmitRealRequest,
+  embeddedInRequestPage = false,
 }: BorrowCatalogBrowserProps) {
   const [activeTab, setActiveTab] = useState<'ALL' | 'EQUIPMENT' | 'CONSUMABLE'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [selectedLocation, setSelectedLocation] = useState<string>('ALL');
   const [inStockOnly, setInStockOnly] = useState(false);
   const [hasPhotosOnly, setHasPhotosOnly] = useState(false);
   const [hasSubUnitOnly, setHasSubUnitOnly] = useState(false);
+  const [hasCustomBadgeOnly, setHasCustomBadgeOnly] = useState(false);
   const [wishlistOnly, setWishlistOnly] = useState(false);
   const [sortBy, setSortBy] = useState<'RECOMMENDED' | 'STOCK_DESC' | 'NAME_ASC' | 'VALUE_DESC'>(
     'RECOMMENDED'
   );
+  const [visibleCount, setVisibleCount] = useState<number>(24);
+  const [expandedAssetCardIds, setExpandedAssetCardIds] = useState<Record<string, boolean>>({});
+  const [editingQtyMap, setEditingQtyMap] = useState<Record<string, string>>({});
   const [showHeroBanner, setShowHeroBanner] = useState(true);
   const [wishlistIds, setWishlistIds] = useState<string[]>([]);
   const [cartToast, setCartToast] = useState<{
@@ -831,10 +838,15 @@ export default function BorrowCatalogBrowser({
     if (initialReturnDate) setExpectedReturnDate(initialReturnDate);
   }, [initialBorrowDate, initialReturnDate]);
 
-  // Fetch real-time availability when drawer is open & dates change (with caching + 400ms debounce)
+  // Fetch real-time availability ONLY when drawer is open, has equipment in cart, & dates change (800ms debounce + AbortController + in-memory cache)
+  const hasEquipmentInCart = useMemo(
+    () => borrowItems.some((b) => b.itemId && Number(b.quantity) > 0),
+    [borrowItems]
+  );
+
   useEffect(() => {
     let isMounted = true;
-    if (!isCartDrawerOpen) return;
+    if (!isCartDrawerOpen || !hasEquipmentInCart) return;
     if (!borrowDate || !expectedReturnDate) return;
 
     // Check in-memory cache first (0 network calls when toggling back and forth)
@@ -848,6 +860,7 @@ export default function BorrowCatalogBrowser({
     // Only fire if full ISO datetime is provided (e.g. YYYY-MM-DDTHH:mm is 16 chars)
     if (borrowDate.length < 16 || expectedReturnDate.length < 16) return;
 
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
         setIsCheckingAvailability(true);
@@ -856,7 +869,8 @@ export default function BorrowCatalogBrowser({
             borrowDate
           )}&expectedReturnDate=${encodeURIComponent(expectedReturnDate)}${
             simulateConflict ? '&simulate=true' : ''
-          }`
+          }`,
+          { signal: controller.signal }
         );
         if (res.ok && isMounted) {
           const data = await res.json();
@@ -864,18 +878,21 @@ export default function BorrowCatalogBrowser({
           availabilityCacheRef.current[cacheKey] = map;
           setAvailabilityMap(map);
         }
-      } catch (err) {
-        console.error('Failed to fetch borrow availability:', err);
+      } catch (err: any) {
+        if (err?.name !== 'AbortError') {
+          console.error('Failed to fetch borrow availability:', err);
+        }
       } finally {
         if (isMounted) setIsCheckingAvailability(false);
       }
-    }, 400);
+    }, 800);
 
     return () => {
       isMounted = false;
       clearTimeout(timer);
+      controller.abort();
     };
-  }, [isCartDrawerOpen, borrowDate, expectedReturnDate, simulateConflict]);
+  }, [isCartDrawerOpen, hasEquipmentInCart, borrowDate, expectedReturnDate, simulateConflict]);
 
   // Conflict summary count
   const conflictSummary = useMemo(() => {
@@ -943,6 +960,37 @@ export default function BorrowCatalogBrowser({
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [equipmentList, consumablesList]);
 
+  // Extract unique storage locations / rooms for client-side filter
+  const locations = useMemo(() => {
+    const map = new Map<string, { name: string; count: number }>();
+    const all = [...equipmentList, ...consumablesList];
+    all.forEach((it) => {
+      const locName = (it.storageLocation?.name || it.location || '').trim();
+      if (!locName) return;
+      if (!map.has(locName)) {
+        map.set(locName, { name: locName, count: 0 });
+      }
+      map.get(locName)!.count += 1;
+    });
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [equipmentList, consumablesList]);
+
+  // Reset pagination to first 24 items whenever filters/search/sort change
+  useEffect(() => {
+    setVisibleCount(24);
+  }, [
+    activeTab,
+    searchQuery,
+    selectedCategory,
+    selectedLocation,
+    inStockOnly,
+    hasPhotosOnly,
+    hasSubUnitOnly,
+    hasCustomBadgeOnly,
+    wishlistOnly,
+    sortBy,
+  ]);
+
   // Combined, Filtered & Sorted Items (E-Commerce Engine)
   const filteredItems = useMemo(() => {
     let pool: CatalogItem[] = [];
@@ -984,6 +1032,15 @@ export default function BorrowCatalogBrowser({
       if (selectedCategory !== 'ALL') {
         const cId = item.category?.id || item.categoryId || 'OTHER';
         if (cId !== selectedCategory) return false;
+      }
+
+      if (selectedLocation !== 'ALL') {
+        const locName = (item.storageLocation?.name || item.location || '').trim();
+        if (locName !== selectedLocation) return false;
+      }
+
+      if (hasCustomBadgeOnly) {
+        if (!getCustomBadgeMeta(item, badgeOverrides[item.id])) return false;
       }
 
       if (inStockOnly) {
@@ -1047,15 +1104,23 @@ export default function BorrowCatalogBrowser({
     activeTab,
     searchQuery,
     selectedCategory,
+    selectedLocation,
     inStockOnly,
     hasPhotosOnly,
     hasSubUnitOnly,
+    hasCustomBadgeOnly,
     wishlistOnly,
     wishlistIds,
     sortBy,
     brokenImages,
     availabilityMap,
+    badgeOverrides,
   ]);
+
+  const displayedItems = useMemo(
+    () => filteredItems.slice(0, visibleCount),
+    [filteredItems, visibleCount]
+  );
 
   // Total items in cart
   const totalBorrowQty = borrowItems.reduce(
@@ -1299,13 +1364,87 @@ export default function BorrowCatalogBrowser({
     }).length;
   }, [consumablesList]);
 
+  const totalWithCustomBadge = useMemo(() => {
+    return [...equipmentList, ...consumablesList].filter(
+      (it) => !!getCustomBadgeMeta(it, badgeOverrides[it.id])
+    ).length;
+  }, [equipmentList, consumablesList, badgeOverrides]);
+
   const hasActiveFilters =
     hasPhotosOnly ||
     hasSubUnitOnly ||
+    hasCustomBadgeOnly ||
     inStockOnly ||
     wishlistOnly ||
     selectedCategory !== 'ALL' ||
+    selectedLocation !== 'ALL' ||
     !!searchQuery.trim();
+
+  // Helper: Resolve max allowed stock limit for a given item/unit
+  const getItemMaxLimit = (it: CatalogItem, isSubUnit?: boolean) => {
+    if (it.type === 'EQUIPMENT') {
+      const av = availabilityMap[it.id];
+      return av !== undefined ? av.availableNow : it.currentStock;
+    }
+    const ratio = Number(it.conversionRatio) > 0 ? Number(it.conversionRatio) : 1;
+    const maxPieces = it.currentStock * ratio + (it.openPackRemainder || 0);
+    return isSubUnit ? maxPieces : it.currentStock;
+  };
+
+  // Shared direct-typing quantity input (Zero-API client-side state, clamps cleanly on commit)
+  const renderDirectQtyInput = (
+    targetItem: CatalogItem,
+    currentQty: number,
+    activeIsSub: boolean,
+    inputClassName: string
+  ) => {
+    const maxLimit = getItemMaxLimit(targetItem, activeIsSub);
+    const displayVal =
+      editingQtyMap[targetItem.id] !== undefined
+        ? editingQtyMap[targetItem.id]
+        : String(currentQty);
+
+    return (
+      <input
+        type="number"
+        min={0}
+        max={maxLimit > 0 ? maxLimit : 9999}
+        value={displayVal}
+        aria-label={`ระบุจำนวน ${targetItem.name}`}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => {
+          const raw = e.target.value;
+          setEditingQtyMap((prev) => ({ ...prev, [targetItem.id]: raw }));
+          if (raw === '') return;
+          const parsed = parseInt(raw, 10);
+          if (!isNaN(parsed) && parsed >= 1) {
+            handleSetItemQuantity(targetItem, parsed, activeIsSub);
+          }
+        }}
+        onBlur={() => {
+          const draft = editingQtyMap[targetItem.id];
+          setEditingQtyMap((prev) => {
+            const copy = { ...prev };
+            delete copy[targetItem.id];
+            return copy;
+          });
+          if (draft === undefined) return;
+          const parsed = parseInt(draft, 10);
+          if (draft === '' || isNaN(parsed) || parsed <= 0) {
+            handleSetItemQuantity(targetItem, 0, activeIsSub);
+          } else {
+            handleSetItemQuantity(targetItem, parsed, activeIsSub);
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+        className={inputClassName}
+      />
+    );
+  };
 
   return (
     <div className="space-y-5 relative">
@@ -1658,6 +1797,43 @@ export default function BorrowCatalogBrowser({
                 {wishlistOnly && <Check className="w-3 h-3 text-rose-600" />}
               </button>
 
+              {totalWithCustomBadge > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setHasCustomBadgeOnly(!hasCustomBadgeOnly)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition flex items-center gap-1 cursor-pointer border ${
+                    hasCustomBadgeOnly
+                      ? 'bg-amber-50 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border-amber-400 dark:border-amber-700 shadow-2xs'
+                      : 'bg-white dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-amber-300'
+                  }`}
+                >
+                  <Tag className="w-3 h-3" />
+                  <span>ป้ายแนะนำ / OSCE ({totalWithCustomBadge})</span>
+                  {hasCustomBadgeOnly && <Check className="w-3 h-3 text-amber-600" />}
+                </button>
+              )}
+
+              {locations.length > 0 && (
+                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                  <MapPin className="w-3 h-3 text-teal-500 shrink-0" />
+                  <select
+                    value={selectedLocation}
+                    onChange={(e) => setSelectedLocation(e.target.value)}
+                    aria-label="กรองตามห้องหรือตู้จัดเก็บ"
+                    className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer max-w-[140px]"
+                  >
+                    <option value="ALL" className="dark:bg-slate-900">
+                      ทุกห้อง / ตู้เก็บ
+                    </option>
+                    {locations.map((loc) => (
+                      <option key={loc.name} value={loc.name} className="dark:bg-slate-900">
+                        {loc.name} ({loc.count})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <button
                 type="button"
                 onClick={() => setHasPhotosOnly(!hasPhotosOnly)}
@@ -1705,9 +1881,11 @@ export default function BorrowCatalogBrowser({
                   onClick={() => {
                     setHasPhotosOnly(false);
                     setHasSubUnitOnly(false);
+                    setHasCustomBadgeOnly(false);
                     setInStockOnly(false);
                     setWishlistOnly(false);
                     setSelectedCategory('ALL');
+                    setSelectedLocation('ALL');
                     setSearchQuery('');
                   }}
                   className="px-2 py-1 rounded-full text-[11px] text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 font-bold transition flex items-center gap-1 cursor-pointer"
@@ -1726,12 +1904,22 @@ export default function BorrowCatalogBrowser({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 px-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span>
-              แสดงพัสดุ <strong className="text-slate-900 dark:text-white">{filteredItems.length}</strong> รายการ
+              แสดงพัสดุ{' '}
+              <strong className="text-slate-900 dark:text-white">{displayedItems.length}</strong>{' '}
+              {filteredItems.length > displayedItems.length
+                ? `จาก ${filteredItems.length} `
+                : ''}
+              รายการ
             </span>
             {totalCartCount > 0 && (
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300">
-                เลือกไว้ในตะกร้า {totalCartCount} รายการ
-              </span>
+              <button
+                type="button"
+                onClick={() => setIsCartDrawerOpen(true)}
+                className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-teal-600 hover:bg-teal-700 text-white shadow-2xs transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <ShoppingCart className="w-3 h-3" />
+                <span>ดูตะกร้าที่เลือก ({totalCartCount} รายการ)</span>
+              </button>
             )}
           </div>
 
@@ -1778,7 +1966,7 @@ export default function BorrowCatalogBrowser({
         ) : viewMode === 'LIST' ? (
           /* LIST VIEW MODE */
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden shadow-xs">
-            {filteredItems.map((item) => {
+            {displayedItems.map((item) => {
               const isEquip = item.type === 'EQUIPMENT';
               const cartState = getItemCartState(item);
               const ratio = Number(item.conversionRatio) > 0 ? Number(item.conversionRatio) : 1;
@@ -1957,8 +2145,14 @@ export default function BorrowCatalogBrowser({
                         >
                           <Minus className="w-3.5 h-3.5" />
                         </button>
-                        <span className="font-mono text-xs font-bold px-2">
-                          {cartState.quantity}
+                        {renderDirectQtyInput(
+                          item,
+                          cartState.quantity,
+                          activeIsSub,
+                          'w-12 text-center font-mono text-xs font-bold bg-white/80 dark:bg-slate-900/70 text-slate-900 dark:text-white rounded-md py-1 border border-slate-200/70 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/40'
+                        )}
+                        <span className="text-[10px] text-slate-500 font-sans pr-0.5 hidden sm:inline">
+                          {activeIsSub ? (item.usageUnit || 'ชิ้น') : item.unit}
                         </span>
                         <button
                           type="button"
@@ -2001,7 +2195,7 @@ export default function BorrowCatalogBrowser({
                 : 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-5'
             }
           >
-            {filteredItems.map((item) => {
+            {displayedItems.map((item) => {
               const isEquip = item.type === 'EQUIPMENT';
               const cartState = getItemCartState(item);
               const ratio = Number(item.conversionRatio) > 0 ? Number(item.conversionRatio) : 1;
@@ -2283,75 +2477,91 @@ export default function BorrowCatalogBrowser({
                         </div>
                       )}
 
-                      {/* Equipment Specific Asset Chip Selector (เลือกชิ้นครุภัณฑ์รายหมายเลข) */}
-                      {isEquip && assetPool.length > 0 && viewMode !== 'COMPACT' && (
-                        <div className="pt-1">
-                          <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1 px-0.5">
-                            <span>เลือกหมายเลขชิ้น:</span>
+                      {/* Collapsible Equipment Specific Asset Chip Selector (เลือกชิ้นครุภัณฑ์รายหมายเลข) */}
+                      {isEquip && assetPool.length > 0 && viewMode !== 'COMPACT' && (() => {
+                        const isAssetSelectorOpen =
+                          !!expandedAssetCardIds[item.id] || cartState.selectedAssetCodes.length > 0;
+                        return (
+                          <div className="pt-1">
                             <button
                               type="button"
-                              onClick={() => setPreviewItem(item)}
-                              className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                              onClick={() =>
+                                setExpandedAssetCardIds((prev) => ({
+                                  ...prev,
+                                  [item.id]: !prev[item.id],
+                                }))
+                              }
+                              className="w-full flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 hover:bg-blue-50/70 dark:hover:bg-blue-950/30 border border-slate-200/80 dark:border-slate-700/80 text-[10px] font-bold text-slate-600 dark:text-slate-300 transition cursor-pointer"
                             >
-                              {cartState.selectedAssetCodes.length > 0
-                                ? `เลือกไว้ ${cartState.selectedAssetCodes.length} ชิ้น`
-                                : `ดูทั้งหมด (${assetPool.length})`}
+                              <span className="truncate">
+                                {cartState.selectedAssetCodes.length > 0
+                                  ? `🎯 เลือกแล้ว: ${cartState.selectedAssetCodes.join(', ')}`
+                                  : `🎯 เลือกหมายเลขเครื่อง (${assetPool.length} ชิ้น)`}
+                              </span>
+                              {isAssetSelectorOpen ? (
+                                <ChevronUp className="w-3.5 h-3.5 shrink-0 text-blue-600" />
+                              ) : (
+                                <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                              )}
                             </button>
-                          </div>
-                          <div className="flex items-center gap-1 flex-wrap">
-                            {assetPool.slice(0, 4).map((asset) => {
-                              const isPicked = cartState.selectedAssetIds.includes(asset.id);
-                              const isRes = reservedAssetSet.has(asset.id);
-                              const assetBadge = getCustomBadgeMeta(
-                                asset,
-                                assetBadgeOverrides[asset.id]
-                              );
-                              return (
-                                <button
-                                  key={asset.id}
-                                  type="button"
-                                  disabled={isRes}
-                                  onClick={() => handleToggleEquipmentAsset(item, asset)}
-                                  title={
-                                    isRes
-                                      ? `${asset.assetCode} ติดคิวจองในช่วงเวลานี้`
-                                      : `คลิกเพื่อเลือก/ยกเลิกชิ้น ${asset.assetCode}${
-                                          assetBadge ? ` [${assetBadge.label}]` : ''
-                                        } (${
-                                          asset.storageLocation?.name || asset.location || 'คลังพัสดุ'
-                                        })`
-                                  }
-                                  className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold border transition cursor-pointer inline-flex items-center gap-1 ${
-                                    isRes
-                                      ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900 text-rose-400 line-through cursor-not-allowed'
-                                      : isPicked
-                                      ? 'bg-blue-600 border-blue-600 text-white shadow-2xs'
-                                      : 'bg-slate-50 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-blue-400 hover:text-blue-600'
-                                  }`}
-                                >
-                                  <span>{isPicked ? `✓ ${asset.assetCode}` : asset.assetCode}</span>
-                                  {assetBadge && (
-                                    <span
-                                      className={`px-1.5 py-0.2 rounded-full text-[8px] font-sans font-black border ${assetBadge.className}`}
+
+                            {isAssetSelectorOpen && (
+                              <div className="mt-1.5 flex items-center gap-1 flex-wrap">
+                                {assetPool.slice(0, 6).map((asset) => {
+                                  const isPicked = cartState.selectedAssetIds.includes(asset.id);
+                                  const isRes = reservedAssetSet.has(asset.id);
+                                  const assetBadge = getCustomBadgeMeta(
+                                    asset,
+                                    assetBadgeOverrides[asset.id]
+                                  );
+                                  return (
+                                    <button
+                                      key={asset.id}
+                                      type="button"
+                                      disabled={isRes}
+                                      onClick={() => handleToggleEquipmentAsset(item, asset)}
+                                      title={
+                                        isRes
+                                          ? `${asset.assetCode} ติดคิวจองในช่วงเวลานี้`
+                                          : `คลิกเพื่อเลือก/ยกเลิกชิ้น ${asset.assetCode}${
+                                              assetBadge ? ` [${assetBadge.label}]` : ''
+                                            } (${
+                                              asset.storageLocation?.name || asset.location || 'คลังพัสดุ'
+                                            })`
+                                      }
+                                      className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold border transition cursor-pointer inline-flex items-center gap-1 ${
+                                        isRes
+                                          ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900 text-rose-400 line-through cursor-not-allowed'
+                                          : isPicked
+                                          ? 'bg-blue-600 border-blue-600 text-white shadow-2xs'
+                                          : 'bg-slate-50 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-blue-400 hover:text-blue-600'
+                                      }`}
                                     >
-                                      {assetBadge.label}
-                                    </span>
-                                  )}
-                                </button>
-                              );
-                            })}
-                            {assetPool.length > 4 && (
-                              <button
-                                type="button"
-                                onClick={() => setPreviewItem(item)}
-                                className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800/80 hover:bg-blue-100 cursor-pointer"
-                              >
-                                +{assetPool.length - 4} ชิ้น
-                              </button>
+                                      <span>{isPicked ? `✓ ${asset.assetCode}` : asset.assetCode}</span>
+                                      {assetBadge && (
+                                        <span
+                                          className={`px-1.5 py-0.2 rounded-full text-[8px] font-sans font-black border ${assetBadge.className}`}
+                                        >
+                                          {assetBadge.label}
+                                        </span>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                                {assetPool.length > 6 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewItem(item)}
+                                    className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800/80 hover:bg-blue-100 cursor-pointer"
+                                  >
+                                    ดูทั้งหมด ({assetPool.length})
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
 
                       {/* Subunit Switcher Pill (Clean iOS Segmented Style) */}
                       {hasSubUnit && viewMode !== 'COMPACT' && (
@@ -2417,9 +2627,14 @@ export default function BorrowCatalogBrowser({
                             <Minus className="w-3.5 h-3.5" />
                           </button>
 
-                          <div className="text-center font-bold text-xs font-mono text-slate-900 dark:text-white">
-                            <span>{cartState.quantity}</span>
-                            <span className="text-[10px] text-slate-500 font-sans ml-1">
+                          <div className="flex items-center justify-center gap-1 font-bold text-xs font-mono text-slate-900 dark:text-white flex-1 min-w-0">
+                            {renderDirectQtyInput(
+                              item,
+                              cartState.quantity,
+                              activeIsSub,
+                              'w-12 text-center font-mono text-xs font-black bg-white/90 dark:bg-slate-800/90 text-slate-900 dark:text-white rounded-lg py-1 border border-slate-200/80 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/40'
+                            )}
+                            <span className="text-[10px] text-slate-500 font-sans truncate">
                               {activeIsSub ? (item.usageUnit || 'ชิ้น') : item.unit}
                             </span>
                           </div>
@@ -2460,10 +2675,33 @@ export default function BorrowCatalogBrowser({
             })}
           </div>
         )}
+
+        {/* Pagination / Load More Controls (Zero API calls - client-side slice) */}
+        {filteredItems.length > visibleCount && (
+          <div className="flex flex-wrap items-center justify-center gap-2.5 pt-3">
+            <button
+              type="button"
+              onClick={() => setVisibleCount((prev) => prev + 24)}
+              className="px-5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
+            >
+              <ChevronDown className="w-4 h-4 text-teal-600" />
+              <span>
+                แสดงพัสดุเพิ่มเติม (+24 รายการ — เหลืออีก {filteredItems.length - visibleCount} รายการ)
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setVisibleCount(filteredItems.length)}
+              className="px-4 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold transition cursor-pointer"
+            >
+              แสดงทั้งหมด ({filteredItems.length})
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* 3. Floating Cart Bar (Centered Bottom Floating Pill - completely separated from AI Copilot) */}
-      {totalCartCount > 0 && (
+      {/* 3. Floating Cart Bar (Centered Bottom Floating Pill - hidden when embedded inside /borrow/request to avoid overlapping submit bar) */}
+      {!embeddedInRequestPage && totalCartCount > 0 && (
         <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] sm:w-auto max-w-md animate-in slide-in-from-bottom duration-300 pointer-events-none">
           <button
             type="button"
@@ -3420,10 +3658,17 @@ export default function BorrowCatalogBrowser({
                           >
                             <Minus className="w-4 h-4" />
                           </button>
-                          <span className="font-mono text-xs font-black px-2">
-                            {cartState.quantity}{' '}
-                            {activeIsSub ? previewItem.usageUnit || 'ชิ้น' : previewItem.unit}
-                          </span>
+                          <div className="flex items-center gap-1.5 px-1">
+                            {renderDirectQtyInput(
+                              previewItem,
+                              cartState.quantity,
+                              activeIsSub,
+                              'w-14 text-center font-mono text-xs font-black bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg py-1 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/40'
+                            )}
+                            <span className="font-sans text-xs font-bold text-slate-600 dark:text-slate-300">
+                              {activeIsSub ? previewItem.usageUnit || 'ชิ้น' : previewItem.unit}
+                            </span>
+                          </div>
                           <button
                             type="button"
                             onClick={() =>

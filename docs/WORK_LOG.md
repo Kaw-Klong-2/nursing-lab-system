@@ -17,6 +17,25 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-17] ปรับปรุงหน้าแคตตาล็อกพัสดุ (`BorrowCatalogBrowser`) และเชื่อมโหมดเลือกจากแคตตาล็อกใน `/borrow/request`
+- **หมวดหมู่**: Borrow & Requisition Storefront Catalog (`/borrow/request`, `/admin/sandbox/catalog`, `BorrowCatalogBrowser`, `BorrowCheckoutDrawer`)
+- **สิ่งที่ดำเนินการ**:
+  - **นโยบายประหยัด API & ป้องกันการยิงถี่ (`Zero-Spam API`)**:
+    - การเพิ่ม/ลดจำนวน พิมพ์ตัวเลข สลับหน่วย กรองหมวดหมู่/ป้าย/ตู้เก็บ และแบ่งหน้า ทำงานบนฝั่ง Client 100% โดยไม่ยิง API ขณะกดเลือกสินค้า
+    - อัปเกรดระบบเช็กคิวว่างใน [`BorrowCatalogBrowser.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCatalogBrowser.tsx): ทำงานเฉพาะเมื่อเปิดลิ้นชักตะกร้าและมีครุภัณฑ์อยู่ในตะกร้า, เพิ่ม Debounce เป็น `800ms`, ใช้ `AbortController` ยกเลิก Request ค้าง, และจำผลเดิมด้วย `availabilityCacheRef`
+  - **พิมพ์จำนวนตัวเลขได้โดยตรง**:
+    - เปลี่ยนตัวเลขจำนวนระหว่างปุ่ม `-` และ `+` ให้พิมพ์ตัวเลขตรงได้ทันที พร้อมจำกัดยอดไม่เกินสต็อกจริง ทั้งในการ์ดแคตตาล็อก (`GALLERY`, `COMPACT`, `LIST`), หน้าต่างดูสเปก, และลิ้นชักตะกร้า ([`BorrowCheckoutDrawer.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCheckoutDrawer.tsx)) (ไม่มีปุ่ม `+5`/`+10`)
+  - **ตัวกรองใหม่ & การจัดระเบียบการ์ด + แบ่งหน้า**:
+    - เพิ่มชิปกรอง **`ป้ายแนะนำ / OSCE`** และ Dropdown กรอง **`ทุกห้อง / ตู้เก็บ`** (Client-side 100%)
+    - ปรับส่วนเลือกหมายเลขเครื่องครุภัณฑ์รายชิ้น (`assetCode`) บนการ์ดให้พับเก็บได้ (`expandedAssetCardIds`) เพื่อให้การ์ดเรียงเป็นระเบียบ และเพิ่มปุ่มแสดงผลทีละ `24` รายการ / แสดงทั้งหมด
+  - **เชื่อมเข้าหน้าขอเบิก-ยืมจริง [`src/app/borrow/request/page.tsx`](file:///d:/LAB-system/src/app/borrow/request/page.tsx)**:
+    - เพิ่มแถบสลับโหมด **"เลือกจากแคตตาล็อกภาพ (Visual Catalog)"** และ **"เลือกจากตารางรายการ (แบบดั้งเดิม)"** ซิงก์รายการในตะกร้าและวันที่ยืม-คืนเข้าด้วยกันอัตโนมัติ พร้อมป้องกันแถบลอยซ้อนทับ Sticky Footer ด้วย `embeddedInRequestPage`
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/components/borrow/BorrowCatalogBrowser.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCatalogBrowser.tsx)
+  - [`src/components/borrow/BorrowCheckoutDrawer.tsx`](file:///d:/LAB-system/src/components/borrow/BorrowCheckoutDrawer.tsx)
+  - [`src/app/borrow/request/page.tsx`](file:///d:/LAB-system/src/app/borrow/request/page.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit`, `npm run build` และ `node scripts/librarian-audit.mjs` ผ่าน 100%
+
 ### [2026-11-17] เพิ่มช่องทางบันทึกเวลาเข้า-ออกห้องปฏิบัติการนอกเหนือจาก QR Code (`/practice`)
 - **หมวดหมู่**: Practice Attendance & Time Tracking (`/practice`, `PracticeHoursSummary`)
 - **สิ่งที่ดำเนินการ**:

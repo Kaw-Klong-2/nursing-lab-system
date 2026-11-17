@@ -124,6 +124,9 @@ export default function BorrowCheckoutDrawer({
     Array<{ itemName: string; assetCode: string }>
   >([]);
 
+  // Direct typing drafts so clearing an input to type multi-digit numbers does not immediately delete the row
+  const [drawerQtyDrafts, setDrawerQtyDrafts] = useState<Record<string, string>>({});
+
   // When drawer opens, reset to CART if previously closed
   useEffect(() => {
     if (isOpen) {
@@ -496,29 +499,88 @@ export default function BorrowCheckoutDrawer({
 
                                   {/* Stepper & Remove */}
                                   <div className="flex items-center gap-2 shrink-0">
-                                    <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 border border-slate-200 dark:border-slate-700">
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          handleSetEquipmentQty(item.id, Number(b.quantity) - 1)
-                                        }
-                                        className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 flex items-center justify-center cursor-pointer shadow-2xs text-slate-700 dark:text-slate-200"
-                                      >
-                                        <Minus className="w-3 h-3" />
-                                      </button>
-                                      <span className="font-mono text-xs font-bold px-2">
-                                        {b.quantity}
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          handleSetEquipmentQty(item.id, Number(b.quantity) + 1)
-                                        }
-                                        className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center cursor-pointer shadow-2xs"
-                                      >
-                                        <Plus className="w-3 h-3" />
-                                      </button>
-                                    </div>
+                                    {(() => {
+                                      const maxEquip = avail ? avail.availableNow : item.currentStock;
+                                      const draftKey = `eq:${item.id}`;
+                                      const displayQty =
+                                        drawerQtyDrafts[draftKey] !== undefined
+                                          ? drawerQtyDrafts[draftKey]
+                                          : String(b.quantity);
+                                      return (
+                                        <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 border border-slate-200 dark:border-slate-700">
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleSetEquipmentQty(item.id, Number(b.quantity) - 1)
+                                            }
+                                            className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 flex items-center justify-center cursor-pointer shadow-2xs text-slate-700 dark:text-slate-200"
+                                          >
+                                            <Minus className="w-3 h-3" />
+                                          </button>
+                                          <input
+                                            type="number"
+                                            min={0}
+                                            max={maxEquip > 0 ? maxEquip : 9999}
+                                            value={displayQty}
+                                            aria-label={`จำนวน ${item.name}`}
+                                            onChange={(e) => {
+                                              const raw = e.target.value;
+                                              setDrawerQtyDrafts((prev) => ({
+                                                ...prev,
+                                                [draftKey]: raw,
+                                              }));
+                                              if (raw === '') return;
+                                              const v = parseInt(raw, 10);
+                                              if (!isNaN(v) && v >= 1) {
+                                                handleSetEquipmentQty(
+                                                  item.id,
+                                                  Math.min(v, maxEquip > 0 ? maxEquip : 9999)
+                                                );
+                                              }
+                                            }}
+                                            onBlur={() => {
+                                              const raw = drawerQtyDrafts[draftKey];
+                                              setDrawerQtyDrafts((prev) => {
+                                                const copy = { ...prev };
+                                                delete copy[draftKey];
+                                                return copy;
+                                              });
+                                              if (raw === undefined) return;
+                                              const v = parseInt(raw, 10);
+                                              if (raw === '' || isNaN(v) || v <= 0) {
+                                                handleSetEquipmentQty(item.id, 0);
+                                              } else {
+                                                handleSetEquipmentQty(
+                                                  item.id,
+                                                  Math.min(v, maxEquip > 0 ? maxEquip : 9999)
+                                                );
+                                              }
+                                            }}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') {
+                                                (e.target as HTMLInputElement).blur();
+                                              }
+                                            }}
+                                            className="w-12 text-center font-mono text-xs font-bold bg-transparent text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleSetEquipmentQty(
+                                                item.id,
+                                                Math.min(
+                                                  Number(b.quantity) + 1,
+                                                  maxEquip > 0 ? maxEquip : 9999
+                                                )
+                                              )
+                                            }
+                                            className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center cursor-pointer shadow-2xs"
+                                          >
+                                            <Plus className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      );
+                                    })()}
 
                                     <button
                                       type="button"
@@ -659,37 +721,97 @@ export default function BorrowCheckoutDrawer({
 
                                 {/* Stepper & Remove */}
                                 <div className="flex items-center gap-2 shrink-0">
-                                  <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 border border-slate-200 dark:border-slate-700">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleSetConsumableQty(
-                                          item.id,
-                                          Number(r.quantity) - 1,
-                                          r.isSubUnit
-                                        )
-                                      }
-                                      className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 flex items-center justify-center cursor-pointer shadow-2xs text-slate-700 dark:text-slate-200"
-                                    >
-                                      <Minus className="w-3 h-3" />
-                                    </button>
-                                    <span className="font-mono text-xs font-bold px-2">
-                                      {r.quantity}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleSetConsumableQty(
-                                          item.id,
-                                          Number(r.quantity) + 1,
-                                          r.isSubUnit
-                                        )
-                                      }
-                                      className="w-6 h-6 rounded-lg bg-teal-600 text-white flex items-center justify-center cursor-pointer shadow-2xs"
-                                    >
-                                      <Plus className="w-3 h-3" />
-                                    </button>
-                                  </div>
+                                  {(() => {
+                                    const maxLimit = r.isSubUnit
+                                      ? item.currentStock * ratio + (item.openPackRemainder || 0)
+                                      : item.currentStock;
+                                    const draftKey = `con:${item.id}`;
+                                    const displayQty =
+                                      drawerQtyDrafts[draftKey] !== undefined
+                                        ? drawerQtyDrafts[draftKey]
+                                        : String(r.quantity);
+                                    return (
+                                      <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 border border-slate-200 dark:border-slate-700">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleSetConsumableQty(
+                                              item.id,
+                                              Number(r.quantity) - 1,
+                                              r.isSubUnit
+                                            )
+                                          }
+                                          className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 flex items-center justify-center cursor-pointer shadow-2xs text-slate-700 dark:text-slate-200"
+                                        >
+                                          <Minus className="w-3 h-3" />
+                                        </button>
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          max={maxLimit > 0 ? maxLimit : 9999}
+                                          value={displayQty}
+                                          aria-label={`จำนวน ${item.name}`}
+                                          onChange={(e) => {
+                                            const raw = e.target.value;
+                                            setDrawerQtyDrafts((prev) => ({
+                                              ...prev,
+                                              [draftKey]: raw,
+                                            }));
+                                            if (raw === '') return;
+                                            const v = parseInt(raw, 10);
+                                            if (!isNaN(v) && v >= 1) {
+                                              handleSetConsumableQty(
+                                                item.id,
+                                                Math.min(v, maxLimit > 0 ? maxLimit : 9999),
+                                                r.isSubUnit
+                                              );
+                                            }
+                                          }}
+                                          onBlur={() => {
+                                            const raw = drawerQtyDrafts[draftKey];
+                                            setDrawerQtyDrafts((prev) => {
+                                              const copy = { ...prev };
+                                              delete copy[draftKey];
+                                              return copy;
+                                            });
+                                            if (raw === undefined) return;
+                                            const v = parseInt(raw, 10);
+                                            if (raw === '' || isNaN(v) || v <= 0) {
+                                              handleSetConsumableQty(item.id, 0, r.isSubUnit);
+                                            } else {
+                                              handleSetConsumableQty(
+                                                item.id,
+                                                Math.min(v, maxLimit > 0 ? maxLimit : 9999),
+                                                r.isSubUnit
+                                              );
+                                            }
+                                          }}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                              (e.target as HTMLInputElement).blur();
+                                            }
+                                          }}
+                                          className="w-14 text-center font-mono text-xs font-bold bg-transparent text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 rounded px-1"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleSetConsumableQty(
+                                              item.id,
+                                              Math.min(
+                                                Number(r.quantity) + 1,
+                                                maxLimit > 0 ? maxLimit : 9999
+                                              ),
+                                              r.isSubUnit
+                                            )
+                                          }
+                                          className="w-6 h-6 rounded-lg bg-teal-600 text-white flex items-center justify-center cursor-pointer shadow-2xs"
+                                        >
+                                          <Plus className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    );
+                                  })()}
 
                                   <button
                                     type="button"

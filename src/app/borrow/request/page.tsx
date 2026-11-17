@@ -27,8 +27,11 @@ import {
   RotateCcw,
   Edit3,
   AlertTriangle,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import BorrowCatalogBrowser from '@/components/borrow/BorrowCatalogBrowser';
 
 function BorrowRequestContent() {
   const router = useRouter();
@@ -42,6 +45,7 @@ function BorrowRequestContent() {
   // Loading States
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [itemEntryMode, setItemEntryMode] = useState<'CATALOG' | 'FORM'>('CATALOG');
 
   // Master Data
   const [equipmentList, setEquipmentList] = useState<any[]>([]);
@@ -266,7 +270,11 @@ function BorrowRequestContent() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 md:py-10 pb-36 md:pb-24">
+    <div
+      className={`${
+        itemEntryMode === 'CATALOG' ? 'max-w-7xl' : 'max-w-4xl'
+      } mx-auto px-4 py-6 md:py-10 pb-36 md:pb-24 transition-all duration-200`}
+    >
       {/* Header */}
       <div className="flex items-center justify-between gap-4 mb-6">
         <Link
@@ -545,6 +553,119 @@ function BorrowRequestContent() {
           </div>
         </div>
 
+        {/* MODE SWITCHER: VISUAL CATALOG VS CLASSIC TABLE FORM */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setItemEntryMode('CATALOG')}
+              className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer flex items-center gap-2 ${
+                itemEntryMode === 'CATALOG'
+                  ? 'bg-teal-600 text-white shadow-md shadow-teal-600/20'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+              <span>เลือกจากแคตตาล็อกภาพ (Visual Catalog)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setItemEntryMode('FORM')}
+              className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer flex items-center gap-2 ${
+                itemEntryMode === 'FORM'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              <List className="w-4 h-4" />
+              <span>เลือกจากตารางรายการ (แบบดั้งเดิม)</span>
+            </button>
+          </div>
+
+          <div className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-2 bg-slate-50 dark:bg-slate-800/80 px-3.5 py-2 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+            <ShoppingCart className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+            <span>
+              เลือกไว้แล้ว: ครุภัณฑ์{' '}
+              <strong className="text-blue-600 dark:text-blue-400">{validBorrowCount}</strong> รายการ •
+              วัสดุ <strong className="text-teal-600 dark:text-teal-400">{validReqCount}</strong> รายการ
+            </span>
+          </div>
+        </div>
+
+        {itemEntryMode === 'CATALOG' ? (
+          <BorrowCatalogBrowser
+            equipmentList={equipmentList}
+            consumablesList={consumablesList}
+            practiceKits={[]}
+            borrowItems={borrowItems}
+            requisitionItems={requisitionItems}
+            onUpdateBorrowItems={setBorrowItems}
+            onUpdateRequisitionItems={setRequisitionItems}
+            initialBorrowDate={borrowDate ? `${borrowDate}T09:00` : undefined}
+            initialReturnDate={expectedReturnDate ? `${expectedReturnDate}T16:00` : undefined}
+            onDatesChange={(dates) => {
+              if (dates.borrowDate) setBorrowDate(dates.borrowDate.slice(0, 10));
+              if (dates.expectedReturnDate) setExpectedReturnDate(dates.expectedReturnDate.slice(0, 10));
+            }}
+            courses={courses}
+            instructors={instructors}
+            isSimulation={false}
+            embeddedInRequestPage={true}
+            onSubmitRealRequest={async (payload) => {
+              if (!currentUser) return { success: false, error: 'กรุณาเข้าสู่ระบบ' };
+              const activePurpose = (payload.purpose || purpose || '').trim();
+              const activeAdvisor = payload.advisorName || advisorName;
+              if (isStudent && !activeAdvisor?.trim()) {
+                return {
+                  success: false,
+                  error: 'เนื่องจากท่านเป็นนิสิต กรุณาเลือกอาจารย์ผู้รับรอง/อาจารย์ประจำวิชา',
+                };
+              }
+              if (!activePurpose) {
+                return { success: false, error: 'กรุณาระบุวัตถุประสงค์ในการยืม-เบิกพัสดุ' };
+              }
+              try {
+                const res = await fetch('/api/requests/unified', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId: currentUser.id,
+                    courseId: payload.courseId || courseId || null,
+                    advisorName: activeAdvisor ? formatTeacherName(activeAdvisor) : null,
+                    purpose: activePurpose,
+                    useTarget: payload.useTarget || useTarget,
+                    borrowDate: payload.borrowDate || borrowDate || null,
+                    expectedReturnDate: payload.expectedReturnDate || expectedReturnDate || null,
+                    borrowItems: (payload.borrowItems || []).map((it: any) => ({
+                      itemId: it.itemId,
+                      quantity: Number(it.quantity),
+                      selectedAssetIds: Array.isArray(it.selectedAssetIds)
+                        ? it.selectedAssetIds
+                        : undefined,
+                    })),
+                    requisitionItems: (payload.requisitionItems || []).map((it: any) => ({
+                      itemId: it.itemId,
+                      quantity: Number(it.quantity),
+                      isSubUnit: !!it.isSubUnit,
+                      requestedUnit: it.requestedUnit || '',
+                    })),
+                  }),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                  return { success: false, error: data.error || 'เกิดข้อผิดพลาดในการส่งคำขอ' };
+                }
+                sessionStorage.removeItem(draftKey);
+                alert('ส่งคำขอยืม-เบิกพัสดุสำเร็จ! รออาจารย์และเจ้าหน้าที่พิจารณาอนุมัติ');
+                router.push('/borrow');
+                return { success: true, data };
+              } catch (err: any) {
+                return { success: false, error: err?.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์' };
+              }
+            }}
+          />
+        ) : (
+          <>
         {/* SECTION 2: Equipment Borrow Rows (BLUE THEME) */}
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 border-2 border-blue-200 dark:border-blue-900/60 shadow-sm space-y-6">
           <div className="flex flex-wrap items-center justify-between border-b border-blue-100 dark:border-blue-900/40 pb-4 gap-3">
@@ -1029,6 +1150,8 @@ function BorrowRequestContent() {
             })}
           </div>
         </div>
+          </>
+        )}
 
         {/* Sticky Mobile Bottom Bar (Positioned above Mobile BottomNav) */}
         <div className="fixed bottom-[58px] md:bottom-0 left-0 right-0 p-3 sm:p-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-30 shadow-lg">

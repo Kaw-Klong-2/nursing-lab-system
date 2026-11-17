@@ -198,6 +198,7 @@ interface BorrowCatalogBrowserProps {
   simulatedRole?: 'STUDENT' | 'TEACHER';
   onSubmitRealRequest?: (payload: any) => Promise<{ success: boolean; data?: any; error?: string }>;
   embeddedInRequestPage?: boolean;
+  openCartSignal?: number;
 }
 
 function getMedicalCategoryMeta(categoryName?: string, itemType?: string) {
@@ -587,6 +588,7 @@ export default function BorrowCatalogBrowser({
   simulatedRole = 'STUDENT',
   onSubmitRealRequest,
   embeddedInRequestPage = false,
+  openCartSignal = 0,
 }: BorrowCatalogBrowserProps) {
   const [activeTab, setActiveTab] = useState<'ALL' | 'EQUIPMENT' | 'CONSUMABLE'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -611,6 +613,12 @@ export default function BorrowCatalogBrowser({
     subtext?: string;
   } | null>(null);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    if (openCartSignal > 0) {
+      setIsCartDrawerOpen(true);
+    }
+  }, [openCartSignal]);
   const [showKitsSection, setShowKitsSection] = useState(false);
   const [viewMode, setViewMode] = useState<'GALLERY' | 'COMPACT' | 'LIST'>('GALLERY');
   const [activePreset, setActivePreset] = useState<string>('MORNING');

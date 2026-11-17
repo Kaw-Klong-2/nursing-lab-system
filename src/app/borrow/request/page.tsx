@@ -46,6 +46,7 @@ function BorrowRequestContent() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [itemEntryMode, setItemEntryMode] = useState<'CATALOG' | 'FORM'>('CATALOG');
+  const [openCartSignal, setOpenCartSignal] = useState(0);
 
   // Master Data
   const [equipmentList, setEquipmentList] = useState<any[]>([]);
@@ -611,6 +612,7 @@ function BorrowRequestContent() {
             instructors={instructors}
             isSimulation={false}
             embeddedInRequestPage={true}
+            openCartSignal={openCartSignal}
             onSubmitRealRequest={async (payload) => {
               if (!currentUser) return { success: false, error: 'กรุณาเข้าสู่ระบบ' };
               const activePurpose = (payload.purpose || purpose || '').trim();
@@ -1155,29 +1157,42 @@ function BorrowRequestContent() {
 
         {/* Sticky Mobile Bottom Bar (Positioned above Mobile BottomNav) */}
         <div className="fixed bottom-[58px] md:bottom-0 left-0 right-0 p-3 sm:p-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-30 shadow-lg">
-          <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
+          <div className="max-w-5xl mx-auto flex items-center justify-between gap-2.5 sm:gap-3">
             <Link
               href="/borrow"
-              className="px-4 sm:px-5 py-2.5 sm:py-3 rounded-2xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs sm:text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-2xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs sm:text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
             >
               ยกเลิก
             </Link>
 
-            <button
-              type="submit"
-              disabled={submitting || (validBorrowCount === 0 && validReqCount === 0)}
-              className="flex-1 sm:flex-none sm:min-w-[260px] px-5 sm:px-6 py-2.5 sm:py-3.5 bg-gradient-to-r from-teal-600 via-teal-700 to-indigo-600 hover:from-teal-700 hover:to-indigo-700 text-white rounded-2xl font-bold text-xs sm:text-sm shadow-md shadow-teal-600/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-            >
-              {submitting ? (
-                <>
-                  <LoadingSpinner /> กำลังส่งคำขอ...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" /> ยื่นคำขอยืม-เบิก ({validBorrowCount + validReqCount} รายการ)
-                </>
+            <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-end">
+              {itemEntryMode === 'CATALOG' && (validBorrowCount > 0 || validReqCount > 0) && (
+                <button
+                  type="button"
+                  onClick={() => setOpenCartSignal((n) => n + 1)}
+                  className="px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs sm:text-sm shadow-md hover:opacity-90 transition cursor-pointer flex items-center gap-1.5 shrink-0"
+                >
+                  <ShoppingCart className="w-4 h-4 text-teal-400 dark:text-teal-600" />
+                  <span>ดูตะกร้าข้าง ({validBorrowCount + validReqCount})</span>
+                </button>
               )}
-            </button>
+
+              <button
+                type="submit"
+                disabled={submitting || (validBorrowCount === 0 && validReqCount === 0)}
+                className="flex-1 sm:flex-none sm:min-w-[240px] px-4 sm:px-6 py-2.5 sm:py-3.5 bg-gradient-to-r from-teal-600 via-teal-700 to-indigo-600 hover:from-teal-700 hover:to-indigo-700 text-white rounded-2xl font-bold text-xs sm:text-sm shadow-md shadow-teal-600/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {submitting ? (
+                  <>
+                    <LoadingSpinner /> กำลังส่งคำขอ...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" /> ยื่นคำขอยืม-เบิก ({validBorrowCount + validReqCount} รายการ)
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </form>

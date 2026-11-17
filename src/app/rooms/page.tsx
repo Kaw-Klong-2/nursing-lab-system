@@ -3598,14 +3598,14 @@ export default function RoomsPage() {
                         onClick={() => setBookingForm({ ...bookingForm, startTime: '08:30', endTime: '12:00' })}
                         className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg transition cursor-pointer"
                       >
-                        เช้า (08:30-12)
+                        เช้า (08:30-12:00)
                       </button>
                       <button
                         type="button"
                         onClick={() => setBookingForm({ ...bookingForm, startTime: '13:00', endTime: '16:30' })}
                         className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg transition cursor-pointer"
                       >
-                        บ่าย (13-16:30)
+                        บ่าย (13:00-16:30)
                       </button>
                       <button
                         type="button"
@@ -3685,14 +3685,14 @@ export default function RoomsPage() {
                           onClick={() => setBookingForm({ ...bookingForm, startTime: '08:30', endTime: '12:00' })}
                           className="px-2 py-0.5 bg-white dark:bg-slate-800 hover:bg-amber-100 rounded-lg transition cursor-pointer text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
                         >
-                          เช้า (08:30-12)
+                          เช้า (08:30-12:00)
                         </button>
                         <button
                           type="button"
                           onClick={() => setBookingForm({ ...bookingForm, startTime: '13:00', endTime: '16:30' })}
                           className="px-2 py-0.5 bg-white dark:bg-slate-800 hover:bg-amber-100 rounded-lg transition cursor-pointer text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
                         >
-                          บ่าย (13-16:30)
+                          บ่าย (13:00-16:30)
                         </button>
                         <button
                           type="button"
@@ -3740,14 +3740,14 @@ export default function RoomsPage() {
                         onClick={() => setBookingForm({ ...bookingForm, startTime: '08:30', endTime: '12:00' })}
                         className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg transition cursor-pointer"
                       >
-                        เช้า (08:30-12)
+                        เช้า (08:30-12:00)
                       </button>
                       <button
                         type="button"
                         onClick={() => setBookingForm({ ...bookingForm, startTime: '13:00', endTime: '16:30' })}
                         className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg transition cursor-pointer"
                       >
-                        บ่าย (13-16:30)
+                        บ่าย (13:00-16:30)
                       </button>
                       <button
                         type="button"

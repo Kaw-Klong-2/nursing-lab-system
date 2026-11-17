@@ -17,6 +17,23 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-17] เพิ่มช่องทางบันทึกเวลาเข้า-ออกห้องปฏิบัติการนอกเหนือจาก QR Code (`/practice`)
+- **หมวดหมู่**: Practice Attendance & Time Tracking (`/practice`, `PracticeHoursSummary`)
+- **สิ่งที่ดำเนินการ**:
+  - **เพิ่มสิทธิ์และจุดบันทึกเวลาแบบไม่ใช้ QR Code (ตามขอบเขตที่ตกลง: ไม่มีแบบกลุ่ม และ Manual Time เฉพาะ Admin)**:
+    - **1-Click Check-in / Check-out**: เพิ่มปุ่มเช็คอิน/เช็คเอาท์ทันทีบนการ์ดคำขอและตารางคำขอในแท็บ `BOOKINGS` รวมถึงหน้าต่างรายละเอียดคำขอ สำหรับอาจารย์/เจ้าหน้าที่/Admin
+    - **ค้นหาด่วนด้วยชื่อหรือรหัสนิสิต**: อัปเกรดแท็บ `SCANNER` (`จุดบันทึกเวลาเข้า-ออก`) เพิ่มช่องค้นหานิสิตแบบเรียลไทม์เพื่อกดเช็คอิน-เช็คเอาท์ได้ทันทีโดยไม่ต้องเปิดกล้องสแกน
+    - **บันทึก Walk-in หน้าห้อง**: เพิ่ม API `POST /api/practice/bookings/walk-in` และ Modal บันทึก Walk-in สำหรับเจ้าหน้าที่/อาจารย์/Admin เพื่อสร้างคำขออนุมัติอัตโนมัติและเช็คอินเข้าห้องแล็บในขั้นตอนเดียว
+    - **บันทึก/แก้ไขเวลาย้อนหลัง (`MANUAL_TIME_LOG` — เฉพาะ `ADMIN` เท่านั้น)**: ขยาย `PUT /api/practice/bookings/[id]` ตรวจสิทธิ์ `role === 'ADMIN'` ทั้งฝั่ง API (คืน 403 หากไม่ใช่ Admin) และหน้าบ้าน พร้อมคำนวณ `actualMinutes` อัตโนมัติ, แนบแท็ก `[บันทึกเวลาโดยแอดมิน: ...]` และเก็บ `ActivityLog`
+  - **แสดงป้ายกำกับแหล่งที่มาของเวลาใน [`src/components/practice/PracticeHoursSummary.tsx`](file:///d:/LAB-system/src/components/practice/PracticeHoursSummary.tsx)**:
+    - เพิ่มฟังก์ชัน `renderAttendanceOriginBadges` แสดงป้ายกำกับ `บันทึก/แก้ไขเวลาโดย Admin` และ `Walk-in หน้าห้อง` ในตารางบันทึกรายครั้งและหน้าต่างรายละเอียดนิสิต
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/app/api/practice/bookings/[id]/route.ts`](file:///d:/LAB-system/src/app/api/practice/bookings/%5Bid%5D/route.ts)
+  - [`src/app/api/practice/bookings/walk-in/route.ts`](file:///d:/LAB-system/src/app/api/practice/bookings/walk-in/route.ts)
+  - [`src/app/practice/page.tsx`](file:///d:/LAB-system/src/app/practice/page.tsx)
+  - [`src/components/practice/PracticeHoursSummary.tsx`](file:///d:/LAB-system/src/components/practice/PracticeHoursSummary.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit`, `npm run build` และ `node scripts/librarian-audit.mjs` ผ่าน 100%
+
 ### [2026-11-16] เพิ่มระบบเรียกดูและรายงานการเข้าฝึกของนิสิตแยกตามภาคการศึกษา รายวิชา และอาจารย์ผู้สอน (`/practice` & `/courses`)
 - **หมวดหมู่**: Student Practice & Instructor Reporting (`PracticeHoursSummary`, `/practice`, `/courses`)
 - **สิ่งที่ดำเนินการ**:

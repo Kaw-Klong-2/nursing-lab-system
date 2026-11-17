@@ -39,6 +39,34 @@ function normalizeInstructorKey(name?: string | null): string {
     .toLowerCase();
 }
 
+function renderAttendanceOriginBadges(notes?: string | null) {
+  if (!notes) return null;
+  const adminMatch = notes.match(/\[บันทึกเวลาโดยแอดมิน([^\]]*)\]/);
+  const walkInMatch = notes.match(/\[Walk-in([^\]]*)\]/);
+  if (!adminMatch && !walkInMatch) return null;
+
+  return (
+    <div className="flex flex-wrap gap-1 mt-1">
+      {adminMatch && (
+        <span
+          title={adminMatch[0]}
+          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60"
+        >
+          บันทึก/แก้ไขเวลาโดย Admin{adminMatch[1] ? ` (${adminMatch[1].replace(/^:\s*/, '')})` : ''}
+        </span>
+      )}
+      {walkInMatch && (
+        <span
+          title={walkInMatch[0]}
+          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-50 dark:bg-sky-950/70 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800/60"
+        >
+          Walk-in หน้าห้อง{walkInMatch[1] ? ` (${walkInMatch[1].replace(/^[^:]*:\s*/, '').trim()})` : ''}
+        </span>
+      )}
+    </div>
+  );
+}
+
 interface PracticeHoursSummaryProps {
   bookings: any[];
   currentUser: any;
@@ -1410,6 +1438,7 @@ export default function PracticeHoursSummary({
                               {r.advisorName && (
                                 <div className="text-[10px] text-slate-400">อาจารย์: {formatTeacherName(r.advisorName)}</div>
                               )}
+                              {renderAttendanceOriginBadges(r.notes)}
                             </td>
                             <td className="py-3 px-4 text-center font-mono text-[11px] text-slate-500 whitespace-nowrap">
                               {inTime} - {outTime}
@@ -1533,6 +1562,7 @@ export default function PracticeHoursSummary({
                             {r.course ? `${r.course.code} ${r.course.name}` : 'ฝึกทักษะทั่วไป'}
                           </div>
                           {r.advisorName && <div className="text-[10px] text-slate-400">อาจารย์: {formatTeacherName(r.advisorName)}</div>}
+                          {renderAttendanceOriginBadges(r.notes)}
                         </td>
                         <td className="py-2.5 px-3 text-center font-mono text-[11px] text-slate-500 whitespace-nowrap">
                           {inTime} - {outTime}

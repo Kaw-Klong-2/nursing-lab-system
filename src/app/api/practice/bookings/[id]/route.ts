@@ -47,7 +47,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   try {
     const { id } = await params;
     const body = await req.json();
-    const { action, userId, reason, notes } = body;
+    const { action, userId, reason, notes, customCheckInTime, customCheckOutTime } = body;
 
     // Resolve booking by id, bookingNumber, or qrCodeToken
     const booking = await prisma.practiceBooking.findFirst({
@@ -279,6 +279,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         }).catch(() => {});
       }
 
+      if (userId) {
+        logActivity({
+          userId,
+          action: 'UPDATE',
+          entityType: 'PRACTICE_BOOKING',
+          entityId: updated.id,
+          entityTitle: updated.bookingNumber,
+          details: `เช็คอินเข้าฝึกทักษะ ${updated.bookingNumber} (${updated.slot?.room?.name || 'ห้องปฏิบัติการ'})`,
+        });
+      }
+
       return NextResponse.json({ message: 'เช็คอินเข้าห้องปฏิบัติการสำเร็จ', booking: updated });
     }
 
@@ -323,7 +334,127 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         }).catch(() => {});
       }
 
+      if (userId) {
+        logActivity({
+          userId,
+          action: 'UPDATE',
+          entityType: 'PRACTICE_BOOKING',
+          entityId: updated.id,
+          entityTitle: updated.bookingNumber,
+          details: `เช็คเอาท์เสร็จสิ้น ${updated.bookingNumber} (รวมเวลาฝึก ${updated.actualMinutes || 0} นาที)`,
+        });
+      }
+
       return NextResponse.json({ message: 'เช็คเอาท์เสร็จสิ้น บันทึกเวลาการฝึกเรียบร้อย', booking: updated });
+    }
+
+    if (action === 'MANUAL_TIME_LOG') {
+      if (!userId) {
+        return NextResponse.json(
+          { error: 'เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่มีสิทธิ์บันทึกหรือแก้ไขเวลาย้อนหลัง' },
+          { status: 403 }
+        );
+      }
+
+      const actor = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, role: true, name: true },
+      });
+
+      if (!actor || actor.role !== 'ADMIN') {
+        return NextResponse.json(
+          { error: 'เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่มีสิทธิ์บันทึกหรือแก้ไขเวลาย้อนหลัง' },
+          { status: 403 }
+        );
+      }
+
+      if (!customCheckInTime) {
+        return NextResponse.json(
+          { error: 'กรุณาระบุเวลาเข้าฝึกให้ถูกต้อง' },
+          { status: 400 }
+        );
+      }
+
+      const parsedIn = new Date(customCheckInTime);
+      if (isNaN(parsedIn.getTime())) {
+        return NextResponse.json(
+          { error: 'กรุณาระบุเวลาเข้าฝึกให้ถูกต้อง' },
+          { status: 400 }
+        );
+      }
+
+      let status: 'CHECKED_IN' | 'COMPLETED' = 'CHECKED_IN';
+      let parsedOut: Date | null = null;
+      let actualMinutes: number | null = null;
+
+      if (customCheckOutTime && String(customCheckOutTime).trim()) {
+        parsedOut = new Date(customCheckOutTime);
+        if (isNaN(parsedOut.getTime()) || parsedOut <= parsedIn) {
+          return NextResponse.json(
+            { error: 'เวลาเช็คเอาท์ต้องมากกว่าเวลาเช็คอิน' },
+            { status: 400 }
+          );
+        }
+        actualMinutes = Math.max(1, Math.round((parsedOut.getTime() - parsedIn.getTime()) / 60000));
+        status = 'COMPLETED';
+      }
+
+      const cleanedPrevNotes = (booking.notes || '')
+        .replace(/\[บันทึกเวลาโดยแอดมิน[^\]]*\]/g, '')
+        .trim();
+      const reasonText = notes && String(notes).trim() ? String(notes).trim() : '';
+      const adminTag = `[บันทึกเวลาโดยแอดมิน${reasonText ? `: ${reasonText}` : ''}]`;
+      const updatedNotes = cleanedPrevNotes ? `${cleanedPrevNotes} ${adminTag}` : adminTag;
+
+      const updated = await prisma.practiceBooking.update({
+        where: { id: booking.id },
+        data: {
+          status,
+          checkInTime: parsedIn,
+          checkOutTime: parsedOut,
+          actualMinutes,
+          notes: updatedNotes,
+          ...(booking.status === 'PENDING'
+            ? {
+                approverId: actor.id,
+                approvedAt: new Date(),
+              }
+            : {}),
+        },
+        include: {
+          user: true,
+          slot: { include: { room: true } },
+          approver: true,
+        },
+      });
+
+      if (updated.userId) {
+        createNotification({
+          userId: updated.userId,
+          title: 'ผู้ดูแลระบบบันทึก/ปรับปรุงเวลาฝึกปฏิบัติ ⏱️',
+          message: updated.actualMinutes
+            ? `บันทึกเวลาฝึก ${updated.bookingNumber} รวม ${updated.actualMinutes} นาที เรียบร้อยแล้ว`
+            : `บันทึกเวลาเช็คอิน ${updated.bookingNumber} โดยผู้ดูแลระบบเรียบร้อยแล้ว`,
+          type: 'SYSTEM',
+          linkUrl: '/practice/my-bookings',
+          entityType: 'PRACTICE',
+          entityId: updated.id,
+        }).catch(() => {});
+      }
+
+      logActivity({
+        userId: actor.id,
+        action: 'UPDATE',
+        entityType: 'PRACTICE_BOOKING',
+        entityId: updated.id,
+        entityTitle: updated.bookingNumber,
+        details: `แอดมินบันทึก/แก้ไขเวลาเข้าฝึก ${updated.bookingNumber} (${updated.actualMinutes ? `${updated.actualMinutes} นาที` : 'เช็คอิน'})${reasonText ? ` เหตุผล: ${reasonText}` : ''}`,
+      });
+
+      return NextResponse.json({
+        message: 'บันทึกเวลาเข้า-ออกโดยผู้ดูแลระบบเรียบร้อยแล้ว',
+        booking: updated,
+      });
     }
 
     if (action === 'CANCEL') {

@@ -50,6 +50,10 @@ import {
   Maximize2,
   Minimize2,
   Sun,
+  LogIn,
+  LogOut,
+  UserPlus,
+  ShieldCheck,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import PracticeHoursSummary from '@/components/practice/PracticeHoursSummary';
@@ -93,6 +97,7 @@ export default function PracticePage() {
   const [courses, setCourses] = useState<any[]>([]);
   const [practiceKits, setPracticeKits] = useState<any[]>([]);
   const [teachers, setTeachers] = useState<any[]>([]);
+  const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -159,6 +164,7 @@ export default function PracticePage() {
   // Scanner Station State
   const [manualCodeInput, setManualCodeInput] = useState('');
   const [processingManualCode, setProcessingManualCode] = useState(false);
+  const [stationStudentSearch, setStationStudentSearch] = useState('');
   const [scannerStatus, setScannerStatus] = useState<{
     type: 'SUCCESS' | 'ERROR' | 'INFO' | null;
     title: string;
@@ -169,6 +175,30 @@ export default function PracticePage() {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const html5ScannerRef = useRef<any>(null);
   const practiceScanThrottleRef = useRef(createScanThrottle(2000));
+
+  // Admin Manual Time Entry State (ADMIN Only)
+  const [bookingForManualTime, setBookingForManualTime] = useState<any>(null);
+  const [manualTimeForm, setManualTimeForm] = useState({
+    checkInDate: new Date().toISOString().slice(0, 10),
+    checkInTime: '09:00',
+    checkOutTime: '12:00',
+    isCompleted: true,
+    notes: '',
+  });
+  const [savingManualTime, setSavingManualTime] = useState(false);
+
+  // Walk-in Modal State (Staff / Teacher / Admin)
+  const [showWalkInModal, setShowWalkInModal] = useState(false);
+  const [walkInStudentSearch, setWalkInStudentSearch] = useState('');
+  const [walkInForm, setWalkInForm] = useState({
+    slotId: '',
+    studentUserId: '',
+    skillTopic: '',
+    courseId: '',
+    advisorName: '',
+    notes: '',
+  });
+  const [savingWalkIn, setSavingWalkIn] = useState(false);
 
   // Room Modal & Management States
   const [showAddRoomModal, setShowAddRoomModal] = useState(false);
@@ -221,7 +251,7 @@ export default function PracticePage() {
         fetch(`/api/practice/stats${currentUser?.id ? `?userId=${currentUser.id}` : ''}`),
         fetch('/api/courses?compact=true&status=all'),
         fetch('/api/kits'),
-        fetch('/api/users?role=APPROVER'),
+        fetch('/api/users'),
       ]);
 
       if (slotsRes.ok) setSlots(await slotsRes.json());
@@ -262,6 +292,14 @@ export default function PracticePage() {
             )
           : [];
         setTeachers(tList);
+
+        // Filter students (นิสิต) for Walk-in quick check-in
+        const sList = Array.isArray(uList)
+          ? uList.filter(
+              (u: any) => u.role === 'USER' && !u.email?.includes('teacher')
+            )
+          : [];
+        setStudents(sList);
       }
       setLastUpdated(new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err) {
@@ -588,7 +626,7 @@ export default function PracticePage() {
       const updateRes = await fetch(`/api/practice/bookings/${booking.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, userId: currentUser?.id }),
       });
 
       const result = await updateRes.json();
@@ -627,6 +665,222 @@ export default function PracticePage() {
       });
     } finally {
       setProcessingManualCode(false);
+    }
+  };
+
+  // 5.1 Actions: 1-Click Direct Check-in / Check-out (No QR required)
+  const handleDirectCheckInOut = async (booking: any) => {
+    if (!booking?.id) return;
+    const action = booking.status === 'CHECKED_IN' ? 'CHECK_OUT' : 'CHECK_IN';
+    const actionLabel = action === 'CHECK_IN' ? 'เช็คอินเข้าห้องแล็บ' : 'เช็คเอาท์จบการฝึก';
+    const studentName = formatUserName(booking.user) || booking.user?.name || 'นิสิต';
+
+    if (!confirm(`ยืนยันการ${actionLabel} ของ ${studentName} (${booking.bookingNumber})?`)) {
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/practice/bookings/${booking.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, userId: currentUser?.id }),
+      });
+      const result = await res.json();
+
+      if (res.ok) {
+        if (action === 'CHECK_IN') {
+          setScannerStatus({
+            type: 'SUCCESS',
+            title: 'เช็คอินเข้าห้องแล็บสำเร็จ!',
+            message: `นิสิต: ${studentName} (${booking.user?.studentId || '-'}) เช็คอินเข้า ${booking.slot?.room?.name || 'ห้องปฏิบัติการ'} เวลา ${new Date().toLocaleTimeString('th-TH')}`,
+            booking: result.booking,
+          });
+        } else {
+          setScannerStatus({
+            type: 'SUCCESS',
+            title: 'เช็คเอาท์เสร็จสิ้น!',
+            message: `นิสิต: ${studentName} เสร็จสิ้นการฝึกหัตถการ "${booking.skillTopic}" รวมเวลาฝึกจริง: ${result.booking?.actualMinutes || 0} นาที`,
+            booking: result.booking,
+          });
+        }
+        fetchData();
+      } else {
+        const errMsg = result.error || 'เกิดข้อผิดพลาดในการบันทึกเวลา';
+        setScannerStatus({
+          type: 'ERROR',
+          title: 'ไม่สามารถบันทึกเวลาได้',
+          message: errMsg,
+          booking,
+        });
+        alert(errMsg);
+      }
+    } catch (err: any) {
+      alert(err?.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // 5.2 Actions: Open & Save Admin Manual / Retroactive Time Modal (ADMIN Only)
+  const handleOpenManualTimeModal = (booking: any) => {
+    if (!isAdmin || !booking) return;
+
+    const refDateObj = booking.checkInTime
+      ? new Date(booking.checkInTime)
+      : booking.slot?.date
+      ? new Date(booking.slot.date)
+      : new Date();
+
+    const dateStr = refDateObj.toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
+    const inTimeStr = booking.checkInTime
+      ? new Date(booking.checkInTime).toLocaleTimeString('en-GB', {
+          timeZone: 'Asia/Bangkok',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        })
+      : booking.slot?.startTime || '09:00';
+
+    const outTimeStr = booking.checkOutTime
+      ? new Date(booking.checkOutTime).toLocaleTimeString('en-GB', {
+          timeZone: 'Asia/Bangkok',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        })
+      : booking.slot?.endTime || '12:00';
+
+    setManualTimeForm({
+      checkInDate: dateStr,
+      checkInTime: inTimeStr,
+      checkOutTime: outTimeStr,
+      isCompleted: booking.status === 'COMPLETED' || Boolean(booking.checkOutTime) || true,
+      notes: '',
+    });
+    setBookingForManualTime(booking);
+  };
+
+  const handleSaveManualTime = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin || !bookingForManualTime || !currentUser?.id) return;
+
+    if (!manualTimeForm.checkInDate || !manualTimeForm.checkInTime) {
+      alert('กรุณาระบุวันที่และเวลาเช็คอิน');
+      return;
+    }
+
+    const customCheckInTime = `${manualTimeForm.checkInDate}T${manualTimeForm.checkInTime}:00+07:00`;
+    let customCheckOutTime: string | null = null;
+
+    if (manualTimeForm.isCompleted) {
+      if (!manualTimeForm.checkOutTime) {
+        alert('กรุณาระบุเวลาเช็คเอาท์');
+        return;
+      }
+      customCheckOutTime = `${manualTimeForm.checkInDate}T${manualTimeForm.checkOutTime}:00+07:00`;
+      if (new Date(customCheckOutTime) <= new Date(customCheckInTime)) {
+        alert('เวลาเช็คเอาท์ต้องมากกว่าเวลาเช็คอิน');
+        return;
+      }
+    }
+
+    setSavingManualTime(true);
+    try {
+      const res = await fetch(`/api/practice/bookings/${bookingForManualTime.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'MANUAL_TIME_LOG',
+          userId: currentUser.id,
+          customCheckInTime,
+          customCheckOutTime,
+          notes: manualTimeForm.notes.trim(),
+        }),
+      });
+      const result = await res.json();
+
+      if (res.ok) {
+        setScannerStatus({
+          type: 'SUCCESS',
+          title: 'บันทึกเวลาโดยผู้ดูแลระบบสำเร็จ!',
+          message: `อัปเดตเวลาเข้าฝึกของ ${formatUserName(bookingForManualTime.user)} (${bookingForManualTime.bookingNumber})${result.booking?.actualMinutes ? ` รวม ${result.booking.actualMinutes} นาที` : ' เรียบร้อย'}`,
+          booking: result.booking,
+        });
+        setBookingForManualTime(null);
+        fetchData();
+      } else {
+        alert(result.error || 'เกิดข้อผิดพลาดในการบันทึกเวลา');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    } finally {
+      setSavingManualTime(false);
+    }
+  };
+
+  // 5.3 Actions: Walk-in Modal & Submission (Staff / Teacher / Admin)
+  const handleOpenWalkInModal = () => {
+    const todayBkk = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
+    const openSlots = slots.filter((s) => s.isOpen);
+    const preferredSlot =
+      openSlots.find(
+        (s) => new Date(s.date).toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' }) === todayBkk
+      ) || openSlots[0];
+
+    setWalkInStudentSearch('');
+    setWalkInForm({
+      slotId: preferredSlot?.id || '',
+      studentUserId: '',
+      skillTopic: '',
+      courseId: '',
+      advisorName: '',
+      notes: '',
+    });
+    setShowWalkInModal(true);
+  };
+
+  const handleSaveWalkIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser?.id) return;
+    if (!walkInForm.slotId || !walkInForm.studentUserId || !walkInForm.skillTopic.trim()) {
+      alert('กรุณาเลือกรอบเวลา เลือกนิสิต และระบุหัวข้อหัตถการ');
+      return;
+    }
+
+    setSavingWalkIn(true);
+    try {
+      const res = await fetch('/api/practice/bookings/walk-in', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          actorUserId: currentUser.id,
+          slotId: walkInForm.slotId,
+          studentUserId: walkInForm.studentUserId,
+          skillTopic: walkInForm.skillTopic.trim(),
+          courseId: walkInForm.courseId || null,
+          advisorName: walkInForm.advisorName || null,
+          notes: walkInForm.notes.trim(),
+        }),
+      });
+      const result = await res.json();
+
+      if (res.ok) {
+        setScannerStatus({
+          type: 'SUCCESS',
+          title: 'บันทึก Walk-in และเช็คอินเข้าห้องแล็บสำเร็จ!',
+          message: `นิสิต: ${formatUserName(result.booking?.user)} เช็คอินเข้า ${result.booking?.slot?.room?.name || 'ห้องปฏิบัติการ'} (${result.booking?.bookingNumber})`,
+          booking: result.booking,
+        });
+        setShowWalkInModal(false);
+        fetchData();
+      } else {
+        alert(result.error || 'เกิดข้อผิดพลาดในการบันทึก Walk-in');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    } finally {
+      setSavingWalkIn(false);
     }
   };
 
@@ -920,6 +1174,70 @@ export default function PracticePage() {
     return true;
   });
 
+  // Helper: Bookings ready for Quick Search at Time-Recording Station
+  const todayBkkStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
+  const stationMatchedBookings = bookings
+    .filter((b) => {
+      const q = stationStudentSearch.toLowerCase().trim();
+      const isActiveStatus = b.status === 'APPROVED' || b.status === 'CHECKED_IN';
+      if (!q) {
+        if (!isActiveStatus) return false;
+        const slotDateBkk = b.slot?.date
+          ? new Date(b.slot.date).toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' })
+          : '';
+        return b.status === 'CHECKED_IN' || slotDateBkk === todayBkkStr;
+      }
+      // If searching explicitly: match APPROVED/CHECKED_IN for staff, or PENDING/COMPLETED too if Admin wants retroactive time entry
+      const allowedStatus = isActiveStatus || (isAdmin && (b.status === 'PENDING' || b.status === 'COMPLETED'));
+      if (!allowedStatus) return false;
+
+      const fullName = formatUserName(b.user)?.toLowerCase() || '';
+      const rawName = b.user?.name?.toLowerCase() || '';
+      const sid = b.user?.studentId?.toLowerCase() || '';
+      const bNum = b.bookingNumber?.toLowerCase() || '';
+      const skill = b.skillTopic?.toLowerCase() || '';
+      const roomName = b.slot?.room?.name?.toLowerCase() || '';
+      return fullName.includes(q) || rawName.includes(q) || sid.includes(q) || bNum.includes(q) || skill.includes(q) || roomName.includes(q);
+    })
+    .sort((a, b) => {
+      // CHECKED_IN first so staff can easily check them out
+      if (a.status === 'CHECKED_IN' && b.status !== 'CHECKED_IN') return -1;
+      if (b.status === 'CHECKED_IN' && a.status !== 'CHECKED_IN') return 1;
+      return new Date(b.slot?.date || 0).getTime() - new Date(a.slot?.date || 0).getTime();
+    });
+
+  // Helper: Open slots sorted with today's slots first for Walk-in modal
+  const walkInOpenSlots = slots
+    .filter((s) => s.isOpen)
+    .sort((a, b) => {
+      const aDate = a.date ? new Date(a.date).toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' }) : '';
+      const bDate = b.date ? new Date(b.date).toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' }) : '';
+      if (aDate === todayBkkStr && bDate !== todayBkkStr) return -1;
+      if (bDate === todayBkkStr && aDate !== todayBkkStr) return 1;
+      return `${aDate} ${a.startTime}`.localeCompare(`${bDate} ${b.startTime}`);
+    });
+
+  const walkInFilteredStudents = students.filter((u) => {
+    const q = walkInStudentSearch.toLowerCase().trim();
+    if (!q) return true;
+    const fullName = formatUserName(u)?.toLowerCase() || '';
+    const sid = u.studentId?.toLowerCase() || '';
+    const email = u.email?.toLowerCase() || '';
+    const dept = u.department?.toLowerCase() || '';
+    return fullName.includes(q) || sid.includes(q) || email.includes(q) || dept.includes(q);
+  });
+
+  // Live preview of manual duration in Admin Modal
+  const manualCalculatedMinutes = (() => {
+    if (!manualTimeForm.isCompleted || !manualTimeForm.checkInDate || !manualTimeForm.checkInTime || !manualTimeForm.checkOutTime) {
+      return null;
+    }
+    const startMs = new Date(`${manualTimeForm.checkInDate}T${manualTimeForm.checkInTime}:00+07:00`).getTime();
+    const endMs = new Date(`${manualTimeForm.checkInDate}T${manualTimeForm.checkOutTime}:00+07:00`).getTime();
+    if (isNaN(startMs) || isNaN(endMs) || endMs <= startMs) return -1;
+    return Math.round((endMs - startMs) / 60000);
+  })();
+
   // Monthly Calendar Grid Generator
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth(); // 0-indexed
@@ -1074,7 +1392,7 @@ export default function PracticePage() {
             }`}
           >
             <QrCode className="w-4 h-4" />
-            <span>จุดสแกน QR เช็คอิน-เช็คเอาท์</span>
+            <span>จุดบันทึกเวลาเข้า-ออก (QR / ค้นหานิสิต)</span>
           </button>
 
           <button
@@ -2353,6 +2671,46 @@ export default function PracticePage() {
                             </td>
                             <td className="py-3 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-1.5">
+                                {/* 1-Click Direct Check-in / Check-out (No QR required) */}
+                                {(canApprove || canManageSlots) && isApproved && (
+                                  <button
+                                    type="button"
+                                    disabled={submitting}
+                                    onClick={() => handleDirectCheckInOut(b)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-xs transition disabled:opacity-50 cursor-pointer"
+                                    title="เช็คอินเข้าฝึกทันทีโดยไม่ต้องสแกน QR"
+                                  >
+                                    <LogIn className="w-3.5 h-3.5" />
+                                    <span>เช็คอิน</span>
+                                  </button>
+                                )}
+                                {(canApprove || canManageSlots) && isCheckedIn && (
+                                  <button
+                                    type="button"
+                                    disabled={submitting}
+                                    onClick={() => handleDirectCheckInOut(b)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-white bg-amber-600 hover:bg-amber-500 rounded-lg shadow-xs transition disabled:opacity-50 cursor-pointer"
+                                    title="เช็คเอาท์จบการฝึกทันที"
+                                  >
+                                    <LogOut className="w-3.5 h-3.5" />
+                                    <span>เช็คเอาท์</span>
+                                  </button>
+                                )}
+
+                                {/* ADMIN ONLY: Manual / Retroactive Time Entry */}
+                                {isAdmin && !isRejected && b.status !== 'CANCELLED' && (
+                                  <button
+                                    type="button"
+                                    disabled={submitting}
+                                    onClick={() => handleOpenManualTimeModal(b)}
+                                    className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800/60 rounded-lg transition disabled:opacity-50 cursor-pointer"
+                                    title="บันทึก/แก้ไขเวลาเข้า-ออกย้อนหลัง (เฉพาะแอดมิน)"
+                                  >
+                                    <Clock className="w-3.5 h-3.5" />
+                                    <span className="hidden xl:inline">บันทึกเวลา (Admin)</span>
+                                  </button>
+                                )}
+
                                 {/* QR Code Button */}
                                 {(isApproved || isCheckedIn) && (
                                   <button
@@ -2553,7 +2911,44 @@ export default function PracticePage() {
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* 1-Click Direct Check-in / Check-out (No QR required) */}
+                        {(canApprove || canManageSlots) && isApproved && (
+                          <button
+                            type="button"
+                            disabled={submitting}
+                            onClick={() => handleDirectCheckInOut(b)}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition cursor-pointer"
+                          >
+                            <LogIn className="w-4 h-4" />
+                            <span>เช็คอินเข้าฝึกทันที</span>
+                          </button>
+                        )}
+                        {(canApprove || canManageSlots) && isCheckedIn && (
+                          <button
+                            type="button"
+                            disabled={submitting}
+                            onClick={() => handleDirectCheckInOut(b)}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition cursor-pointer"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            <span>เช็คเอาท์ทันที</span>
+                          </button>
+                        )}
+
+                        {/* ADMIN ONLY: Manual / Retroactive Time Entry */}
+                        {isAdmin && !isRejected && b.status !== 'CANCELLED' && (
+                          <button
+                            type="button"
+                            disabled={submitting}
+                            onClick={() => handleOpenManualTimeModal(b)}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 text-xs font-bold transition cursor-pointer"
+                          >
+                            <Clock className="w-4 h-4" />
+                            <span>บันทึก/แก้ไขเวลา (Admin)</span>
+                          </button>
+                        )}
+
                         {/* QR Code Button for Student or Officer */}
                         {(isApproved || isCheckedIn) && (
                           <button
@@ -2604,109 +2999,290 @@ export default function PracticePage() {
         </div>
       )}
 
-      {/* TAB 3: SCANNER STATION */}
+      {/* TAB 3: TIME RECORDING STATION (QR + QUICK SEARCH + WALK-IN) */}
       {activeTab === 'SCANNER' && (
-        <div className="max-w-2xl mx-auto space-y-6">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-6 sm:p-8 shadow-sm space-y-6 text-center">
-            <div>
-              <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto mb-3">
-                <QrCode className="w-6 h-6" />
+        <div className={`${(canApprove || canManageSlots) ? 'max-w-6xl' : 'max-w-2xl'} mx-auto space-y-6`}>
+          <div className={`grid grid-cols-1 ${(canApprove || canManageSlots) ? 'lg:grid-cols-12' : ''} gap-6 items-start`}>
+            {/* LEFT: QR Scanner & Manual Code */}
+            <div className={`${(canApprove || canManageSlots) ? 'lg:col-span-5' : ''} bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-6 sm:p-8 shadow-sm space-y-6 text-center`}>
+              <div>
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto mb-3">
+                  <QrCode className="w-6 h-6" />
+                </div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">
+                  จุดสแกน QR Code เช็คอิน & เช็คเอาท์
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+                  นำบัตร QR Code ประจำคำขอมาจ่อที่กล้อง หรือกรอกรหัส Token เพื่อบันทึกเวลาเข้า-ออกห้องปฏิบัติการจริง
+                </p>
               </div>
-              <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">
-                จุดสแกน QR Code เช็คอิน & เช็คเอาท์ (Lab Check-in Station)
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
-                นำบัตร QR Code ประจำคำขอมาจ่อที่กล้อง หรือกรอกรหัส Token เพื่อบันทึกเวลาเข้า-ออกห้องปฏิบัติการจริง
-              </p>
-            </div>
 
-            {/* Camera Viewfinder */}
-            <div className="relative bg-slate-950 rounded-2xl overflow-hidden aspect-square max-w-sm mx-auto shadow-inner flex items-center justify-center border-2 border-indigo-500/30">
-              <div id="practice-qr-reader" className="w-full h-full"></div>
+              {/* Camera Viewfinder */}
+              <div className="relative bg-slate-950 rounded-2xl overflow-hidden aspect-square max-w-sm mx-auto shadow-inner flex items-center justify-center border-2 border-indigo-500/30">
+                <div id="practice-qr-reader" className="w-full h-full"></div>
 
-              {/* World-Class 1:1 Square Viewfinder Reticle Overlay */}
-              {isCameraActive && !cameraError && (
-                <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-6">
-                  {/* Square Framing Box (1:1 Ratio) */}
-                  <div className="relative w-56 h-56 max-w-[78%] max-h-[78%] aspect-square">
-                    {/* 4 Glowing Corner Brackets */}
-                    <div className="absolute top-0 left-0 w-7 h-7 border-t-4 border-l-4 border-indigo-400 rounded-tl-xl shadow-[0_0_8px_rgba(129,140,248,0.6)]" />
-                    <div className="absolute top-0 right-0 w-7 h-7 border-t-4 border-r-4 border-indigo-400 rounded-tr-xl shadow-[0_0_8px_rgba(129,140,248,0.6)]" />
-                    <div className="absolute bottom-0 left-0 w-7 h-7 border-b-4 border-l-4 border-indigo-400 rounded-bl-xl shadow-[0_0_8px_rgba(129,140,248,0.6)]" />
-                    <div className="absolute bottom-0 right-0 w-7 h-7 border-b-4 border-r-4 border-indigo-400 rounded-br-xl shadow-[0_0_8px_rgba(129,140,248,0.6)]" />
-
-                    {/* Animated Laser Scan Line */}
-                    <div className="absolute left-2 right-2 h-0.5 bg-gradient-to-r from-transparent via-indigo-400 to-transparent shadow-[0_0_10px_rgba(129,140,248,0.9)] animate-scanner-laser" />
-
-                    {/* Subtle Center Reticle Dot */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-indigo-400/40" />
+                {/* World-Class 1:1 Square Viewfinder Reticle Overlay */}
+                {isCameraActive && !cameraError && (
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-6">
+                    <div className="relative w-56 h-56 max-w-[78%] max-h-[78%] aspect-square">
+                      <div className="absolute top-0 left-0 w-7 h-7 border-t-4 border-l-4 border-indigo-400 rounded-tl-xl shadow-[0_0_8px_rgba(129,140,248,0.6)]" />
+                      <div className="absolute top-0 right-0 w-7 h-7 border-t-4 border-r-4 border-indigo-400 rounded-tr-xl shadow-[0_0_8px_rgba(129,140,248,0.6)]" />
+                      <div className="absolute bottom-0 left-0 w-7 h-7 border-b-4 border-l-4 border-indigo-400 rounded-bl-xl shadow-[0_0_8px_rgba(129,140,248,0.6)]" />
+                      <div className="absolute bottom-0 right-0 w-7 h-7 border-b-4 border-r-4 border-indigo-400 rounded-br-xl shadow-[0_0_8px_rgba(129,140,248,0.6)]" />
+                      <div className="absolute left-2 right-2 h-0.5 bg-gradient-to-r from-transparent via-indigo-400 to-transparent shadow-[0_0_10px_rgba(129,140,248,0.9)] animate-scanner-laser" />
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-indigo-400/40" />
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {cameraError && (
-                <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center p-6 text-rose-300 text-xs text-center space-y-2">
-                  <AlertTriangle className="w-8 h-8 text-rose-400" />
-                  <p className="font-bold">{cameraError}</p>
-                  <p className="text-[11px] text-slate-400">ท่านสามารถใช้ช่องกรอกรหัส Token ด้านล่างแทนได้</p>
-                </div>
-              )}
-            </div>
+                {cameraError && (
+                  <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center p-6 text-rose-300 text-xs text-center space-y-2">
+                    <AlertTriangle className="w-8 h-8 text-rose-400" />
+                    <p className="font-bold">{cameraError}</p>
+                    <p className="text-[11px] text-slate-400">ท่านสามารถใช้ช่องกรอกรหัส Token หรือค้นหารหัสนิสิตด้านข้างแทนได้</p>
+                  </div>
+                )}
+              </div>
 
-            {/* Manual Code Input Option */}
-            <div className="pt-2">
-              <div className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-2">หรือกรอกรหัสคำขอ / Token ด้วยตนเอง</div>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleProcessScannedCode(manualCodeInput);
-                }}
-                className="flex items-center gap-2 max-w-md mx-auto"
-              >
-                <input
-                  type="text"
-                  disabled={processingManualCode}
-                  placeholder="เช่น SPK-E58C4F... หรือ SPB-2569..."
-                  value={manualCodeInput}
-                  onChange={(e) => setManualCodeInput(e.target.value.toUpperCase())}
-                  className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-mono font-bold text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 uppercase disabled:opacity-60"
-                />
-                <button
-                  type="submit"
-                  disabled={processingManualCode || !manualCodeInput.trim()}
-                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition cursor-pointer flex items-center gap-1.5 min-w-[90px] justify-center"
+              {/* Manual Code Input Option */}
+              <div className="pt-2">
+                <div className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-2">หรือกรอกรหัสคำขอ / Token ด้วยตนเอง</div>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleProcessScannedCode(manualCodeInput);
+                  }}
+                  className="flex items-center gap-2 max-w-md mx-auto"
                 >
-                  {processingManualCode ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>กำลังบันทึก...</span>
-                    </>
-                  ) : (
-                    <span>บันทึก</span>
-                  )}
-                </button>
-              </form>
+                  <input
+                    type="text"
+                    disabled={processingManualCode}
+                    placeholder="เช่น SPK-E58C4F... หรือ SPB-2569..."
+                    value={manualCodeInput}
+                    onChange={(e) => setManualCodeInput(e.target.value.toUpperCase())}
+                    className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-mono font-bold text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 uppercase disabled:opacity-60"
+                  />
+                  <button
+                    type="submit"
+                    disabled={processingManualCode || !manualCodeInput.trim()}
+                    className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition cursor-pointer flex items-center gap-1.5 min-w-[90px] justify-center"
+                  >
+                    {processingManualCode ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>กำลังบันทึก...</span>
+                      </>
+                    ) : (
+                      <span>บันทึก</span>
+                    )}
+                  </button>
+                </form>
+              </div>
+
+              {/* Scanner Feedback Card */}
+              {scannerStatus.type && (
+                <div
+                  className={`p-4 rounded-2xl border text-left text-xs transition animate-fade-in ${
+                    scannerStatus.type === 'SUCCESS'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200'
+                      : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/60 text-rose-900 dark:text-rose-200'
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    {scannerStatus.type === 'SUCCESS' ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
+                    )}
+                    <div>
+                      <h5 className="font-bold text-sm">{scannerStatus.title}</h5>
+                      <p className="mt-1 leading-relaxed">{scannerStatus.message}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Scanner Feedback Card */}
-            {scannerStatus.type && (
-              <div
-                className={`p-4 rounded-2xl border text-left text-xs transition animate-fade-in ${
-                  scannerStatus.type === 'SUCCESS'
-                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200'
-                    : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/60 text-rose-900 dark:text-rose-200'
-                }`}
-              >
-                <div className="flex items-start gap-2">
-                  {scannerStatus.type === 'SUCCESS' ? (
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
-                  ) : (
-                    <XCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
-                  )}
+            {/* RIGHT: Non-QR Check-in by Student Search & Walk-in (Staff / Teacher / Admin) */}
+            {(canApprove || canManageSlots) && (
+              <div className="lg:col-span-7 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-6 sm:p-7 shadow-sm space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
                   <div>
-                    <h5 className="font-bold text-sm">{scannerStatus.title}</h5>
-                    <p className="mt-1 leading-relaxed">{scannerStatus.message}</p>
+                    <h3 className="text-base font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                      <Search className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                      เช็คอิน-เช็คเอาท์ด้วยชื่อ / รหัสนิสิต (ไม่ต้องใช้ QR)
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      ค้นหารายชื่อนิสิตที่อนุมัติแล้วเพื่อกดบันทึกเวลาเข้า-ออกทันที หรือบันทึก Walk-in หน้าห้อง
+                    </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleOpenWalkInModal}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-md shadow-teal-600/20 transition cursor-pointer flex-shrink-0"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>+ บันทึกนิสิต Walk-in หน้าห้อง</span>
+                  </button>
+                </div>
+
+                {/* Quick Student Search Input */}
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={stationStudentSearch}
+                    onChange={(e) => setStationStudentSearch(e.target.value)}
+                    placeholder={
+                      isAdmin
+                        ? 'พิมพ์รหัสนิสิต, ชื่อ-สกุล, เลขคำขอ, ห้องแล็บ หรือหัตถการ...'
+                        : 'พิมพ์รหัสนิสิต, ชื่อ-สกุล หรือเลขคำขอ (เว้นว่างเพื่อดูรายการวันนี้)...'
+                    }
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                  />
+                  {stationStudentSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setStationStudentSearch('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {isAdmin && (
+                  <div className="flex items-center gap-2 text-[11px] font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-200/80 dark:border-amber-800/60 px-3 py-2 rounded-xl">
+                    <ShieldCheck className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                    <span>สิทธิ์ผู้ดูแลระบบ (Admin): ท่านสามารถค้นหาคำขอเดิมและกดปุ่ม &ldquo;บันทึก/แก้ไขเวลา (Admin)&rdquo; เพื่อลงเวลาย้อนหลังได้</span>
+                  </div>
+                )}
+
+                {/* Station Bookings List */}
+                <div className="space-y-2.5 max-h-[470px] overflow-y-auto pr-1">
+                  {stationMatchedBookings.length === 0 ? (
+                    <div className="py-12 text-center border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-slate-400 space-y-2">
+                      <Users className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600 stroke-[1.5]" />
+                      <p className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                        {stationStudentSearch.trim()
+                          ? `ไม่พบรายการที่ตรงกับ "${stationStudentSearch}"`
+                          : 'ไม่มีนิสิตที่รอเช็คอินวันนี้ หรือกำลังฝึกอยู่ในขณะนี้'}
+                      </p>
+                      <p className="text-[11px]">
+                        ลองพิมพ์รหัสนิสิต/ชื่อ-สกุลเพื่อค้นหา หรือกดปุ่ม &ldquo;+ บันทึกนิสิต Walk-in หน้าห้อง&rdquo; ด้านบน
+                      </p>
+                    </div>
+                  ) : (
+                    stationMatchedBookings.map((b) => {
+                      const isCheckedIn = b.status === 'CHECKED_IN';
+                      const isApproved = b.status === 'APPROVED';
+                      return (
+                        <div
+                          key={b.id}
+                          className={`p-4 rounded-2xl border transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                            isCheckedIn
+                              ? 'bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-800/60'
+                              : 'bg-slate-50/70 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-700/80 hover:border-teal-300 dark:hover:border-teal-700'
+                          }`}
+                        >
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono text-[11px] font-black text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded">
+                                {b.bookingNumber}
+                              </span>
+                              {isCheckedIn && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-full animate-pulse">
+                                  <Sparkles className="w-3 h-3" /> กำลังฝึกอยู่
+                                </span>
+                              )}
+                              {isApproved && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 px-2 py-0.5 rounded-full">
+                                  <CheckCircle2 className="w-3 h-3" /> พร้อมเช็คอิน
+                                </span>
+                              )}
+                              {b.status === 'COMPLETED' && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full">
+                                  <Check className="w-3 h-3" /> เสร็จสิ้น ({b.actualMinutes || 0} น.)
+                                </span>
+                              )}
+                              {b.status === 'PENDING' && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-2 py-0.5 rounded-full">
+                                  <Clock className="w-3 h-3" /> รออนุมัติ
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-black text-slate-900 dark:text-white">
+                                {formatUserName(b.user)}
+                              </span>
+                              {b.user?.studentId && (
+                                <span className="font-mono text-xs font-bold text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/60 px-1.5 py-0.5 rounded">
+                                  {b.user.studentId}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="text-xs text-slate-600 dark:text-slate-300 truncate">
+                              <strong className="font-bold">{b.skillTopic}</strong> • {b.slot?.room?.name || '-'}
+                            </div>
+
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
+                              <span>
+                                รอบ:{' '}
+                                {b.slot?.date
+                                  ? new Date(b.slot.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })
+                                  : '-'}{' '}
+                                ({b.slot?.startTime}-{b.slot?.endTime} น.)
+                              </span>
+                              {b.checkInTime && (
+                                <span className="text-indigo-700 dark:text-indigo-300 font-semibold">
+                                  • เข้า: {new Date(b.checkInTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {isApproved && (
+                              <button
+                                type="button"
+                                disabled={submitting}
+                                onClick={() => handleDirectCheckInOut(b)}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold shadow-sm transition cursor-pointer"
+                              >
+                                <LogIn className="w-4 h-4" />
+                                <span>เช็คอินเข้าแล็บ</span>
+                              </button>
+                            )}
+                            {isCheckedIn && (
+                              <button
+                                type="button"
+                                disabled={submitting}
+                                onClick={() => handleDirectCheckInOut(b)}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-bold shadow-sm transition cursor-pointer"
+                              >
+                                <LogOut className="w-4 h-4" />
+                                <span>เช็คเอาท์จบการฝึก</span>
+                              </button>
+                            )}
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                disabled={submitting}
+                                onClick={() => handleOpenManualTimeModal(b)}
+                                className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/70 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 text-xs font-bold transition cursor-pointer"
+                                title="บันทึก/แก้ไขเวลาเข้า-ออกย้อนหลัง (เฉพาะแอดมิน)"
+                              >
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>แก้ไขเวลา (Admin)</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             )}
@@ -3979,7 +4555,54 @@ export default function PracticePage() {
             </div>
 
             {/* Modal Actions */}
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-end gap-2">
+              {(canApprove || canManageSlots) && selectedBookingForDetail.status === 'APPROVED' && (
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => {
+                    const b = selectedBookingForDetail;
+                    setSelectedBookingForDetail(null);
+                    handleDirectCheckInOut(b);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>เช็คอินเข้าฝึก</span>
+                </button>
+              )}
+              {(canApprove || canManageSlots) && selectedBookingForDetail.status === 'CHECKED_IN' && (
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => {
+                    const b = selectedBookingForDetail;
+                    setSelectedBookingForDetail(null);
+                    handleDirectCheckInOut(b);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md shadow-amber-600/20 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>เช็คเอาท์จบการฝึก</span>
+                </button>
+              )}
+              {isAdmin &&
+                selectedBookingForDetail.status !== 'REJECTED' &&
+                selectedBookingForDetail.status !== 'CANCELLED' && (
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => {
+                      const b = selectedBookingForDetail;
+                      setSelectedBookingForDetail(null);
+                      handleOpenManualTimeModal(b);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 font-bold text-xs transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Clock className="w-4 h-4" />
+                    <span>บันทึก/แก้ไขเวลา (Admin)</span>
+                  </button>
+                )}
               {(selectedBookingForDetail.status === 'APPROVED' || selectedBookingForDetail.status === 'CHECKED_IN') && (
                 <button
                   type="button"
@@ -4031,6 +4654,389 @@ export default function PracticePage() {
                 ปิด
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* =================================================================== */}
+      {/* MODAL: WALK-IN RECORDING & IMMEDIATE CHECK-IN (Staff/Teacher/Admin) */}
+      {/* =================================================================== */}
+      {showWalkInModal && (canApprove || canManageSlots) && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl space-y-5 border border-slate-100 dark:border-slate-800 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/70 px-2.5 py-0.5 rounded-full border border-teal-200 dark:border-teal-800/60">
+                  <UserPlus className="w-3.5 h-3.5" /> Walk-in Check-in
+                </span>
+                <h3 className="text-lg font-black text-slate-900 dark:text-slate-100 mt-1.5">
+                  บันทึกนิสิตเข้าฝึกหน้าห้อง (ไม่ต้องจองล่วงหน้า)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  ระบบจะสร้างคำขอแบบอนุมัติอัตโนมัติและเช็คอินเข้าห้องปฏิบัติการทันที
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWalkInModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold text-lg p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveWalkIn} className="space-y-4">
+              {/* 1. Open Slot */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  1. เลือกรอบฝึก & ห้องปฏิบัติการ *
+                </label>
+                <select
+                  required
+                  value={walkInForm.slotId}
+                  onChange={(e) => setWalkInForm((prev) => ({ ...prev, slotId: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                >
+                  <option value="">-- เลือกรอบเวลาที่เปิดให้บริการ --</option>
+                  {walkInOpenSlots.map((s) => {
+                    const sDate = new Date(s.date).toLocaleDateString('th-TH', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: '2-digit',
+                    });
+                    const remaining = Math.max(0, (s.maxCapacity || 0) - (s.bookedCount || 0));
+                    return (
+                      <option key={s.id} value={s.id}>
+                        {sDate} ({s.startTime}-{s.endTime} น.) • {s.room?.name || '-'} [ว่าง {remaining} ที่]
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* 2. Search & Select Student */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  2. ค้นหาและเลือกนิสิต *
+                </label>
+                <div className="relative mb-2">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={walkInStudentSearch}
+                    onChange={(e) => setWalkInStudentSearch(e.target.value)}
+                    placeholder="พิมพ์รหัสนิสิต หรือชื่อนิสิตเพื่อกรองรายชื่อ..."
+                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+                <select
+                  required
+                  value={walkInForm.studentUserId}
+                  onChange={(e) => setWalkInForm((prev) => ({ ...prev, studentUserId: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                >
+                  <option value="">-- เลือกนิสิต ({walkInFilteredStudents.length} คน) --</option>
+                  {walkInFilteredStudents.slice(0, 80).map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.studentId ? `[${u.studentId}] ` : ''}
+                      {formatUserName(u)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 3. Skill Topic */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  3. หัตถการที่ฝึกปฏิบัติ *
+                </label>
+                {(() => {
+                  const selectedSlot = slots.find((s) => s.id === walkInForm.slotId);
+                  const quickSkills = selectedSlot?.availableSkills
+                    ? selectedSlot.availableSkills.split(',').map((k: string) => k.trim()).filter(Boolean)
+                    : [];
+                  if (quickSkills.length === 0) return null;
+                  return (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {quickSkills.map((sk: string) => (
+                        <button
+                          key={sk}
+                          type="button"
+                          onClick={() => setWalkInForm((prev) => ({ ...prev, skillTopic: sk }))}
+                          className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${
+                            walkInForm.skillTopic === sk
+                              ? 'bg-teal-600 text-white border-teal-600'
+                              : 'bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border-teal-200 dark:border-teal-800/60 hover:bg-teal-100'
+                          }`}
+                        >
+                          {sk}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+                <input
+                  type="text"
+                  required
+                  value={walkInForm.skillTopic}
+                  onChange={(e) => setWalkInForm((prev) => ({ ...prev, skillTopic: e.target.value }))}
+                  placeholder="ระบุชื่อหัตถการ เช่น การฉีดยาเข้ากล้ามเนื้อ, การเจาะเลือด"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                />
+              </div>
+
+              {/* 4. Optional Course & Advisor */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    รายวิชา (ถ้ามี)
+                  </label>
+                  <select
+                    value={walkInForm.courseId}
+                    onChange={(e) => {
+                      const cId = e.target.value;
+                      const foundCourse = courses.find((c) => c.id === cId);
+                      setWalkInForm((prev) => ({
+                        ...prev,
+                        courseId: cId,
+                        advisorName: foundCourse?.instructorName || prev.advisorName,
+                      }));
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100"
+                  >
+                    <option value="">ไม่ระบุ / ฝึกทักษะอิสระ</option>
+                    {courses
+                      .filter((c) => (c.status || 'ACTIVE') === 'ACTIVE')
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.code} {c.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    อาจารย์ผู้รับผิดชอบ (ถ้ามี)
+                  </label>
+                  <select
+                    value={walkInForm.advisorName}
+                    onChange={(e) => setWalkInForm((prev) => ({ ...prev, advisorName: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100"
+                  >
+                    <option value="">-- ไม่ระบุ --</option>
+                    {teachers.map((t) => {
+                      const tName = formatTeacherName(t.name);
+                      return (
+                        <option key={t.id} value={tName}>
+                          {tName}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              </div>
+
+              {/* 5. Optional Note */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  หมายเหตุ Walk-in (ถ้ามี)
+                </label>
+                <input
+                  type="text"
+                  value={walkInForm.notes}
+                  onChange={(e) => setWalkInForm((prev) => ({ ...prev, notes: e.target.value }))}
+                  placeholder="เช่น มาซ่อมเสริมทักษะก่อนสอบ OSCE"
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowWalkInModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingWalkIn}
+                  className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 hover:bg-teal-500 disabled:opacity-50 shadow-md shadow-teal-600/20 flex items-center gap-1.5 cursor-pointer"
+                >
+                  {savingWalkIn ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>กำลังบันทึก...</span>
+                    </>
+                  ) : (
+                    <>
+                      <LogIn className="w-3.5 h-3.5" />
+                      <span>บันทึก & เช็คอินเข้าฝึกทันที</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =================================================================== */}
+      {/* MODAL: ADMIN MANUAL / RETROACTIVE TIME ENTRY (STRICTLY ADMIN ONLY) */}
+      {/* =================================================================== */}
+      {bookingForManualTime && isAdmin && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl space-y-5 border border-amber-200 dark:border-amber-800/70 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/70 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800/60">
+                  <ShieldCheck className="w-3.5 h-3.5" /> เฉพาะผู้ดูแลระบบ (Admin Only)
+                </span>
+                <h3 className="text-lg font-black text-slate-900 dark:text-slate-100 mt-1.5">
+                  บันทึก / แก้ไขเวลาเข้าฝึกย้อนหลัง
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBookingForManualTime(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold text-lg p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Booking Info Card */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/80 space-y-1 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono font-black text-slate-800 dark:text-slate-200">
+                  {bookingForManualTime.bookingNumber}
+                </span>
+                <span className="text-[11px] font-bold text-teal-700 dark:text-teal-400">
+                  {bookingForManualTime.slot?.room?.name || '-'}
+                </span>
+              </div>
+              <div className="font-bold text-slate-900 dark:text-white">
+                นิสิต: {formatUserName(bookingForManualTime.user)}{' '}
+                {bookingForManualTime.user?.studentId && `(${bookingForManualTime.user.studentId})`}
+              </div>
+              <div className="text-slate-600 dark:text-slate-300">
+                หัตถการ: <strong>{bookingForManualTime.skillTopic}</strong>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveManualTime} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  วันที่เข้าฝึกจริง *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={manualTimeForm.checkInDate}
+                  onChange={(e) => setManualTimeForm((prev) => ({ ...prev, checkInDate: e.target.value }))}
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-slate-100"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    เวลาเช็คอิน (เข้า) *
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={manualTimeForm.checkInTime}
+                    onChange={(e) => setManualTimeForm((prev) => ({ ...prev, checkInTime: e.target.value }))}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    เวลาเช็คเอาท์ (ออก)
+                  </label>
+                  <input
+                    type="time"
+                    disabled={!manualTimeForm.isCompleted}
+                    required={manualTimeForm.isCompleted}
+                    value={manualTimeForm.checkOutTime}
+                    onChange={(e) => setManualTimeForm((prev) => ({ ...prev, checkOutTime: e.target.value }))}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-slate-100 disabled:opacity-40"
+                  />
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={manualTimeForm.isCompleted}
+                  onChange={(e) => setManualTimeForm((prev) => ({ ...prev, isCompleted: e.target.checked }))}
+                  className="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                />
+                <span>เช็คเอาท์เสร็จสิ้นแล้ว (คำนวณชั่วโมงฝึกทันที)</span>
+              </label>
+
+              {/* Live Calculated Duration Preview */}
+              {manualTimeForm.isCompleted && (
+                <div
+                  className={`p-3 rounded-xl text-xs font-bold flex items-center justify-between ${
+                    manualCalculatedMinutes !== null && manualCalculatedMinutes > 0
+                      ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
+                      : 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
+                  }`}
+                >
+                  <span>ระยะเวลาฝึกจริงที่คำนวณได้:</span>
+                  <span>
+                    {manualCalculatedMinutes !== null && manualCalculatedMinutes > 0
+                      ? `${manualCalculatedMinutes} นาที (${(manualCalculatedMinutes / 60).toFixed(2)} ชม.)`
+                      : 'เวลาออกต้องมากกว่าเวลาเข้า'}
+                  </span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  หมายเหตุ / เหตุผลการบันทึกเวลาย้อนหลัง *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={manualTimeForm.notes}
+                  onChange={(e) => setManualTimeForm((prev) => ({ ...prev, notes: e.target.value }))}
+                  placeholder="เช่น นิสิตลืมสแกนเช็คเอาท์ / อินเทอร์เน็ตหน้าห้องขัดข้อง"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setBookingForManualTime(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingManualTime || (manualTimeForm.isCompleted && (manualCalculatedMinutes === null || manualCalculatedMinutes <= 0))}
+                  className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 disabled:opacity-50 shadow-md shadow-amber-600/20 flex items-center gap-1.5 cursor-pointer"
+                >
+                  {savingManualTime ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>กำลังบันทึก...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>ยืนยันบันทึกเวลา (Admin)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

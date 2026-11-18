@@ -5,6 +5,7 @@ import { invalidateCache } from '@/lib/cache';
 import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
 import { stripAllPrefixes, formatUserName, formatRequesterWithRole } from '@/lib/user-utils';
 import { parseBangkokDateTime } from '@/lib/date-time-utils';
+import { isViewerUser, VIEWER_FORBIDDEN_MESSAGE } from '@/lib/viewer-guard';
 
 export async function POST(req: Request) {
   try {
@@ -20,6 +21,10 @@ export async function POST(req: Request) {
       borrowItems = [],
       requisitionItems = [],
     } = body;
+
+    if (await isViewerUser(userId)) {
+      return NextResponse.json({ error: VIEWER_FORBIDDEN_MESSAGE }, { status: 403 });
+    }
 
     if (!userId || !purpose) {
       return NextResponse.json(

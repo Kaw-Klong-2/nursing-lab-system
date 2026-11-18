@@ -71,19 +71,24 @@ export async function PUT(
       effectiveRole = existingUser?.role;
     }
 
-    if (effectiveRole === 'USER') {
+    if (effectiveRole === 'USER' || effectiveRole === 'VIEWER') {
       dataToUpdate.approvalScopes = null;
     } else if (body.approvalScopes !== undefined) {
       dataToUpdate.approvalScopes = body.approvalScopes || null;
     }
-    if (body.isExecutive !== undefined) {
-      dataToUpdate.isExecutive = body.isExecutive === true;
-      if (!body.isExecutive) {
-        dataToUpdate.executiveRole = null;
+    if (effectiveRole === 'VIEWER') {
+      dataToUpdate.isExecutive = false;
+      dataToUpdate.executiveRole = null;
+    } else {
+      if (body.isExecutive !== undefined) {
+        dataToUpdate.isExecutive = body.isExecutive === true;
+        if (!body.isExecutive) {
+          dataToUpdate.executiveRole = null;
+        }
       }
-    }
-    if (body.executiveRole !== undefined) {
-      dataToUpdate.executiveRole = body.executiveRole ? String(body.executiveRole).trim() : null;
+      if (body.executiveRole !== undefined) {
+        dataToUpdate.executiveRole = body.executiveRole ? String(body.executiveRole).trim() : null;
+      }
     }
 
     const updatedUser = await prisma.user.update({
@@ -134,9 +139,9 @@ export async function PUT(
       phone: updatedUser.phone,
       avatar: updatedUser.avatar,
       status: updatedUser.status,
-      approvalScopes: updatedUser.role === 'USER' ? null : (updatedUser.approvalScopes || null),
-      isExecutive: Boolean(updatedUser.isExecutive),
-      executiveRole: updatedUser.executiveRole || null,
+      approvalScopes: updatedUser.role === 'USER' || updatedUser.role === 'VIEWER' ? null : (updatedUser.approvalScopes || null),
+      isExecutive: updatedUser.role === 'VIEWER' ? false : Boolean(updatedUser.isExecutive),
+      executiveRole: updatedUser.role === 'VIEWER' ? null : (updatedUser.executiveRole || null),
     };
 
     return NextResponse.json(sanitizedUser);

@@ -116,9 +116,9 @@ export async function POST(req: Request) {
         studentId: trimmedStudentId,
         phone: body.phone,
         status: body.status || 'ACTIVE',
-        approvalScopes: (body.role || 'USER') === 'USER' ? null : (body.approvalScopes || null),
-        isExecutive: body.isExecutive === true,
-        executiveRole: body.isExecutive ? (body.executiveRole ? String(body.executiveRole).trim() : null) : null,
+        approvalScopes: (body.role || 'USER') === 'USER' || body.role === 'VIEWER' ? null : (body.approvalScopes || null),
+        isExecutive: body.role === 'VIEWER' ? false : body.isExecutive === true,
+        executiveRole: body.role === 'VIEWER' || !body.isExecutive ? null : (body.executiveRole ? String(body.executiveRole).trim() : null),
       },
     });
 

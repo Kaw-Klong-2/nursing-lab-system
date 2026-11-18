@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { formatTeacherName } from '@/lib/user-utils';
+import { isViewerUser, VIEWER_FORBIDDEN_MESSAGE } from '@/lib/viewer-guard';
 
 // POST: Quick Request for a Practice Kit (Generates Borrow and/or Requisition requests)
 export async function POST(req: Request) {
@@ -26,6 +27,10 @@ export async function POST(req: Request) {
 
     if (!userId) {
       return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบก่อนทำรายการ' }, { status: 401 });
+    }
+
+    if (await isViewerUser(userId)) {
+      return NextResponse.json({ error: VIEWER_FORBIDDEN_MESSAGE }, { status: 403 });
     }
 
     const kit = await prisma.practiceKit.findUnique({

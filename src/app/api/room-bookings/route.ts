@@ -4,6 +4,7 @@ import { invalidateCache } from '@/lib/cache';
 import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
 import { formatUserName, formatRequesterWithRole } from '@/lib/user-utils';
 import { getBangkokParts, getBangkokStartOfDay } from '@/lib/date-time-utils';
+import { isViewerUser, VIEWER_FORBIDDEN_MESSAGE } from '@/lib/viewer-guard';
 
 export async function GET(req: Request) {
   try {
@@ -117,6 +118,10 @@ export async function POST(req: Request) {
       userId,
       isTimetable,
     } = body;
+
+    if (await isViewerUser(userId)) {
+      return NextResponse.json({ error: VIEWER_FORBIDDEN_MESSAGE }, { status: 403 });
+    }
 
     // เฉพาะแอดมิน (ADMIN) หรือเจ้าหน้าที่ (OFFICER) เท่านั้นที่มีสิทธิ์เลือกสร้าง 'ตารางเรียน'
     let finalIsTimetable = false;

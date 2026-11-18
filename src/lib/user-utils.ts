@@ -383,6 +383,8 @@ export function getRoleLabel(role?: string | null): string {
       return 'อาจารย์ผู้สอน';
     case 'EXECUTIVE':
       return 'ผู้บริหาร';
+    case 'VIEWER':
+      return 'ผู้เข้าชม (ดูอย่างเดียว)';
     case 'USER':
       return 'นิสิต';
     default:
@@ -426,6 +428,9 @@ export function getUserBadges(user?: {
   } else if (role === 'APPROVER') {
     primaryLabel = 'ผู้อนุมัติ';
     primaryClass = 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800';
+  } else if (role === 'VIEWER') {
+    primaryLabel = 'ผู้เข้าชม (ดูอย่างเดียว)';
+    primaryClass = 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
   } else if (role === 'USER') {
     primaryLabel = 'นิสิต';
     primaryClass = 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800';
@@ -450,7 +455,7 @@ export function getUserBadges(user?: {
 
   // 3. Approver dimension (Never applies to USER / นิสิต)
   const hasScopes = Boolean(user.approvalScopes && user.approvalScopes !== 'NONE' && user.approvalScopes !== '');
-  if (role !== 'ADMIN' && role !== 'USER' && (hasScopes || role === 'APPROVER')) {
+  if (role !== 'ADMIN' && role !== 'USER' && role !== 'VIEWER' && (hasScopes || role === 'APPROVER')) {
     let scopeText = 'ทั้งหมด';
     if (user.approvalScopes && user.approvalScopes !== 'ALL') {
       const raw = user.approvalScopes.split(',').map((s) => s.trim().toUpperCase());

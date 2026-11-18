@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { notifyRoles } from '@/lib/notifications';
 import { getBangkokParts, getBangkokStartOfDay } from '@/lib/date-time-utils';
+import { isViewerUser, VIEWER_FORBIDDEN_MESSAGE } from '@/lib/viewer-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,7 +58,12 @@ export async function POST(req: Request) {
       issueDescription,
       urgency = 'NORMAL',
       photoUrl,
+      userId,
     } = body;
+
+    if (reporterRole === 'VIEWER' || (await isViewerUser(userId))) {
+      return NextResponse.json({ error: VIEWER_FORBIDDEN_MESSAGE }, { status: 403 });
+    }
 
     if (!issueDescription || (!assetId && !assetCode)) {
       return NextResponse.json(

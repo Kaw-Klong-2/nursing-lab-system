@@ -29,6 +29,7 @@ import {
   AlertTriangle,
   LayoutGrid,
   List,
+  Eye,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import BorrowCatalogBrowser from '@/components/borrow/BorrowCatalogBrowser';
@@ -39,7 +40,7 @@ function BorrowRequestContent() {
   const initialMode = searchParams.get('mode'); // 'BORROW' | 'REQUISITION'
   const preselectedItemId = searchParams.get('itemId');
 
-  const { currentUser, isTeacher } = useAuth();
+  const { currentUser, isTeacher, isViewer } = useAuth();
   const isStudent = currentUser?.role === 'USER' && !isTeacher;
 
   // Loading States
@@ -192,6 +193,10 @@ function BorrowRequestContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
+    if (isViewer) {
+      alert('บัญชีผู้เข้าชม (Viewer) มีสิทธิ์ดูข้อมูลเท่านั้น ไม่สามารถส่งคำขอยืม-เบิกได้');
+      return;
+    }
 
     if (validBorrowCount === 0 && validReqCount === 0) {
       alert('กรุณาเลือกรายการครุภัณฑ์หรือวัสดุสิ้นเปลืองอย่างน้อย 1 รายการพร้อมระบุจำนวน');
@@ -328,6 +333,18 @@ function BorrowRequestContent() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {isViewer && (
+          <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/70 rounded-2xl p-4 flex items-center gap-3 text-xs text-amber-900 dark:text-amber-200">
+            <Eye className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div>
+              <p className="font-bold">คุณกำลังดูแคตตาล็อกพัสดุในโหมดผู้เข้าชม (ดูอย่างเดียว)</p>
+              <p className="text-amber-700 dark:text-amber-300 mt-0.5">
+                สามารถเปิดดูรายการ สถานะคงเหลือ และรายละเอียดครุภัณฑ์-วัสดุได้ตามปกติ แต่ไม่สามารถเพิ่มลงตะกร้าหรือยื่นคำขอได้
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* MODE SWITCHER: VISUAL CATALOG (กรอกข้อมูลที่แถบข้างทีเดียว) VS CLASSIC TABLE FORM */}
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -385,9 +402,13 @@ function BorrowRequestContent() {
             courses={courses}
             instructors={instructors}
             isSimulation={false}
+            readOnly={isViewer}
             embeddedInRequestPage={false}
             onSubmitRealRequest={async (payload) => {
               if (!currentUser) return { success: false, error: 'กรุณาเข้าสู่ระบบ' };
+              if (isViewer) {
+                return { success: false, error: 'บัญชีผู้เข้าชม (Viewer) มีสิทธิ์ดูข้อมูลเท่านั้น ไม่สามารถส่งคำขอยืม-เบิกได้' };
+              }
               const activePurpose = (payload.purpose || '').trim();
               const activeAdvisor = payload.advisorName || '';
               if (isStudent && !activeAdvisor?.trim()) {
@@ -1166,7 +1187,7 @@ function BorrowRequestContent() {
 
               <button
                 type="submit"
-                disabled={submitting || (validBorrowCount === 0 && validReqCount === 0)}
+                disabled={isViewer || submitting || (validBorrowCount === 0 && validReqCount === 0)}
                 className="flex-1 sm:flex-none sm:min-w-[260px] px-5 sm:px-6 py-2.5 sm:py-3.5 bg-gradient-to-r from-teal-600 via-teal-700 to-indigo-600 hover:from-teal-700 hover:to-indigo-700 text-white rounded-2xl font-bold text-xs sm:text-sm shadow-md shadow-teal-600/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 {submitting ? (

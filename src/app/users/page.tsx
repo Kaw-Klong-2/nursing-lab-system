@@ -117,7 +117,7 @@ export default function UsersPage() {
   };
 
   const handleToggleApprover = (enabled: boolean, target: any, setter: (val: any) => void) => {
-    if (target.role === 'USER') {
+    if (target.role === 'USER' || target.role === 'VIEWER') {
       setter({
         ...target,
         approvalScopes: '',
@@ -586,9 +586,10 @@ export default function UsersPage() {
     ADMIN: users.filter((u) => u.role === 'ADMIN').length,
     EXECUTIVE: users.filter((u) => u.isExecutive || u.role === 'EXECUTIVE').length,
     OFFICER: users.filter((u) => u.role === 'OFFICER').length,
-    APPROVER: users.filter((u) => u.role !== 'USER' && (u.role === 'APPROVER' || (Boolean(u.approvalScopes) && u.approvalScopes !== 'NONE' && u.approvalScopes !== ''))).length,
+    APPROVER: users.filter((u) => u.role !== 'USER' && u.role !== 'VIEWER' && (u.role === 'APPROVER' || (Boolean(u.approvalScopes) && u.approvalScopes !== 'NONE' && u.approvalScopes !== ''))).length,
     TEACHER: users.filter((u) => u.role === 'TEACHER').length,
     USER: users.filter((u) => u.role === 'USER').length,
+    VIEWER: users.filter((u) => u.role === 'VIEWER').length,
   };
 
   const formatLastActiveDisplay = (isoString?: string) => {
@@ -615,7 +616,7 @@ export default function UsersPage() {
       if (selectedTab === 'EXECUTIVE') {
         if (!u.isExecutive && u.role !== 'EXECUTIVE') return false;
       } else if (selectedTab === 'APPROVER') {
-        const hasApproval = u.role !== 'USER' && (u.role === 'APPROVER' || (Boolean(u.approvalScopes) && u.approvalScopes !== 'NONE' && u.approvalScopes !== ''));
+        const hasApproval = u.role !== 'USER' && u.role !== 'VIEWER' && (u.role === 'APPROVER' || (Boolean(u.approvalScopes) && u.approvalScopes !== 'NONE' && u.approvalScopes !== ''));
         if (!hasApproval) return false;
       } else if (u.role !== selectedTab) {
         return false;
@@ -784,7 +785,7 @@ export default function UsersPage() {
       )}
 
       {/* Role Descriptions Grid (Interactive Click to Filter) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
         <div
           onClick={() => setSelectedTab(selectedTab === 'ADMIN' ? 'ALL' : 'ADMIN')}
           className={`p-3.5 rounded-2xl border transition cursor-pointer hover:shadow-md ${
@@ -910,6 +911,28 @@ export default function UsersPage() {
             นิสิตผู้เรียน ค้นหาพัสดุ ยื่นคำขอยืมหรือเบิก และจองห้องฝึกปฏิบัติ
           </p>
         </div>
+
+        <div
+          onClick={() => setSelectedTab(selectedTab === 'VIEWER' ? 'ALL' : 'VIEWER')}
+          className={`p-3.5 rounded-2xl border transition cursor-pointer hover:shadow-md ${
+            selectedTab === 'VIEWER'
+              ? 'border-slate-400 ring-2 ring-slate-400 shadow-md bg-slate-200/70 dark:bg-slate-800/80 dark:border-slate-500'
+              : 'bg-slate-100/80 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/70 hover:dark:bg-slate-800/60'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
+              <Eye className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+              <span>ผู้เข้าชม</span>
+            </div>
+            <span className="text-[11px] font-black px-2 py-0.5 rounded-full bg-slate-200/90 dark:bg-slate-700 text-slate-800 dark:text-slate-200">
+              {tabCounts.VIEWER} คน
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed mt-1.5">
+            ดูข้อมูลพัสดุ ตารางห้อง และรายงานได้อย่างเดียว (ส่งคำร้องไม่ได้)
+          </p>
+        </div>
       </div>
 
       {/* Role Filter Tabs & Search Bar */}
@@ -924,6 +947,7 @@ export default function UsersPage() {
             { key: 'APPROVER', label: 'ผู้อนุมัติ/หัวหน้าภาค', icon: UserCheck, count: tabCounts.APPROVER },
             { key: 'TEACHER', label: 'อาจารย์ผู้สอน', icon: BookOpen, count: tabCounts.TEACHER },
             { key: 'USER', label: 'นิสิต/ผู้ใช้ทั่วไป', icon: GraduationCap, count: tabCounts.USER },
+            { key: 'VIEWER', label: 'ผู้เข้าชม (ดูอย่างเดียว)', icon: Eye, count: tabCounts.VIEWER },
           ].map((tab) => {
             const isSelected = selectedTab === tab.key;
             return (
@@ -965,6 +989,7 @@ export default function UsersPage() {
             <option value="APPROVER">ผู้อนุมัติ/หัวหน้าภาค (Approver) ({tabCounts.APPROVER})</option>
             <option value="TEACHER">อาจารย์ผู้สอน (Teacher) ({tabCounts.TEACHER})</option>
             <option value="USER">นิสิต/ผู้ใช้ทั่วไป (Student/User) ({tabCounts.USER})</option>
+            <option value="VIEWER">ผู้เข้าชม/ดูอย่างเดียว (Viewer) ({tabCounts.VIEWER})</option>
           </select>
         </div>
 
@@ -1300,9 +1325,9 @@ export default function UsersPage() {
                             onClick={() =>
                               setEditingUser({
                                 ...u,
-                                isExecutive: Boolean(u.isExecutive),
-                                executiveRole: u.executiveRole || '',
-                                approvalScopes: u.role === 'USER' ? '' : (u.approvalScopes || ''),
+                                isExecutive: u.role === 'VIEWER' ? false : Boolean(u.isExecutive),
+                                executiveRole: u.role === 'VIEWER' ? '' : (u.executiveRole || ''),
+                                approvalScopes: u.role === 'USER' || u.role === 'VIEWER' ? '' : (u.approvalScopes || ''),
                                 password: '',
                               })
                             }
@@ -1421,12 +1446,15 @@ export default function UsersPage() {
                     setNewUser({
                       ...newUser,
                       role: newRole,
-                      approvalScopes: newRole === 'USER' ? '' : newUser.approvalScopes,
+                      approvalScopes: newRole === 'USER' || newRole === 'VIEWER' ? '' : newUser.approvalScopes,
+                      isExecutive: newRole === 'VIEWER' ? false : newUser.isExecutive,
+                      executiveRole: newRole === 'VIEWER' ? '' : newUser.executiveRole,
                     });
                   }}
                   className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-teal-500/20 cursor-pointer"
                 >
                   <option value="USER">นิสิต (Student)</option>
+                  <option value="VIEWER">ผู้เข้าชม / ดูอย่างเดียว (Viewer)</option>
                   <option value="TEACHER">อาจารย์ผู้สอน / ที่ปรึกษา (Faculty / Teacher)</option>
                   <option value="OFFICER">เจ้าหน้าที่ห้องแล็บ (Lab Officer)</option>
                   <option value="ADMIN">ผู้ดูแลระบบ (Admin)</option>
@@ -1436,6 +1464,7 @@ export default function UsersPage() {
               </div>
 
               {/* Executive Dimension */}
+              {newUser.role !== 'VIEWER' && (
               <div className="p-3.5 bg-gradient-to-br from-rose-50/70 to-slate-50 dark:from-rose-950/20 dark:to-slate-900/60 rounded-2xl border border-rose-100 dark:border-rose-900/40 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -1471,9 +1500,10 @@ export default function UsersPage() {
                   </div>
                 )}
               </div>
+              )}
 
               {/* Approval Permissions Dimension (Only for non-students) */}
-              {newUser.role !== 'USER' && (
+              {newUser.role !== 'USER' && newUser.role !== 'VIEWER' && (
                 <div className="p-3.5 bg-gradient-to-br from-amber-50/70 to-slate-50 dark:from-amber-950/20 dark:to-slate-900/60 rounded-2xl border border-amber-100 dark:border-amber-900/40 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -1701,12 +1731,15 @@ export default function UsersPage() {
                       setEditingUser({
                         ...editingUser,
                         role: newRole,
-                        approvalScopes: newRole === 'USER' ? '' : editingUser.approvalScopes,
+                        approvalScopes: newRole === 'USER' || newRole === 'VIEWER' ? '' : editingUser.approvalScopes,
+                        isExecutive: newRole === 'VIEWER' ? false : editingUser.isExecutive,
+                        executiveRole: newRole === 'VIEWER' ? '' : editingUser.executiveRole,
                       });
                     }}
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-teal-500/20 cursor-pointer"
                   >
                     <option value="USER">นิสิต (Student)</option>
+                    <option value="VIEWER">ผู้เข้าชม / ดูอย่างเดียว (Viewer)</option>
                     <option value="TEACHER">อาจารย์ผู้สอน / ที่ปรึกษา (Faculty / Teacher)</option>
                     <option value="OFFICER">เจ้าหน้าที่ห้องแล็บ (Lab Officer)</option>
                     <option value="ADMIN">ผู้ดูแลระบบ (Admin)</option>
@@ -1730,6 +1763,7 @@ export default function UsersPage() {
               </div>
 
               {/* Executive Dimension */}
+              {editingUser.role !== 'VIEWER' && (
               <div className="p-3.5 bg-gradient-to-br from-rose-50/70 to-slate-50 dark:from-rose-950/20 dark:to-slate-900/60 rounded-2xl border border-rose-100 dark:border-rose-900/40 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -1765,9 +1799,10 @@ export default function UsersPage() {
                   </div>
                 )}
               </div>
+              )}
 
               {/* Approval Permissions Dimension (Only for non-students) */}
-              {editingUser.role !== 'USER' && (
+              {editingUser.role !== 'USER' && editingUser.role !== 'VIEWER' && (
                 <div className="p-3.5 bg-gradient-to-br from-amber-50/70 to-slate-50 dark:from-amber-950/20 dark:to-slate-900/60 rounded-2xl border border-amber-100 dark:border-amber-900/40 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <label className="flex items-center gap-2 cursor-pointer">

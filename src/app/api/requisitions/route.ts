@@ -4,6 +4,7 @@ import { getCached, setCached, invalidateCache } from '@/lib/cache';
 import { formatUserName, formatTeacherName, formatRequesterWithRole } from '@/lib/user-utils';
 import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
 import { parseBangkokDateTime } from '@/lib/date-time-utils';
+import { isViewerUser, VIEWER_FORBIDDEN_MESSAGE } from '@/lib/viewer-guard';
 
 export async function GET(req: Request) {
   try {
@@ -93,6 +94,10 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { userId, courseId, advisorName: customAdvisorName, purpose, dateNeeded, items } = body;
+
+    if (await isViewerUser(userId)) {
+      return NextResponse.json({ error: VIEWER_FORBIDDEN_MESSAGE }, { status: 403 });
+    }
 
     if (!userId || !courseId || !purpose || !dateNeeded || !items || items.length === 0) {
       return NextResponse.json({ error: 'กรุณากรอกข้อมูลให้ครบถ้วน' }, { status: 400 });

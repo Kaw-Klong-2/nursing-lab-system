@@ -5,6 +5,7 @@ export const FEEDBACK_ROLE_LABELS: Record<string, string> = {
   OFFICER: 'เจ้าหน้าที่ห้องแล็บ',
   EXECUTIVE: 'ผู้บริหาร',
   ADMIN: 'ผู้ดูแลระบบ (Admin)',
+  VIEWER: 'ผู้เข้าชม (ดูอย่างเดียว)',
 };
 
 export const FEEDBACK_CATEGORY_LABELS: Record<string, string> = {

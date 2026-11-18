@@ -101,9 +101,9 @@ export async function POST(req: Request) {
       studentId: user.studentId,
       phone: user.phone,
       status: user.status,
-      approvalScopes: user.role === 'USER' ? null : (user.approvalScopes || null),
-      isExecutive: Boolean(user.isExecutive),
-      executiveRole: user.executiveRole || null,
+      approvalScopes: user.role === 'USER' || user.role === 'VIEWER' ? null : (user.approvalScopes || null),
+      isExecutive: user.role === 'VIEWER' ? false : Boolean(user.isExecutive),
+      executiveRole: user.role === 'VIEWER' ? null : (user.executiveRole || null),
     };
 
     console.log(`[AUTH HAND-OFF SUCCESS] User ${sanitizedUser.email} (${sanitizedUser.role}) logged in via portal hand-off.`);

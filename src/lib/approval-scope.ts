@@ -23,8 +23,8 @@ export function canUserApprove(
 ): boolean {
   if (!user) return false;
 
-  // นิสิต (USER) can NEVER approve anything under any circumstance
-  if (user.role === 'USER') return false;
+  // นิสิต (USER) และผู้เข้าชม (VIEWER) ไม่สามารถอนุมัติรายการใด ๆ ได้ทุกกรณี
+  if (user.role === 'USER' || user.role === 'VIEWER') return false;
   
   // ADMIN can approve everything
   if (user.role === 'ADMIN') return true;
@@ -52,7 +52,7 @@ export function canUserApprove(
 export function getEffectiveScopes(
   user: { role?: string; approvalScopes?: string | null; isExecutive?: boolean | null } | null | undefined
 ): ApprovalScopeType[] {
-  if (!user || user.role === 'USER') return [];
+  if (!user || user.role === 'USER' || user.role === 'VIEWER') return [];
   if (user.role === 'ADMIN') {
     return ['BORROW', 'REQUISITION', 'PRACTICE', 'ROOM'];
   }

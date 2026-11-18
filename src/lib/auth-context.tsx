@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-export type UserRole = 'ADMIN' | 'OFFICER' | 'APPROVER' | 'TEACHER' | 'EXECUTIVE' | 'USER';
+export type UserRole = 'ADMIN' | 'OFFICER' | 'APPROVER' | 'TEACHER' | 'EXECUTIVE' | 'VIEWER' | 'USER';
 
 export interface User {
   id: string;
@@ -45,6 +45,7 @@ interface AuthContextType {
   isApprover: boolean;
   isTeacher: boolean;
   isExecutive: boolean;
+  isViewer: boolean;
 }
 
 export function isDefaultAdminUser(user: Partial<User> | null | undefined): boolean {
@@ -530,27 +531,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const isAdmin = currentUser?.role === 'ADMIN';
-  const isOfficer = currentUser?.role === 'OFFICER' || isAdmin;
-  const isExecutive = currentUser?.isExecutive === true || currentUser?.role === 'EXECUTIVE' || isAdmin;
+  const isViewer = currentUser?.role === 'VIEWER';
+  const isAdmin = !isViewer && currentUser?.role === 'ADMIN';
+  const isOfficer = !isViewer && (currentUser?.role === 'OFFICER' || isAdmin);
+  const isExecutive = !isViewer && (currentUser?.isExecutive === true || currentUser?.role === 'EXECUTIVE' || isAdmin);
   const isApprover =
+    !isViewer &&
     currentUser?.role !== 'USER' && (
       currentUser?.role === 'APPROVER' ||
       (Boolean(currentUser?.approvalScopes) && currentUser?.approvalScopes !== 'NONE' && currentUser?.approvalScopes !== '') ||
       isAdmin
     );
   const isTeacher =
-    currentUser?.role === 'TEACHER' ||
-    currentUser?.role === 'APPROVER' ||
-    isAdmin ||
-    Boolean(currentUser?.email?.includes('teacher')) ||
-    Boolean(currentUser?.prefix && ['อ.', 'ผศ.', 'ผศ.ดร.', 'รศ.', 'รศ.ดร.', 'ศ.', 'ศ.ดร.', 'ดร.', 'อาจารย์'].includes(currentUser.prefix.trim())) ||
-    Boolean(currentUser?.name?.startsWith('อ.')) ||
-    Boolean(currentUser?.name?.startsWith('ผศ.')) ||
-    Boolean(currentUser?.name?.startsWith('รศ.')) ||
-    Boolean(currentUser?.name?.startsWith('ดร.')) ||
-    Boolean(currentUser?.name?.startsWith('ศ.')) ||
-    Boolean(currentUser?.department?.includes('อาจารย์'));
+    !isViewer && (
+      currentUser?.role === 'TEACHER' ||
+      currentUser?.role === 'APPROVER' ||
+      isAdmin ||
+      Boolean(currentUser?.email?.includes('teacher')) ||
+      Boolean(currentUser?.prefix && ['อ.', 'ผศ.', 'ผศ.ดร.', 'รศ.', 'รศ.ดร.', 'ศ.', 'ศ.ดร.', 'ดร.', 'อาจารย์'].includes(currentUser.prefix.trim())) ||
+      Boolean(currentUser?.name?.startsWith('อ.')) ||
+      Boolean(currentUser?.name?.startsWith('ผศ.')) ||
+      Boolean(currentUser?.name?.startsWith('รศ.')) ||
+      Boolean(currentUser?.name?.startsWith('ดร.')) ||
+      Boolean(currentUser?.name?.startsWith('ศ.')) ||
+      Boolean(currentUser?.department?.includes('อาจารย์'))
+    );
 
   return (
     <AuthContext.Provider
@@ -570,6 +575,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isApprover,
         isTeacher,
         isExecutive,
+        isViewer,
       }}
     >
       {children}

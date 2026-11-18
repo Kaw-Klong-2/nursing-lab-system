@@ -83,9 +83,9 @@ export async function POST(req: Request) {
       phone: user.phone,
       avatar: user.avatar,
       status: user.status,
-      approvalScopes: user.role === 'USER' ? null : (user.approvalScopes || null),
-      isExecutive: Boolean(user.isExecutive),
-      executiveRole: user.executiveRole || null,
+      approvalScopes: user.role === 'USER' || user.role === 'VIEWER' ? null : (user.approvalScopes || null),
+      isExecutive: user.role === 'VIEWER' ? false : Boolean(user.isExecutive),
+      executiveRole: user.role === 'VIEWER' ? null : (user.executiveRole || null),
     };
 
     // Record login presence and activity log

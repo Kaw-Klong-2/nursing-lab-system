@@ -17,6 +17,27 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-18] เพิ่มบทบาท `VIEWER` (ผู้เข้าชม — ดูอย่างเดียว ส่งคำร้องหรือแก้ไขไม่ได้) แบบป้องกัน 3 ชั้น
+- **หมวดหมู่**: Auth, Role-Based Access Control (RBAC), UI Guard & API Guard (`VIEWER`)
+- **สิ่งที่ดำเนินการ**:
+  - **กำหนดบทบาทและสิทธิ์หลัก (`VIEWER`)**:
+    - เพิ่ม `'VIEWER'` ใน `UserRole` และเพิ่มค่า `isViewer` ใน [`src/lib/auth-context.tsx`](file:///d:/LAB-system/src/lib/auth-context.tsx) พร้อมบังคับปิดสิทธิ์ระดับสูงทั้งหมด (`isAdmin`, `isOfficer`, `isExecutive`, `isApprover`, `isTeacher = false`) เมื่อเป็น `VIEWER`
+    - เพิ่มป้ายชื่อบทบาทภาษาไทย, Badge และปิดการอนุมัติใน [`src/lib/user-utils.ts`](file:///d:/LAB-system/src/lib/user-utils.ts), [`src/lib/approval-scope.ts`](file:///d:/LAB-system/src/lib/approval-scope.ts), [`src/lib/feedback-constants.ts`](file:///d:/LAB-system/src/lib/feedback-constants.ts) และ [`src/components/layout/Navbar.tsx`](file:///d:/LAB-system/src/components/layout/Navbar.tsx)
+  - **ชั้นที่ 1 — เมนูนำทาง โหมดดูอย่างเดียว และการจัดการผู้ใช้**:
+    - อัปเดต [`src/lib/sub-apps.ts`](file:///d:/LAB-system/src/lib/sub-apps.ts) เปิดให้ `VIEWER` เข้าดูเฉพาะหน้าข้อมูล (`/`, `/rooms`, `/schedule`, `/practice`, `/borrow`, `/kits`, `/requisitions`, `/inventory`, `/reports`, `/courses`) และซ่อนเมนูปฏิบัติการ/จัดการระบบ (`/pos`, `/dispense`, `/stock-in`, `/repack`, `/approvals`, `/admin/*`, `/users`, `/settings/*`, `/maintenance`, `/air-conditioning`, `/executive`)
+    - เพิ่มการ์ดสรุป แท็บกรอง และตัวเลือกบทบาท `VIEWER` ใน [`src/app/users/page.tsx`](file:///d:/LAB-system/src/app/users/page.tsx) พร้อมซ่อนส่วนสิทธิ์บริหาร/อนุมัติ และล้างค่า `approvalScopes`/`isExecutive` ทั้งใน UI และ API ([`src/app/api/users/route.ts`](file:///d:/LAB-system/src/app/api/users/route.ts), [`src/app/api/users/[id]/route.ts`](file:///d:/LAB-system/src/app/api/users/%5Bid%5D/route.ts), [`src/app/api/auth/login/route.ts`](file:///d:/LAB-system/src/app/api/auth/login/route.ts), [`src/app/api/auth/portal-handoff/route.ts`](file:///d:/LAB-system/src/app/api/auth/portal-handoff/route.ts))
+    - ส่ง `readOnly={isViewer}` ใน [`src/app/borrow/request/page.tsx`](file:///d:/LAB-system/src/app/borrow/request/page.tsx) พร้อมแถบแจ้งเตือนโหมดดูอย่างเดียว ป้องกันการกดส่งคำขอ และงดแสดงหน้าต่างประเมินหลังทำรายการใน [`src/components/feedback/PostActionFeedbackModal.tsx`](file:///d:/LAB-system/src/components/feedback/PostActionFeedbackModal.tsx)
+  - **ชั้นที่ 2 — แถบแสดงสถานะและดักบล็อก Mutation บน Client**:
+    - สร้าง [`src/components/auth/ViewerModeGuard.tsx`](file:///d:/LAB-system/src/components/auth/ViewerModeGuard.tsx) ติดตั้งใน [`src/components/layout/AppLayout.tsx`](file:///d:/LAB-system/src/components/layout/AppLayout.tsx) แสดงแบนเนอร์โหมดผู้เข้าชม และดักบล็อกคำสั่ง `POST`/`PUT`/`PATCH`/`DELETE` ไปยัง `/api/*` ด้วย HTTP `403` (ยกเว้น `/api/auth/heartbeat`, `/api/auth/login`, `/api/auth/google`, `/api/auth/portal-handoff`)
+  - **ชั้นที่ 3 — การป้องกันฝั่ง Backend API (`403 Forbidden`)**:
+    - สร้าง [`src/lib/viewer-guard.ts`](file:///d:/LAB-system/src/lib/viewer-guard.ts) (`isViewerUser`, `VIEWER_FORBIDDEN_MESSAGE`) และตรวจปฏิเสธ `POST` จากบัญชี `VIEWER` ใน `/api/requests/unified`, `/api/borrow`, `/api/requisitions`, `/api/room-bookings`, `/api/practice/bookings`, `/api/kits/request` และ `/api/maintenance/issues`
+- **ไฟล์สำคัญที่แก้ไข/สร้างใหม่**:
+  - [`src/lib/auth-context.tsx`](file:///d:/LAB-system/src/lib/auth-context.tsx), [`src/lib/user-utils.ts`](file:///d:/LAB-system/src/lib/user-utils.ts), [`src/lib/approval-scope.ts`](file:///d:/LAB-system/src/lib/approval-scope.ts), [`src/lib/feedback-constants.ts`](file:///d:/LAB-system/src/lib/feedback-constants.ts), [`src/lib/sub-apps.ts`](file:///d:/LAB-system/src/lib/sub-apps.ts), [`src/lib/viewer-guard.ts`](file:///d:/LAB-system/src/lib/viewer-guard.ts)
+  - [`src/components/auth/ViewerModeGuard.tsx`](file:///d:/LAB-system/src/components/auth/ViewerModeGuard.tsx), [`src/components/layout/AppLayout.tsx`](file:///d:/LAB-system/src/components/layout/AppLayout.tsx), [`src/components/layout/Navbar.tsx`](file:///d:/LAB-system/src/components/layout/Navbar.tsx), [`src/components/feedback/PostActionFeedbackModal.tsx`](file:///d:/LAB-system/src/components/feedback/PostActionFeedbackModal.tsx)
+  - [`src/app/users/page.tsx`](file:///d:/LAB-system/src/app/users/page.tsx), [`src/app/borrow/request/page.tsx`](file:///d:/LAB-system/src/app/borrow/request/page.tsx)
+  - API Routes: `/api/users/*`, `/api/auth/*`, `/api/requests/unified`, `/api/borrow`, `/api/requisitions`, `/api/room-bookings`, `/api/practice/bookings`, `/api/kits/request`, `/api/maintenance/issues`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit`, `npm run build` และ `node scripts/librarian-audit.mjs` ผ่าน 100%
+
 ### [2026-11-18] ระบบสุ่มประเมินความพึงพอใจหลังทำรายการสำเร็จ (Star Rating 1–5 ดาว) & หน้าจัดการเฉพาะแอดมิน (`/admin/feedback`)
 - **หมวดหมู่**: User Satisfaction Rating & Admin-Only Console (`/admin/feedback`, `PostActionFeedbackModal`)
 - **สิ่งที่ดำเนินการ**:

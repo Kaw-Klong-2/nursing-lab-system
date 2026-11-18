@@ -8,7 +8,8 @@ import {
   ShieldCheck, 
   UserCheck, 
   Stethoscope, 
-  GraduationCap, 
+  GraduationCap,
+  Eye, 
   Building2,
   LogOut,
   LogIn,
@@ -69,6 +70,12 @@ export default function Navbar({ onToggleMobileMenu, isMobileMenuOpen }: NavbarP
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-950/70 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
             <Briefcase className="w-3 h-3 text-blue-600 dark:text-blue-400" /> ผู้บริหาร
+          </span>
+        );
+      case 'VIEWER':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
+            <Eye className="w-3 h-3 text-slate-500 dark:text-slate-400" /> ผู้เข้าชม (ดูอย่างเดียว)
           </span>
         );
       case 'USER':

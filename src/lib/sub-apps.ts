@@ -87,25 +87,25 @@ export const SUB_APPS: Record<SubAppId, SubAppConfig> = {
       badge: 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border-rose-200 dark:border-rose-800',
       switcherActive: 'bg-rose-600 text-white shadow-md shadow-rose-600/30',
     },
-    allowedRoles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'USER'],
+    allowedRoles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'VIEWER', 'USER'],
     items: [
       {
         label: 'จองห้องสำหรับใช้งาน',
         href: '/rooms',
         icon: Building2,
-        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'USER'],
+        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'VIEWER', 'USER'],
       },
       {
         label: 'ขอเข้าฝึกปฏิบัติด้วยตนเอง',
         href: '/practice',
         icon: Stethoscope,
-        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'USER'],
+        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'VIEWER', 'USER'],
       },
       {
         label: 'ปฏิทินกิจกรรมการใช้ห้องรวม',
         href: '/schedule',
         icon: CalendarDays,
-        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE'],
+        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'VIEWER'],
       },
       {
         label: 'บันทึกเปิด-ปิดแอร์ (AC Logs)',
@@ -136,13 +136,13 @@ export const SUB_APPS: Record<SubAppId, SubAppConfig> = {
       badge: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800',
       switcherActive: 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30',
     },
-    allowedRoles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'USER'],
+    allowedRoles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'VIEWER', 'USER'],
     items: [
       {
         label: 'ยืม-คืนครุภัณฑ์ & เบิกพัสดุ',
         href: '/borrow',
         icon: RefreshCw,
-        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'USER'],
+        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'VIEWER', 'USER'],
       },
       {
         label: 'จุดเบิกจ่ายด่วนหน้าร้าน (POS)',
@@ -161,13 +161,13 @@ export const SUB_APPS: Record<SubAppId, SubAppConfig> = {
         label: 'ชุดฝึกปฏิบัติการสำเร็จรูป (Kits)',
         href: '/kits',
         icon: BriefcaseMedical,
-        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'USER'],
+        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'VIEWER', 'USER'],
       },
       {
         label: 'ประวัติเบิกจ่ายวัสดุ',
         href: '/requisitions',
         icon: FileSpreadsheet,
-        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'USER'],
+        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'VIEWER', 'USER'],
       },
     ],
   },
@@ -192,13 +192,13 @@ export const SUB_APPS: Record<SubAppId, SubAppConfig> = {
       badge: 'bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 border-blue-200 dark:border-blue-800',
       switcherActive: 'bg-blue-600 text-white shadow-md shadow-blue-600/30',
     },
-    allowedRoles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'USER'],
+    allowedRoles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'VIEWER', 'USER'],
     items: [
       {
         label: 'ทะเบียนพัสดุ-ครุภัณฑ์ & สต็อก',
         href: '/inventory',
         icon: Boxes,
-        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'USER'],
+        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'VIEWER', 'USER'],
       },
       {
         label: 'รับเข้าพัสดุใหม่ (Stock In)',
@@ -274,7 +274,7 @@ export const SUB_APPS: Record<SubAppId, SubAppConfig> = {
       badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border-amber-200 dark:border-amber-800',
       switcherActive: 'bg-amber-600 text-white shadow-md shadow-amber-600/30',
     },
-    allowedRoles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE'],
+    allowedRoles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'VIEWER'],
     items: [
       {
         label: 'แดชบอร์ดผู้บริหาร (Cockpit 360°)',
@@ -287,13 +287,13 @@ export const SUB_APPS: Record<SubAppId, SubAppConfig> = {
         label: 'รายงาน & วิเคราะห์ข้อมูล',
         href: '/reports',
         icon: BarChart3,
-        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE'],
+        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'VIEWER'],
       },
       {
         label: 'จัดการรายวิชา & ต้นทุน',
         href: '/courses',
         icon: BookOpen,
-        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE'],
+        roles: ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER', 'EXECUTIVE', 'VIEWER'],
       },
     ],
   },
@@ -423,17 +423,22 @@ export function getSubAppsForUser(
   }
 ): SubAppConfig[] {
   const role = userRole || 'USER';
-  const { isTeacher, isOfficer, isAdmin, isApprover, isExecutive } = flags || {};
+  const isViewer = role === 'VIEWER';
+  const effectiveTeacher = !isViewer && Boolean(flags?.isTeacher);
+  const effectiveOfficer = !isViewer && Boolean(flags?.isOfficer);
+  const effectiveAdmin = !isViewer && Boolean(flags?.isAdmin);
+  const effectiveApprover = !isViewer && Boolean(flags?.isApprover);
+  const effectiveExecutive = !isViewer && Boolean(flags?.isExecutive);
 
   return SUB_APP_LIST.filter((app) => {
     if (app.id === 'staff-admin-console') {
-      return isAdmin || isOfficer;
+      return effectiveAdmin || effectiveOfficer;
     }
     if (app.id === 'executive-analytics') {
-      return isAdmin || isExecutive || isTeacher || isOfficer || isApprover;
+      return effectiveAdmin || effectiveExecutive || effectiveTeacher || effectiveOfficer || effectiveApprover || isViewer;
     }
     if (app.id === 'approvals-hub') {
-      return isAdmin || isApprover || isTeacher || isOfficer;
+      return effectiveAdmin || effectiveApprover || effectiveTeacher || effectiveOfficer;
     }
     return app.allowedRoles.includes(role);
   }).map((app) => {
@@ -449,31 +454,35 @@ export function getSubAppsForUser(
         item.href === '/admin/sandbox' ||
         item.href === '/admin/chatbot'
       ) {
-        return isAdmin || isOfficer;
+        return effectiveAdmin || effectiveOfficer;
       }
-      if (item.href === '/users' || item.href === '/settings/notifications') {
-        return isAdmin;
+      if (item.href === '/users' || item.href === '/settings/notifications' || item.href === '/admin/feedback') {
+        return effectiveAdmin;
       }
       if (item.href === '/executive') {
-        return isAdmin || isExecutive;
+        return effectiveAdmin || effectiveExecutive;
       }
       if (item.href === '/approvals') {
-        return isAdmin || isApprover || isTeacher || isOfficer;
+        return effectiveAdmin || effectiveApprover || effectiveTeacher || effectiveOfficer;
       }
       if (
         item.href === '/reports' ||
         item.href === '/courses' ||
-        item.href === '/schedule' ||
+        item.href === '/schedule'
+      ) {
+        return effectiveAdmin || effectiveOfficer || effectiveApprover || effectiveTeacher || effectiveExecutive || isViewer;
+      }
+      if (
         item.href === '/air-conditioning' ||
         item.href === '/maintenance'
       ) {
-        return isAdmin || isOfficer || isApprover || isTeacher || isExecutive;
+        return effectiveAdmin || effectiveOfficer || effectiveApprover || effectiveTeacher || effectiveExecutive;
       }
       return item.roles.includes(role);
     });
 
     const dynamicPrimaryHref =
-      app.id === 'executive-analytics' && !isAdmin && !isExecutive
+      app.id === 'executive-analytics' && !effectiveAdmin && !effectiveExecutive
         ? '/reports'
         : filteredItems[0]?.href || app.primaryHref;
 

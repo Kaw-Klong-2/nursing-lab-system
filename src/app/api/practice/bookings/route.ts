@@ -5,6 +5,7 @@ import { sendApprovalRequestEmail } from '@/lib/email';
 import { formatUserName, formatTeacherName, formatRequesterWithRole } from '@/lib/user-utils';
 import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
 import { combineSlotDateAndBangkokTime, getBangkokEndOfDay } from '@/lib/date-time-utils';
+import { isViewerUser, VIEWER_FORBIDDEN_MESSAGE } from '@/lib/viewer-guard';
 
 export async function GET(req: Request) {
   try {
@@ -71,6 +72,10 @@ export async function POST(req: Request) {
       additionalEquipment,
       companionUserIds = [],
     } = body;
+
+    if (await isViewerUser(userId)) {
+      return NextResponse.json({ error: VIEWER_FORBIDDEN_MESSAGE }, { status: 403 });
+    }
 
     if (!userId || !slotId || !skillTopic) {
       return NextResponse.json(

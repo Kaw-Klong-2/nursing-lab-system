@@ -158,7 +158,7 @@ export default function PostActionFeedbackModal() {
   };
 
   useEffect(() => {
-    if (!currentUser?.id) return;
+    if (!currentUser?.id || currentUser.role === 'VIEWER') return;
     loadConfig();
 
     const onConfigUpdated = (e: Event) => {
@@ -193,7 +193,7 @@ export default function PostActionFeedbackModal() {
 
   const tryRollAndShowPrompt = (ctx: PendingPromptContext) => {
     const user = currentUserRef.current;
-    if (!user?.id) return;
+    if (!user?.id || user.role === 'VIEWER') return;
     if (isOpenRef.current) return;
 
     if (ctx.forcePreview) {
@@ -329,7 +329,7 @@ export default function PostActionFeedbackModal() {
     }
   };
 
-  if (!isOpen || !currentUser) return null;
+  if (!isOpen || !currentUser || currentUser.role === 'VIEWER') return null;
 
   const activeStar = hoverRating || rating;
   const starMeta = activeStar > 0 ? RATING_LABELS[activeStar] : null;

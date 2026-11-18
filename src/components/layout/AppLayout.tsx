@@ -11,6 +11,7 @@ import SubAppBreadcrumbBar from './SubAppBreadcrumbBar';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import QrScannerModal from '@/components/qrcode/QrScannerModal';
 import SessionActivityWatcher from '@/components/auth/SessionActivityWatcher';
+import ViewerModeGuard from '@/components/auth/ViewerModeGuard';
 import PushNotificationManager from '@/components/notifications/PushNotificationManager';
 import LabCopilotWidget from '@/components/chatbot/LabCopilotWidget';
 import PostActionFeedbackModal from '@/components/feedback/PostActionFeedbackModal';
@@ -94,6 +95,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         />
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           <SubAppBreadcrumbBar />
+          <ViewerModeGuard />
           <main className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-8 pb-24 md:pb-8">
             <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">{children}</div>
           </main>

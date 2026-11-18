@@ -13,6 +13,7 @@ import QrScannerModal from '@/components/qrcode/QrScannerModal';
 import SessionActivityWatcher from '@/components/auth/SessionActivityWatcher';
 import PushNotificationManager from '@/components/notifications/PushNotificationManager';
 import LabCopilotWidget from '@/components/chatbot/LabCopilotWidget';
+import PostActionFeedbackModal from '@/components/feedback/PostActionFeedbackModal';
 import {
   LayoutDashboard,
   Boxes,
@@ -174,6 +175,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       {(currentUser?.role === 'ADMIN' || currentUser?.role === 'OFFICER') && (
         <LabCopilotWidget />
       )}
+
+      {/* Global Post-Action Random Star Rating Prompt */}
+      <PostActionFeedbackModal />
     </div>
   );
 }

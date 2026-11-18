@@ -17,6 +17,28 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-18] ระบบสุ่มประเมินความพึงพอใจหลังทำรายการสำเร็จ (Star Rating 1–5 ดาว) & หน้าจัดการเฉพาะแอดมิน (`/admin/feedback`)
+- **หมวดหมู่**: User Satisfaction Rating & Admin-Only Console (`/admin/feedback`, `PostActionFeedbackModal`)
+- **สิ่งที่ดำเนินการ**:
+  - **ฐานข้อมูล ([`prisma/schema.prisma`](file:///d:/LAB-system/prisma/schema.prisma))**:
+    - เพิ่มโมเดล `SystemFeedback` (เก็บคะแนนรวม 1–5 ดาว, ความง่ายในการใช้งาน, ความรวดเร็ว, กิจกรรม, แท็ก, ความคิดเห็น, ไม่ระบุชื่อ, และสถานะ `isEditedByAdmin`) และ `SystemFeedbackConfig` (`isEnabled`, `randomChancePercent`, `cooldownHoursAfterSubmit` ค่าเริ่มต้น `0` ชั่วโมง)
+  - **API ระบบประเมิน (`/api/feedback/*`)**:
+    - [`src/app/api/feedback/route.ts`](file:///d:/LAB-system/src/app/api/feedback/route.ts), [`src/app/api/feedback/[id]/route.ts`](file:///d:/LAB-system/src/app/api/feedback/%5Bid%5D/route.ts), และ [`src/app/api/feedback/config/route.ts`](file:///d:/LAB-system/src/app/api/feedback/config/route.ts)
+    - บังคับตรวจสิทธิ์ `role === 'ADMIN'` ฝั่ง Server สำหรับการดูผลสรุป, การแก้ไขคะแนนดาว/ข้อมูล, การลบ, และการตั้งค่าระบบสุ่ม
+  - **หน้าต่างสุ่มให้ดาวหลังทำรายการเสร็จ ([`src/components/feedback/PostActionFeedbackModal.tsx`](file:///d:/LAB-system/src/components/feedback/PostActionFeedbackModal.tsx))**:
+    - ติดตั้งใน [`AppLayout.tsx`](file:///d:/LAB-system/src/components/layout/AppLayout.tsx) ดักจับการทำรายการสำเร็จ (ยืม-เบิกพัสดุ, จองฝึกทักษะ, เช็คเอาท์, จองห้อง, แจ้งซ่อม) แล้วสุ่มเด้งหน้าต่างให้ 1–5 ดาวตาม `%` ที่แอดมินตั้งไว้ โดย **ไม่มี Cooldown 7 วันเมื่อกดปิด** และค่าเริ่มต้นไม่ล็อก 30 วันหลังส่ง
+  - **หน้าจัดการและแก้ไขคะแนนเฉพาะแอดมิน ([`src/app/admin/feedback/page.tsx`](file:///d:/LAB-system/src/app/admin/feedback/page.tsx))**:
+    - เข้าดูได้เฉพาะ `ADMIN` เท่านั้น แสดง KPI คะแนนเฉลี่ย, สัดส่วน 1–5 ดาว, แยกตามบทบาท, ปรับตั้งค่า `% สุ่ม` และปุ่มพรีวิว, คลิกแก้คะแนนดาวในตาราง/Modal ได้โดยตรง, เพิ่ม/ลบรายการ และส่งออก Excel (`.xlsx`)
+    - เพิ่มเมนูใน [`src/lib/sub-apps.ts`](file:///d:/LAB-system/src/lib/sub-apps.ts) (แสดงเฉพาะ `ADMIN`)
+- **ไฟล์สำคัญที่แก้ไข/สร้างใหม่**:
+  - [`prisma/schema.prisma`](file:///d:/LAB-system/prisma/schema.prisma)
+  - [`src/lib/feedback-constants.ts`](file:///d:/LAB-system/src/lib/feedback-constants.ts) & [`src/lib/feedback-utils.ts`](file:///d:/LAB-system/src/lib/feedback-utils.ts)
+  - [`src/app/api/feedback/route.ts`](file:///d:/LAB-system/src/app/api/feedback/route.ts), [`src/app/api/feedback/[id]/route.ts`](file:///d:/LAB-system/src/app/api/feedback/%5Bid%5D/route.ts), [`src/app/api/feedback/config/route.ts`](file:///d:/LAB-system/src/app/api/feedback/config/route.ts)
+  - [`src/components/feedback/PostActionFeedbackModal.tsx`](file:///d:/LAB-system/src/components/feedback/PostActionFeedbackModal.tsx)
+  - [`src/app/admin/feedback/page.tsx`](file:///d:/LAB-system/src/app/admin/feedback/page.tsx)
+  - [`src/components/layout/AppLayout.tsx`](file:///d:/LAB-system/src/components/layout/AppLayout.tsx) & [`src/lib/sub-apps.ts`](file:///d:/LAB-system/src/lib/sub-apps.ts)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx prisma db push`, `npx tsc --noEmit`, `npm run build` และ `node scripts/librarian-audit.mjs` ผ่าน 100%
+
 ### [2026-11-17] ปรับปรุงหน้าแคตตาล็อกพัสดุ (`BorrowCatalogBrowser`) และเชื่อมโหมดเลือกจากแคตตาล็อกใน `/borrow/request`
 - **หมวดหมู่**: Borrow & Requisition Storefront Catalog (`/borrow/request`, `/admin/sandbox/catalog`, `BorrowCatalogBrowser`, `BorrowCheckoutDrawer`)
 - **สิ่งที่ดำเนินการ**:

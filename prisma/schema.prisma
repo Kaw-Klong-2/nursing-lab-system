@@ -55,6 +55,7 @@ model User {
   createdInspectionPlans InspectionPlan[]  @relation("CreatedInspectionPlans")
   checkedPlanItems    InspectionPlanItem[] @relation("CheckedPlanItems")
   activityLogs        ActivityLog[]
+  systemFeedbacks     SystemFeedback[]
 
   @@index([role, status])
   @@index([studentId])
@@ -858,4 +859,40 @@ model ActivityLog {
   @@index([userId])
   @@index([action])
   @@index([createdAt])
+}
+
+
+model SystemFeedback {
+  id              String   @id @default(cuid())
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName        String?
+  userRole        String?  // "USER", "TEACHER", "OFFICER", "APPROVER", "ADMIN", "EXECUTIVE"
+  rating          Int      // 1 - 5 ดาว (แอดมินสามารถแก้ไขได้)
+  easeOfUseRating Int?     // 1 - 5 ดาว
+  speedRating     Int?     // 1 - 5 ดาว
+  category        String   @default("OVERALL") // "BORROW", "REQUISITION", "PRACTICE", "ROOM_BOOKING", "MAINTENANCE", "OVERALL"
+  actionLabel     String?  // เช่น "ยื่นคำขอยืม-เบิกพัสดุ", "จองห้องปฏิบัติการ", "เช็คเอาท์ฝึกทักษะ"
+  pagePath        String?
+  quickTags       String?  // comma-separated tags เช่น "ใช้งานง่าย,รวดเร็ว,ค้นหาสะดวก"
+  comment         String?
+  isAnonymous     Boolean  @default(false)
+  isEditedByAdmin Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([rating])
+  @@index([category])
+  @@index([userRole])
+  @@index([createdAt])
+}
+
+model SystemFeedbackConfig {
+  id                       String   @id @default("default")
+  isEnabled                Boolean  @default(true)
+  randomChancePercent      Int      @default(50) // โอกาสสุ่มเด้งหลังทำรายการสำเร็จ (0 - 100%)
+  cooldownHoursAfterSubmit Int      @default(0)  // ชั่วโมงพักหลังส่งคะแนนแล้ว (0 = ไม่พัก สุ่มได้ทุกครั้งที่ทำรายการเสร็จ)
+  promptTitle              String   @default("ทำรายการสำเร็จ! ให้คะแนนความพึงพอใจการใช้ระบบ")
+  promptSubtitle           String   @default("ความคิดเห็นของท่านช่วยให้เราพัฒนาห้องปฏิบัติการพยาบาลให้ดียิ่งขึ้น")
+  updatedAt                DateTime @updatedAt
 }

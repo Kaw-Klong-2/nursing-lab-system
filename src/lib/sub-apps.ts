@@ -21,6 +21,7 @@ import {
   LucideIcon,
   Bot,
   Sparkles,
+  Star,
 } from 'lucide-react';
 import { UserRole } from './auth-context';
 
@@ -373,6 +374,13 @@ export const SUB_APPS: Record<SubAppId, SubAppConfig> = {
         label: 'ตั้งค่าข้อความแจ้งเตือน',
         href: '/settings/notifications',
         icon: Sliders,
+        roles: ['ADMIN'],
+        isImportant: true,
+      },
+      {
+        label: 'ผลประเมินความพึงพอใจ (Admin)',
+        href: '/admin/feedback',
+        icon: Star,
         roles: ['ADMIN'],
         isImportant: true,
       },

@@ -151,7 +151,8 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           border-radius: 3px;
           padding: 2px 4px;
           width: 175px;
-          height: 58px;
+          min-height: 58px;
+          height: auto;
           display: flex;
           align-items: center;
           gap: 5px;
@@ -185,6 +186,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         }
         .mini-code-row {
           display: flex;
+          flex-wrap: wrap;
           align-items: center;
           justify-content: space-between;
           gap: 3px;
@@ -192,11 +194,13 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         }
         .mini-code {
           font-family: monospace;
-          font-size: 9px;
+          font-size: 7.5px;
           font-weight: 900;
           color: #0f172a;
-          letter-spacing: 0.2px;
-          white-space: nowrap;
+          letter-spacing: 0.1px;
+          line-height: 1.12;
+          white-space: normal;
+          word-break: break-all;
         }
         .mini-seq {
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -236,7 +240,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           <div class="mini-info">
             <div class="mini-org">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
             <div class="mini-code-row">
-              <span class="mini-code">${asset.assetCode}</span>
+              <span class="mini-code">${asset.govAssetCode || asset.assetCode}</span>
               <span class="mini-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>
             </div>
             <div class="mini-title">${title}</div>
@@ -350,12 +354,12 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         }
         .compact-gov {
           font-family: monospace;
-          font-size: 8px;
+          font-size: 7.5px;
           color: #334155;
           font-weight: bold;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          line-height: 1.15;
+          white-space: normal;
+          word-break: break-all;
           margin-top: 0.5px;
         }
         .compact-title {
@@ -488,6 +492,8 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           font-size: 9px;
           color: #334155;
           font-weight: bold;
+          line-height: 1.15;
+          word-break: break-all;
           margin-top: 1px;
         }
         .details {
@@ -632,19 +638,19 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         }
         .doc-code-row {
           display: flex;
+          flex-wrap: wrap;
           align-items: center;
           gap: 2px;
           margin-top: 0.5px;
         }
         .doc-code {
           font-family: monospace;
-          font-size: 6.5px;
+          font-size: 5.8px;
           font-weight: 900;
           color: #0f172a;
-          line-height: 1;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          line-height: 1.08;
+          white-space: normal;
+          word-break: break-all;
         }
         .doc-seq {
           font-size: 5px;
@@ -958,9 +964,9 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
                 <div className="text-[8px] font-bold text-teal-700 dark:text-teal-400 truncate">
                   คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์
                 </div>
-                <div className="flex items-center justify-between gap-1.5">
-                  <span className="font-mono font-black text-xs text-slate-900 dark:text-slate-100 truncate">
-                    {asset.assetCode}
+                <div className="flex flex-wrap items-center justify-between gap-1.5">
+                  <span className="font-mono font-black text-[10px] leading-tight text-slate-900 dark:text-slate-100 break-all">
+                    {asset.govAssetCode || asset.assetCode}
                   </span>
                   <span className="text-[9px] font-extrabold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1 py-0.2 rounded border border-teal-200 dark:border-teal-800 flex-shrink-0">
                     {unit}ที่ {asset.sequenceNumber || 1}
@@ -1009,7 +1015,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
                     </span>
                   </div>
                   {asset.govAssetCode && (
-                    <div className="font-mono text-[9px] font-bold text-slate-600 dark:text-slate-400 truncate">
+                    <div className="font-mono text-[9px] font-bold leading-tight text-slate-600 dark:text-slate-400 break-all">
                       {asset.govAssetCode}
                     </div>
                   )}
@@ -1067,7 +1073,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
                 </div>
                 {asset.govAssetCode && (
                   <div className="mt-0.5">
-                    <span className="font-mono text-[9px] text-slate-600 dark:text-slate-300 font-bold">
+                    <span className="font-mono text-[9px] text-slate-600 dark:text-slate-300 font-bold break-all">
                       {asset.govAssetCode}
                     </span>
                   </div>
@@ -1116,8 +1122,8 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
                 <div className="text-[8px] font-bold text-teal-700 dark:text-teal-400 truncate">
                   คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์
                 </div>
-                <div className="flex items-center gap-1">
-                  <span className="font-mono font-black text-xs text-slate-900 dark:text-slate-100 truncate">
+                <div className="flex flex-wrap items-center gap-1">
+                  <span className="font-mono font-black text-[10px] leading-tight text-slate-900 dark:text-slate-100 break-all">
                     {asset.govAssetCode || asset.assetCode}
                   </span>
                   <span className="text-[8px] font-extrabold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1 rounded border border-teal-200 dark:border-teal-800 flex-shrink-0">

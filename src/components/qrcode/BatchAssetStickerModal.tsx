@@ -615,19 +615,19 @@ export default function BatchAssetStickerModal({
           }
           .doc-code-row {
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
             gap: 2px;
             margin-top: 0.5px;
           }
           .doc-code {
             font-family: monospace;
-            font-size: 6.5px;
+            font-size: 5.8px;
             font-weight: 900;
             color: #0f172a;
-            line-height: 1;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            line-height: 1.08;
+            white-space: normal;
+            word-break: break-all;
           }
           .doc-seq {
             font-size: 5px;
@@ -688,8 +688,8 @@ export default function BatchAssetStickerModal({
             border-radius: 3px;
             padding: 2.5px 4px;
             width: 100%;
-            height: 18mm;
-            max-height: 18mm;
+            min-height: 18mm;
+            height: auto;
             display: flex;
             align-items: center;
             gap: 5px;
@@ -723,6 +723,7 @@ export default function BatchAssetStickerModal({
           }
           .mini-code-row {
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
             justify-content: space-between;
             gap: 3px;
@@ -730,12 +731,12 @@ export default function BatchAssetStickerModal({
           }
           .mini-code {
             font-family: monospace;
-            font-size: 8.5px;
+            font-size: 7.5px;
             font-weight: 900;
             color: #0f172a;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            line-height: 1.12;
+            white-space: normal;
+            word-break: break-all;
           }
           .mini-seq {
             font-size: 6.5px;
@@ -851,19 +852,20 @@ export default function BatchAssetStickerModal({
           }
           .compact-code-row {
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
             justify-content: space-between;
             gap: 4px;
           }
           .compact-code {
             font-family: monospace;
-            font-size: 10px;
+            font-size: 8.8px;
             font-weight: 900;
             color: #0f172a;
-            letter-spacing: 0.2px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            letter-spacing: 0.1px;
+            line-height: 1.15;
+            white-space: normal;
+            word-break: break-all;
           }
           .compact-seq {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -994,16 +996,19 @@ export default function BatchAssetStickerModal({
           }
           .std-code-row {
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
             justify-content: space-between;
             gap: 4px;
           }
           .std-gov-code {
             font-family: monospace;
-            font-size: 11.5px;
+            font-size: 10px;
             font-weight: 900;
             color: #0f172a;
             letter-spacing: 0.2px;
+            line-height: 1.15;
+            word-break: break-all;
           }
           .std-seq-badge {
             font-size: 8.5px;
@@ -1014,6 +1019,7 @@ export default function BatchAssetStickerModal({
             border-radius: 3px;
             padding: 1px 5px;
             white-space: nowrap;
+            flex-shrink: 0;
           }
           .std-title {
             font-size: 10px;
@@ -1363,7 +1369,7 @@ export default function BatchAssetStickerModal({
                                 )}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <div className="font-mono font-black text-xs text-slate-900 dark:text-slate-100 truncate">
+                                <div className="font-mono font-black text-[11px] leading-snug text-slate-900 dark:text-slate-100 break-all">
                                   {asset.govAssetCode || asset.assetCode}
                                 </div>
                                 <div className="text-[10.5px] text-slate-500 dark:text-slate-400 flex items-center justify-between mt-0.5">

@@ -17,6 +17,21 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-19] แสดงเลขครุภัณฑ์ราชการ (`govAssetCode`) แบบเต็มบรรทัด/ขึ้นบรรทัดใหม่ ไม่ตัดด้วย `...` ในหน้าพิมพ์สติกเกอร์และพรีวิว
+- **หมวดหมู่**: QR Code Sticker Printing & PDF Export (`BatchAssetStickerModal`, `AssetQrModal`, `exportStickerPdf`)
+- **สิ่งที่ดำเนินการ**:
+  - **หน้าต่างพิมพ์หลายรายการ ([`src/components/qrcode/BatchAssetStickerModal.tsx`](file:///d:/LAB-system/src/components/qrcode/BatchAssetStickerModal.tsx))**:
+    - เปลี่ยนการ์ดรายการครุภัณฑ์รายชิ้นใน Modal จาก `truncate` เป็น `break-all` พร้อมปรับ CSS พิมพ์ทั้ง 4 รูปแบบ (`template_doc`, `mini`, `compact`, `standard`) ให้ขึ้นบรรทัดใหม่ (`white-space: normal; word-break: break-all;`) และแสดงเลขครุภัณฑ์ครบทุกตัวอักษรโดยไม่ตัดท้าย `/xxx-xx`
+  - **การสร้างไฟล์ PDF ตราช้าง A7 ([`src/lib/exportStickerPdf.ts`](file:///d:/LAB-system/src/lib/exportStickerPdf.ts))**:
+    - ยกเลิกการตัดรหัสด้วย `'...'` และเพิ่มการจัดวางอัตโนมัติ: หากรหัสยาวเกิน 1 บรรทัด จะแบ่งขึ้น 2 บรรทัดโดยตัดหน้าเครื่องหมาย `/` เป็นอันดับแรกและวางป้ายลำดับเครื่องไว้ต่อท้ายบรรทัดที่ 2 อย่างครบถ้วน
+  - **หน้าต่างสติกเกอร์รายชิ้น ([`src/components/qrcode/AssetQrModal.tsx`](file:///d:/LAB-system/src/components/qrcode/AssetQrModal.tsx))**:
+    - ปรับทั้งส่วนพรีวิวบนหน้าจอและ CSS พิมพ์ (`mini`, `compact`, `standard`, `template_doc`) ให้ตัดคำด้วย `break-all` แทน `truncate`/`text-overflow: ellipsis` และแสดง `govAssetCode || assetCode` ในขนาด `mini` ด้วย
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/components/qrcode/BatchAssetStickerModal.tsx`](file:///d:/LAB-system/src/components/qrcode/BatchAssetStickerModal.tsx)
+  - [`src/lib/exportStickerPdf.ts`](file:///d:/LAB-system/src/lib/exportStickerPdf.ts)
+  - [`src/components/qrcode/AssetQrModal.tsx`](file:///d:/LAB-system/src/components/qrcode/AssetQrModal.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit`, `npm run build` และ `node scripts/librarian-audit.mjs` ผ่าน 100%
+
 ### [2026-11-19] แก้ไขหน้าต่างพิมพ์สติกเกอร์ครุภัณฑ์แบบกลุ่ม (`BatchAssetStickerModal`) ไม่แสดงรายการครุภัณฑ์
 - **หมวดหมู่**: QR Code Sticker Printing & Inventory (`/inventory`, `BatchAssetStickerModal`)
 - **สิ่งที่ดำเนินการ**:

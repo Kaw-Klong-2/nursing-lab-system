@@ -141,75 +141,147 @@ async function renderStickerCardToDataUrl(
   const maxRightX = isRightEdge ? 817 : 852;
   const maxTextWidth = maxRightX - leftTextX;
 
-  // 1. Organization Header
-  ctx.font = 'bold 28px Sarabun, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = '#0f766e';
-  ctx.fillText(card.orgText || 'คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์', leftTextX, 74);
-
-  // 2. Code & Badge (Dynamically sized and positioned to guarantee NO overlapping)
+  // 2. Code & Badge (Smart 1-line or 2-line layout so long codes NEVER truncate with "...")
   const codeText = card.codeText || '';
   let badgeWidth = 0;
   if (card.badgeText) {
-    ctx.font = 'bold 24px Sarabun, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    badgeWidth = ctx.measureText(card.badgeText).width + 20;
+    ctx.font = 'bold 22px Sarabun, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    badgeWidth = ctx.measureText(card.badgeText).width + 18;
   }
 
-  // Calculate available horizontal space for the code
-  const maxCodeWidth = card.badgeText ? (maxTextWidth - badgeWidth - 12) : maxTextWidth;
+  // Calculate available horizontal space for single-line code + badge
+  const maxCodeSingleLineWidth = card.badgeText ? (maxTextWidth - badgeWidth - 10) : maxTextWidth;
 
-  // Dynamically shrink code font size so code never collides with badge
-  let codeFontSize = 30;
-  ctx.font = `900 ${codeFontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
-  while (ctx.measureText(codeText).width > maxCodeWidth && codeFontSize > 21) {
-    codeFontSize -= 1;
-    ctx.font = `900 ${codeFontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
+  let singleLineFontSize = 30;
+  ctx.font = `900 ${singleLineFontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
+  while (ctx.measureText(codeText).width > maxCodeSingleLineWidth && singleLineFontSize > 20) {
+    singleLineFontSize -= 1;
+    ctx.font = `900 ${singleLineFontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
   }
 
-  // If still overflowing at minimum font size, truncate cleanly with ellipsis
-  let displayCode = codeText;
-  if (ctx.measureText(displayCode).width > maxCodeWidth) {
-    while (ctx.measureText(displayCode + '...').width > maxCodeWidth && displayCode.length > 0) {
-      displayCode = displayCode.slice(0, -1);
-    }
-    displayCode = displayCode.trim() + '...';
-  }
+  const fitsOnOneLine = ctx.measureText(codeText).width <= maxCodeSingleLineWidth;
 
-  ctx.fillStyle = '#0f172a';
-  ctx.fillText(displayCode, leftTextX, 134);
-  const actualCodeWidth = ctx.measureText(displayCode).width;
-
-  if (card.badgeText) {
-    // Badge is ALWAYS positioned immediately after the code text (never overlaps)
-    const badgeX = leftTextX + actualCodeWidth + 12;
-    const badgeY = 104;
-    const badgeHeight = 34;
-
-    ctx.fillStyle = '#f0fdfa';
-    ctx.fillRect(badgeX, badgeY, badgeWidth, badgeHeight);
-    ctx.strokeStyle = '#99f6e4';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(badgeX, badgeY, badgeWidth, badgeHeight);
-
+  if (fitsOnOneLine) {
+    // 1. Organization Header
+    ctx.font = 'bold 28px Sarabun, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.fillStyle = '#0f766e';
-    ctx.font = 'bold 24px Sarabun, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText(card.badgeText, badgeX + 10, badgeY + 26);
-  }
+    ctx.fillText(card.orgText || 'คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์', leftTextX, 74);
 
-  // 3. Title / Name (1-2 lines)
-  ctx.font = 'bold 30px Sarabun, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = '#1e293b';
-  const titleLines = wrapText(ctx, card.titleText || '', maxTextWidth, 2);
-  let textY = 194;
-  for (const line of titleLines) {
-    ctx.fillText(line, leftTextX, textY);
-    textY += 44;
-  }
+    // Code & Badge on 1 line
+    ctx.font = `900 ${singleLineFontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText(codeText, leftTextX, 134);
+    const actualCodeWidth = ctx.measureText(codeText).width;
 
-  // 4. Location or Expiry Meta Line
-  ctx.font = '600 27px Sarabun, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = (card.locOrExpText || '').includes('EXP') ? '#e11d48' : '#64748b';
-  const metaY = Math.max(textY + 4, 350);
-  ctx.fillText(card.locOrExpText || '', leftTextX, metaY);
+    if (card.badgeText) {
+      const badgeX = leftTextX + actualCodeWidth + 10;
+      const badgeY = 104;
+      const badgeHeight = 32;
+
+      ctx.fillStyle = '#f0fdfa';
+      ctx.fillRect(badgeX, badgeY, badgeWidth, badgeHeight);
+      ctx.strokeStyle = '#99f6e4';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(badgeX, badgeY, badgeWidth, badgeHeight);
+
+      ctx.fillStyle = '#0f766e';
+      ctx.font = 'bold 22px Sarabun, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillText(card.badgeText, badgeX + 9, badgeY + 24);
+    }
+
+    // 3. Title / Name (1-2 lines)
+    ctx.font = 'bold 30px Sarabun, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillStyle = '#1e293b';
+    const titleLines = wrapText(ctx, card.titleText || '', maxTextWidth, 2);
+    let textY = 194;
+    for (const line of titleLines) {
+      ctx.fillText(line, leftTextX, textY);
+      textY += 44;
+    }
+
+    // 4. Location or Expiry Meta Line
+    ctx.font = '600 27px Sarabun, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillStyle = (card.locOrExpText || '').includes('EXP') ? '#e11d48' : '#64748b';
+    const metaY = Math.max(textY + 4, 350);
+    ctx.fillText(card.locOrExpText || '', leftTextX, metaY);
+  } else {
+    // Long code: wrap cleanly across 2 lines (prefer splitting before last '/') without cutting characters
+    let twoLineFontSize = 23;
+    const setTwoLineFont = (size: number) => {
+      ctx.font = `900 ${size}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
+    };
+
+    const splitCode = (size: number): [string, string] => {
+      setTwoLineFont(size);
+      const lastSlash = codeText.lastIndexOf('/');
+      if (lastSlash > 0) {
+        const beforeSlash = codeText.slice(0, lastSlash);
+        const fromSlash = codeText.slice(lastSlash);
+        if (ctx.measureText(beforeSlash).width <= maxTextWidth) {
+          return [beforeSlash, fromSlash];
+        }
+      }
+      let cut = codeText.length;
+      while (cut > 1 && ctx.measureText(codeText.slice(0, cut)).width > maxTextWidth) {
+        cut -= 1;
+      }
+      return [codeText.slice(0, cut), codeText.slice(cut)];
+    };
+
+    let [codeLine1, codeLine2] = splitCode(twoLineFontSize);
+    while (
+      twoLineFontSize > 16 &&
+      (ctx.measureText(codeLine1).width > maxTextWidth ||
+        ctx.measureText(codeLine2).width > maxCodeSingleLineWidth)
+    ) {
+      twoLineFontSize -= 1;
+      [codeLine1, codeLine2] = splitCode(twoLineFontSize);
+    }
+
+    // 1. Organization Header
+    ctx.font = 'bold 28px Sarabun, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillStyle = '#0f766e';
+    ctx.fillText(card.orgText || 'คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์', leftTextX, 64);
+
+    // 2. Two-line full code + Badge beside line 2
+    setTwoLineFont(twoLineFontSize);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText(codeLine1, leftTextX, 108);
+    ctx.fillText(codeLine2, leftTextX, 142);
+    const line2Width = ctx.measureText(codeLine2).width;
+
+    if (card.badgeText) {
+      const badgeX = leftTextX + line2Width + 10;
+      const badgeY = 116;
+      const badgeHeight = 32;
+
+      ctx.fillStyle = '#f0fdfa';
+      ctx.fillRect(badgeX, badgeY, badgeWidth, badgeHeight);
+      ctx.strokeStyle = '#99f6e4';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(badgeX, badgeY, badgeWidth, badgeHeight);
+
+      ctx.fillStyle = '#0f766e';
+      ctx.font = 'bold 22px Sarabun, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillText(card.badgeText, badgeX + 9, badgeY + 24);
+    }
+
+    // 3. Title / Name (1-2 lines)
+    ctx.font = 'bold 29px Sarabun, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillStyle = '#1e293b';
+    const titleLines = wrapText(ctx, card.titleText || '', maxTextWidth, 2);
+    let textY = 192;
+    for (const line of titleLines) {
+      ctx.fillText(line, leftTextX, textY);
+      textY += 40;
+    }
+
+    // 4. Location or Expiry Meta Line
+    ctx.font = '600 27px Sarabun, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillStyle = (card.locOrExpText || '').includes('EXP') ? '#e11d48' : '#64748b';
+    const metaY = Math.max(textY + 4, 356);
+    ctx.fillText(card.locOrExpText || '', leftTextX, metaY);
+  }
 
   return canvas.toDataURL('image/png');
 }

@@ -138,11 +138,11 @@ export async function generateStickerDocxBlob(
                           children: [
                             new TextRun({
                               text: item.codeText,
-                              size: 11,
+                              size: item.codeText.length > 24 ? 7 : item.codeText.length > 18 ? 8 : 11,
                               bold: true,
                               color: '0F172A',
                             }),
-                            item.badgeText
+                            item.badgeText && item.codeText.length <= 18
                               ? new TextRun({
                                   text: ` ${item.badgeText}`,
                                   size: 9,
@@ -169,6 +169,14 @@ export async function generateStickerDocxBlob(
                               bold: true,
                               color: 'E11D48',
                             }),
+                            item.badgeText && item.codeText.length > 18
+                              ? new TextRun({
+                                  text: ` • ${item.badgeText}`,
+                                  size: 8,
+                                  bold: true,
+                                  color: '0D9488',
+                                })
+                              : new TextRun({ text: '' }),
                           ],
                         }),
                       ],

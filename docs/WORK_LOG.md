@@ -17,6 +17,21 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-19] ปรับเลขครุภัณฑ์ราชการแบบยาวให้อยู่บรรทัดเดียวกันทุกจุด (Single-Line without Ellipsis)
+- **หมวดหมู่**: QR Code Sticker Printing, PDF & Word Export (`BatchAssetStickerModal`, `AssetQrModal`, `exportStickerPdf`, `exportStickerDocx`)
+- **สิ่งที่ดำเนินการ**:
+  - **หน้าต่างพิมพ์หลายรายการ ([`src/components/qrcode/BatchAssetStickerModal.tsx`](file:///d:/LAB-system/src/components/qrcode/BatchAssetStickerModal.tsx))**:
+    - ปรับตารางการ์ดใน Modal จาก 3 คอลัมน์เป็น 2 คอลัมน์ (`sm:grid-cols-2`) พร้อมใช้ `whitespace-nowrap tracking-tight` เพื่อให้เลขครุภัณฑ์ยาวอยู่ในบรรทัดเดียวครบถ้วน
+    - ปรับ HTML/CSS พิมพ์ทั้ง 4 ขนาด (`template_doc`, `mini`, `compact`, `standard`) ให้ใช้ `white-space: nowrap` ร่วมกับ Adaptive Font Sizing ตามความยาวรหัส และย้ายป้ายลำดับเครื่องลงแถวล่าง/แถบหัวเมื่อรหัสยาว เพื่อให้เลขครุภัณฑ์อยู่บรรทัดเดียวเต็มพื้นที่
+  - **PDF และ Word ตราช้าง A7 ([`src/lib/exportStickerPdf.ts`](file:///d:/LAB-system/src/lib/exportStickerPdf.ts), [`src/lib/exportStickerDocx.ts`](file:///d:/LAB-system/src/lib/exportStickerDocx.ts))**:
+    - เปลี่ยน Canvas PDF ให้พิมพ์ `codeText` ในบรรทัดเดียวเสมอ (`ctx.fillText(codeText, leftTextX, 132, maxTextWidth)`) โดยปรับขนาดฟอนต์อัตโนมัติและย้าย Badge ลำดับเครื่องไปอยู่มุมขวาล่างของแถวสถานที่เก็บเมื่อรหัสยาว; พร้อมลดขนาด TextRun และย้าย Badge ใน Word (.docx) เช่นเดียวกัน
+  - **หน้าต่างสติกเกอร์รายชิ้น ([`src/components/qrcode/AssetQrModal.tsx`](file:///d:/LAB-system/src/components/qrcode/AssetQrModal.tsx))**:
+    - ปรับทั้งพรีวิวบนหน้าจอและ CSS พิมพ์ทุกขนาดให้แสดงเลขครุภัณฑ์บนบรรทัดเดียว (`whitespace-nowrap`) ด้วยขนาดตัวอักษรแบบ Adaptive และย้ายป้ายลำดับเครื่องเมื่อรหัสยาวเกิน 18–20 ตัวอักษร
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/components/qrcode/BatchAssetStickerModal.tsx`](file:///d:/LAB-system/src/components/qrcode/BatchAssetStickerModal.tsx), [`src/components/qrcode/AssetQrModal.tsx`](file:///d:/LAB-system/src/components/qrcode/AssetQrModal.tsx)
+  - [`src/lib/exportStickerPdf.ts`](file:///d:/LAB-system/src/lib/exportStickerPdf.ts), [`src/lib/exportStickerDocx.ts`](file:///d:/LAB-system/src/lib/exportStickerDocx.ts)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit`, `npm run build` และ `node scripts/librarian-audit.mjs` ผ่าน 100%
+
 ### [2026-11-19] แสดงเลขครุภัณฑ์ราชการ (`govAssetCode`) แบบเต็มบรรทัด/ขึ้นบรรทัดใหม่ ไม่ตัดด้วย `...` ในหน้าพิมพ์สติกเกอร์และพรีวิว
 - **หมวดหมู่**: QR Code Sticker Printing & PDF Export (`BatchAssetStickerModal`, `AssetQrModal`, `exportStickerPdf`)
 - **สิ่งที่ดำเนินการ**:

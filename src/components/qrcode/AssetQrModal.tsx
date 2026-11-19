@@ -41,6 +41,8 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
   const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
   const title = itemName || asset.item?.name || 'ครุภัณฑ์ห้องปฏิบัติการพยาบาล';
   const unit = itemUnit || asset.item?.unit || 'ชิ้น';
+  const displayAssetCode = asset.govAssetCode || asset.assetCode;
+  const isLongDisplayCode = displayAssetCode.length > 20;
 
   const handleExportPdf = async () => {
     if (!qrDataUrl) return;
@@ -128,6 +130,28 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
     let singleCardHtml = '';
     let pageCss = '';
 
+    const isLongCode = displayAssetCode.length > 18;
+    const miniCodeStyle = displayAssetCode.length > 26
+      ? 'font-size:5.8px;letter-spacing:-0.15px;'
+      : displayAssetCode.length > 20
+        ? 'font-size:6.5px;'
+        : '';
+    const compactGovStyle = asset.govAssetCode && asset.govAssetCode.length > 26
+      ? 'font-size:6.6px;letter-spacing:-0.1px;'
+      : asset.govAssetCode && asset.govAssetCode.length > 20
+        ? 'font-size:7.2px;'
+        : '';
+    const stdGovStyle = asset.govAssetCode && asset.govAssetCode.length > 26
+      ? 'font-size:7.8px;letter-spacing:-0.1px;'
+      : asset.govAssetCode && asset.govAssetCode.length > 20
+        ? 'font-size:8.4px;'
+        : '';
+    const docCodeStyle = displayAssetCode.length > 26
+      ? 'font-size:4.2px;letter-spacing:-0.15px;'
+      : displayAssetCode.length > 20
+        ? 'font-size:4.8px;letter-spacing:-0.1px;'
+        : '';
+
     if (labelSize === 'mini') {
       // Mini: Strip layout ~45x15 mm (แสดง 2 บรรทัด ไม่ตัดคำทิ้ง)
       pageCss = `
@@ -186,7 +210,6 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         }
         .mini-code-row {
           display: flex;
-          flex-wrap: wrap;
           align-items: center;
           justify-content: space-between;
           gap: 3px;
@@ -199,8 +222,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           color: #0f172a;
           letter-spacing: 0.1px;
           line-height: 1.12;
-          white-space: normal;
-          word-break: break-all;
+          white-space: nowrap;
         }
         .mini-seq {
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -212,6 +234,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           border-radius: 2px;
           padding: 0.5px 3px;
           white-space: nowrap;
+          flex-shrink: 0;
         }
         .mini-title {
           font-size: 7.5px;
@@ -225,13 +248,21 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           line-height: 1.12;
           word-break: break-word;
         }
+        .mini-loc-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 3px;
+          margin-top: 0.5px;
+        }
         .mini-loc {
           font-size: 6.5px;
           color: #64748b;
-          margin-top: 0.5px;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          min-width: 0;
+          flex: 1;
         }
       `;
       singleCardHtml = `
@@ -240,11 +271,14 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           <div class="mini-info">
             <div class="mini-org">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
             <div class="mini-code-row">
-              <span class="mini-code">${asset.govAssetCode || asset.assetCode}</span>
-              <span class="mini-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>
+              <span class="mini-code" style="${miniCodeStyle}">${displayAssetCode}</span>
+              ${!isLongCode ? `<span class="mini-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>` : ''}
             </div>
             <div class="mini-title">${title}</div>
-            <div class="mini-loc">📍 ${asset.location || 'ห้องแล็บพยาบาล'}</div>
+            <div class="mini-loc-row">
+              <span class="mini-loc">📍 ${asset.location || 'ห้องแล็บพยาบาล'}</span>
+              ${isLongCode ? `<span class="mini-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>` : ''}
+            </div>
           </div>
         </div>
       `;
@@ -358,8 +392,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           color: #334155;
           font-weight: bold;
           line-height: 1.15;
-          white-space: normal;
-          word-break: break-all;
+          white-space: nowrap;
           margin-top: 0.5px;
         }
         .compact-title {
@@ -397,7 +430,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
                 <span class="compact-code">${asset.assetCode}</span>
                 <span class="compact-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>
               </div>
-              ${asset.govAssetCode ? `<div class="compact-gov">${asset.govAssetCode}</div>` : ''}
+              ${asset.govAssetCode ? `<div class="compact-gov" style="${compactGovStyle}">${asset.govAssetCode}</div>` : ''}
               <div class="compact-title">${title}</div>
               <div class="compact-meta">
                 <span>📍 ${asset.location || 'ห้องแล็บพยาบาล'}</span>
@@ -493,7 +526,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           color: #334155;
           font-weight: bold;
           line-height: 1.15;
-          word-break: break-all;
+          white-space: nowrap;
           margin-top: 1px;
         }
         .details {
@@ -516,7 +549,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           <div class="seq-badge">${unit}ที่ ${asset.sequenceNumber || 1}</div>
           <img src="${qrDataUrl}" class="qr-img" />
           <div class="asset-code">${asset.assetCode}</div>
-          ${asset.govAssetCode ? `<div class="gov-code">${asset.govAssetCode}</div>` : ''}
+          ${asset.govAssetCode ? `<div class="gov-code" style="${stdGovStyle}">${asset.govAssetCode}</div>` : ''}
           <div class="details">
             <div><strong>สถานที่เก็บ:</strong> ${asset.location || 'ห้องปฏิบัติการพยาบาล'}</div>
             ${asset.serialNumber ? `<div><strong>Serial No.:</strong> ${asset.serialNumber}</div>` : ''}
@@ -638,7 +671,6 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         }
         .doc-code-row {
           display: flex;
-          flex-wrap: wrap;
           align-items: center;
           gap: 2px;
           margin-top: 0.5px;
@@ -649,8 +681,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           font-weight: 900;
           color: #0f172a;
           line-height: 1.08;
-          white-space: normal;
-          word-break: break-all;
+          white-space: nowrap;
         }
         .doc-seq {
           font-size: 5px;
@@ -676,6 +707,13 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           word-break: break-word;
           margin-top: 0.5px;
         }
+        .doc-loc-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 2px;
+          margin-top: 0.5px;
+        }
         .doc-loc {
           font-size: 5px;
           color: #64748b;
@@ -684,7 +722,8 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          margin-top: 0.5px;
+          min-width: 0;
+          flex: 1;
         }
       `;
 
@@ -696,11 +735,14 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           <div class="doc-info">
             <div class="doc-org-text">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
             <div class="doc-code-row">
-              <span class="doc-code">${asset.govAssetCode || asset.assetCode}</span>
-              <span class="doc-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>
+              <span class="doc-code" style="${docCodeStyle}">${displayAssetCode}</span>
+              ${!isLongCode ? `<span class="doc-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>` : ''}
             </div>
             <div class="doc-name" title="${title}">${title}</div>
-            <div class="doc-loc">📍 ${asset.location || 'ห้องปฏิบัติการ'}</div>
+            <div class="doc-loc-row">
+              <span class="doc-loc">📍 ${asset.location || 'ห้องปฏิบัติการ'}</span>
+              ${isLongCode ? `<span class="doc-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>` : ''}
+            </div>
           </div>
         </div>
       `;
@@ -950,7 +992,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         {labelSize === 'mini' ? (
           /* Mini Strip Preview */
           <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border-2 border-dashed border-teal-500/40 flex items-center justify-center">
-            <div className="bg-white dark:bg-slate-900 border border-slate-700 rounded p-2 flex items-center gap-2.5 shadow-sm max-w-[260px] w-full">
+            <div className="bg-white dark:bg-slate-900 border border-slate-700 rounded p-2 flex items-center gap-2.5 shadow-sm max-w-[330px] w-full">
               {qrDataUrl ? (
                 <img
                   src={qrDataUrl}
@@ -964,20 +1006,29 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
                 <div className="text-[8px] font-bold text-teal-700 dark:text-teal-400 truncate">
                   คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-1.5">
-                  <span className="font-mono font-black text-[10px] leading-tight text-slate-900 dark:text-slate-100 break-all">
-                    {asset.govAssetCode || asset.assetCode}
+                <div className="flex items-center justify-between gap-1.5">
+                  <span className={`font-mono font-black leading-tight text-slate-900 dark:text-slate-100 whitespace-nowrap ${displayAssetCode.length > 22 ? 'text-[9px] tracking-tighter' : 'text-[10.5px]'}`}>
+                    {displayAssetCode}
                   </span>
-                  <span className="text-[9px] font-extrabold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1 py-0.2 rounded border border-teal-200 dark:border-teal-800 flex-shrink-0">
-                    {unit}ที่ {asset.sequenceNumber || 1}
-                  </span>
+                  {!isLongDisplayCode && (
+                    <span className="text-[9px] font-extrabold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1 py-0.2 rounded border border-teal-200 dark:border-teal-800 flex-shrink-0">
+                      {unit}ที่ {asset.sequenceNumber || 1}
+                    </span>
+                  )}
                 </div>
                 <div className="text-[9px] font-bold text-slate-700 dark:text-slate-300 line-clamp-2 leading-tight">
                   {title}
                 </div>
-                <div className="text-[8.5px] text-slate-500 dark:text-slate-400 flex items-center gap-0.5 truncate">
-                  <MapPin className="w-2.5 h-2.5 flex-shrink-0 text-teal-600" />
-                  <span>{asset.location || 'ห้องแล็บพยาบาล'}</span>
+                <div className="text-[8.5px] text-slate-500 dark:text-slate-400 flex items-center justify-between gap-1">
+                  <span className="flex items-center gap-0.5 truncate min-w-0">
+                    <MapPin className="w-2.5 h-2.5 flex-shrink-0 text-teal-600" />
+                    <span className="truncate">{asset.location || 'ห้องแล็บพยาบาล'}</span>
+                  </span>
+                  {isLongDisplayCode && (
+                    <span className="text-[8.5px] font-extrabold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1 py-0.2 rounded border border-teal-200 dark:border-teal-800 flex-shrink-0">
+                      {unit}ที่ {asset.sequenceNumber || 1}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -985,7 +1036,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         ) : labelSize === 'compact' ? (
           /* Compact Horizontal Preview */
           <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border-2 border-dashed border-teal-500/40 flex items-center justify-center">
-            <div className="bg-white dark:bg-slate-900 border border-slate-700 rounded-lg p-3 flex flex-col shadow-sm max-w-[320px] w-full">
+            <div className="bg-white dark:bg-slate-900 border border-slate-700 rounded-lg p-3 flex flex-col shadow-sm max-w-[360px] w-full">
               {/* Header Bar */}
               <div className="flex items-center justify-between border-b border-teal-200 dark:border-teal-800 pb-1 mb-2 bg-teal-50/50 dark:bg-teal-950/30 -mx-3 -mt-3 p-2 rounded-t-lg">
                 <span className="text-[9px] font-extrabold text-teal-800 dark:text-teal-300 truncate">
@@ -1015,7 +1066,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
                     </span>
                   </div>
                   {asset.govAssetCode && (
-                    <div className="font-mono text-[9px] font-bold leading-tight text-slate-600 dark:text-slate-400 break-all">
+                    <div className={`font-mono font-bold leading-tight text-slate-600 dark:text-slate-400 whitespace-nowrap ${asset.govAssetCode.length > 22 ? 'text-[8.5px] tracking-tighter' : 'text-[9px]'}`}>
                       {asset.govAssetCode}
                     </div>
                   )}
@@ -1033,7 +1084,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         ) : labelSize === 'standard' ? (
           /* Standard Card Preview */
           <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border-2 border-dashed border-teal-500/40 flex items-center justify-center">
-            <div className="bg-white dark:bg-slate-900 border border-slate-700 rounded-xl p-3.5 text-center space-y-1.5 max-w-[240px] w-full">
+            <div className="bg-white dark:bg-slate-900 border border-slate-700 rounded-xl p-3.5 text-center space-y-1.5 max-w-[290px] w-full">
               <div className="border-b border-teal-100 dark:border-teal-900 pb-1">
                 <div className="text-[9px] font-extrabold text-teal-800 dark:text-teal-300">
                   คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์
@@ -1073,7 +1124,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
                 </div>
                 {asset.govAssetCode && (
                   <div className="mt-0.5">
-                    <span className="font-mono text-[9px] text-slate-600 dark:text-slate-300 font-bold break-all">
+                    <span className={`font-mono text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap ${asset.govAssetCode.length > 22 ? 'text-[8.5px] tracking-tighter' : 'text-[9px]'}`}>
                       {asset.govAssetCode}
                     </span>
                   </div>
@@ -1110,7 +1161,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         ) : (
           /* Template 175x205 mm Preview (Horizontal 38x19 mm card) */
           <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border-2 border-dashed border-teal-500/40 flex items-center justify-center">
-            <div className="bg-white dark:bg-slate-900 border border-slate-700 rounded-lg p-2.5 flex items-center gap-2.5 shadow-sm max-w-[280px] w-full">
+            <div className="bg-white dark:bg-slate-900 border border-slate-700 rounded-lg p-2.5 flex items-center gap-2.5 shadow-sm max-w-[340px] w-full">
               <div className="w-12 h-12 bg-white p-0.5 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center flex-shrink-0">
                 {qrDataUrl ? (
                   <img src={qrDataUrl} alt={`QR Code ${asset.assetCode}`} className="w-full h-full object-contain" />
@@ -1122,19 +1173,26 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
                 <div className="text-[8px] font-bold text-teal-700 dark:text-teal-400 truncate">
                   คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์
                 </div>
-                <div className="flex flex-wrap items-center gap-1">
-                  <span className="font-mono font-black text-[10px] leading-tight text-slate-900 dark:text-slate-100 break-all">
-                    {asset.govAssetCode || asset.assetCode}
+                <div className="flex items-center gap-1">
+                  <span className={`font-mono font-black leading-tight text-slate-900 dark:text-slate-100 whitespace-nowrap ${displayAssetCode.length > 22 ? 'text-[9px] tracking-tighter' : 'text-[10.5px]'}`}>
+                    {displayAssetCode}
                   </span>
-                  <span className="text-[8px] font-extrabold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1 rounded border border-teal-200 dark:border-teal-800 flex-shrink-0">
-                    {unit}ที่ {asset.sequenceNumber || 1}
-                  </span>
+                  {!isLongDisplayCode && (
+                    <span className="text-[8px] font-extrabold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1 rounded border border-teal-200 dark:border-teal-800 flex-shrink-0">
+                      {unit}ที่ {asset.sequenceNumber || 1}
+                    </span>
+                  )}
                 </div>
                 <div className="text-[8.5px] font-bold text-slate-700 dark:text-slate-300 line-clamp-2 leading-tight">
                   {title}
                 </div>
-                <div className="text-[8px] text-slate-500 dark:text-slate-400 truncate">
-                  📍 {asset.location || 'ห้องปฏิบัติการ'}
+                <div className="text-[8px] text-slate-500 dark:text-slate-400 flex items-center justify-between gap-1">
+                  <span className="truncate min-w-0">📍 {asset.location || 'ห้องปฏิบัติการ'}</span>
+                  {isLongDisplayCode && (
+                    <span className="text-[8px] font-extrabold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1 rounded border border-teal-200 dark:border-teal-800 flex-shrink-0">
+                      {unit}ที่ {asset.sequenceNumber || 1}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

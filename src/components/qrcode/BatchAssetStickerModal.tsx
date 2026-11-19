@@ -353,6 +353,12 @@ export default function BatchAssetStickerModal({
           const qrUrl = qrs[payload] || '';
           const rawCode = asset.govAssetCode || asset.assetCode;
           const unitName = item.unit || 'เครื่อง';
+          const isLongCode = rawCode.length > 18;
+          const docCodeStyle = rawCode.length > 26
+            ? 'font-size:4.2px;letter-spacing:-0.15px;'
+            : rawCode.length > 20
+              ? 'font-size:4.8px;letter-spacing:-0.1px;'
+              : '';
 
           for (let copy = 0; copy < copiesPerAsset; copy++) {
             allCardItems.push(`
@@ -363,11 +369,14 @@ export default function BatchAssetStickerModal({
                 <div class="doc-info">
                   <div class="doc-org-text">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
                   <div class="doc-code-row">
-                    <span class="doc-code">${rawCode}</span>
-                    <span class="doc-seq">${unitName}ที่ ${asset.sequenceNumber || 1}</span>
+                    <span class="doc-code" style="${docCodeStyle}">${rawCode}</span>
+                    ${!isLongCode ? `<span class="doc-seq">${unitName}ที่ ${asset.sequenceNumber || 1}</span>` : ''}
                   </div>
                   <div class="doc-name">${item.name}</div>
-                  <div class="doc-loc">📍 ${asset.location || item.location || 'ห้องปฏิบัติการ'}</div>
+                  <div class="doc-loc-row">
+                    <span class="doc-loc">📍 ${asset.location || item.location || 'ห้องปฏิบัติการ'}</span>
+                    ${isLongCode ? `<span class="doc-seq">${unitName}ที่ ${asset.sequenceNumber || 1}</span>` : ''}
+                  </div>
                 </div>
               </div>
             `);
@@ -428,6 +437,23 @@ export default function BatchAssetStickerModal({
           const subCode = asset.govAssetCode ? asset.assetCode : '';
           const unitName = item.unit || 'เครื่อง';
           const brandModel = [asset.brand || item.brand, asset.model || item.model].filter(Boolean).join(' ');
+          const isLongCodeMini = rawCode.length > 18;
+          const miniCodeStyle = rawCode.length > 26
+            ? 'font-size:5.8px;letter-spacing:-0.15px;'
+            : rawCode.length > 20
+              ? 'font-size:6.5px;'
+              : '';
+          const isLongCodeCompact = rawCode.length > 20;
+          const compactCodeStyle = rawCode.length > 26
+            ? 'font-size:7.2px;letter-spacing:-0.1px;'
+            : rawCode.length > 20
+              ? 'font-size:8px;'
+              : '';
+          const stdCodeStyle = rawCode.length > 26
+            ? 'font-size:8.2px;letter-spacing:-0.1px;'
+            : rawCode.length > 20
+              ? 'font-size:9.2px;'
+              : '';
 
           for (let copy = 0; copy < copiesPerAsset; copy++) {
             if (labelSize === 'mini') {
@@ -437,11 +463,14 @@ export default function BatchAssetStickerModal({
                   <div class="mini-info">
                     <div class="mini-org">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
                     <div class="mini-code-row">
-                      <span class="mini-code">${rawCode}</span>
-                      <span class="mini-seq">${unitName}ที่ ${asset.sequenceNumber || 1}</span>
+                      <span class="mini-code" style="${miniCodeStyle}">${rawCode}</span>
+                      ${!isLongCodeMini ? `<span class="mini-seq">${unitName}ที่ ${asset.sequenceNumber || 1}</span>` : ''}
                     </div>
                     <div class="mini-title">${item.name}</div>
-                    <div class="mini-loc">📍 ${asset.location || item.location || 'ห้องแล็บพยาบาล'}</div>
+                    <div class="mini-loc-row">
+                      <span class="mini-loc">📍 ${asset.location || item.location || 'ห้องแล็บพยาบาล'}</span>
+                      ${isLongCodeMini ? `<span class="mini-seq">${unitName}ที่ ${asset.sequenceNumber || 1}</span>` : ''}
+                    </div>
                   </div>
                 </div>
               `;
@@ -450,14 +479,17 @@ export default function BatchAssetStickerModal({
                 <div class="compact-card">
                   <div class="compact-header">
                     <span class="compact-org-text">คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์</span>
-                    <span class="compact-org-sub">ห้องปฏิบัติการ</span>
+                    <div class="compact-header-right">
+                      <span class="compact-org-sub">ห้องปฏิบัติการ</span>
+                      ${isLongCodeCompact ? `<span class="compact-seq">${unitName}ที่ ${asset.sequenceNumber || 1}</span>` : ''}
+                    </div>
                   </div>
                   <div class="compact-body">
                     <img src="${qrUrl}" class="compact-qr" />
                     <div class="compact-info">
                       <div class="compact-code-row">
-                        <span class="compact-code">${rawCode}</span>
-                        <span class="compact-seq">${unitName}ที่ ${asset.sequenceNumber || 1}</span>
+                        <span class="compact-code" style="${compactCodeStyle}">${rawCode}</span>
+                        ${!isLongCodeCompact ? `<span class="compact-seq">${unitName}ที่ ${asset.sequenceNumber || 1}</span>` : ''}
                       </div>
                       <div class="compact-title">${item.name}</div>
                       ${brandModel ? `<div class="compact-brand">${brandModel}</div>` : ''}
@@ -481,7 +513,7 @@ export default function BatchAssetStickerModal({
                     <img src="${qrUrl}" class="std-qr" />
                     <div class="std-info">
                       <div class="std-code-row">
-                        <div class="std-gov-code">${rawCode}</div>
+                        <div class="std-gov-code" style="${stdCodeStyle}">${rawCode}</div>
                         <div class="std-seq-badge">${unitName}ที่ ${asset.sequenceNumber || 1}</div>
                       </div>
                       <div class="std-title">${item.name}</div>
@@ -615,7 +647,6 @@ export default function BatchAssetStickerModal({
           }
           .doc-code-row {
             display: flex;
-            flex-wrap: wrap;
             align-items: center;
             gap: 2px;
             margin-top: 0.5px;
@@ -626,8 +657,7 @@ export default function BatchAssetStickerModal({
             font-weight: 900;
             color: #0f172a;
             line-height: 1.08;
-            white-space: normal;
-            word-break: break-all;
+            white-space: nowrap;
           }
           .doc-seq {
             font-size: 5px;
@@ -653,6 +683,13 @@ export default function BatchAssetStickerModal({
             word-break: break-word;
             margin-top: 0.5px;
           }
+          .doc-loc-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 2px;
+            margin-top: 0.5px;
+          }
           .doc-loc {
             font-size: 5px;
             color: #64748b;
@@ -661,7 +698,8 @@ export default function BatchAssetStickerModal({
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            margin-top: 0.5px;
+            min-width: 0;
+            flex: 1;
           }
         `;
       } else if (labelSize === 'mini') {
@@ -723,7 +761,6 @@ export default function BatchAssetStickerModal({
           }
           .mini-code-row {
             display: flex;
-            flex-wrap: wrap;
             align-items: center;
             justify-content: space-between;
             gap: 3px;
@@ -735,8 +772,7 @@ export default function BatchAssetStickerModal({
             font-weight: 900;
             color: #0f172a;
             line-height: 1.12;
-            white-space: normal;
-            word-break: break-all;
+            white-space: nowrap;
           }
           .mini-seq {
             font-size: 6.5px;
@@ -747,6 +783,7 @@ export default function BatchAssetStickerModal({
             border-radius: 2px;
             padding: 0.5px 2.5px;
             white-space: nowrap;
+            flex-shrink: 0;
           }
           .mini-title {
             font-size: 7.5px;
@@ -760,13 +797,21 @@ export default function BatchAssetStickerModal({
             line-height: 1.12;
             word-break: break-word;
           }
+          .mini-loc-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 3px;
+            margin-top: 0.5px;
+          }
           .mini-loc {
             font-size: 6.5px;
             color: #64748b;
-            margin-top: 0.5px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            min-width: 0;
+            flex: 1;
           }
         `;
       } else if (labelSize === 'compact') {
@@ -822,6 +867,12 @@ export default function BatchAssetStickerModal({
             overflow: hidden;
             text-overflow: ellipsis;
           }
+          .compact-header-right {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-shrink: 0;
+          }
           .compact-org-sub {
             font-size: 6.5px;
             font-weight: 700;
@@ -852,7 +903,6 @@ export default function BatchAssetStickerModal({
           }
           .compact-code-row {
             display: flex;
-            flex-wrap: wrap;
             align-items: center;
             justify-content: space-between;
             gap: 4px;
@@ -864,8 +914,7 @@ export default function BatchAssetStickerModal({
             color: #0f172a;
             letter-spacing: 0.1px;
             line-height: 1.15;
-            white-space: normal;
-            word-break: break-all;
+            white-space: nowrap;
           }
           .compact-seq {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -996,7 +1045,6 @@ export default function BatchAssetStickerModal({
           }
           .std-code-row {
             display: flex;
-            flex-wrap: wrap;
             align-items: center;
             justify-content: space-between;
             gap: 4px;
@@ -1008,7 +1056,7 @@ export default function BatchAssetStickerModal({
             color: #0f172a;
             letter-spacing: 0.2px;
             line-height: 1.15;
-            word-break: break-all;
+            white-space: nowrap;
           }
           .std-seq-badge {
             font-size: 8.5px;
@@ -1348,7 +1396,7 @@ export default function BatchAssetStickerModal({
                   {/* Expanded Asset Units */}
                   {isExpanded && (
                     <div className="ml-8 mt-2 space-y-2 pl-3 border-l-2 border-slate-200 dark:border-slate-700">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {itemAssets.filter((a) => showRetired ? true : a.status !== 'RETIRED').map((asset) => {
                           const isSelected = selectedAssetIds.includes(asset.id);
                           return (
@@ -1369,7 +1417,7 @@ export default function BatchAssetStickerModal({
                                 )}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <div className="font-mono font-black text-[11px] leading-snug text-slate-900 dark:text-slate-100 break-all">
+                                <div className="font-mono font-black text-[11px] leading-snug tracking-tight text-slate-900 dark:text-slate-100 whitespace-nowrap overflow-x-auto">
                                   {asset.govAssetCode || asset.assetCode}
                                 </div>
                                 <div className="text-[10.5px] text-slate-500 dark:text-slate-400 flex items-center justify-between mt-0.5">

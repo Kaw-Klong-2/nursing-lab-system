@@ -19,6 +19,18 @@ import {
 import { downloadStickerDocx, type DocxCardItem } from '@/lib/exportStickerDocx';
 import { downloadStickerPdf, type PdfCardItem } from '@/lib/exportStickerPdf';
 
+export interface BatchEquipmentAssetUnit {
+  id: string;
+  assetCode: string;
+  govAssetCode?: string | null;
+  sequenceNumber?: number | null;
+  status: string;
+  condition?: string | null;
+  location?: string | null;
+  brand?: string | null;
+  model?: string | null;
+}
+
 export interface EquipmentItemForBatch {
   id: string;
   name: string;
@@ -28,17 +40,8 @@ export interface EquipmentItemForBatch {
   model?: string | null;
   location?: string | null;
   category?: { name: string } | null;
-  assetItems?: Array<{
-    id: string;
-    assetCode: string;
-    govAssetCode?: string | null;
-    sequenceNumber?: number | null;
-    status: string;
-    condition?: string | null;
-    location?: string | null;
-    brand?: string | null;
-    model?: string | null;
-  }>;
+  assets?: BatchEquipmentAssetUnit[];
+  assetItems?: BatchEquipmentAssetUnit[];
 }
 
 interface BatchAssetStickerModalProps {
@@ -50,21 +53,32 @@ export default function BatchAssetStickerModal({
   items,
   onClose,
 }: BatchAssetStickerModalProps) {
-  // Only items with assets
-  const availableItems = useMemo(() => {
-    return items.filter(
-      (item) => item.assetItems && item.assetItems.length > 0
-    );
-  }, [items]);
-
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedItemIds, setExpandedItemIds] = useState<string[]>([]);
   const [showRetired, setShowRetired] = useState(false);
+
+  // Normalize items from either item.assetItems or item.assets (returned by /api/items)
+  const availableItems = useMemo(() => {
+    return items
+      .map((item) => {
+        const rawAssets = item.assetItems ?? item.assets ?? [];
+        const visibleAssets = rawAssets.filter((a) =>
+          showRetired ? true : a.status !== 'RETIRED'
+        );
+        return {
+          ...item,
+          assetItems: visibleAssets,
+        };
+      })
+      .filter((item) => item.assetItems && item.assetItems.length > 0);
+  }, [items, showRetired]);
+
   // Selected asset IDs (Default: Only active/available assets, exclude RETIRED)
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>(() => {
     const ids: string[] = [];
-    availableItems.forEach((item) => {
-      item.assetItems?.forEach((a) => {
+    items.forEach((item) => {
+      const rawAssets = item.assetItems ?? item.assets ?? [];
+      rawAssets.forEach((a) => {
         if (a.status !== 'RETIRED') {
           ids.push(a.id);
         }
@@ -335,7 +349,7 @@ export default function BatchAssetStickerModal({
         const allCardItems: string[] = [];
 
         for (const { asset, item } of assetsToPrint) {
-          const payload = `${origin}/equipment/${encodeURIComponent(asset.assetCode || asset.govAssetCode)}`;
+          const payload = `${origin}/asset/${encodeURIComponent(asset.assetCode || asset.govAssetCode)}`;
           const qrUrl = qrs[payload] || '';
           const rawCode = asset.govAssetCode || asset.assetCode;
           const unitName = item.unit || 'เครื่อง';
@@ -408,7 +422,7 @@ export default function BatchAssetStickerModal({
         }
       } else {
         for (const { asset, item } of assetsToPrint) {
-          const payload = `${origin}/equipment/${encodeURIComponent(asset.assetCode || asset.govAssetCode)}`;
+          const payload = `${origin}/asset/${encodeURIComponent(asset.assetCode || asset.govAssetCode)}`;
           const qrUrl = qrs[payload] || '';
           const rawCode = asset.govAssetCode || asset.assetCode;
           const subCode = asset.govAssetCode ? asset.assetCode : '';

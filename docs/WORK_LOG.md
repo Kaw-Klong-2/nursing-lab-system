@@ -17,6 +17,18 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-19] แก้ไขหน้าต่างพิมพ์สติกเกอร์ครุภัณฑ์แบบกลุ่ม (`BatchAssetStickerModal`) ไม่แสดงรายการครุภัณฑ์
+- **หมวดหมู่**: QR Code Sticker Printing & Inventory (`/inventory`, `BatchAssetStickerModal`)
+- **สิ่งที่ดำเนินการ**:
+  - **แก้ไขชื่อฟิลด์ข้อมูลครุภัณฑ์ไม่ตรงกัน (`assets` vs `assetItems`)**:
+    - `/api/items` ส่งข้อมูลครุภัณฑ์รายชิ้นกลับมาภายใต้ `item.assets` ในขณะที่ [`src/components/qrcode/BatchAssetStickerModal.tsx`](file:///d:/LAB-system/src/components/qrcode/BatchAssetStickerModal.tsx) กรองหา `item.assetItems` เพียงอย่างเดียว ทำให้รายการว่างเปล่าเสมอ (`ไม่พบรายการครุภัณฑ์ที่ตรงกับการค้นหา`)
+    - เพิ่ม `BatchEquipmentAssetUnit` และรองรับทั้ง `item.assets` และ `item.assetItems` ใน `EquipmentItemForBatch`, `availableItems` (พร้อมกรองตามสวิตช์ `showRetired`) และค่าเริ่มต้นของ `selectedAssetIds`
+  - **แก้ไขเส้นทาง QR Cache Key ใน `handlePrint`**:
+    - ปรับ URL ที่ใช้ค้นหาภาพ QR ในโหมดพิมพ์เบราว์เซอร์จาก `${origin}/equipment/...` ให้ตรงกับ `${origin}/asset/...` ที่ใช้สร้าง QR และเส้นทางหน้า `/asset/[code]`
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/components/qrcode/BatchAssetStickerModal.tsx`](file:///d:/LAB-system/src/components/qrcode/BatchAssetStickerModal.tsx)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit`, `npm run build` และ `node scripts/librarian-audit.mjs` ผ่าน 100%
+
 ### [2026-11-18] เพิ่มบทบาท `VIEWER` (ผู้เข้าชม — ดูอย่างเดียว ส่งคำร้องหรือแก้ไขไม่ได้) แบบป้องกัน 3 ชั้น
 - **หมวดหมู่**: Auth, Role-Based Access Control (RBAC), UI Guard & API Guard (`VIEWER`)
 - **สิ่งที่ดำเนินการ**:

@@ -41,7 +41,6 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
   const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
   const title = itemName || asset.item?.name || 'ครุภัณฑ์ห้องปฏิบัติการพยาบาล';
   const unit = itemUnit || asset.item?.unit || 'ชิ้น';
-  const displayAssetCode = asset.govAssetCode || asset.assetCode;
 
   const handleExportPdf = async () => {
     if (!qrDataUrl) return;
@@ -50,7 +49,8 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
       const cardItem: PdfCardItem = {
         qrBase64: qrDataUrl,
         orgText: 'คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์',
-        codeText: asset.govAssetCode || asset.assetCode,
+        codeText: asset.assetCode,
+        secondaryCodeText: asset.govAssetCode || undefined,
         badgeText: `${unit}ที่ ${asset.sequenceNumber || 1}`,
         titleText: title,
         locOrExpText: `📍 ${asset.location || 'ห้องปฏิบัติการ'}`,
@@ -76,7 +76,8 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
       const cardItem: DocxCardItem = {
         qrBase64: qrDataUrl,
         orgText: 'คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์',
-        codeText: asset.govAssetCode || asset.assetCode,
+        codeText: asset.assetCode,
+        secondaryCodeText: asset.govAssetCode || undefined,
         badgeText: `${unit}ที่ ${asset.sequenceNumber || 1}`,
         titleText: title,
         locOrExpText: `📍 ${asset.location || 'ห้องปฏิบัติการ'}`,
@@ -129,25 +130,26 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
     let singleCardHtml = '';
     let pageCss = '';
 
-    const miniCodeStyle = displayAssetCode.length > 26
-      ? 'font-size:5px;letter-spacing:-0.2px;'
-      : displayAssetCode.length > 20
-        ? 'font-size:5.8px;letter-spacing:-0.1px;'
+    const govCode = asset.govAssetCode || '';
+    const miniGovStyle = govCode.length > 26
+      ? 'font-size:6px;letter-spacing:-0.15px;'
+      : govCode.length > 20
+        ? 'font-size:6.8px;'
         : '';
-    const compactGovStyle = asset.govAssetCode && asset.govAssetCode.length > 26
-      ? 'font-size:6.6px;letter-spacing:-0.1px;'
-      : asset.govAssetCode && asset.govAssetCode.length > 20
-        ? 'font-size:7.2px;'
+    const compactGovStyle = govCode.length > 26
+      ? 'font-size:7.5px;letter-spacing:-0.1px;'
+      : govCode.length > 20
+        ? 'font-size:8.2px;'
         : '';
-    const stdGovStyle = asset.govAssetCode && asset.govAssetCode.length > 26
+    const stdGovStyle = govCode.length > 26
       ? 'font-size:7.8px;letter-spacing:-0.1px;'
-      : asset.govAssetCode && asset.govAssetCode.length > 20
+      : govCode.length > 20
         ? 'font-size:8.4px;'
         : '';
-    const docCodeStyle = displayAssetCode.length > 26
-      ? 'font-size:3.8px;letter-spacing:-0.15px;'
-      : displayAssetCode.length > 20
-        ? 'font-size:4.4px;letter-spacing:-0.1px;'
+    const docGovStyle = govCode.length > 26
+      ? 'font-size:4.3px;letter-spacing:-0.15px;'
+      : govCode.length > 20
+        ? 'font-size:4.9px;letter-spacing:-0.1px;'
         : '';
 
     if (labelSize === 'mini') {
@@ -205,6 +207,9 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          border-bottom: 0.5px solid #99f6e4;
+          padding-bottom: 1px;
+          margin-bottom: 1px;
         }
         .mini-code-row {
           display: flex;
@@ -221,6 +226,15 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           letter-spacing: 0.1px;
           line-height: 1.12;
           white-space: nowrap;
+        }
+        .mini-gov {
+          font-family: monospace;
+          font-size: 7.4px;
+          font-weight: 800;
+          color: #334155;
+          line-height: 1.12;
+          white-space: nowrap;
+          margin-top: 0.5px;
         }
         .mini-seq {
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -261,9 +275,10 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           <div class="mini-info">
             <div class="mini-org">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
             <div class="mini-code-row">
-              <span class="mini-code" style="${miniCodeStyle}">${displayAssetCode}</span>
+              <span class="mini-code">${asset.assetCode}</span>
               <span class="mini-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>
             </div>
+            ${govCode ? `<div class="mini-gov" style="${miniGovStyle}">${govCode}</div>` : ''}
             <div class="mini-title">${title}</div>
             <div class="mini-loc">📍 ${asset.location || 'ห้องแล็บพยาบาล'}</div>
           </div>
@@ -375,9 +390,9 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         }
         .compact-gov {
           font-family: monospace;
-          font-size: 7.5px;
+          font-size: 8.5px;
           color: #334155;
-          font-weight: bold;
+          font-weight: 800;
           line-height: 1.15;
           white-space: nowrap;
           margin-top: 0.5px;
@@ -655,10 +670,14 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          border-bottom: 0.4px solid #99f6e4;
+          padding-bottom: 0.5px;
+          margin-bottom: 0.5px;
         }
         .doc-code-row {
           display: flex;
           align-items: center;
+          justify-content: space-between;
           gap: 2px;
           margin-top: 0.5px;
         }
@@ -669,6 +688,15 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           color: #0f172a;
           line-height: 1.08;
           white-space: nowrap;
+        }
+        .doc-gov {
+          font-family: monospace;
+          font-size: 5.4px;
+          font-weight: 800;
+          color: #334155;
+          line-height: 1.08;
+          white-space: nowrap;
+          margin-top: 0.3px;
         }
         .doc-seq {
           font-size: 5px;
@@ -694,6 +722,9 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           word-break: break-word;
           margin-top: 0.5px;
         }
+        .doc-name.doc-name-single {
+          -webkit-line-clamp: 1;
+        }
         .doc-loc {
           font-size: 5px;
           color: #64748b;
@@ -714,10 +745,11 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           <div class="doc-info">
             <div class="doc-org-text">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
             <div class="doc-code-row">
-              <span class="doc-code" style="${docCodeStyle}">${displayAssetCode}</span>
+              <span class="doc-code">${asset.assetCode}</span>
               <span class="doc-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>
             </div>
-            <div class="doc-name" title="${title}">${title}</div>
+            ${govCode ? `<div class="doc-gov" style="${docGovStyle}">${govCode}</div>` : ''}
+            <div class="doc-name${govCode ? ' doc-name-single' : ''}" title="${title}">${title}</div>
             <div class="doc-loc">📍 ${asset.location || 'ห้องปฏิบัติการ'}</div>
           </div>
         </div>
@@ -979,17 +1011,22 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
                 <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
               )}
               <div className="overflow-hidden space-y-0.5 flex-1 min-w-0">
-                <div className="text-[8px] font-bold text-teal-700 dark:text-teal-400 truncate">
+                <div className="text-[8px] font-bold text-teal-700 dark:text-teal-400 border-b border-teal-200 dark:border-teal-800 pb-0.5 truncate">
                   คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์
                 </div>
                 <div className="flex items-center justify-between gap-1.5">
-                  <span className={`font-mono font-black leading-tight text-slate-900 dark:text-slate-100 whitespace-nowrap ${displayAssetCode.length > 22 ? 'text-[8px] tracking-tighter' : 'text-[10.5px]'}`}>
-                    {displayAssetCode}
+                  <span className="font-mono font-black leading-tight text-slate-900 dark:text-slate-100 whitespace-nowrap text-[10px]">
+                    {asset.assetCode}
                   </span>
                   <span className="text-[9px] font-extrabold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1 py-0.2 rounded border border-teal-200 dark:border-teal-800 flex-shrink-0">
                     {unit}ที่ {asset.sequenceNumber || 1}
                   </span>
                 </div>
+                {asset.govAssetCode && (
+                  <div className={`font-mono font-bold leading-tight text-slate-700 dark:text-slate-300 whitespace-nowrap ${asset.govAssetCode.length > 26 ? 'text-[8.5px] tracking-tighter' : 'text-[9.5px]'}`}>
+                    {asset.govAssetCode}
+                  </div>
+                )}
                 <div className="text-[9px] font-bold text-slate-700 dark:text-slate-300 line-clamp-2 leading-tight">
                   {title}
                 </div>
@@ -1137,18 +1174,23 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
                 )}
               </div>
               <div className="overflow-hidden space-y-0.5 flex-1 min-w-0 text-left">
-                <div className="text-[8px] font-bold text-teal-700 dark:text-teal-400 truncate">
+                <div className="text-[8px] font-bold text-teal-700 dark:text-teal-400 border-b border-teal-200 dark:border-teal-800 pb-0.5 truncate">
                   คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์
                 </div>
-                <div className="flex items-center gap-1">
-                  <span className={`font-mono font-black leading-tight text-slate-900 dark:text-slate-100 whitespace-nowrap ${displayAssetCode.length > 22 ? 'text-[8px] tracking-tighter' : 'text-[10.5px]'}`}>
-                    {displayAssetCode}
+                <div className="flex items-center justify-between gap-1">
+                  <span className="font-mono font-black leading-tight text-slate-900 dark:text-slate-100 whitespace-nowrap text-[10px]">
+                    {asset.assetCode}
                   </span>
                   <span className="text-[8px] font-extrabold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1 rounded border border-teal-200 dark:border-teal-800 flex-shrink-0">
                     {unit}ที่ {asset.sequenceNumber || 1}
                   </span>
                 </div>
-                <div className="text-[8.5px] font-bold text-slate-700 dark:text-slate-300 line-clamp-2 leading-tight">
+                {asset.govAssetCode && (
+                  <div className={`font-mono font-bold leading-tight text-slate-700 dark:text-slate-300 whitespace-nowrap ${asset.govAssetCode.length > 26 ? 'text-[8.5px] tracking-tighter' : 'text-[9.5px]'}`}>
+                    {asset.govAssetCode}
+                  </div>
+                )}
+                <div className={`text-[8.5px] font-bold text-slate-700 dark:text-slate-300 leading-tight ${asset.govAssetCode ? 'line-clamp-1' : 'line-clamp-2'}`}>
                   {title}
                 </div>
                 <div className="text-[8px] text-slate-500 dark:text-slate-400 truncate">

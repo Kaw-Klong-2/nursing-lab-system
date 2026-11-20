@@ -17,6 +17,20 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-20] ย้าย ID (`assetCode`) มาคั่นระหว่างเส้นขอบล่างชื่อคณะกับเลขครุภัณฑ์ราชการ + เพิ่มตัวอย่างสติกเกอร์ก่อนพิมพ์แบบสดใน Modal
+- **หมวดหมู่**: QR Code Sticker Printing, Live Preview, PDF & Word Export (`BatchAssetStickerModal`, `AssetQrModal`, `exportStickerPdf`, `exportStickerDocx`)
+- **สิ่งที่ดำเนินการ**:
+  - **เพิ่มพรีวิวสติกเกอร์ก่อนพิมพ์ใน Modal พิมพ์หลายรายการ ([`src/components/qrcode/BatchAssetStickerModal.tsx`](file:///d:/LAB-system/src/components/qrcode/BatchAssetStickerModal.tsx))**:
+    - เพิ่มแผง **"ตัวอย่างสติกเกอร์ก่อนพิมพ์"** แสดงรูป QR Code จริง, สลับดูรายชิ้น (`◀` / `▶` หรือคลิกปุ่ม `"ตัวอย่าง"` บนการ์ดครุภัณฑ์แต่ละชิ้น), พับซ่อน/แสดงได้, และอัปเดตหน้าตาตามขนาดที่เลือกทันที (`กะทัดรัด`, `มาตรฐาน`, `แถบจิ๋ว`, `เทมเพลต 19×38 มม.`)
+  - **จัดวาง ID อยู่ระหว่างเส้นขอบล่างชื่อคณะกับเลขครุภัณฑ์ราชการ ([`BatchAssetStickerModal.tsx`](file:///d:/LAB-system/src/components/qrcode/BatchAssetStickerModal.tsx), [`AssetQrModal.tsx`](file:///d:/LAB-system/src/components/qrcode/AssetQrModal.tsx))**:
+    - คงแถบหัวชื่อคณะด้านบนเดิมและเส้นขอบล่างไว้ 100%, วางแถว `ID` (`asset.assetCode`) คู่กับป้ายลำดับ (`เครื่องที่ X`) ใต้เส้นขอบล่างชื่อคณะ และวางเลขครุภัณฑ์ราชการ (`asset.govAssetCode`) แบบ 1 บรรทัดเต็มความกว้างไว้บรรทัดถัดมา พร้อมนำ ID ซ้ำซ้อนตรงมุมล่างขวาออก
+  - **PDF และ Word ตราช้าง A7 ([`src/lib/exportStickerPdf.ts`](file:///d:/LAB-system/src/lib/exportStickerPdf.ts), [`src/lib/exportStickerDocx.ts`](file:///d:/LAB-system/src/lib/exportStickerDocx.ts))**:
+    - เพิ่มฟิลด์ทางเลือก `secondaryCodeText?: string` ให้วาดเส้นคั่นบางใต้ชื่อคณะ, แถว `codeText` (`assetCode`) + `badgeText` (`เครื่องที่ X`), และแถว `secondaryCodeText` (`govAssetCode`) เต็มความกว้างโดยไม่กระทบสติกเกอร์เวชภัณฑ์/แบ่งบรรจุเดิม
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/components/qrcode/BatchAssetStickerModal.tsx`](file:///d:/LAB-system/src/components/qrcode/BatchAssetStickerModal.tsx), [`src/components/qrcode/AssetQrModal.tsx`](file:///d:/LAB-system/src/components/qrcode/AssetQrModal.tsx)
+  - [`src/lib/exportStickerPdf.ts`](file:///d:/LAB-system/src/lib/exportStickerPdf.ts), [`src/lib/exportStickerDocx.ts`](file:///d:/LAB-system/src/lib/exportStickerDocx.ts)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit`, `npm run build` และ `node scripts/librarian-audit.mjs` ผ่าน 100%
+
 ### [2026-11-20] คืนรูปแบบแถบชื่อคณะด้านบนและคง `[เลขครุภัณฑ์] [เครื่องที่ X]` ให้อยู่บรรทัดเดียวกันทุกตำแหน่ง
 - **หมวดหมู่**: QR Code Sticker Printing, PDF & Word Export (`BatchAssetStickerModal`, `AssetQrModal`, `exportStickerPdf`, `exportStickerDocx`)
 - **สิ่งที่ดำเนินการ**:

@@ -17,6 +17,7 @@ export interface DocxCardItem {
   qrBase64: string;
   orgText?: string;
   codeText: string;
+  secondaryCodeText?: string;
   badgeText?: string;
   titleText: string;
   locOrExpText: string;
@@ -138,7 +139,7 @@ export async function generateStickerDocxBlob(
                           children: [
                             new TextRun({
                               text: item.codeText,
-                              size: item.codeText.length > 24 ? 6 : item.codeText.length > 18 ? 7 : 11,
+                              size: item.codeText.length > 24 ? 6 : item.codeText.length > 18 ? 7 : 10,
                               bold: true,
                               color: '0F172A',
                             }),
@@ -152,6 +153,20 @@ export async function generateStickerDocxBlob(
                               : new TextRun({ text: '' }),
                           ],
                         }),
+                        ...(item.secondaryCodeText
+                          ? [
+                              new Paragraph({
+                                children: [
+                                  new TextRun({
+                                    text: item.secondaryCodeText,
+                                    size: item.secondaryCodeText.length > 24 ? 7 : 8,
+                                    bold: true,
+                                    color: '334155',
+                                  }),
+                                ],
+                              }),
+                            ]
+                          : []),
                         new Paragraph({
                           children: [
                             new TextRun({

@@ -13,8 +13,11 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Layers,
   FileDown,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { downloadStickerDocx, type DocxCardItem } from '@/lib/exportStickerDocx';
 import { downloadStickerPdf, type PdfCardItem } from '@/lib/exportStickerPdf';
@@ -93,6 +96,10 @@ export default function BatchAssetStickerModal({
   const [copiesPerAsset, setCopiesPerAsset] = useState<1 | 2>(1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [qrCache, setQrCache] = useState<Record<string, string>>({});
+  const [showPreview, setShowPreview] = useState(true);
+  const [previewIndex, setPreviewIndex] = useState(0);
+  const [pinnedPreviewAssetId, setPinnedPreviewAssetId] = useState<string | null>(null);
+  const [previewQrUrl, setPreviewQrUrl] = useState<string>('');
 
   // Filter items by search
   const filteredItems = useMemo(() => {
@@ -154,6 +161,79 @@ export default function BatchAssetStickerModal({
   const totalAssetsCount = selectedAssetIds.length;
   const totalStickersCount = totalAssetsCount * copiesPerAsset;
 
+  const previewPool = useMemo(() => {
+    const selectedList: Array<{ asset: BatchEquipmentAssetUnit; item: EquipmentItemForBatch }> = [];
+    availableItems.forEach((item) => {
+      item.assetItems?.forEach((a) => {
+        if (selectedAssetIds.includes(a.id)) {
+          selectedList.push({ asset: a, item });
+        }
+      });
+    });
+    if (selectedList.length > 0) return selectedList;
+
+    const fallbackList: Array<{ asset: BatchEquipmentAssetUnit; item: EquipmentItemForBatch }> = [];
+    filteredItems.forEach((item) => {
+      item.assetItems?.forEach((a) => {
+        fallbackList.push({ asset: a, item });
+      });
+    });
+    return fallbackList;
+  }, [availableItems, filteredItems, selectedAssetIds]);
+
+  const activePreviewEntry = useMemo(() => {
+    if (pinnedPreviewAssetId) {
+      for (const item of availableItems) {
+        const found = item.assetItems?.find((a) => a.id === pinnedPreviewAssetId);
+        if (found) return { asset: found, item };
+      }
+    }
+    if (previewPool.length === 0) return null;
+    return previewPool[previewIndex % previewPool.length];
+  }, [availableItems, previewPool, pinnedPreviewAssetId, previewIndex]);
+
+  const activePreviewPos = useMemo(() => {
+    if (!activePreviewEntry || previewPool.length === 0) return 0;
+    const idx = previewPool.findIndex((entry) => entry.asset.id === activePreviewEntry.asset.id);
+    return idx >= 0 ? idx : 0;
+  }, [activePreviewEntry, previewPool]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function ensurePreviewQr() {
+      if (!showPreview || !activePreviewEntry) {
+        setPreviewQrUrl('');
+        return;
+      }
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const payload = `${origin}/asset/${encodeURIComponent(
+        activePreviewEntry.asset.assetCode || activePreviewEntry.asset.govAssetCode || ''
+      )}`;
+      if (qrCache[payload]) {
+        setPreviewQrUrl(qrCache[payload]);
+        return;
+      }
+      try {
+        const url = await QRCode.toDataURL(payload, {
+          width: 240,
+          margin: 2,
+          errorCorrectionLevel: 'M',
+          color: { dark: '#0f172a', light: '#ffffff' },
+        });
+        if (!cancelled) {
+          setPreviewQrUrl(url);
+          setQrCache((prev) => ({ ...prev, [payload]: url }));
+        }
+      } catch {
+        if (!cancelled) setPreviewQrUrl('');
+      }
+    }
+    ensurePreviewQr();
+    return () => {
+      cancelled = true;
+    };
+  }, [showPreview, activePreviewEntry, qrCache]);
+
   const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
   const [isExportingDocx, setIsExportingDocx] = useState<boolean>(false);
 
@@ -197,7 +277,6 @@ export default function BatchAssetStickerModal({
       for (const { asset, item } of assetsToPrint) {
         const payload = `${origin}/asset/${encodeURIComponent(asset.assetCode || asset.govAssetCode)}`;
         const qrUrl = qrs[payload] || '';
-        const rawCode = asset.govAssetCode || asset.assetCode;
         const unitName = item.unit || 'เครื่อง';
         const cardTitle = item.name && asset.brand && asset.model
           ? `${item.name} (${asset.brand} / ${asset.model})`
@@ -206,7 +285,8 @@ export default function BatchAssetStickerModal({
         const cardItem: PdfCardItem = {
           qrBase64: qrUrl,
           orgText: 'คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์',
-          codeText: rawCode,
+          codeText: asset.assetCode,
+          secondaryCodeText: asset.govAssetCode || undefined,
           badgeText: `${unitName}ที่ ${asset.sequenceNumber || 1}`,
           titleText: cardTitle,
           locOrExpText: `📍 ${asset.location || item.location || 'ห้องปฏิบัติการ'}`,
@@ -269,7 +349,6 @@ export default function BatchAssetStickerModal({
       for (const { asset, item } of assetsToPrint) {
         const payload = `${origin}/asset/${encodeURIComponent(asset.assetCode || asset.govAssetCode)}`;
         const qrUrl = qrs[payload] || '';
-        const rawCode = asset.govAssetCode || asset.assetCode;
         const unitName = item.unit || 'เครื่อง';
         const cardTitle = item.name && asset.brand && asset.model
           ? `${item.name} (${asset.brand} / ${asset.model})`
@@ -278,7 +357,8 @@ export default function BatchAssetStickerModal({
         const cardItem: DocxCardItem = {
           qrBase64: qrUrl,
           orgText: 'คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์',
-          codeText: rawCode,
+          codeText: asset.assetCode,
+          secondaryCodeText: asset.govAssetCode || undefined,
           badgeText: `${unitName}ที่ ${asset.sequenceNumber || 1}`,
           titleText: cardTitle,
           locOrExpText: `📍 ${asset.location || item.location || 'ห้องปฏิบัติการ'}`,
@@ -351,12 +431,12 @@ export default function BatchAssetStickerModal({
         for (const { asset, item } of assetsToPrint) {
           const payload = `${origin}/asset/${encodeURIComponent(asset.assetCode || asset.govAssetCode)}`;
           const qrUrl = qrs[payload] || '';
-          const rawCode = asset.govAssetCode || asset.assetCode;
           const unitName = item.unit || 'เครื่อง';
-          const docCodeStyle = rawCode.length > 26
-            ? 'font-size:3.8px;letter-spacing:-0.15px;'
-            : rawCode.length > 20
-              ? 'font-size:4.4px;letter-spacing:-0.1px;'
+          const govCode = asset.govAssetCode || '';
+          const docGovStyle = govCode.length > 26
+            ? 'font-size:4.3px;letter-spacing:-0.15px;'
+            : govCode.length > 20
+              ? 'font-size:4.9px;letter-spacing:-0.1px;'
               : '';
 
           for (let copy = 0; copy < copiesPerAsset; copy++) {
@@ -368,10 +448,11 @@ export default function BatchAssetStickerModal({
                 <div class="doc-info">
                   <div class="doc-org-text">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
                   <div class="doc-code-row">
-                    <span class="doc-code" style="${docCodeStyle}">${rawCode}</span>
+                    <span class="doc-code">${asset.assetCode}</span>
                     <span class="doc-seq">${unitName}ที่ ${asset.sequenceNumber || 1}</span>
                   </div>
-                  <div class="doc-name">${item.name}</div>
+                  ${govCode ? `<div class="doc-gov" style="${docGovStyle}">${govCode}</div>` : ''}
+                  <div class="doc-name${govCode ? ' doc-name-single' : ''}">${item.name}</div>
                   <div class="doc-loc">📍 ${asset.location || item.location || 'ห้องปฏิบัติการ'}</div>
                 </div>
               </div>
@@ -429,24 +510,23 @@ export default function BatchAssetStickerModal({
         for (const { asset, item } of assetsToPrint) {
           const payload = `${origin}/asset/${encodeURIComponent(asset.assetCode || asset.govAssetCode)}`;
           const qrUrl = qrs[payload] || '';
-          const rawCode = asset.govAssetCode || asset.assetCode;
-          const subCode = asset.govAssetCode ? asset.assetCode : '';
+          const govCode = asset.govAssetCode || '';
           const unitName = item.unit || 'เครื่อง';
           const brandModel = [asset.brand || item.brand, asset.model || item.model].filter(Boolean).join(' ');
-          const miniCodeStyle = rawCode.length > 26
-            ? 'font-size:5px;letter-spacing:-0.2px;'
-            : rawCode.length > 20
-              ? 'font-size:5.8px;letter-spacing:-0.1px;'
+          const miniGovStyle = govCode.length > 26
+            ? 'font-size:6px;letter-spacing:-0.15px;'
+            : govCode.length > 20
+              ? 'font-size:6.8px;'
               : '';
-          const compactCodeStyle = rawCode.length > 26
-            ? 'font-size:6.8px;letter-spacing:-0.2px;'
-            : rawCode.length > 20
-              ? 'font-size:7.6px;letter-spacing:-0.1px;'
+          const compactGovStyle = govCode.length > 26
+            ? 'font-size:7.5px;letter-spacing:-0.1px;'
+            : govCode.length > 20
+              ? 'font-size:8.2px;'
               : '';
-          const stdCodeStyle = rawCode.length > 26
-            ? 'font-size:8.2px;letter-spacing:-0.1px;'
-            : rawCode.length > 20
-              ? 'font-size:9.2px;'
+          const stdGovStyle = govCode.length > 26
+            ? 'font-size:9.5px;letter-spacing:-0.1px;'
+            : govCode.length > 20
+              ? 'font-size:10.2px;'
               : '';
 
           for (let copy = 0; copy < copiesPerAsset; copy++) {
@@ -457,9 +537,10 @@ export default function BatchAssetStickerModal({
                   <div class="mini-info">
                     <div class="mini-org">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
                     <div class="mini-code-row">
-                      <span class="mini-code" style="${miniCodeStyle}">${rawCode}</span>
+                      <span class="mini-code">${asset.assetCode}</span>
                       <span class="mini-seq">${unitName}ที่ ${asset.sequenceNumber || 1}</span>
                     </div>
+                    ${govCode ? `<div class="mini-gov" style="${miniGovStyle}">${govCode}</div>` : ''}
                     <div class="mini-title">${item.name}</div>
                     <div class="mini-loc">📍 ${asset.location || item.location || 'ห้องแล็บพยาบาล'}</div>
                   </div>
@@ -476,14 +557,14 @@ export default function BatchAssetStickerModal({
                     <img src="${qrUrl}" class="compact-qr" />
                     <div class="compact-info">
                       <div class="compact-code-row">
-                        <span class="compact-code" style="${compactCodeStyle}">${rawCode}</span>
+                        <span class="compact-code">${asset.assetCode}</span>
                         <span class="compact-seq">${unitName}ที่ ${asset.sequenceNumber || 1}</span>
                       </div>
+                      ${govCode ? `<div class="compact-gov" style="${compactGovStyle}">${govCode}</div>` : ''}
                       <div class="compact-title">${item.name}</div>
                       ${brandModel ? `<div class="compact-brand">${brandModel}</div>` : ''}
                       <div class="compact-meta">
                         <span>📍 ${asset.location || item.location || 'ห้องปฏิบัติการ'}</span>
-                        ${subCode ? `<span class="compact-subcode">(${subCode})</span>` : ''}
                       </div>
                     </div>
                   </div>
@@ -501,14 +582,14 @@ export default function BatchAssetStickerModal({
                     <img src="${qrUrl}" class="std-qr" />
                     <div class="std-info">
                       <div class="std-code-row">
-                        <div class="std-gov-code" style="${stdCodeStyle}">${rawCode}</div>
+                        <div class="std-asset-code">${asset.assetCode}</div>
                         <div class="std-seq-badge">${unitName}ที่ ${asset.sequenceNumber || 1}</div>
                       </div>
+                      ${govCode ? `<div class="std-gov-code" style="${stdGovStyle}">${govCode}</div>` : ''}
                       <div class="std-title">${item.name}</div>
                       ${brandModel ? `<div class="std-model">${brandModel}</div>` : ''}
                       <div class="std-footer-row">
                         <div class="std-loc">📍 ${asset.location || item.location || 'ห้องปฏิบัติการ'}</div>
-                        ${subCode ? `<div class="std-internal-code">${subCode}</div>` : ''}
                       </div>
                     </div>
                   </div>
@@ -632,10 +713,14 @@ export default function BatchAssetStickerModal({
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            border-bottom: 0.4px solid #99f6e4;
+            padding-bottom: 0.5px;
+            margin-bottom: 0.5px;
           }
           .doc-code-row {
             display: flex;
             align-items: center;
+            justify-content: space-between;
             gap: 2px;
             margin-top: 0.5px;
           }
@@ -646,6 +731,15 @@ export default function BatchAssetStickerModal({
             color: #0f172a;
             line-height: 1.08;
             white-space: nowrap;
+          }
+          .doc-gov {
+            font-family: monospace;
+            font-size: 5.4px;
+            font-weight: 800;
+            color: #334155;
+            line-height: 1.08;
+            white-space: nowrap;
+            margin-top: 0.3px;
           }
           .doc-seq {
             font-size: 5px;
@@ -670,6 +764,9 @@ export default function BatchAssetStickerModal({
             overflow: hidden;
             word-break: break-word;
             margin-top: 0.5px;
+          }
+          .doc-name.doc-name-single {
+            -webkit-line-clamp: 1;
           }
           .doc-loc {
             font-size: 5px;
@@ -738,6 +835,9 @@ export default function BatchAssetStickerModal({
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            border-bottom: 0.5px solid #99f6e4;
+            padding-bottom: 1px;
+            margin-bottom: 1px;
           }
           .mini-code-row {
             display: flex;
@@ -753,6 +853,15 @@ export default function BatchAssetStickerModal({
             color: #0f172a;
             line-height: 1.12;
             white-space: nowrap;
+          }
+          .mini-gov {
+            font-family: monospace;
+            font-size: 7.4px;
+            font-weight: 800;
+            color: #334155;
+            line-height: 1.12;
+            white-space: nowrap;
+            margin-top: 0.5px;
           }
           .mini-seq {
             font-size: 6.5px;
@@ -875,12 +984,21 @@ export default function BatchAssetStickerModal({
           }
           .compact-code {
             font-family: monospace;
-            font-size: 8.8px;
+            font-size: 9px;
             font-weight: 900;
             color: #0f172a;
-            letter-spacing: 0.1px;
+            letter-spacing: 0.2px;
             line-height: 1.15;
             white-space: nowrap;
+          }
+          .compact-gov {
+            font-family: monospace;
+            font-size: 8.8px;
+            font-weight: 800;
+            color: #334155;
+            line-height: 1.15;
+            white-space: nowrap;
+            margin-top: 0.5px;
           }
           .compact-seq {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -1015,14 +1133,24 @@ export default function BatchAssetStickerModal({
             justify-content: space-between;
             gap: 4px;
           }
-          .std-gov-code {
+          .std-asset-code {
             font-family: monospace;
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 900;
             color: #0f172a;
             letter-spacing: 0.2px;
             line-height: 1.15;
             white-space: nowrap;
+          }
+          .std-gov-code {
+            font-family: monospace;
+            font-size: 10.8px;
+            font-weight: 800;
+            color: #334155;
+            letter-spacing: 0.1px;
+            line-height: 1.15;
+            white-space: nowrap;
+            margin-top: 1px;
           }
           .std-seq-badge {
             font-size: 8.5px;
@@ -1274,6 +1402,249 @@ export default function BatchAssetStickerModal({
           </div>
         )}
 
+        {/* Live Pre-Print Preview Panel */}
+        <div className="my-2 rounded-2xl border border-teal-200/80 dark:border-teal-800/70 bg-slate-50/90 dark:bg-slate-950/50 overflow-hidden shrink-0">
+          <div className="px-3.5 py-2 bg-teal-50/80 dark:bg-teal-950/40 border-b border-teal-100 dark:border-teal-900/60 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <Eye className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+              <span className="font-bold text-slate-800 dark:text-slate-100">ตัวอย่างสติกเกอร์ก่อนพิมพ์</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white dark:bg-slate-800 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+                {labelSize === 'compact'
+                  ? 'กะทัดรัด (3 แถว)'
+                  : labelSize === 'standard'
+                  ? 'มาตรฐาน (2 แถว)'
+                  : labelSize === 'mini'
+                  ? 'แถบจิ๋ว (4 แถว)'
+                  : 'เทมเพลต 19×38 มม. (40 ดวง)'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {showPreview && previewPool.length > 0 && activePreviewEntry && (
+                <div className="inline-flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-1.5 py-0.5 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPinnedPreviewAssetId(null);
+                      setPreviewIndex((activePreviewPos - 1 + previewPool.length) % previewPool.length);
+                    }}
+                    className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-pointer"
+                    title="ชิ้นก่อนหน้า"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="font-mono font-bold text-slate-700 dark:text-slate-300 px-1">
+                    {pinnedPreviewAssetId ? activePreviewEntry.asset.assetCode : `${activePreviewPos + 1} / ${previewPool.length}`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPinnedPreviewAssetId(null);
+                      setPreviewIndex((activePreviewPos + 1) % previewPool.length);
+                    }}
+                    className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-pointer"
+                    title="ชิ้นถัดไป"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowPreview((v) => !v)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-teal-700 dark:hover:text-teal-300 transition cursor-pointer"
+              >
+                {showPreview ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                <span>{showPreview ? 'ซ่อนตัวอย่าง' : 'แสดงตัวอย่าง'}</span>
+              </button>
+            </div>
+          </div>
+
+          {showPreview && (
+            <div className="p-3 flex items-center justify-center">
+              {!activePreviewEntry ? (
+                <div className="text-xs text-slate-400 dark:text-slate-500 py-3">
+                  ไม่มีรายการครุภัณฑ์สำหรับแสดงตัวอย่าง
+                </div>
+              ) : (() => {
+                const { asset: pvAsset, item: pvItem } = activePreviewEntry;
+                const pvUnit = pvItem.unit || 'เครื่อง';
+                const pvGov = pvAsset.govAssetCode || '';
+                const pvBrandModel = [pvAsset.brand || pvItem.brand, pvAsset.model || pvItem.model].filter(Boolean).join(' ');
+                const pvLoc = pvAsset.location || pvItem.location || 'ห้องปฏิบัติการ';
+
+                if (labelSize === 'mini') {
+                  return (
+                    <div className="bg-white border border-slate-700 rounded p-2 flex items-center gap-2.5 shadow-sm max-w-[330px] w-full text-left">
+                      {previewQrUrl ? (
+                        <img src={previewQrUrl} alt={pvAsset.assetCode} className="w-12 h-12 flex-shrink-0" />
+                      ) : (
+                        <div className="w-12 h-12 bg-slate-100 rounded animate-pulse flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[8px] font-extrabold text-teal-700 border-b border-teal-200 pb-0.5 mb-0.5 truncate">
+                          คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์
+                        </div>
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className="font-mono font-black text-[10px] text-slate-900 whitespace-nowrap">
+                            {pvAsset.assetCode}
+                          </span>
+                          <span className="text-[8px] font-extrabold text-teal-700 bg-teal-50 px-1 py-0.2 rounded border border-teal-200 flex-shrink-0 whitespace-nowrap">
+                            {pvUnit}ที่ {pvAsset.sequenceNumber || 1}
+                          </span>
+                        </div>
+                        {pvGov && (
+                          <div className={`font-mono font-bold text-slate-700 whitespace-nowrap mt-0.5 ${pvGov.length > 26 ? 'text-[8.5px] tracking-tighter' : 'text-[9.5px]'}`}>
+                            {pvGov}
+                          </div>
+                        )}
+                        <div className="text-[9px] font-bold text-slate-700 line-clamp-2 leading-tight mt-0.5">
+                          {pvItem.name}
+                        </div>
+                        <div className="text-[8px] text-slate-500 truncate mt-0.5">
+                          📍 {pvLoc}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (labelSize === 'template_doc') {
+                  return (
+                    <div className={`bg-white rounded p-2 flex items-center gap-2.5 shadow-sm max-w-[350px] w-full text-left ${showBorders ? 'border border-dashed border-slate-400' : 'border border-slate-200'}`}>
+                      <div className="w-14 h-14 flex items-center justify-center flex-shrink-0">
+                        {previewQrUrl ? (
+                          <img src={previewQrUrl} alt={pvAsset.assetCode} className="w-full h-full object-contain" />
+                        ) : (
+                          <div className="w-full h-full bg-slate-100 rounded animate-pulse" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[8px] font-extrabold text-teal-700 border-b border-teal-200 pb-0.5 mb-0.5 truncate">
+                          คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์
+                        </div>
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className="font-mono font-black text-[10px] text-slate-900 whitespace-nowrap">
+                            {pvAsset.assetCode}
+                          </span>
+                          <span className="text-[8px] font-extrabold text-teal-700 bg-teal-50 px-1 rounded border border-teal-200 flex-shrink-0 whitespace-nowrap">
+                            {pvUnit}ที่ {pvAsset.sequenceNumber || 1}
+                          </span>
+                        </div>
+                        {pvGov && (
+                          <div className={`font-mono font-bold text-slate-700 whitespace-nowrap mt-0.5 ${pvGov.length > 26 ? 'text-[8.5px] tracking-tighter' : 'text-[9.5px]'}`}>
+                            {pvGov}
+                          </div>
+                        )}
+                        <div className={`text-[9px] font-bold text-slate-700 leading-tight mt-0.5 ${pvGov ? 'line-clamp-1' : 'line-clamp-2'}`}>
+                          {pvItem.name}
+                        </div>
+                        <div className="text-[8px] text-slate-500 truncate mt-0.5">
+                          📍 {pvLoc}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (labelSize === 'standard') {
+                  return (
+                    <div className="bg-white border-[1.5px] border-slate-700 rounded-md p-2 max-w-[400px] w-full shadow-sm text-left">
+                      <div className="flex items-center justify-between bg-teal-50 border-b-[1.2px] border-teal-600 rounded-t -mx-2 -mt-2 px-2.5 py-1 mb-2">
+                        <span className="text-[9.5px] font-extrabold text-teal-800 truncate">
+                          คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์
+                        </span>
+                        <span className="text-[8.5px] font-bold text-teal-600 flex-shrink-0">
+                          ห้องปฏิบัติการ
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {previewQrUrl ? (
+                          <img src={previewQrUrl} alt={pvAsset.assetCode} className="w-16 h-16 flex-shrink-0" />
+                        ) : (
+                          <div className="w-16 h-16 bg-slate-100 rounded animate-pulse flex-shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0 space-y-0.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono font-black text-[11px] text-slate-900 whitespace-nowrap">
+                              {pvAsset.assetCode}
+                            </span>
+                            <span className="text-[8.5px] font-extrabold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 flex-shrink-0 whitespace-nowrap">
+                              {pvUnit}ที่ {pvAsset.sequenceNumber || 1}
+                            </span>
+                          </div>
+                          {pvGov && (
+                            <div className={`font-mono font-bold text-slate-700 whitespace-nowrap ${pvGov.length > 26 ? 'text-[9.5px] tracking-tight' : 'text-[10.5px]'}`}>
+                              {pvGov}
+                            </div>
+                          )}
+                          <div className="text-[10px] font-extrabold text-slate-800 leading-tight line-clamp-2">
+                            {pvItem.name}
+                          </div>
+                          {pvBrandModel && (
+                            <div className="text-[8.5px] font-semibold text-slate-500 truncate">
+                              {pvBrandModel}
+                            </div>
+                          )}
+                          <div className="text-[8.5px] text-slate-500 truncate">
+                            📍 {pvLoc}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Compact default
+                return (
+                  <div className="bg-white border border-slate-700 rounded p-2 max-w-[360px] w-full shadow-sm text-left">
+                    <div className="flex items-center justify-between bg-teal-50 border-b border-teal-600 rounded-t -mx-2 -mt-2 px-2 py-1 mb-1.5">
+                      <span className="text-[8.5px] font-extrabold text-teal-800 truncate">
+                        คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์
+                      </span>
+                      <span className="text-[7.5px] font-bold text-teal-600 flex-shrink-0">
+                        ห้องปฏิบัติการ
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      {previewQrUrl ? (
+                        <img src={previewQrUrl} alt={pvAsset.assetCode} className="w-14 h-14 flex-shrink-0" />
+                      ) : (
+                        <div className="w-14 h-14 bg-slate-100 rounded animate-pulse flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0 space-y-0.5">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className="font-mono font-black text-[10px] text-slate-900 whitespace-nowrap">
+                            {pvAsset.assetCode}
+                          </span>
+                          <span className="text-[8px] font-extrabold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 flex-shrink-0 whitespace-nowrap">
+                            {pvUnit}ที่ {pvAsset.sequenceNumber || 1}
+                          </span>
+                        </div>
+                        {pvGov && (
+                          <div className={`font-mono font-bold text-slate-700 whitespace-nowrap ${pvGov.length > 26 ? 'text-[8.5px] tracking-tighter' : 'text-[9.5px]'}`}>
+                            {pvGov}
+                          </div>
+                        )}
+                        <div className="text-[9px] font-extrabold text-slate-800 leading-tight line-clamp-2">
+                          {pvItem.name}
+                        </div>
+                        {pvBrandModel && (
+                          <div className="text-[8px] font-semibold text-slate-500 truncate">
+                            {pvBrandModel}
+                          </div>
+                        )}
+                        <div className="text-[8px] text-slate-500 truncate">
+                          📍 {pvLoc}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+
         {/* Selection summary & quick actions */}
         <div className="py-2.5 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
           <div>
@@ -1390,8 +1761,21 @@ export default function BatchAssetStickerModal({
                                   <span>{item.unit || 'เครื่อง'}ที่ {asset.sequenceNumber || 1}</span>
                                   <span className="font-mono text-[10px] text-slate-400">({asset.assetCode})</span>
                                 </div>
-                                <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                                  📍 {asset.location || item.location || 'ห้องแล็บ'}
+                                <div className="text-[10px] text-slate-400 flex items-center justify-between gap-2 mt-0.5">
+                                  <span className="truncate">📍 {asset.location || item.location || 'ห้องแล็บ'}</span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPinnedPreviewAssetId(asset.id);
+                                      setShowPreview(true);
+                                    }}
+                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/60 text-slate-600 dark:text-slate-300 hover:text-teal-700 dark:hover:text-teal-300 text-[9.5px] font-semibold shrink-0 transition cursor-pointer"
+                                    title="ดูตัวอย่างสติกเกอร์ชิ้นนี้"
+                                  >
+                                    <Eye className="w-2.5 h-2.5" />
+                                    <span>ตัวอย่าง</span>
+                                  </button>
                                 </div>
                               </div>
                             </div>

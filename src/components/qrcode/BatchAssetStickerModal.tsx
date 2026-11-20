@@ -678,7 +678,7 @@ export default function BatchAssetStickerModal({
             gap: 1.5mm;
             box-sizing: border-box;
             overflow: hidden;
-            padding: 1mm 1.2mm;
+            padding: 0.7mm 1.2mm;
             ${showBorders ? 'border: 0.5px dashed #cbd5e1;' : 'border: none;'}
           }
           .doc-qr-wrap {
@@ -698,7 +698,7 @@ export default function BatchAssetStickerModal({
           .doc-info {
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: flex-start;
             overflow: hidden;
             line-height: 1.15;
             flex: 1;
@@ -714,7 +714,7 @@ export default function BatchAssetStickerModal({
             overflow: hidden;
             text-overflow: ellipsis;
             border-bottom: 0.4px solid #99f6e4;
-            padding-bottom: 0.5px;
+            padding-bottom: 0.3px;
             margin-bottom: 0.5px;
           }
           .doc-code-row {
@@ -801,12 +801,12 @@ export default function BatchAssetStickerModal({
           .mini-card {
             border: 1px solid #334155;
             border-radius: 3px;
-            padding: 2.5px 4px;
+            padding: 2px 4px;
             width: 100%;
-            min-height: 18mm;
+            min-height: 0;
             height: auto;
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 5px;
             box-sizing: border-box;
             page-break-inside: avoid;
@@ -822,7 +822,7 @@ export default function BatchAssetStickerModal({
           .mini-info {
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: flex-start;
             overflow: hidden;
             line-height: 1.15;
             flex: 1;
@@ -836,7 +836,7 @@ export default function BatchAssetStickerModal({
             overflow: hidden;
             text-overflow: ellipsis;
             border-bottom: 0.5px solid #99f6e4;
-            padding-bottom: 1px;
+            padding-bottom: 0.5px;
             margin-bottom: 1px;
           }
           .mini-code-row {
@@ -917,9 +917,10 @@ export default function BatchAssetStickerModal({
           .compact-card {
             border: 1.2px solid #334155;
             border-radius: 4px;
-            padding: 2.5px 5px 3px 5px;
+            padding: 2px 5px 3px 5px;
             width: 100%;
-            min-height: 26mm;
+            min-height: 0;
+            height: auto;
             display: flex;
             flex-direction: column;
             box-sizing: border-box;
@@ -936,7 +937,7 @@ export default function BatchAssetStickerModal({
             border-top-left-radius: 3px;
             border-top-right-radius: 3px;
             padding: 1.5px 5px;
-            margin: -2.5px -5px 2px -5px;
+            margin: -2px -5px 2px -5px;
             box-sizing: border-box;
           }
           .compact-org-text {
@@ -956,9 +957,8 @@ export default function BatchAssetStickerModal({
           }
           .compact-body {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 6px;
-            flex: 1;
             min-height: 0;
           }
           .compact-qr {
@@ -970,7 +970,7 @@ export default function BatchAssetStickerModal({
           .compact-info {
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: flex-start;
             overflow: hidden;
             line-height: 1.15;
             flex: 1;
@@ -1072,9 +1072,10 @@ export default function BatchAssetStickerModal({
           .std-card {
             border: 1.5px solid #334155;
             border-radius: 6px;
-            padding: 4px 6px;
+            padding: 3px 6px 4px 6px;
             width: 100%;
-            min-height: 38mm;
+            min-height: 0;
+            height: auto;
             display: flex;
             flex-direction: column;
             box-sizing: border-box;
@@ -1091,7 +1092,7 @@ export default function BatchAssetStickerModal({
             border-top-left-radius: 4px;
             border-top-right-radius: 4px;
             padding: 2px 6px;
-            margin: -4px -6px 3px -6px;
+            margin: -3px -6px 2.5px -6px;
             box-sizing: border-box;
           }
           .std-org-main {
@@ -1107,9 +1108,8 @@ export default function BatchAssetStickerModal({
           }
           .std-body {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 8px;
-            flex: 1;
             min-height: 0;
           }
           .std-qr {
@@ -1121,7 +1121,7 @@ export default function BatchAssetStickerModal({
           .std-info {
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: flex-start;
             overflow: hidden;
             line-height: 1.2;
             flex: 1;
@@ -1474,7 +1474,7 @@ export default function BatchAssetStickerModal({
 
                 if (labelSize === 'mini') {
                   return (
-                    <div className="bg-white border border-slate-700 rounded p-2 flex items-center gap-2.5 shadow-sm max-w-[330px] w-full text-left">
+                    <div className="bg-white border border-slate-700 rounded p-2 flex items-start gap-2.5 shadow-sm max-w-[330px] w-full text-left">
                       {previewQrUrl ? (
                         <img src={previewQrUrl} alt={pvAsset.assetCode} className="w-12 h-12 flex-shrink-0" />
                       ) : (
@@ -1510,7 +1510,7 @@ export default function BatchAssetStickerModal({
 
                 if (labelSize === 'template_doc') {
                   return (
-                    <div className={`bg-white rounded p-2 flex items-center gap-2.5 shadow-sm max-w-[350px] w-full text-left ${showBorders ? 'border border-dashed border-slate-400' : 'border border-slate-200'}`}>
+                    <div className={`bg-white rounded p-2 flex items-start gap-2.5 shadow-sm max-w-[350px] w-full text-left ${showBorders ? 'border border-dashed border-slate-400' : 'border border-slate-200'}`}>
                       <div className="w-14 h-14 flex items-center justify-center flex-shrink-0">
                         {previewQrUrl ? (
                           <img src={previewQrUrl} alt={pvAsset.assetCode} className="w-full h-full object-contain" />
@@ -1549,7 +1549,7 @@ export default function BatchAssetStickerModal({
                 if (labelSize === 'standard') {
                   return (
                     <div className="bg-white border-[1.5px] border-slate-700 rounded-md p-2 max-w-[400px] w-full shadow-sm text-left">
-                      <div className="flex items-center justify-between bg-teal-50 border-b-[1.2px] border-teal-600 rounded-t -mx-2 -mt-2 px-2.5 py-1 mb-2">
+                      <div className="flex items-center justify-between bg-teal-50 border-b-[1.2px] border-teal-600 rounded-t -mx-2 -mt-2 px-2.5 py-1 mb-1">
                         <span className="text-[9.5px] font-extrabold text-teal-800 truncate">
                           คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์
                         </span>
@@ -1557,7 +1557,7 @@ export default function BatchAssetStickerModal({
                           ห้องปฏิบัติการ
                         </span>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-start gap-3">
                         {previewQrUrl ? (
                           <img src={previewQrUrl} alt={pvAsset.assetCode} className="w-16 h-16 flex-shrink-0" />
                         ) : (
@@ -1597,7 +1597,7 @@ export default function BatchAssetStickerModal({
                 // Compact default
                 return (
                   <div className="bg-white border border-slate-700 rounded p-2 max-w-[360px] w-full shadow-sm text-left">
-                    <div className="flex items-center justify-between bg-teal-50 border-b border-teal-600 rounded-t -mx-2 -mt-2 px-2 py-1 mb-1.5">
+                    <div className="flex items-center justify-between bg-teal-50 border-b border-teal-600 rounded-t -mx-2 -mt-2 px-2 py-1 mb-1">
                       <span className="text-[8.5px] font-extrabold text-teal-800 truncate">
                         คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์
                       </span>
@@ -1605,7 +1605,7 @@ export default function BatchAssetStickerModal({
                         ห้องปฏิบัติการ
                       </span>
                     </div>
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-start gap-2.5">
                       {previewQrUrl ? (
                         <img src={previewQrUrl} alt={pvAsset.assetCode} className="w-14 h-14 flex-shrink-0" />
                       ) : (

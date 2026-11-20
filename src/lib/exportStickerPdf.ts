@@ -146,21 +146,21 @@ async function renderStickerCardToDataUrl(
   const secondaryCode = (card.secondaryCodeText || '').trim();
 
   if (secondaryCode) {
-    // Layout with ID between Faculty Header bottom border & Government Asset Code:
-    // Header -> bottom border -> [ID] [Badge] -> [Full-width Gov Asset Code] -> [Title] -> [Location]
+    // Layout with ID tightly spaced directly under Faculty Header divider & Government Asset Code:
+    // Header -> divider -> [ID] [Badge] -> [Full-width Gov Asset Code] -> [Title] -> [Location]
     ctx.font = 'bold 26px Sarabun, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.fillStyle = '#0f766e';
-    ctx.fillText(card.orgText || 'คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์', leftTextX, 58, maxTextWidth);
+    ctx.fillText(card.orgText || 'คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์', leftTextX, 56, maxTextWidth);
 
     // Subtle teal divider border under faculty header
     ctx.strokeStyle = '#99f6e4';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(leftTextX, 72);
-    ctx.lineTo(maxRightX, 72);
+    ctx.moveTo(leftTextX, 68);
+    ctx.lineTo(maxRightX, 68);
     ctx.stroke();
 
-    // Row 1: ID (assetCode) + Sequence Badge
+    // Row 1: ID (assetCode) + Sequence Badge tucked close below divider
     let badgeWidth = 0;
     if (card.badgeText) {
       ctx.font = 'bold 20px Sarabun, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
@@ -176,12 +176,12 @@ async function renderStickerCardToDataUrl(
     }
 
     ctx.fillStyle = '#0f172a';
-    ctx.fillText(codeText, leftTextX, 110, maxIdWidth);
+    ctx.fillText(codeText, leftTextX, 100, maxIdWidth);
     const actualIdWidth = Math.min(ctx.measureText(codeText).width, maxIdWidth);
 
     if (card.badgeText) {
       const badgeX = leftTextX + actualIdWidth + 10;
-      const badgeY = 82;
+      const badgeY = 74;
       const badgeHeight = 30;
 
       ctx.fillStyle = '#f0fdfa';
@@ -203,22 +203,22 @@ async function renderStickerCardToDataUrl(
       ctx.font = `800 ${govFontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
     }
     ctx.fillStyle = '#334155';
-    ctx.fillText(secondaryCode, leftTextX, 152, maxTextWidth);
+    ctx.fillText(secondaryCode, leftTextX, 138, maxTextWidth);
 
     // Row 3: Title / Name (1-2 lines)
     ctx.font = 'bold 28px Sarabun, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.fillStyle = '#1e293b';
     const titleLines = wrapText(ctx, card.titleText || '', maxTextWidth, 2);
-    let textY = 204;
+    let textY = 186;
     for (const line of titleLines) {
       ctx.fillText(line, leftTextX, textY);
-      textY += 40;
+      textY += 38;
     }
 
     // Row 4: Location or Expiry Meta Line
     ctx.font = '600 26px Sarabun, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.fillStyle = (card.locOrExpText || '').includes('EXP') ? '#e11d48' : '#64748b';
-    const metaY = Math.max(textY + 4, 356);
+    const metaY = Math.max(textY + 4, 345);
     ctx.fillText(card.locOrExpText || '', leftTextX, metaY, maxTextWidth);
   } else {
     // 1. Organization Header (untouched)

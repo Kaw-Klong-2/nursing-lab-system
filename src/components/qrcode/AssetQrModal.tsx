@@ -175,10 +175,10 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           border-radius: 3px;
           padding: 2px 4px;
           width: 175px;
-          min-height: 58px;
+          min-height: 0;
           height: auto;
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           gap: 5px;
           background: #fff;
           box-sizing: border-box;
@@ -194,7 +194,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         .mini-info {
           display: flex;
           flex-direction: column;
-          justify-content: center;
+          justify-content: flex-start;
           overflow: hidden;
           line-height: 1.14;
           flex: 1;
@@ -208,7 +208,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           overflow: hidden;
           text-overflow: ellipsis;
           border-bottom: 0.5px solid #99f6e4;
-          padding-bottom: 1px;
+          padding-bottom: 0.5px;
           margin-bottom: 1px;
         }
         .mini-code-row {
@@ -305,9 +305,9 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         .compact-card {
           border: 1.2px solid #334155;
           border-radius: 4px;
-          padding: 2.5px 5px 3px 5px;
+          padding: 2px 5px 3px 5px;
           width: 250px;
-          min-height: 104px;
+          min-height: 0;
           height: auto;
           display: flex;
           flex-direction: column;
@@ -325,7 +325,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           border-top-left-radius: 3px;
           border-top-right-radius: 3px;
           padding: 1.5px 5px;
-          margin: -2.5px -5px 2.5px -5px;
+          margin: -2px -5px 2px -5px;
           box-sizing: border-box;
         }
         .compact-org-text {
@@ -345,9 +345,8 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         }
         .compact-body {
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           gap: 6px;
-          flex: 1;
           min-height: 0;
         }
         .compact-qr {
@@ -359,7 +358,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         .compact-info {
           display: flex;
           flex-direction: column;
-          justify-content: center;
+          justify-content: flex-start;
           overflow: hidden;
           line-height: 1.15;
           flex: 1;
@@ -635,7 +634,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           gap: 1.5mm;
           box-sizing: border-box;
           overflow: hidden;
-          padding: 1mm 1.2mm;
+          padding: 0.7mm 1.2mm;
           ${showBorders ? 'border: 0.5px dashed #cbd5e1;' : 'border: none;'}
         }
         .doc-qr-wrap {
@@ -655,7 +654,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         .doc-info {
           display: flex;
           flex-direction: column;
-          justify-content: center;
+          justify-content: flex-start;
           overflow: hidden;
           line-height: 1.15;
           flex: 1;
@@ -671,7 +670,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           overflow: hidden;
           text-overflow: ellipsis;
           border-bottom: 0.4px solid #99f6e4;
-          padding-bottom: 0.5px;
+          padding-bottom: 0.3px;
           margin-bottom: 0.5px;
         }
         .doc-code-row {
@@ -1000,7 +999,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         {labelSize === 'mini' ? (
           /* Mini Strip Preview */
           <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border-2 border-dashed border-teal-500/40 flex items-center justify-center">
-            <div className="bg-white dark:bg-slate-900 border border-slate-700 rounded p-2 flex items-center gap-2.5 shadow-sm max-w-[330px] w-full">
+            <div className="bg-white dark:bg-slate-900 border border-slate-700 rounded p-2 flex items-start gap-2.5 shadow-sm max-w-[330px] w-full">
               {qrDataUrl ? (
                 <img
                   src={qrDataUrl}
@@ -1042,7 +1041,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border-2 border-dashed border-teal-500/40 flex items-center justify-center">
             <div className="bg-white dark:bg-slate-900 border border-slate-700 rounded-lg p-3 flex flex-col shadow-sm max-w-[360px] w-full">
               {/* Header Bar */}
-              <div className="flex items-center justify-between border-b border-teal-200 dark:border-teal-800 pb-1 mb-2 bg-teal-50/50 dark:bg-teal-950/30 -mx-3 -mt-3 p-2 rounded-t-lg">
+              <div className="flex items-center justify-between border-b border-teal-200 dark:border-teal-800 pb-1 mb-1 bg-teal-50/50 dark:bg-teal-950/30 -mx-3 -mt-3 px-2 py-1.5 rounded-t-lg">
                 <span className="text-[9px] font-extrabold text-teal-800 dark:text-teal-300 truncate">
                   คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์
                 </span>
@@ -1050,7 +1049,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
                   ห้องปฏิบัติการ
                 </span>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-start gap-3">
                 {qrDataUrl ? (
                   <img
                     src={qrDataUrl}
@@ -1165,7 +1164,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         ) : (
           /* Template 175x205 mm Preview (Horizontal 38x19 mm card) */
           <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border-2 border-dashed border-teal-500/40 flex items-center justify-center">
-            <div className="bg-white dark:bg-slate-900 border border-slate-700 rounded-lg p-2.5 flex items-center gap-2.5 shadow-sm max-w-[340px] w-full">
+            <div className="bg-white dark:bg-slate-900 border border-slate-700 rounded-lg p-2.5 flex items-start gap-2.5 shadow-sm max-w-[340px] w-full">
               <div className="w-12 h-12 bg-white p-0.5 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center flex-shrink-0">
                 {qrDataUrl ? (
                   <img src={qrDataUrl} alt={`QR Code ${asset.assetCode}`} className="w-full h-full object-contain" />

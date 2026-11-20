@@ -17,6 +17,12 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-20] ลดช่องว่างส่วนเกินใต้เส้นขอบล่างแถบชื่อคณะบนสติกเกอร์ครุภัณฑ์และตัวอย่างก่อนพิมพ์
+- **ปัญหา**: สติกเกอร์ครุภัณฑ์และตัวอย่างก่อนพิมพ์มีการจัดกึ่งกลางแนวตั้ง (`align-items: center`, `justify-content: center`, `flex: 1`) ร่วมกับ `min-height` ที่สูงเกินจำเป็น ทำให้เกิดพื้นที่ว่างสีขาวขนาดใหญ่ใต้เส้นขอบล่างแถบชื่อคณะ (`คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์`)
+- **การแก้ไข**:
+  - `src/components/qrcode/BatchAssetStickerModal.tsx` และ `src/components/qrcode/AssetQrModal.tsx`: เปลี่ยนการจัดวางเนื้อหาการ์ดเป็นชิดบน (`align-items: flex-start`, `justify-content: flex-start`), ยกเลิก `min-height` ส่วนเกินบน `.compact-card`/`.std-card`/`.mini-card` และ `flex: 1` ใน print body, พร้อมปรับ margin ใต้เส้นขอบ header ทั้งใน Print CSS และ React Live Preview ให้เว้นระยะพอดี (ประมาณ `2px`–`2.5px` / `mb-1`)
+  - `src/lib/exportStickerPdf.ts`: ปรับพิกัด Y ของ Canvas render (`renderStickerCardToDataUrl`) ในสาขา `secondaryCode` ให้ข้อความชิดใต้เส้นแบ่ง header ยิ่งขึ้น
+
 ### [2026-11-20] ย้าย ID (`assetCode`) มาคั่นระหว่างเส้นขอบล่างชื่อคณะกับเลขครุภัณฑ์ราชการ + เพิ่มตัวอย่างสติกเกอร์ก่อนพิมพ์แบบสดใน Modal
 - **หมวดหมู่**: QR Code Sticker Printing, Live Preview, PDF & Word Export (`BatchAssetStickerModal`, `AssetQrModal`, `exportStickerPdf`, `exportStickerDocx`)
 - **สิ่งที่ดำเนินการ**:

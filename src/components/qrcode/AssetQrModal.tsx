@@ -42,7 +42,6 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
   const title = itemName || asset.item?.name || 'ครุภัณฑ์ห้องปฏิบัติการพยาบาล';
   const unit = itemUnit || asset.item?.unit || 'ชิ้น';
   const displayAssetCode = asset.govAssetCode || asset.assetCode;
-  const isLongDisplayCode = displayAssetCode.length > 20;
 
   const handleExportPdf = async () => {
     if (!qrDataUrl) return;
@@ -130,11 +129,10 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
     let singleCardHtml = '';
     let pageCss = '';
 
-    const isLongCode = displayAssetCode.length > 18;
     const miniCodeStyle = displayAssetCode.length > 26
-      ? 'font-size:5.8px;letter-spacing:-0.15px;'
+      ? 'font-size:5px;letter-spacing:-0.2px;'
       : displayAssetCode.length > 20
-        ? 'font-size:6.5px;'
+        ? 'font-size:5.8px;letter-spacing:-0.1px;'
         : '';
     const compactGovStyle = asset.govAssetCode && asset.govAssetCode.length > 26
       ? 'font-size:6.6px;letter-spacing:-0.1px;'
@@ -147,9 +145,9 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
         ? 'font-size:8.4px;'
         : '';
     const docCodeStyle = displayAssetCode.length > 26
-      ? 'font-size:4.2px;letter-spacing:-0.15px;'
+      ? 'font-size:3.8px;letter-spacing:-0.15px;'
       : displayAssetCode.length > 20
-        ? 'font-size:4.8px;letter-spacing:-0.1px;'
+        ? 'font-size:4.4px;letter-spacing:-0.1px;'
         : '';
 
     if (labelSize === 'mini') {
@@ -248,21 +246,13 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           line-height: 1.12;
           word-break: break-word;
         }
-        .mini-loc-row {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 3px;
-          margin-top: 0.5px;
-        }
         .mini-loc {
           font-size: 6.5px;
           color: #64748b;
+          margin-top: 0.5px;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          min-width: 0;
-          flex: 1;
         }
       `;
       singleCardHtml = `
@@ -272,13 +262,10 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
             <div class="mini-org">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
             <div class="mini-code-row">
               <span class="mini-code" style="${miniCodeStyle}">${displayAssetCode}</span>
-              ${!isLongCode ? `<span class="mini-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>` : ''}
+              <span class="mini-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>
             </div>
             <div class="mini-title">${title}</div>
-            <div class="mini-loc-row">
-              <span class="mini-loc">📍 ${asset.location || 'ห้องแล็บพยาบาล'}</span>
-              ${isLongCode ? `<span class="mini-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>` : ''}
-            </div>
+            <div class="mini-loc">📍 ${asset.location || 'ห้องแล็บพยาบาล'}</div>
           </div>
         </div>
       `;
@@ -707,13 +694,6 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           word-break: break-word;
           margin-top: 0.5px;
         }
-        .doc-loc-row {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 2px;
-          margin-top: 0.5px;
-        }
         .doc-loc {
           font-size: 5px;
           color: #64748b;
@@ -722,8 +702,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          min-width: 0;
-          flex: 1;
+          margin-top: 0.5px;
         }
       `;
 
@@ -736,13 +715,10 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
             <div class="doc-org-text">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
             <div class="doc-code-row">
               <span class="doc-code" style="${docCodeStyle}">${displayAssetCode}</span>
-              ${!isLongCode ? `<span class="doc-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>` : ''}
+              <span class="doc-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>
             </div>
             <div class="doc-name" title="${title}">${title}</div>
-            <div class="doc-loc-row">
-              <span class="doc-loc">📍 ${asset.location || 'ห้องปฏิบัติการ'}</span>
-              ${isLongCode ? `<span class="doc-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>` : ''}
-            </div>
+            <div class="doc-loc">📍 ${asset.location || 'ห้องปฏิบัติการ'}</div>
           </div>
         </div>
       `;
@@ -1007,28 +983,19 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
                   คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์
                 </div>
                 <div className="flex items-center justify-between gap-1.5">
-                  <span className={`font-mono font-black leading-tight text-slate-900 dark:text-slate-100 whitespace-nowrap ${displayAssetCode.length > 22 ? 'text-[9px] tracking-tighter' : 'text-[10.5px]'}`}>
+                  <span className={`font-mono font-black leading-tight text-slate-900 dark:text-slate-100 whitespace-nowrap ${displayAssetCode.length > 22 ? 'text-[8px] tracking-tighter' : 'text-[10.5px]'}`}>
                     {displayAssetCode}
                   </span>
-                  {!isLongDisplayCode && (
-                    <span className="text-[9px] font-extrabold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1 py-0.2 rounded border border-teal-200 dark:border-teal-800 flex-shrink-0">
-                      {unit}ที่ {asset.sequenceNumber || 1}
-                    </span>
-                  )}
+                  <span className="text-[9px] font-extrabold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1 py-0.2 rounded border border-teal-200 dark:border-teal-800 flex-shrink-0">
+                    {unit}ที่ {asset.sequenceNumber || 1}
+                  </span>
                 </div>
                 <div className="text-[9px] font-bold text-slate-700 dark:text-slate-300 line-clamp-2 leading-tight">
                   {title}
                 </div>
-                <div className="text-[8.5px] text-slate-500 dark:text-slate-400 flex items-center justify-between gap-1">
-                  <span className="flex items-center gap-0.5 truncate min-w-0">
-                    <MapPin className="w-2.5 h-2.5 flex-shrink-0 text-teal-600" />
-                    <span className="truncate">{asset.location || 'ห้องแล็บพยาบาล'}</span>
-                  </span>
-                  {isLongDisplayCode && (
-                    <span className="text-[8.5px] font-extrabold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1 py-0.2 rounded border border-teal-200 dark:border-teal-800 flex-shrink-0">
-                      {unit}ที่ {asset.sequenceNumber || 1}
-                    </span>
-                  )}
+                <div className="text-[8.5px] text-slate-500 dark:text-slate-400 flex items-center gap-0.5 truncate">
+                  <MapPin className="w-2.5 h-2.5 flex-shrink-0 text-teal-600" />
+                  <span>{asset.location || 'ห้องแล็บพยาบาล'}</span>
                 </div>
               </div>
             </div>
@@ -1174,25 +1141,18 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
                   คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className={`font-mono font-black leading-tight text-slate-900 dark:text-slate-100 whitespace-nowrap ${displayAssetCode.length > 22 ? 'text-[9px] tracking-tighter' : 'text-[10.5px]'}`}>
+                  <span className={`font-mono font-black leading-tight text-slate-900 dark:text-slate-100 whitespace-nowrap ${displayAssetCode.length > 22 ? 'text-[8px] tracking-tighter' : 'text-[10.5px]'}`}>
                     {displayAssetCode}
                   </span>
-                  {!isLongDisplayCode && (
-                    <span className="text-[8px] font-extrabold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1 rounded border border-teal-200 dark:border-teal-800 flex-shrink-0">
-                      {unit}ที่ {asset.sequenceNumber || 1}
-                    </span>
-                  )}
+                  <span className="text-[8px] font-extrabold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1 rounded border border-teal-200 dark:border-teal-800 flex-shrink-0">
+                    {unit}ที่ {asset.sequenceNumber || 1}
+                  </span>
                 </div>
                 <div className="text-[8.5px] font-bold text-slate-700 dark:text-slate-300 line-clamp-2 leading-tight">
                   {title}
                 </div>
-                <div className="text-[8px] text-slate-500 dark:text-slate-400 flex items-center justify-between gap-1">
-                  <span className="truncate min-w-0">📍 {asset.location || 'ห้องปฏิบัติการ'}</span>
-                  {isLongDisplayCode && (
-                    <span className="text-[8px] font-extrabold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1 rounded border border-teal-200 dark:border-teal-800 flex-shrink-0">
-                      {unit}ที่ {asset.sequenceNumber || 1}
-                    </span>
-                  )}
+                <div className="text-[8px] text-slate-500 dark:text-slate-400 truncate">
+                  📍 {asset.location || 'ห้องปฏิบัติการ'}
                 </div>
               </div>
             </div>

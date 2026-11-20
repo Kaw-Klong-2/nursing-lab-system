@@ -17,6 +17,19 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-20] คืนรูปแบบแถบชื่อคณะด้านบนและคง `[เลขครุภัณฑ์] [เครื่องที่ X]` ให้อยู่บรรทัดเดียวกันทุกตำแหน่ง
+- **หมวดหมู่**: QR Code Sticker Printing, PDF & Word Export (`BatchAssetStickerModal`, `AssetQrModal`, `exportStickerPdf`, `exportStickerDocx`)
+- **สิ่งที่ดำเนินการ**:
+  - **คืนโครงสร้างแถบหัวคณะและแถวล่างให้เหมือนเดิม 100%**:
+    - นำ `compact-header-right` และการย้ายป้ายลำดับ (`เครื่องที่ X`) ไปใส่แถบชื่อคณะหรือแถวสถานที่เก็บออกทั้งหมดใน [`src/components/qrcode/BatchAssetStickerModal.tsx`](file:///d:/LAB-system/src/components/qrcode/BatchAssetStickerModal.tsx) และ [`src/components/qrcode/AssetQrModal.tsx`](file:///d:/LAB-system/src/components/qrcode/AssetQrModal.tsx)
+    - คง `[เลขครุภัณฑ์]` และ `[เครื่องที่ X]` ให้อยู่คู่กันในแถวรหัสของตัวเองเสมอ โดยปรับเฉพาะขนาดฟอนต์ (`adaptive font-size` และ `letter-spacing`) ให้พอดีกับ 1 บรรทัด
+  - **PDF และ Word ตราช้าง A7 ([`src/lib/exportStickerPdf.ts`](file:///d:/LAB-system/src/lib/exportStickerPdf.ts), [`src/lib/exportStickerDocx.ts`](file:///d:/LAB-system/src/lib/exportStickerDocx.ts))**:
+    - คืนแถวชื่อคณะ (`y = 74`) และแถวสถานที่/วันหมดอายุให้เหมือนเดิมทั้งหมด และคง `[codeText] [badgeText]` ให้อยู่แถวเดียวกันในแนวระนาบโดยย่อฟอนต์ของ `codeText` อัตโนมัติ (ขั้นต่ำ `12px` บน Canvas และ `size: 6–7` ใน Word)
+- **ไฟล์สำคัญที่แก้ไข**:
+  - [`src/components/qrcode/BatchAssetStickerModal.tsx`](file:///d:/LAB-system/src/components/qrcode/BatchAssetStickerModal.tsx), [`src/components/qrcode/AssetQrModal.tsx`](file:///d:/LAB-system/src/components/qrcode/AssetQrModal.tsx)
+  - [`src/lib/exportStickerPdf.ts`](file:///d:/LAB-system/src/lib/exportStickerPdf.ts), [`src/lib/exportStickerDocx.ts`](file:///d:/LAB-system/src/lib/exportStickerDocx.ts)
+- **ผลตรวจมาตรฐานบรรณารักษ์**: `npx tsc --noEmit`, `npm run build` และ `node scripts/librarian-audit.mjs` ผ่าน 100%
+
 ### [2026-11-19] ปรับเลขครุภัณฑ์ราชการแบบยาวให้อยู่บรรทัดเดียวกันทุกจุด (Single-Line without Ellipsis)
 - **หมวดหมู่**: QR Code Sticker Printing, PDF & Word Export (`BatchAssetStickerModal`, `AssetQrModal`, `exportStickerPdf`, `exportStickerDocx`)
 - **สิ่งที่ดำเนินการ**:

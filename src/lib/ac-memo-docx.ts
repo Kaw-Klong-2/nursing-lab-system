@@ -238,8 +238,10 @@ export async function generateAcMemoDocxBlob(
   const periodFormatted = applyDigits(periodText);
   const subject1 = applyDigits(config.subjectLine1);
   const recipient1 = applyDigits(config.recipient1);
-  const p1 = applyDigits(config.paragraph1);
-  const p2 = `${applyDigits(config.paragraph2Prefix.trimEnd())} ${periodFormatted} ${applyDigits(config.paragraph2Suffix.trimStart())}`;
+  const p1 = applyDigits(config.paragraph1).replace(/\s+/g, ' ').trim();
+  const p2 = `${applyDigits(config.paragraph2Prefix).trimEnd()} ${periodFormatted} ${applyDigits(config.paragraph2Suffix).trimStart()}`
+    .replace(/\s+/g, ' ')
+    .trim();
   const closing = applyDigits(config.closingText);
 
   const noBorder = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
@@ -397,7 +399,7 @@ export async function generateAcMemoDocxBlob(
               }),
               new Paragraph({
                 indent: { left: 560 },
-                spacing: { before: 0, after: 280, line: 240 },
+                spacing: { before: 0, after: 360, line: 240 },
                 children: [makeRun(applyDigits(config.signer2Note))],
               }),
               new Paragraph({
@@ -432,7 +434,7 @@ export async function generateAcMemoDocxBlob(
               }),
               new Paragraph({
                 indent: { left: 560 },
-                spacing: { before: 0, after: 520, line: 240 },
+                spacing: { before: 0, after: 600, line: 240 },
                 children: [makeRun(applyDigits(config.signer3Note))],
               }),
               new Paragraph({
@@ -449,7 +451,7 @@ export async function generateAcMemoDocxBlob(
           }),
         ],
       }),
-      // Row 2: Step 4 spanning 2 columns
+      // Row 2: Step 4 spanning 2 columns (Dean signature positioned on left half beneath Step 2)
       new TableRow({
         children: [
           new TableCell({
@@ -472,11 +474,13 @@ export async function generateAcMemoDocxBlob(
               }),
               new Paragraph({
                 alignment: AlignmentType.CENTER,
+                indent: { right: 4200 },
                 spacing: { before: 80, after: 0, line: 240 },
                 children: [makeRun(applyDigits(config.signer4Name))],
               }),
               new Paragraph({
                 alignment: AlignmentType.CENTER,
+                indent: { right: 4200 },
                 spacing: { before: 0, after: 20, line: 240 },
                 children: [makeRun(applyDigits(config.signer4Title))],
               }),
@@ -540,15 +544,7 @@ export async function generateAcMemoDocxBlob(
           }),
           new Paragraph({
             indent: { left: 660 },
-            spacing: { before: 0, after: 100, line: 240 },
-            border: {
-              bottom: {
-                color: '000000',
-                space: 4,
-                style: BorderStyle.SINGLE,
-                size: 6,
-              },
-            },
+            spacing: { before: 0, after: 180, line: 240 },
             children: [makeRun(`ประจำเดือน ${periodFormatted}`)],
           }),
           new Paragraph({
@@ -559,20 +555,20 @@ export async function generateAcMemoDocxBlob(
             ],
           }),
           new Paragraph({
-            alignment: AlignmentType.THAI_DISTRIBUTE,
-            indent: { firstLine: 720 },
-            spacing: { before: 0, after: 80, line: 250 },
+            alignment: AlignmentType.LEFT,
+            indent: { firstLine: 720, right: 96 },
+            spacing: { before: 0, after: 60, line: 240 },
             children: [makeRun(p1)],
           }),
           new Paragraph({
-            alignment: AlignmentType.THAI_DISTRIBUTE,
-            indent: { firstLine: 720 },
-            spacing: { before: 0, after: 80, line: 250 },
+            alignment: AlignmentType.LEFT,
+            indent: { firstLine: 720, right: 96 },
+            spacing: { before: 0, after: 60, line: 240 },
             children: [makeRun(p2)],
           }),
           new Paragraph({
             indent: { firstLine: 720 },
-            spacing: { before: 40, after: 140, line: 240 },
+            spacing: { before: 160, after: 120, line: 240 },
             children: [makeRun(closing)],
           }),
           signatureTable,
@@ -692,21 +688,21 @@ export function buildAcMemoPrintHtml(
     }
     .subject-line2 {
       padding-left: 36px;
-      padding-bottom: 5px;
-      margin-bottom: 8px;
-      border-bottom: 1px solid #000;
+      margin-bottom: 10px;
     }
     .memo-recipient {
       margin-bottom: 6px;
     }
     .memo-paragraph {
-      text-align: justify;
-      text-indent: 38px;
-      margin: 0 0 6px 0;
+      text-align: left;
+      word-break: normal;
+      overflow-wrap: break-word;
+      text-indent: 42px;
+      margin: 0 0 4px 0;
     }
     .memo-closing {
-      text-indent: 38px;
-      margin: 4px 0 8px 0;
+      text-indent: 42px;
+      margin: 10px 0 8px 0;
     }
     .sig-grid {
       width: 100%;
@@ -729,6 +725,13 @@ export function buildAcMemoPrintHtml(
       text-align: center;
       margin-top: 34px;
       line-height: 1.32;
+    }
+    .sig-step4-block {
+      width: 47%;
+      text-align: center;
+      margin-top: 34px;
+      line-height: 1.32;
+      white-space: nowrap;
     }
     .sig-indent {
       padding-left: 26px;
@@ -758,8 +761,12 @@ export function buildAcMemoPrintHtml(
     <div class="memo-recipient">
       <span class="meta-label">${step1Label}</span>&nbsp;&nbsp;${d(config.recipient1)}
     </div>
-    <p class="memo-paragraph">${d(config.paragraph1)}</p>
-    <p class="memo-paragraph">${d(config.paragraph2Prefix.trimEnd())} ${periodFormatted} ${d(config.paragraph2Suffix.trimStart())}</p>
+    <p class="memo-paragraph">${escapeHtml(formatDigits(config.paragraph1, config.useThaiDigits).replace(/\s+/g, ' ').trim())}</p>
+    <p class="memo-paragraph">${escapeHtml(
+      `${formatDigits(config.paragraph2Prefix, config.useThaiDigits).trimEnd()} ${formatDigits(periodText, config.useThaiDigits)} ${formatDigits(config.paragraph2Suffix, config.useThaiDigits).trimStart()}`
+        .replace(/\s+/g, ' ')
+        .trim()
+    )}</p>
     <p class="memo-closing">${d(config.closingText)}</p>
 
     <table class="sig-grid">
@@ -790,7 +797,8 @@ export function buildAcMemoPrintHtml(
           <td class="sig-box-cell">
             <div><span class="meta-label">${step3Label}</span>&nbsp;&nbsp;${d(config.signer3Recipient)}</div>
             <div class="sig-indent">${d(config.signer3Note)}</div>
-            <div class="sig-name-block" style="margin-top: 52px;">
+            <div class="sig-indent">&nbsp;</div>
+            <div class="sig-name-block">
               <div>${d(config.signer3Name)}</div>
               <div>${d(config.signer3Title)}</div>
             </div>
@@ -799,7 +807,7 @@ export function buildAcMemoPrintHtml(
         <tr>
           <td colspan="2" class="sig-box-cell">
             <div><span class="meta-label">${step4Label} ${d(config.signer4Action)}</span></div>
-            <div class="sig-name-block" style="margin-top: 30px;">
+            <div class="sig-step4-block">
               <div>${d(config.signer4Name)}</div>
               <div>${d(config.signer4Title)}</div>
             </div>

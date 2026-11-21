@@ -958,7 +958,7 @@ export default function AcMemoModal({
                 <div>
                   <span className="font-bold">เรื่อง</span>&nbsp;&nbsp;{d(config.subjectLine1)}
                 </div>
-                <div className="pl-9 pb-1.5 mb-2.5 border-b border-black">
+                <div className="pl-9 mb-3">
                   ประจำเดือน {d(periodText)}
                 </div>
               </div>
@@ -967,12 +967,13 @@ export default function AcMemoModal({
               <div className="mb-1.5">
                 <span className="font-bold">{d('๑. เรียน')}</span>&nbsp;&nbsp;{d(config.recipient1)}
               </div>
-              <p className="text-justify indent-8 mb-1.5">{d(config.paragraph1)}</p>
-              <p className="text-justify indent-8 mb-1.5">
-                {d(config.paragraph2Prefix.trimEnd())} {d(periodText)}{' '}
-                {d(config.paragraph2Suffix.trimStart())}
+              <p className="text-left indent-9 mb-1">{d(config.paragraph1).replace(/\s+/g, ' ').trim()}</p>
+              <p className="text-left indent-9 mb-1">
+                {`${d(config.paragraph2Prefix).trimEnd()} ${d(periodText)} ${d(config.paragraph2Suffix).trimStart()}`
+                  .replace(/\s+/g, ' ')
+                  .trim()}
               </p>
-              <p className="indent-8 mb-4">{d(config.closingText)}</p>
+              <p className="indent-9 mt-2.5 mb-3">{d(config.closingText)}</p>
 
               {/* 4-Step Signatory Table */}
               <table className="w-full border-collapse table-fixed">
@@ -1015,7 +1016,8 @@ export default function AcMemoModal({
                         {d(config.signer3Recipient)}
                       </div>
                       <div className="pl-6">{d(config.signer3Note)}</div>
-                      <div className="mt-12 text-center">
+                      <div className="pl-6 select-none">&nbsp;</div>
+                      <div className="mt-7 text-center">
                         <div>{d(config.signer3Name)}</div>
                         <div>{d(config.signer3Title)}</div>
                       </div>
@@ -1031,7 +1033,7 @@ export default function AcMemoModal({
                       <div className="font-bold">
                         {d('๔.')} {d(config.signer4Action)}
                       </div>
-                      <div className="mt-6 text-center">
+                      <div className="mt-7 w-[47%] text-center whitespace-nowrap">
                         <div>{d(config.signer4Name)}</div>
                         <div>{d(config.signer4Title)}</div>
                       </div>

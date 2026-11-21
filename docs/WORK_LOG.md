@@ -17,6 +17,17 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-21] เพิ่มระบบออกบันทึกข้อความรายงานการเปิด-ปิดแอร์ตามแบบฟอร์ม มก. (`v2.8.0`)
+- **หมวดหมู่**: Air Conditioning Reports, Official KU Memo Export (`v2.8.0`)
+- **สิ่งที่ดำเนินการ**:
+  - **Version Bump (`v2.7.2` -> `v2.8.0`)**: รัน `node scripts/version-bump.mjs minor` ซิงก์ `package.json` และ `src/lib/version.ts` เป็น `v2.8.0`
+  - **ตราประจำมหาวิทยาลัยเกษตรศาสตร์**: สกัดตรา มก. (`ku-seal.png`) จากไฟล์แม่แบบจริงเก็บไว้ที่ `public/images/ku-seal.png`
+  - **ไลบรารีสร้างบันทึกข้อความ**: สร้าง `src/lib/ac-memo-docx.ts` (`TH SarabunPSK`, เลขไทย `๐–๙`, หัวเรื่อง ๒๙ pt, เนื้อหา ๑๖ pt, ตารางลงนาม ๔ ขั้นตอน, `escapeHtml` ครบทุกค่า) รองรับทั้งดาวน์โหลด Word (`.docx`), พิมพ์บันทึกข้อความ A4 (PDF) และพิมพ์ตารางแนบหลายเดือนในชุดเดียว
+  - **API จัดเก็บค่าเริ่มต้นคณะ**: เพิ่ม `src/app/api/ac-logs/memo-config/route.ts` (`GET`/`PUT` เฉพาะ `ADMIN`/`OFFICER` ด้วย session cookie) บันทึกค่าตั้งต้นส่วนงาน เนื้อหา และผู้ลงนามไว้ใน `ActivityLog` โดยไม่ต้องแก้ schema ฐานข้อมูล
+  - **หน้าต่างสร้างบันทึกข้อความแบบ Live Preview**: สร้าง `src/components/ac/AcMemoModal.tsx` (เลือกช่วงรายไตรมาส/เดือนเดียว/กำหนดเอง, เว้นช่องวันที่หรือระบุวันครบ, สลับกรอบตารางลงนาม, Live A4 Preview) และเชื่อมปุ่ม "บันทึกข้อความ" ใน `src/app/air-conditioning/page.tsx`
+- **ไฟล์สำคัญที่แก้ไข/เพิ่ม**: `package.json`, `src/lib/version.ts`, `public/images/ku-seal.png`, `src/lib/ac-memo-docx.ts`, `src/app/api/ac-logs/memo-config/route.ts`, `src/components/ac/AcMemoModal.tsx`, `src/app/air-conditioning/page.tsx`, `LIBRARY_CATALOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ผ่าน 100% (`v2.8.0` ซิงก์ตรง, ไม่พบคำต้องห้าม, ไม่พบ UTF-8 Mojibake, `npx tsc --noEmit` & `npm run build` ผ่านสมบูรณ์)
+
 ### [2026-11-21] เก็บตกบั๊กต้นทุนคืนวัสดุย่อย, Role Guard ยืม-คืน, จองห้องแบบกลุ่ม และแจ้งเตือน 409 (`v2.7.2`)
 - **หมวดหมู่**: Data Integrity, Authorization, Transactions & UX (`v2.7.2`)
 - **สิ่งที่ดำเนินการ**:

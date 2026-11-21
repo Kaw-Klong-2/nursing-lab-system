@@ -25,11 +25,13 @@ import {
   Trash2,
   X,
   Check,
+  FileText,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useAuth } from '@/lib/auth-context';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { escapeHtml } from '@/lib/html-escape';
+import AcMemoModal from '@/components/ac/AcMemoModal';
 
 const THAI_MONTHS = [
   'มกราคม',
@@ -94,6 +96,9 @@ export default function AirConditioningPage() {
 
   // Quick Backdated Log Modal
   const [showBackdateModal, setShowBackdateModal] = useState(false);
+
+  // Official KU Memo Modal State
+  const [showMemoModal, setShowMemoModal] = useState(false);
 
   // Form input state for log modal
   const [formOpenTime, setFormOpenTime] = useState('10:00');
@@ -1287,17 +1292,29 @@ export default function AirConditioningPage() {
             <span>พิมพ์รายงาน (A4)</span>
           </button>
 
-          {/* Export Excel (Only Officer and Admin) */}
+          {/* Export Excel & Official KU Memo (Only Officer and Admin) */}
           {isOfficer && (
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition cursor-pointer"
-              title="ดาวน์โหลดไฟล์ Excel พร้อมชีตจัดหน้า A4 สำหรับพิมพ์"
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span className="hidden sm:inline">ส่งออก</span> Excel (พร้อมพิมพ์ A4)
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setShowMemoModal(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-md shadow-teal-600/20 transition cursor-pointer"
+                title="ออกบันทึกข้อความรายงานการเปิด-ปิดแอร์ (Word .docx / พิมพ์ A4 / ตารางแนบ)"
+              >
+                <FileText className="w-4 h-4" />
+                <span>บันทึกข้อความ</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition cursor-pointer"
+                title="ดาวน์โหลดไฟล์ Excel พร้อมชีตจัดหน้า A4 สำหรับพิมพ์"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span className="hidden sm:inline">ส่งออก</span> Excel (พร้อมพิมพ์ A4)
+              </button>
+            </>
           )}
 
           {/* Refresh Button */}
@@ -2176,6 +2193,15 @@ export default function AirConditioningPage() {
           </div>
         </div>
       )}
+
+      {/* Official KU AC Operation Memo Modal */}
+      <AcMemoModal
+        isOpen={showMemoModal}
+        onClose={() => setShowMemoModal(false)}
+        currentMonth={currentMonth}
+        currentYear={currentYear}
+        selectedRoomIds={selectedRoomIds}
+      />
     </div>
   );
 }

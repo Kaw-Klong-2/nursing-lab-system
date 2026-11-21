@@ -122,7 +122,7 @@ export default function BorrowSlipVerificationPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'เกิดข้อผิดพลาดในการตรวจรับคืน');
+        throw new Error(data.message || data.error || 'เกิดข้อผิดพลาดในการตรวจรับคืน');
       }
 
       setShowQuickReturnModal(false);

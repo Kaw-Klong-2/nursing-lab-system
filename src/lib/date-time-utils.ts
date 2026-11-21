@@ -178,3 +178,30 @@ export function formatOverdueDuration(
     shortLabel,
   };
 }
+
+export const TIME_HH_MM_REGEX = /^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/;
+export const DATE_YYYY_MM_DD_REGEX = /^(\d{4})-(\d{2})-(\d{2})/;
+
+export function parseTimeToMinutes(timeStr: unknown): { minutes: number; normalized: string } | null {
+  if (typeof timeStr !== 'string') return null;
+  const match = timeStr.trim().match(TIME_HH_MM_REGEX);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const mins = Number(match[2]);
+  return {
+    minutes: hours * 60 + mins,
+    normalized: `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`,
+  };
+}
+
+export function isTimeRangeOverlapping(
+  startA: number,
+  endA: number,
+  startBStr: string,
+  endBStr: string
+): boolean {
+  const bStart = parseTimeToMinutes(startBStr);
+  const bEnd = parseTimeToMinutes(endBStr);
+  if (!bStart || !bEnd) return false;
+  return startA < bEnd.minutes && endA > bStart.minutes;
+}

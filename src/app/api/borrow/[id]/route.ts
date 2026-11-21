@@ -27,7 +27,6 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const body = await req.json();
     const {
       action,
-      userId,
       reason,
       assignedAssets,
       returnCondition,
@@ -70,7 +69,31 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json(data);
     };
 
+    const requireActorWithRoles = async (
+      allowedRoles: string[],
+      unauthorizedMsg: string,
+      forbiddenMsg: string
+    ) => {
+      if (!effectiveUserId) {
+        return { errorRes: NextResponse.json({ error: unauthorizedMsg }, { status: 401 }) };
+      }
+      const actor = await prisma.user.findUnique({
+        where: { id: effectiveUserId },
+        select: { id: true, role: true, status: true },
+      });
+      if (!actor || (actor.status && actor.status !== 'ACTIVE') || !allowedRoles.includes(actor.role)) {
+        return { errorRes: NextResponse.json({ error: forbiddenMsg }, { status: 403 }) };
+      }
+      return { actor };
+    };
+
     if (action === 'ACKNOWLEDGE') {
+      const authCheck = await requireActorWithRoles(
+        ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER'],
+        'กรุณาเข้าสู่ระบบก่อนดำเนินการรับทราบรายการ',
+        'ท่านไม่มีสิทธิ์กดรับทราบคำขอยืมครุภัณฑ์'
+      );
+      if (authCheck.errorRes) return authCheck.errorRes;
       // Preserve genuine teacher/instructor name if present; do not overwrite with staff/admin username
       const existingTeacher =
         borrow.course?.instructorName ||
@@ -290,6 +313,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return respondUpdated(updated);
     }
     if (action === 'UPDATE_DATES') {
+      const authCheck = await requireActorWithRoles(
+        ['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER'],
+        'กรุณาเข้าสู่ระบบก่อนแก้ไขกำหนดการ',
+        'ท่านไม่มีสิทธิ์แก้ไขกำหนดการยืม-คืนครุภัณฑ์'
+      );
+      if (authCheck.errorRes) return authCheck.errorRes;
+
       const { borrowDate, expectedReturnDate } = body;
       const dataToUpdate: any = {};
       if (borrowDate) dataToUpdate.borrowDate = new Date(borrowDate);
@@ -303,6 +333,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     if (action === 'CHECKOUT') {
+      const authCheck = await requireActorWithRoles(
+        ['ADMIN', 'OFFICER', 'APPROVER'],
+        'กรุณาเข้าสู่ระบบก่อนดำเนินการส่งมอบครุภัณฑ์',
+        'สงวนสิทธิ์เฉพาะเจ้าหน้าที่ห้องปฏิบัติการและผู้ดูแลระบบในการส่งมอบครุภัณฑ์'
+      );
+      if (authCheck.errorRes) return authCheck.errorRes;
+      const actorUserId = effectiveUserId!;
       const { updated, freshBorrow } = await prisma.$transaction(
         async (tx) => {
           const currentBorrow = await tx.borrowRequest.findUnique({
@@ -578,7 +615,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                         totalCost: cost,
                         courseId: linkedReq.courseId,
                         referenceNumber: linkedReq.requestNumber,
-                        createdById: userId,
+                        createdById: actorUserId,
                         note: checkoutNote
                           ? `จ่ายตามคำขอเบิก-ยืม ${currentBorrow.requestNumber} (วิชา ${linkedReq.course?.code || ''}) | หมายเหตุ: ${String(checkoutNote).trim()}`
                           : `จ่ายตามคำขอเบิก-ยืม ${currentBorrow.requestNumber} (วิชา ${linkedReq.course?.code || ''})`,
@@ -688,7 +725,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                           totalCost: costForPacks,
                           courseId: linkedReq.courseId,
                           referenceNumber: linkedReq.requestNumber,
-                          createdById: userId,
+                          createdById: actorUserId,
                           note: checkoutNote
                             ? `จ่ายแพ็คเต็ม (Option A: เบิกย่อย ${deductPacks * lotPackSize} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'}) ตามคำขอเบิก-ยืม ${currentBorrow.requestNumber} | ${String(checkoutNote).trim()}`
                             : `จ่ายแพ็คเต็ม (Option A: เบิกย่อย ${deductPacks * lotPackSize} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'}) ตามคำขอเบิก-ยืม ${currentBorrow.requestNumber}`,
@@ -743,7 +780,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                           totalCost: costForLoose,
                           courseId: linkedReq.courseId,
                           referenceNumber: linkedReq.requestNumber,
-                          createdById: userId,
+                          createdById: actorUserId,
                           note: checkoutNote
                             ? `จ่ายจากเศษแพ็คเปิด ${takeFromOpen} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'} ตามคำขอเบิก-ยืม ${currentBorrow.requestNumber} | ${String(checkoutNote).trim()}`
                             : `จ่ายจากเศษแพ็คเปิด ${takeFromOpen} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'} ตามคำขอเบิก-ยืม ${currentBorrow.requestNumber}`,
@@ -816,7 +853,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                             totalCost: costForDispensedPieces,
                             courseId: linkedReq.courseId,
                             referenceNumber: linkedReq.requestNumber,
-                            createdById: userId,
+                            createdById: actorUserId,
                             note: checkoutNote
                               ? `เปิดแพ็คใหม่ ${packsToOpen} แพ็ค → จ่าย ${piecesToDeduct} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'} (เก็บเศษ ${leftoverPieces} เข้าคลัง) ตามคำขอเบิก-ยืม ${currentBorrow.requestNumber} | ${String(checkoutNote).trim()}`
                               : `เปิดแพ็คใหม่ ${packsToOpen} แพ็ค → จ่าย ${piecesToDeduct} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'} (เก็บเศษ ${leftoverPieces} เข้าคลัง) ตามคำขอเบิก-ยืม ${currentBorrow.requestNumber}`,
@@ -849,7 +886,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                 where: { id: linkedReq.id },
                 data: {
                   status: 'DISPENSED',
-                  officerId: userId,
+                  officerId: actorUserId,
                   dispensedAt: new Date(),
                   dispenseNote: checkoutNote ? String(checkoutNote).trim() : null,
                   totalCost: reqActualTotalCost,
@@ -862,7 +899,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             where: { id },
             data: {
               status: 'BORROWED',
-              officerId: userId,
+              officerId: actorUserId,
               checkedOutAt: new Date(),
               checkoutNote: checkoutNote ? String(checkoutNote).trim() : null,
             },
@@ -885,7 +922,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       }).catch(() => {});
 
       logActivity({
-        userId,
+        userId: actorUserId,
         action: 'CHECKOUT',
         entityType: 'BORROW',
         entityId: freshBorrow.id,
@@ -897,6 +934,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     if (action === 'RETURN') {
+      const authCheck = await requireActorWithRoles(
+        ['ADMIN', 'OFFICER', 'APPROVER'],
+        'กรุณาเข้าสู่ระบบก่อนดำเนินการตรวจรับคืนครุภัณฑ์',
+        'สงวนสิทธิ์เฉพาะเจ้าหน้าที่ห้องปฏิบัติการและผู้ดูแลระบบในการตรวจรับคืนครุภัณฑ์'
+      );
+      if (authCheck.errorRes) return authCheck.errorRes;
+      const actorUserId = effectiveUserId!;
+
       const { itemReturns, requisitionReturns } = body;
 
       const { updated, hasAnyDamaged, freshBorrow } = await prisma.$transaction(
@@ -959,7 +1004,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                       issue: itemRet.note || `ชำรุดจากการยืมใช้งานตามคำขอ ${currentBorrow.requestNumber}`,
                       sentDate: new Date(),
                       status: 'UNDER_REPAIR',
-                      handledById: userId || null,
+                      handledById: actorUserId,
                       technicianNote: `ตรวจพบชำรุดขณะตรวจรับคืนครุภัณฑ์ (ผู้ยืม: ${formatUserName(currentBorrow.user) || 'ไม่ระบุ'})`,
                     },
                   });
@@ -998,7 +1043,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                       issue: returnNote || `ชำรุดจากการยืมใช้งานตามคำขอ ${currentBorrow.requestNumber}`,
                       sentDate: new Date(),
                       status: 'UNDER_REPAIR',
-                      handledById: userId || null,
+                      handledById: actorUserId,
                       technicianNote: `ตรวจพบชำรุดขณะตรวจรับคืนครุภัณฑ์ (ผู้ยืม: ${formatUserName(currentBorrow.user) || 'ไม่ระบุ'})`,
                     },
                   });
@@ -1042,16 +1087,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                 const itemRatio = Number(reqItem.item.conversionRatio) > 0 ? Number(reqItem.item.conversionRatio) : 1;
                 const isSub = reqItem.isSubUnit === true || rRet.isSubUnit === true;
 
-                const lineDeduct = isSub && itemRatio > 1
-                  ? actualRet * (reqItem.unitCost / itemRatio)
-                  : actualRet * reqItem.unitCost;
+                // reqItem.unitCost is already stored per dispensed unit (whole pack if !isSub, sub-unit piece if isSub)
+                const unitPrice = Number(reqItem.unitCost) || 0;
+                const lineDeduct = actualRet * unitPrice;
 
                 const newQtyReturned = (reqItem.quantityReturned || 0) + actualRet;
                 const remainingDisp = Math.max(0, reqItem.quantityDispensed - newQtyReturned);
-                const newLineTotal = Math.max(
-                  0,
-                  isSub && itemRatio > 1 ? remainingDisp * (reqItem.unitCost / itemRatio) : remainingDisp * reqItem.unitCost
-                );
+                const newLineTotal = Math.max(0, remainingDisp * unitPrice);
                 const updatedReturnNote = rNote
                   ? (reqItem.returnNote ? `${reqItem.returnNote} | ${rNote}` : rNote)
                   : reqItem.returnNote;
@@ -1114,11 +1156,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                         lotId: targetLot.id,
                         type: 'RETURN_RESTOCK',
                         quantity: actualRet,
-                        unitCost: isSub && itemRatio > 1 ? reqItem.unitCost / itemRatio : reqItem.unitCost,
+                        unitCost: unitPrice,
                         totalCost: lineDeduct,
                         courseId: linkedReq.courseId,
                         referenceNumber: linkedReq.requestNumber,
-                        createdById: userId || currentBorrow.userId,
+                        createdById: actorUserId,
                         note: `รับคืนวัสดุเหลือใช้พร้อมอุปกรณ์ตามคำขอยืม ${currentBorrow.requestNumber} [${reqItem.item.name} x ${actualRet}]${rNote ? ` - ${rNote}` : ''}`,
                       },
                     });
@@ -1142,7 +1184,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             data: {
               status: damagedFound ? 'RETURNED_WITH_ISSUE' : 'RETURNED_COMPLETE',
               actualReturnDate: new Date(),
-              officerId: userId,
+              officerId: actorUserId,
               checkedInAt: new Date(),
               returnNote: returnNote || null,
             },
@@ -1168,7 +1210,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       }).catch(() => {});
 
       logActivity({
-        userId,
+        userId: actorUserId,
         action: 'RETURN',
         entityType: 'BORROW',
         entityId: freshBorrow.id,

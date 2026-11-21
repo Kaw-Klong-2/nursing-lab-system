@@ -17,6 +17,23 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-21] เก็บตกบั๊กต้นทุนคืนวัสดุย่อย, Role Guard ยืม-คืน, จองห้องแบบกลุ่ม และแจ้งเตือน 409 (`v2.7.2`)
+- **หมวดหมู่**: Data Integrity, Authorization, Transactions & UX (`v2.7.2`)
+- **สิ่งที่ดำเนินการ**:
+  - **Version Bump (`v2.7.1` -> `v2.7.2`)**: รัน `node scripts/version-bump.mjs patch` ซิงก์ `package.json` และ `src/lib/version.ts` เป็น `v2.7.2`
+  - **แก้บั๊กหาร `itemRatio` ซ้ำ 2 รอบตอนรับคืนวัสดุเบิกย่อย (`isSubUnit = true`)**:
+    - `src/app/api/borrow/[id]/route.ts` (`RETURN` -> `requisitionReturns`) และ `src/app/api/requisitions/return/route.ts`: ใช้ `reqItem.unitCost` ตรง ๆ (เนื่องจากบันทึกเป็นต้นทุนต่อหน่วยที่จ่ายจริงไว้แล้วตั้งแต่ตอนจ่ายของ) แทนการหาร `itemRatio` ซ้ำ, พร้อมอัปเดตสถานะในหน่วยความจำและดึง `StockLot` ล่าสุดใน transaction
+  - **บังคับตรวจสิทธิ์จาก Signed Session Cookie**:
+    - `src/app/api/borrow/[id]/route.ts`: เพิ่ม `requireActorWithRoles` ตรวจบทบาทและสถานะผู้ใช้ใน `ACKNOWLEDGE`, `UPDATE_DATES` (`ADMIN`/`OFFICER`/`APPROVER`/`TEACHER`) และ `CHECKOUT`, `RETURN` (`ADMIN`/`OFFICER`/`APPROVER`) โดยใช้ `effectiveUserId` แทน `body.userId` ที่ปลอมได้
+    - `src/app/api/requisitions/return/route.ts`: บังคับตรวจ `getSessionFromRequest(req)` และบทบาท `ADMIN`/`OFFICER`/`APPROVER`
+  - **ครอบ `$transaction` และ Time Validation ให้การจองห้องแบบกลุ่ม**:
+    - `src/lib/date-time-utils.ts`: รวม `TIME_HH_MM_REGEX`, `DATE_YYYY_MM_DD_REGEX`, `parseTimeToMinutes` (รองรับ `HH:MM` และ `HH:MM:SS`) และ `isTimeRangeOverlapping` เป็น helper กลางสำหรับทั้ง `room-bookings/route.ts` และ `room-bookings/batch/route.ts`
+    - `src/app/api/room-bookings/batch/route.ts`: ใช้ session cookie แทน `body.userId`, ตรวจสอบเวลาและวันที่ด้วย helper กลาง, และครอบการตรวจชนตาราง + สร้าง `bookingNumber` + `roomBooking.create` ด้วย `prisma.$transaction` พร้อม retry สูงสุด 3 รอบเมื่อชน `P2002`
+  - **ปรับข้อความแจ้งเตือน `409 CONCURRENCY_CONFLICT` ฝั่งหน้าเว็บ**:
+    - `src/app/borrow/page.tsx` และ `src/app/verify/borrow/[code]/page.tsx`: ใช้ `message || error` เพื่อแสดงข้อความภาษาไทยที่ชัดเจนเมื่อเกิดข้อมูลชนกันพร้อมกัน
+- **ไฟล์สำคัญที่แก้ไข**: `package.json`, `src/lib/version.ts`, `src/lib/date-time-utils.ts`, `src/app/api/borrow/[id]/route.ts`, `src/app/api/requisitions/return/route.ts`, `src/app/api/room-bookings/route.ts`, `src/app/api/room-bookings/batch/route.ts`, `src/app/borrow/page.tsx`, `src/app/verify/borrow/[code]/page.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ผ่าน 100% (`v2.7.2` ซิงก์ตรง, ไม่พบคำต้องห้าม, ไม่พบ UTF-8 Mojibake, `npx tsc --noEmit` & `npm run build` ผ่านสมบูรณ์)
+
 ### [2026-11-21] ปรับเลขเวอร์ชันเป็น v2.7.1 + ดำเนินการแก้ไขระยะที่ 2 (Data Integrity, Transactions, Privacy & Error Sanitization)
 - **หมวดหมู่**: Data Integrity, Database Transactions, Concurrency Control, Privacy, CSRF & Error Handling (`v2.7.1`)
 - **สิ่งที่ดำเนินการ**:

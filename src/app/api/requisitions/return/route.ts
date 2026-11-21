@@ -2,14 +2,36 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
 import { logActivity } from '@/lib/activity-log';
+import { formatUserName } from '@/lib/user-utils';
+import { getSessionFromRequest } from '@/lib/session';
 
 class ReturnValidationError extends Error {}
-import { formatUserName } from '@/lib/user-utils';
 
 export async function POST(req: Request) {
   try {
+    const session = await getSessionFromRequest(req);
+    const effectiveOperatorId = session?.uid;
+    if (!effectiveOperatorId) {
+      return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบก่อนดำเนินการรับคืนวัสดุสิ้นเปลือง' }, { status: 401 });
+    }
+
+    const operator = await prisma.user.findUnique({
+      where: { id: effectiveOperatorId },
+      select: { id: true, role: true, status: true, name: true },
+    });
+    if (
+      !operator ||
+      (operator.status && operator.status !== 'ACTIVE') ||
+      !['ADMIN', 'OFFICER', 'APPROVER'].includes(operator.role)
+    ) {
+      return NextResponse.json(
+        { error: 'สงวนสิทธิ์เฉพาะเจ้าหน้าที่ห้องปฏิบัติการและผู้ดูแลระบบเท่านั้น' },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
-    const { requisitionId, operatorId, returns, generalNote } = body;
+    const { requisitionId, returns, generalNote } = body;
 
     if (!requisitionId) {
       return NextResponse.json({ error: 'กรุณาระบุรหัสคำขอเบิกพัสดุ' }, { status: 400 });
@@ -17,17 +39,6 @@ export async function POST(req: Request) {
 
     if (!Array.isArray(returns) || returns.length === 0) {
       return NextResponse.json({ error: 'กรุณาระบุรายการวัสดุสิ้นเปลืองที่ต้องการส่งคืน' }, { status: 400 });
-    }
-
-    // ตรวจสอบสิทธิ์เจ้าหน้าที่ผู้ทำรายการ
-    if (operatorId) {
-      const operator = await prisma.user.findUnique({
-        where: { id: operatorId },
-        select: { id: true, role: true, name: true },
-      });
-      if (operator && operator.role !== 'ADMIN' && operator.role !== 'OFFICER') {
-        return NextResponse.json({ error: 'สงวนสิทธิ์เฉพาะเจ้าหน้าที่ห้องปฏิบัติการและผู้ดูแลระบบเท่านั้น' }, { status: 403 });
-      }
     }
 
     // ดึงข้อมูลคำขอเบิกพัสดุ
@@ -38,14 +49,7 @@ export async function POST(req: Request) {
         course: true,
         items: {
           include: {
-            item: {
-              include: {
-                stockLots: {
-                  where: { quantityRemaining: { gte: 0 } },
-                  orderBy: [{ expiryDate: 'desc' }, { receivedDate: 'desc' }, { createdAt: 'desc' }],
-                },
-              },
-            },
+            item: true,
           },
         },
       },
@@ -86,16 +90,9 @@ export async function POST(req: Request) {
         const itemRatio = Number(reqItem.item.conversionRatio) > 0 ? Number(reqItem.item.conversionRatio) : 1;
         const isSub = reqItem.isSubUnit === true || ret.isSubUnit === true;
 
-        // คำนวณต้นทุนต่อหน่วยย่อยและมูลค่าที่ปรับลด
-        let unitPrice = reqItem.unitCost;
-        let lineDeductCost = 0;
-
-        if (isSub && itemRatio > 1) {
-          const costPerPiece = unitPrice / itemRatio;
-          lineDeductCost = returnQty * costPerPiece;
-        } else {
-          lineDeductCost = returnQty * unitPrice;
-        }
+        // reqItem.unitCost ถูกบันทึกเป็นต้นทุนต่อหน่วยที่จ่ายจริงแล้ว (หากเบิกย่อยจะเป็นราคาต่อชิ้นย่อยแล้ว ไม่ต้องหาร itemRatio ซ้ำ)
+        const unitPrice = Number(reqItem.unitCost) || 0;
+        const lineDeductCost = returnQty * unitPrice;
 
         totalSavedCost += lineDeductCost;
         totalItemsReturnedCount += returnQty;
@@ -103,10 +100,10 @@ export async function POST(req: Request) {
         // 1. อัปเดตรายการ RequisitionItem
         const newQtyReturned = (reqItem.quantityReturned || 0) + returnQty;
         const newRemainingDispensed = Math.max(0, reqItem.quantityDispensed - newQtyReturned);
-        const newLineTotalCost = Math.max(0, isSub && itemRatio > 1 
-          ? newRemainingDispensed * (unitPrice / itemRatio) 
-          : newRemainingDispensed * unitPrice
-        );
+        const newLineTotalCost = Math.max(0, newRemainingDispensed * unitPrice);
+        const updatedReturnNote = note
+          ? (reqItem.returnNote ? `${reqItem.returnNote} | ${note}` : note)
+          : reqItem.returnNote;
 
         await tx.requisitionItem.update({
           where: { id: reqItem.id },
@@ -114,15 +111,22 @@ export async function POST(req: Request) {
             quantityReturned: newQtyReturned,
             returnCondition: condition,
             returnedAt: now,
-            returnNote: note ? (reqItem.returnNote ? `${reqItem.returnNote} | ${note}` : note) : reqItem.returnNote,
+            returnNote: updatedReturnNote,
             totalCost: newLineTotalCost,
           },
         });
 
+        // ซิงก์สถานะในหน่วยความจำเผื่อมีรายการซ้ำใน payload
+        reqItem.quantityReturned = newQtyReturned;
+        reqItem.returnNote = updatedReturnNote;
+
         // 2. หากสภาพพร้อมใช้ (SEALED_INTACT หรือ UNSEALED_USABLE_SIM) คืนสต็อกเข้าคลัง
         if (condition === 'SEALED_INTACT' || condition === 'UNSEALED_USABLE_SIM') {
-          // เลือกล็อตที่เหมาะสม (ล็อตล่าสุดหรือล็อตที่ตรงกับคำขอ)
-          let targetLot: any = reqItem.item.stockLots?.[0];
+          // ดึงล็อตล่าสุดภายใน transaction เสมอ เพื่อป้องกันข้อมูลล็อตค้างจากรอบก่อนหน้า
+          let targetLot = await tx.stockLot.findFirst({
+            where: { itemId: reqItem.itemId, quantityRemaining: { gte: 0 } },
+            orderBy: [{ expiryDate: 'desc' }, { receivedDate: 'desc' }, { createdAt: 'desc' }],
+          });
           if (!targetLot) {
             targetLot = await tx.stockLot.findFirst({
               where: { itemId: reqItem.itemId },
@@ -132,7 +136,10 @@ export async function POST(req: Request) {
 
           if (targetLot) {
             const pSize = Number(targetLot.packSize) > 0 ? Number(targetLot.packSize) : itemRatio;
-            let addedWholePacks = 0;
+            const basePieces =
+              typeof targetLot.piecesRemaining === 'number'
+                ? targetLot.piecesRemaining
+                : (targetLot.quantityRemaining * pSize) + (targetLot.openPackRemainder || 0);
 
             if (isSub && pSize > 1) {
               // คืนแบบหน่วยย่อย
@@ -141,9 +148,8 @@ export async function POST(req: Request) {
               const consolidatedPacks = Math.floor(newOpenRem / pSize);
               const remainderPieces = newOpenRem % pSize;
 
-              addedWholePacks = consolidatedPacks;
               const newQuantityRem = targetLot.quantityRemaining + consolidatedPacks;
-              const newPiecesRem = (targetLot.piecesRemaining || 0) + returnQty;
+              const newPiecesRem = Math.max(0, basePieces + returnQty);
 
               await tx.stockLot.update({
                 where: { id: targetLot.id },
@@ -155,9 +161,8 @@ export async function POST(req: Request) {
               });
             } else {
               // คืนแบบหน่วยใหญ่ (กล่อง/ห่อเต็ม)
-              addedWholePacks = returnQty;
               const newQuantityRem = targetLot.quantityRemaining + returnQty;
-              const newPiecesRem = (targetLot.piecesRemaining || 0) + (returnQty * pSize);
+              const newPiecesRem = Math.max(0, basePieces + (returnQty * pSize));
 
               await tx.stockLot.update({
                 where: { id: targetLot.id },
@@ -167,8 +172,6 @@ export async function POST(req: Request) {
                 },
               });
             }
-
-
 
             // บันทึก StockTransaction ประเภท RETURN_RESTOCK
             const conditionLabel =
@@ -181,12 +184,12 @@ export async function POST(req: Request) {
                 itemId: reqItem.itemId,
                 lotId: targetLot.id,
                 type: 'RETURN_RESTOCK',
-                quantity: isSub ? returnQty : returnQty,
-                unitCost: isSub && itemRatio > 1 ? unitPrice / itemRatio : unitPrice,
+                quantity: returnQty,
+                unitCost: unitPrice,
                 totalCost: lineDeductCost,
                 courseId: requisition.courseId,
                 referenceNumber: requisition.requestNumber,
-                createdById: operatorId || requisition.userId,
+                createdById: effectiveOperatorId,
                 note: `รับคืนวัสดุเหลือใช้ (${conditionLabel}) จำนวน ${returnQty} ${reqItem.requestedUnit || reqItem.item.unit} จากคำขอ ${requisition.requestNumber} [ผู้คืน: ${formatUserName(requisition.user)}]${note ? ` - ${note}` : ''}`,
               },
             });
@@ -198,11 +201,11 @@ export async function POST(req: Request) {
               itemId: reqItem.itemId,
               type: 'WRITE_OFF',
               quantity: 0,
-              unitCost: isSub && itemRatio > 1 ? unitPrice / itemRatio : unitPrice,
+              unitCost: unitPrice,
               totalCost: lineDeductCost,
               courseId: requisition.courseId,
               referenceNumber: requisition.requestNumber,
-              createdById: operatorId || requisition.userId,
+              createdById: effectiveOperatorId,
               note: `รับคืนวัสดุเหลือใช้ที่ชำรุด/ปนเปื้อน (ส่งกำจัดตามระเบียบขยะแล็ป) จำนวน ${returnQty} ${reqItem.requestedUnit || reqItem.item.unit} จากคำขอ ${requisition.requestNumber}${note ? ` - ${note}` : ''}`,
             },
           });
@@ -234,7 +237,7 @@ export async function POST(req: Request) {
 
     // ล็อกประวัติกิจกรรม
     logActivity({
-      userId: operatorId || requisition.userId,
+      userId: effectiveOperatorId,
       action: 'UPDATE',
       entityType: 'REQUISITION',
       entityId: requisition.id,

@@ -348,7 +348,7 @@ export default function BorrowPage() {
         }
       } else {
         const err = await res.json();
-        alert(err.error || 'Action failed');
+        alert(err.message || err.error || 'ไม่สามารถดำเนินการได้ กรุณาลองใหม่อีกครั้ง');
       }
     } catch (err) {
       alert('Error updating borrow request');

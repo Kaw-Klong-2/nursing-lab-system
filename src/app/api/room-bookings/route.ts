@@ -3,30 +3,14 @@ import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
 import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
 import { formatUserName, formatRequesterWithRole } from '@/lib/user-utils';
-import { getBangkokParts, getBangkokStartOfDay } from '@/lib/date-time-utils';
+import {
+  getBangkokParts,
+  getBangkokStartOfDay,
+  DATE_YYYY_MM_DD_REGEX,
+  parseTimeToMinutes,
+  isTimeRangeOverlapping,
+} from '@/lib/date-time-utils';
 import { isViewerUser, VIEWER_FORBIDDEN_MESSAGE } from '@/lib/viewer-guard';
-
-const TIME_HH_MM_REGEX = /^([01]?\d|2[0-3]):([0-5]\d)$/;
-const DATE_YYYY_MM_DD_REGEX = /^(\d{4})-(\d{2})-(\d{2})/;
-
-function parseTimeToMinutes(timeStr: unknown): { minutes: number; normalized: string } | null {
-  if (typeof timeStr !== 'string') return null;
-  const match = timeStr.trim().match(TIME_HH_MM_REGEX);
-  if (!match) return null;
-  const hours = Number(match[1]);
-  const mins = Number(match[2]);
-  return {
-    minutes: hours * 60 + mins,
-    normalized: `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`,
-  };
-}
-
-function isTimeRangeOverlapping(startA: number, endA: number, startBStr: string, endBStr: string): boolean {
-  const bStart = parseTimeToMinutes(startBStr);
-  const bEnd = parseTimeToMinutes(endBStr);
-  if (!bStart || !bEnd) return false;
-  return startA < bEnd.minutes && endA > bStart.minutes;
-}
 
 class RoomBookingError extends Error {
   status: number;

@@ -3,7 +3,24 @@ import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
 import { formatTeacherName, formatRequesterWithRole } from '@/lib/user-utils';
 import { createNotification, notifyRoles } from '@/lib/notifications';
-import { getBangkokParts, getBangkokStartOfDay } from '@/lib/date-time-utils';
+import {
+  getBangkokParts,
+  getBangkokStartOfDay,
+  DATE_YYYY_MM_DD_REGEX,
+  parseTimeToMinutes,
+  isTimeRangeOverlapping,
+} from '@/lib/date-time-utils';
+import { getSessionFromRequest } from '@/lib/session';
+
+class BatchRoomBookingError extends Error {
+  status: number;
+  payload: Record<string, unknown>;
+  constructor(message: string, status = 400, extra?: Record<string, unknown>) {
+    super(message);
+    this.status = status;
+    this.payload = { error: message, ...(extra || {}) };
+  }
+}
 
 interface BatchSlotItem {
   roomId: string;
@@ -23,6 +40,12 @@ interface ConflictedSlotItem extends BatchSlotItem {
 
 export async function POST(req: Request) {
   try {
+    const session = await getSessionFromRequest(req);
+    const effectiveUserId = session?.uid;
+    if (!effectiveUserId) {
+      return NextResponse.json({ error: 'ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบก่อน' }, { status: 401 });
+    }
+
     const body = await req.json();
     const {
       roomIds,
@@ -41,24 +64,19 @@ export async function POST(req: Request) {
       skipConflicts = false,
       previewOnly = false,
       termName,
-      userId,
       isTimetable: explicitIsTimetable,
     } = body;
 
-    // 1. Authorization check: ADMIN, OFFICER, or TEACHER can use batch booking
-    if (!userId) {
-      return NextResponse.json({ error: 'ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบก่อน' }, { status: 401 });
-    }
-
+    // 1. Authorization check: ADMIN, OFFICER, or TEACHER can use batch booking (from signed session)
     const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, name: true, role: true },
+      where: { id: effectiveUserId },
+      select: { id: true, name: true, prefix: true, role: true, status: true },
     });
 
     const isStaff = user?.role === 'ADMIN' || user?.role === 'OFFICER';
     const isTeacher = user?.role === 'TEACHER';
 
-    if (!user || (!isStaff && !isTeacher)) {
+    if (!user || (user.status && user.status !== 'ACTIVE') || (!isStaff && !isTeacher)) {
       return NextResponse.json(
         { error: 'เฉพาะอาจารย์ผู้สอน, เจ้าหน้าที่ห้องแล็บ หรือผู้ดูแลระบบเท่านั้นที่สามารถจองหลายห้องหรือจองหลายวันได้' },
         { status: 403 }
@@ -74,8 +92,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'กรุณาระบุวันที่ที่ต้องการจองอย่างน้อย 1 วัน' }, { status: 400 });
     }
 
-    if (!startTime || !endTime || startTime >= endTime) {
+    const parsedStart = parseTimeToMinutes(startTime);
+    const parsedEnd = parseTimeToMinutes(endTime);
+    if (!parsedStart || !parsedEnd) {
+      return NextResponse.json(
+        { error: 'รูปแบบเวลาไม่ถูกต้อง กรุณาระบุเวลาในรูปแบบ HH:MM (เช่น 08:30 - 12:00)' },
+        { status: 400 }
+      );
+    }
+
+    if (parsedStart.minutes >= parsedEnd.minutes) {
       return NextResponse.json({ error: 'เวลาเริ่มต้นต้องมาก่อนเวลาสิ้นสุดการใช้งาน' }, { status: 400 });
+    }
+
+    const normalizedStartTime = parsedStart.normalized;
+    const normalizedEndTime = parsedEnd.normalized;
+
+    const dateObjects: Date[] = [];
+    for (const rawDate of dates) {
+      const dateMatch = typeof rawDate === 'string' ? rawDate.trim().match(DATE_YYYY_MM_DD_REGEX) : null;
+      if (!dateMatch) {
+        return NextResponse.json({ error: 'รูปแบบวันที่ไม่ถูกต้อง' }, { status: 400 });
+      }
+      dateObjects.push(
+        new Date(Date.UTC(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3]), 0, 0, 0, 0))
+      );
     }
 
     if (!title?.trim()) {
@@ -110,117 +151,108 @@ export async function POST(req: Request) {
       const r = roomMap.get(rId);
       if (!r) continue;
 
-      for (const dStr of dates) {
-        const [y, m, d] = dStr.split('-').map(Number);
-        const dateUtc = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
-
+      dates.forEach((dStr: string, idx: number) => {
         candidateSlots.push({
           roomId: r.id,
           roomName: r.name,
           roomCode: r.code,
-          dateStr: dStr,
-          date: dateUtc,
-          startTime,
-          endTime,
+          dateStr: String(dStr).trim().slice(0, 10),
+          date: dateObjects[idx],
+          startTime: normalizedStartTime,
+          endTime: normalizedEndTime,
         });
-      }
+      });
     }
-
-    // 5. Conflict checking for all candidate slots
-    // Fetch all existing room bookings for these rooms and dates
-    const dateObjects = dates.map((dStr) => {
-      const [y, m, d] = dStr.split('-').map(Number);
-      return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
-    });
 
     const minDate = new Date(Math.min(...dateObjects.map((d) => d.getTime())));
     const maxDate = new Date(Math.max(...dateObjects.map((d) => d.getTime())));
     maxDate.setUTCDate(maxDate.getUTCDate() + 1);
 
-    const [existingRoomBookings, existingPracticeSlots] = await Promise.all([
-      prisma.roomBooking.findMany({
-        where: {
-          roomId: { in: roomIds },
-          bookingDate: { gte: minDate, lt: maxDate },
-          status: { in: ['APPROVED', 'PENDING'] },
-        },
-        select: {
-          id: true,
-          roomId: true,
-          bookingDate: true,
-          startTime: true,
-          endTime: true,
-          title: true,
-          status: true,
-        },
-      }),
-      prisma.practiceSlot.findMany({
-        where: {
-          roomId: { in: roomIds },
-          date: { gte: minDate, lt: maxDate },
-          isOpen: true,
-        },
-        select: {
-          id: true,
-          roomId: true,
-          date: true,
-          startTime: true,
-          endTime: true,
-        },
-      }),
-    ]);
+    const evaluateConflicts = async (db: Pick<typeof prisma, 'roomBooking' | 'practiceSlot'>) => {
+      const [existingRoomBookings, existingPracticeSlots] = await Promise.all([
+        db.roomBooking.findMany({
+          where: {
+            roomId: { in: roomIds },
+            bookingDate: { gte: minDate, lt: maxDate },
+            status: { in: ['APPROVED', 'PENDING'] },
+          },
+          select: {
+            id: true,
+            roomId: true,
+            bookingDate: true,
+            startTime: true,
+            endTime: true,
+            title: true,
+            status: true,
+          },
+        }),
+        db.practiceSlot.findMany({
+          where: {
+            roomId: { in: roomIds },
+            date: { gte: minDate, lt: maxDate },
+            isOpen: true,
+          },
+          select: {
+            id: true,
+            roomId: true,
+            date: true,
+            startTime: true,
+            endTime: true,
+          },
+        }),
+      ]);
 
-    const availableSlots: BatchSlotItem[] = [];
-    const conflictedSlots: ConflictedSlotItem[] = [];
+      const available: BatchSlotItem[] = [];
+      const conflicted: ConflictedSlotItem[] = [];
 
-    for (const slot of candidateSlots) {
-      // Check conflict with existing room bookings
-      const rbConflict = existingRoomBookings.find((rb) => {
-        const rbDateStr = new Date(rb.bookingDate).toISOString().slice(0, 10);
-        return (
-          rb.roomId === slot.roomId &&
-          rbDateStr === slot.dateStr &&
-          slot.startTime < rb.endTime &&
-          slot.endTime > rb.startTime
-        );
-      });
-
-      if (rbConflict) {
-        conflictedSlots.push({
-          ...slot,
-          conflictType: rbConflict.status === 'APPROVED' ? 'APPROVED_BOOKING' : 'PENDING_BOOKING',
-          conflictTitle: rbConflict.title,
-          conflictTime: `${rbConflict.startTime} - ${rbConflict.endTime} น.`,
+      for (const slot of candidateSlots) {
+        const rbConflict = existingRoomBookings.find((rb) => {
+          const rbDateStr = new Date(rb.bookingDate).toISOString().slice(0, 10);
+          return (
+            rb.roomId === slot.roomId &&
+            rbDateStr === slot.dateStr &&
+            isTimeRangeOverlapping(parsedStart.minutes, parsedEnd.minutes, rb.startTime, rb.endTime)
+          );
         });
-        continue;
+
+        if (rbConflict) {
+          conflicted.push({
+            ...slot,
+            conflictType: rbConflict.status === 'APPROVED' ? 'APPROVED_BOOKING' : 'PENDING_BOOKING',
+            conflictTitle: rbConflict.title,
+            conflictTime: `${rbConflict.startTime} - ${rbConflict.endTime} น.`,
+          });
+          continue;
+        }
+
+        const psConflict = existingPracticeSlots.find((ps) => {
+          const psDateStr = new Date(ps.date).toISOString().slice(0, 10);
+          return (
+            ps.roomId === slot.roomId &&
+            psDateStr === slot.dateStr &&
+            isTimeRangeOverlapping(parsedStart.minutes, parsedEnd.minutes, ps.startTime, ps.endTime)
+          );
+        });
+
+        if (psConflict) {
+          conflicted.push({
+            ...slot,
+            conflictType: 'PRACTICE_SLOT',
+            conflictTitle: 'รอบเปิดฝึกปฏิบัติการทักษะด้วยตนเอง',
+            conflictTime: `${psConflict.startTime} - ${psConflict.endTime} น.`,
+          });
+          continue;
+        }
+
+        available.push(slot);
       }
 
-      // Check conflict with open PracticeSlots
-      const psConflict = existingPracticeSlots.find((ps) => {
-        const psDateStr = new Date(ps.date).toISOString().slice(0, 10);
-        return (
-          ps.roomId === slot.roomId &&
-          psDateStr === slot.dateStr &&
-          slot.startTime < ps.endTime &&
-          slot.endTime > ps.startTime
-        );
-      });
+      return { availableSlots: available, conflictedSlots: conflicted };
+    };
 
-      if (psConflict) {
-        conflictedSlots.push({
-          ...slot,
-          conflictType: 'PRACTICE_SLOT',
-          conflictTitle: 'รอบเปิดฝึกปฏิบัติการทักษะด้วยตนเอง',
-          conflictTime: `${psConflict.startTime} - ${psConflict.endTime} น.`,
-        });
-        continue;
-      }
-
-      availableSlots.push(slot);
-    }
-
-    // 6. If PREVIEW ONLY, return conflict preview analysis immediately
+    // 5. If PREVIEW ONLY, return conflict preview analysis immediately
     if (previewOnly) {
+      const { availableSlots, conflictedSlots } = await evaluateConflicts(prisma);
       return NextResponse.json({
         totalSlots: candidateSlots.length,
         availableCount: availableSlots.length,
@@ -230,44 +262,9 @@ export async function POST(req: Request) {
       });
     }
 
-    // 7. If not previewOnly:
-    // Determine which slots to create
-    if (conflictedSlots.length > 0 && !skipConflicts) {
-      return NextResponse.json(
-        {
-          error: `มีรายการชนตารางทั้งหมด ${conflictedSlots.length} รายการ กรุณาตรวจสอบหรือเปิดใช้งานตัวเลือก "ข้ามรายการที่ชน"`,
-          conflictedSlots,
-          availableCount: availableSlots.length,
-          conflictedCount: conflictedSlots.length,
-        },
-        { status: 409 }
-      );
-    }
-
-    if (availableSlots.length === 0) {
-      return NextResponse.json(
-        { error: 'ไม่มีรอบเวลาที่สามารถจองได้ เนื่องจากทุกรอบเวลาทับซ้อนกับรายการอื่น' },
-        { status: 400 }
-      );
-    }
-
-    // 8. Generate bookings in database
-    const now = new Date();
-    const bkk = getBangkokParts(now);
-    const thaiYear = bkk.year + 543;
-    const datePrefix = `${thaiYear}${String(bkk.month).padStart(2, '0')}${String(bkk.day).padStart(2, '0')}`;
-
-    let todayCount = await prisma.roomBooking.count({
-      where: {
-        createdAt: {
-          gte: getBangkokStartOfDay(now),
-        },
-      },
-    });
-
+    // 6. Execute conflict check + batch create atomically inside transaction with P2002 retry
     const finalIsTimetable = isStaff ? (explicitIsTimetable !== undefined ? Boolean(explicitIsTimetable) : false) : false;
     const finalAutoApprove = isStaff ? Boolean(autoApprove) : false;
-    const batchGroupId = `BATCH-${datePrefix}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
     const isMultiRoom = roomIds.length > 1;
     const isMultiDay = dates.length > 1;
@@ -283,41 +280,127 @@ export async function POST(req: Request) {
 
     const finalNote = [batchTag, note?.trim()].filter(Boolean).join(' ');
 
-    const createdBookings: any[] = [];
+    let txOutput: {
+      createdBookings: any[];
+      availableSlots: BatchSlotItem[];
+      conflictedSlots: ConflictedSlotItem[];
+      batchGroupId: string;
+    } | null = null;
+    const maxAttempts = 3;
 
-    for (const slot of availableSlots) {
-      todayCount += 1;
-      const bookingNumber = `ROOM-${datePrefix}-${String(todayCount).padStart(3, '0')}`;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        txOutput = await prisma.$transaction(
+          async (tx) => {
+            const { availableSlots, conflictedSlots } = await evaluateConflicts(tx);
 
-      const booking = await prisma.roomBooking.create({
-        data: {
-          batchGroupId,
-          bookingNumber,
-          roomId: slot.roomId,
-          userId,
-          title: title.trim(),
-          purpose: purpose.trim(),
-          isTimetable: finalIsTimetable,
-          bookingDate: slot.date,
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          attendeesCount: Number(attendeesCount) || 1,
-          courseId: courseId || null,
-          advisorName: advisorName ? formatTeacherName(advisorName) : null,
-          contactPhone: contactPhone || null,
-          equipmentNeeded: equipmentNeeded || null,
-          note: finalNote || null,
-          status: finalAutoApprove ? 'APPROVED' : 'PENDING',
-          approverId: finalAutoApprove ? userId : null,
-          approvedAt: finalAutoApprove ? new Date() : null,
-        },
-        include: {
-          room: true,
-        },
-      });
+            if (conflictedSlots.length > 0 && !skipConflicts) {
+              throw new BatchRoomBookingError(
+                `มีรายการชนตารางทั้งหมด ${conflictedSlots.length} รายการ กรุณาตรวจสอบหรือเปิดใช้งานตัวเลือก "ข้ามรายการที่ชน"`,
+                409,
+                {
+                  conflictedSlots,
+                  availableCount: availableSlots.length,
+                  conflictedCount: conflictedSlots.length,
+                }
+              );
+            }
 
-      createdBookings.push(booking);
+            if (availableSlots.length === 0) {
+              throw new BatchRoomBookingError(
+                'ไม่มีรอบเวลาที่สามารถจองได้ เนื่องจากทุกรอบเวลาทับซ้อนกับรายการอื่น',
+                400
+              );
+            }
+
+            const now = new Date();
+            const bkk = getBangkokParts(now);
+            const thaiYear = bkk.year + 543;
+            const datePrefix = `${thaiYear}${String(bkk.month).padStart(2, '0')}${String(bkk.day).padStart(2, '0')}`;
+            const bnPrefix = `ROOM-${datePrefix}-`;
+
+            const [todayCount, latestBooking] = await Promise.all([
+              tx.roomBooking.count({
+                where: {
+                  createdAt: {
+                    gte: getBangkokStartOfDay(now),
+                  },
+                },
+              }),
+              tx.roomBooking.findFirst({
+                where: {
+                  bookingNumber: { startsWith: bnPrefix },
+                },
+                orderBy: { bookingNumber: 'desc' },
+                select: { bookingNumber: true },
+              }),
+            ]);
+
+            const latestSeq = latestBooking?.bookingNumber
+              ? parseInt(latestBooking.bookingNumber.slice(bnPrefix.length), 10) || 0
+              : 0;
+            let nextSeq = Math.max(todayCount, latestSeq);
+
+            const genBatchGroupId = `BATCH-${datePrefix}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+            const createdList: any[] = [];
+
+            for (const slot of availableSlots) {
+              nextSeq += 1;
+              const bookingNumber = `${bnPrefix}${String(nextSeq).padStart(3, '0')}`;
+
+              const createdBooking = await tx.roomBooking.create({
+                data: {
+                  batchGroupId: genBatchGroupId,
+                  bookingNumber,
+                  roomId: slot.roomId,
+                  userId: effectiveUserId,
+                  title: title.trim(),
+                  purpose: purpose.trim(),
+                  isTimetable: finalIsTimetable,
+                  bookingDate: slot.date,
+                  startTime: slot.startTime,
+                  endTime: slot.endTime,
+                  attendeesCount: Number(attendeesCount) || 1,
+                  courseId: courseId || null,
+                  advisorName: advisorName ? formatTeacherName(advisorName) : null,
+                  contactPhone: contactPhone || null,
+                  equipmentNeeded: equipmentNeeded || null,
+                  note: finalNote || null,
+                  status: finalAutoApprove ? 'APPROVED' : 'PENDING',
+                  approverId: finalAutoApprove ? effectiveUserId : null,
+                  approvedAt: finalAutoApprove ? new Date() : null,
+                },
+                include: {
+                  room: true,
+                },
+              });
+
+              createdList.push(createdBooking);
+            }
+
+            return {
+              createdBookings: createdList,
+              availableSlots,
+              conflictedSlots,
+              batchGroupId: genBatchGroupId,
+            };
+          },
+          { timeout: 25000 }
+        );
+        break;
+      } catch (txErr: any) {
+        if (txErr?.code === 'P2002' && attempt < maxAttempts) {
+          continue;
+        }
+        throw txErr;
+      }
     }
+
+    if (!txOutput) {
+      throw new Error('Failed to create batch room bookings after retries');
+    }
+
+    const { createdBookings, availableSlots, conflictedSlots, batchGroupId } = txOutput;
 
     invalidateCache('room:bookings:');
 
@@ -345,7 +428,7 @@ export async function POST(req: Request) {
 
       // 2. Notify Requester ONCE
       await createNotification({
-        userId,
+        userId: effectiveUserId,
         title: 'ยื่นคำขอจองห้องแบบกลุ่มสำเร็จ 📋',
         message: `บันทึกคำขอจองห้อง ${createdBookings.length} รายการสำหรับ "${title.trim()}" เรียบร้อยแล้ว อยู่ระหว่างรอเจ้าหน้าที่ตรวจสอบ`,
         type: 'STATUS_UPDATE',
@@ -357,7 +440,7 @@ export async function POST(req: Request) {
     } else {
       // Auto-approved by staff
       await createNotification({
-        userId,
+        userId: effectiveUserId,
         title: 'จองห้องปฏิบัติการสำเร็จ 🎉',
         message: `บันทึกและอนุมัติการจองห้อง ${createdBookings.length} รายการ (${uniqueRoomNames}) สำหรับ "${title.trim()}" เรียบร้อยแล้ว`,
         type: 'STATUS_UPDATE',
@@ -378,7 +461,16 @@ export async function POST(req: Request) {
       bookings: createdBookings,
     }, { status: 201 });
   } catch (error: any) {
+    if (error instanceof BatchRoomBookingError) {
+      return NextResponse.json(error.payload, { status: error.status });
+    }
+    if (error?.code === 'P2002') {
+      return NextResponse.json(
+        { error: 'เกิดการจองห้องซ้อนกันในเวลาเดียวกัน กรุณาลองใหม่อีกครั้ง' },
+        { status: 409 }
+      );
+    }
     console.error('Error in batch room bookings:', error);
-    return NextResponse.json({ error: 'Failed to process batch room bookings' }, { status: 500 });
+    return NextResponse.json({ error: 'เกิดข้อผิดพลาดในการสร้างคำขอจองห้องแบบกลุ่ม' }, { status: 500 });
   }
 }

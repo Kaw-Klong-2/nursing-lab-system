@@ -175,6 +175,6 @@ export async function POST(
     return NextResponse.json({ success: true, item: updatedItem });
   } catch (error: any) {
     console.error('Failed to record plan item audit:', error);
-    return NextResponse.json({ error: error.message || 'Failed to record audit' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to record audit' }, { status: 500 });
   }
 }

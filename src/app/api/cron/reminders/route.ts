@@ -428,7 +428,7 @@ export async function GET(req: Request) {
     return NextResponse.json(result);
   } catch (error: any) {
     console.error('Reminder cron error (GET):', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
@@ -446,6 +446,6 @@ export async function POST(req: Request) {
     return NextResponse.json(result);
   } catch (error: any) {
     console.error('Reminder cron error (POST):', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

@@ -68,7 +68,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     });
   } catch (error: any) {
     console.error('Error fetching storage location details:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch storage location' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch storage location' }, { status: 500 });
   }
 }
 
@@ -146,7 +146,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json(updated);
   } catch (error: any) {
     console.error('Error updating storage location:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update storage location' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update storage location' }, { status: 500 });
   }
 }
 
@@ -189,6 +189,6 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     });
   } catch (error: any) {
     console.error('Error deleting storage location:', error);
-    return NextResponse.json({ error: error.message || 'Failed to delete storage location' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to delete storage location' }, { status: 500 });
   }
 }

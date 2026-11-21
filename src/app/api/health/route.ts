@@ -1,7 +1,16 @@
 import { NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
+import { getSessionFromRequest } from '@/lib/session';
 
-export async function GET() {
+export async function GET(req: Request) {
+  const session = await getSessionFromRequest(req);
+  if (session?.role !== 'ADMIN') {
+    return NextResponse.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   let cfEnvKeys: string[] = [];
   let cfError: string | null = null;
   let hasDatabaseUrlInCf = false;
@@ -20,6 +29,7 @@ export async function GET() {
   const symbolEnvKeys = globalSymbolEnv?.env ? Object.keys(globalSymbolEnv.env) : [];
 
   return NextResponse.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     hasProcessEnvDatabaseUrl: !!process.env.DATABASE_URL,
     hasDatabaseUrlInCf,

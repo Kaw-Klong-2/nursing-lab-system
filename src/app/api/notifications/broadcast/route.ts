@@ -49,7 +49,7 @@ export async function GET(req: Request) {
     return NextResponse.json(enriched);
   } catch (error: any) {
     console.error('Error fetching broadcast messages:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch broadcasts' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch broadcasts' }, { status: 500 });
   }
 }
 
@@ -111,7 +111,7 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error('Error creating broadcast message:', error);
-    return NextResponse.json({ error: error.message || 'Failed to create broadcast' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create broadcast' }, { status: 500 });
   }
 }
 
@@ -173,7 +173,7 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error: any) {
     console.error('Error updating broadcast message:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update broadcast' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update broadcast' }, { status: 500 });
   }
 }
 
@@ -193,6 +193,6 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Error deleting broadcast message:', error);
-    return NextResponse.json({ error: error.message || 'Failed to delete broadcast' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to delete broadcast' }, { status: 500 });
   }
 }

@@ -314,6 +314,6 @@ export async function POST(req: Request) {
     return NextResponse.json(reqRecord, { status: 201 });
   } catch (error: any) {
     console.error('Create requisition error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to create requisition' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create requisition' }, { status: 500 });
   }
 }

@@ -100,7 +100,7 @@ export async function GET(req: Request) {
   } catch (error: any) {
     console.error('Failed to get activity logs:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการดึงประวัติการทำรายการ' },
+      { error: 'เกิดข้อผิดพลาดในการดึงประวัติการทำรายการ' },
       { status: 500 }
     );
   }

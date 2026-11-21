@@ -332,7 +332,7 @@ export async function GET(req: Request) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Internal server error',
+        error: 'Internal server error',
       },
       {
         status: 500,

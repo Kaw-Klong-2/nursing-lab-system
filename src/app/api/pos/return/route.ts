@@ -152,7 +152,7 @@ export async function POST(req: Request) {
   } catch (err: any) {
     console.error('POS Return Error:', err);
     return NextResponse.json(
-      { error: err.message || 'เกิดข้อผิดพลาดในการบันทึกการส่งคืน' },
+      { error: 'เกิดข้อผิดพลาดในการบันทึกการส่งคืน' },
       { status: 500 }
     );
   }

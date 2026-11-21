@@ -232,7 +232,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Reconciliation error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการกระทบยอดสต็อก' },
+      { error: 'เกิดข้อผิดพลาดในการกระทบยอดสต็อก' },
       { status: 500 }
     );
   }

@@ -84,6 +84,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: 'การกระทำไม่ถูกต้อง (Action must be ASSIGN or UNASSIGN)' }, { status: 400 });
   } catch (error: any) {
     console.error('Error assigning items to storage location:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update storage assignments' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update storage assignments' }, { status: 500 });
   }
 }

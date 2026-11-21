@@ -98,7 +98,7 @@ export async function GET(req: Request) {
     return NextResponse.json(formatted);
   } catch (error: any) {
     console.error('Error fetching storage locations:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch storage locations' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch storage locations' }, { status: 500 });
   }
 }
 
@@ -163,6 +163,6 @@ export async function POST(req: Request) {
     return NextResponse.json(location, { status: 201 });
   } catch (error: any) {
     console.error('Error creating storage location:', error);
-    return NextResponse.json({ error: error.message || 'Failed to create storage location' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create storage location' }, { status: 500 });
   }
 }

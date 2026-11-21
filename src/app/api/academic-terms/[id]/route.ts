@@ -64,7 +64,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json(updated);
   } catch (error: any) {
     console.error('Error updating academic term:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update academic term' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update academic term' }, { status: 500 });
   }
 }
 
@@ -91,6 +91,6 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     return NextResponse.json({ success: true, message: 'ลบภาคการศึกษาเรียบร้อยแล้ว' });
   } catch (error: any) {
     console.error('Error deleting academic term:', error);
-    return NextResponse.json({ error: error.message || 'Failed to delete academic term' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to delete academic term' }, { status: 500 });
   }
 }

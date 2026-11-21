@@ -53,7 +53,7 @@ export async function GET(req: Request) {
     });
   } catch (error: any) {
     console.error('Error in GET /api/chatbot:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -95,6 +95,6 @@ export async function POST(req: Request) {
     return NextResponse.json(response);
   } catch (error: any) {
     console.error('Error in POST /api/chatbot:', error);
-    return NextResponse.json({ error: error.message || 'เกิดข้อผิดพลาดในการประมวลผล' }, { status: 500 });
+    return NextResponse.json({ error: 'เกิดข้อผิดพลาดในการประมวลผล' }, { status: 500 });
   }
 }

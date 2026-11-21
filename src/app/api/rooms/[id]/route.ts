@@ -28,7 +28,7 @@ export async function PUT(
     return NextResponse.json(room);
   } catch (error: any) {
     console.error('Error updating room:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update room' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update room' }, { status: 500 });
   }
 }
 
@@ -60,6 +60,6 @@ export async function DELETE(
     return NextResponse.json({ message: 'ลบห้องปฏิบัติการเรียบร้อยแล้ว' });
   } catch (error: any) {
     console.error('Error deleting room:', error);
-    return NextResponse.json({ error: error.message || 'Failed to delete room' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to delete room' }, { status: 500 });
   }
 }

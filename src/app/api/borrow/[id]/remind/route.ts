@@ -118,7 +118,7 @@ export async function POST(
   } catch (error: any) {
     console.error('Failed to send due reminder:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการส่งแจ้งเตือน' },
+      { error: 'เกิดข้อผิดพลาดในการส่งแจ้งเตือน' },
       { status: 500 }
     );
   }

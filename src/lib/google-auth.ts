@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { OAuth2Client } from 'google-auth-library';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
-import { signSessionToken, attachSessionCookie } from '@/lib/session';
+import { signSessionToken, attachSessionCookie, extractCookieValue } from '@/lib/session';
 
 // Use configured client ID or fallback
 const googleClientId =
@@ -23,6 +23,21 @@ export async function handleGoogleAuthRequest(req: Request) {
 
     if (isFormPost) {
       const formData = await req.formData();
+      const csrfCookie = (extractCookieValue(req.headers.get('cookie'), 'g_csrf_token') || '').trim();
+      const csrfBody = String(formData.get('g_csrf_token') || '').trim();
+      const bufCookie = Buffer.from(csrfCookie, 'utf8');
+      const bufBody = Buffer.from(csrfBody, 'utf8');
+      const isCsrfValid =
+        bufCookie.length > 0 &&
+        bufCookie.length === bufBody.length &&
+        crypto.timingSafeEqual(bufCookie, bufBody);
+
+      if (!isCsrfValid) {
+        console.warn('Google GIS redirect CSRF verification failed');
+        const errMsg = 'การตรวจสอบความปลอดภัย (CSRF) ของการเข้าสู่ระบบด้วย Google ไม่ผ่าน กรุณาลองใหม่อีกครั้ง';
+        return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(errMsg)}`, req.url), 303);
+      }
+
       credential = String(formData.get('credential') || '');
     } else {
       const body = await req.json().catch(() => ({}));

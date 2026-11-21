@@ -31,7 +31,7 @@ export async function GET() {
     return NextResponse.json(config);
   } catch (error: any) {
     console.error('Error fetching practice config:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch config' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch config' }, { status: 500 });
   }
 }
 
@@ -64,6 +64,6 @@ export async function PUT(req: Request) {
     return NextResponse.json(updated);
   } catch (error: any) {
     console.error('Error updating practice config:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update config' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update config' }, { status: 500 });
   }
 }

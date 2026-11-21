@@ -317,7 +317,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Bulk user import error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการประมวลผลการนำเข้าผู้ใช้' },
+      { error: 'เกิดข้อผิดพลาดในการประมวลผลการนำเข้าผู้ใช้' },
       { status: 500 }
     );
   }

@@ -157,7 +157,7 @@ export async function GET(req: Request) {
   } catch (error: any) {
     console.error('Backup API error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการสำรองข้อมูล' },
+      { error: 'เกิดข้อผิดพลาดในการสำรองข้อมูล' },
       { status: 500 }
     );
   }

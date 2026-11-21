@@ -34,7 +34,7 @@ export async function GET(req: Request) {
     return NextResponse.json(logs);
   } catch (error: any) {
     console.error('Failed to get maintenance logs:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch logs' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch logs' }, { status: 500 });
   }
 }
 
@@ -149,6 +149,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error: any) {
     console.error('Maintenance API error:', error);
-    return NextResponse.json({ error: error.message || 'Maintenance action failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Maintenance action failed' }, { status: 500 });
   }
 }

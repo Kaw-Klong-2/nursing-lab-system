@@ -99,7 +99,7 @@ export async function PUT(
   } catch (error: any) {
     console.error('Update course error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการอัปเดตข้อมูลรายวิชา' },
+      { error: 'เกิดข้อผิดพลาดในการอัปเดตข้อมูลรายวิชา' },
       { status: 500 }
     );
   }
@@ -140,7 +140,7 @@ export async function PATCH(
   } catch (error: any) {
     console.error('Toggle course status error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการเปลี่ยนสถานะรายวิชา' },
+      { error: 'เกิดข้อผิดพลาดในการเปลี่ยนสถานะรายวิชา' },
       { status: 500 }
     );
   }
@@ -210,7 +210,7 @@ export async function DELETE(
   } catch (error: any) {
     console.error('Delete course error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการลบรายวิชา' },
+      { error: 'เกิดข้อผิดพลาดในการลบรายวิชา' },
       { status: 500 }
     );
   }

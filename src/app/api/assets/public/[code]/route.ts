@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { formatUserName } from '@/lib/user-utils';
+import { getSessionFromRequest } from '@/lib/session';
 
 // GET: Public Asset Details by code (No login required)
 export async function GET(
@@ -8,6 +9,7 @@ export async function GET(
   { params }: { params: Promise<{ code: string }> }
 ) {
   try {
+    const session = await getSessionFromRequest(req);
     const { code } = await params;
     const decodedCode = decodeURIComponent(code).trim();
 
@@ -114,12 +116,19 @@ export async function GET(
       if (latestBorrowReq && latestBorrowReq.status === 'BORROWED') {
         const expectedDate = new Date(latestBorrowReq.expectedReturnDate);
         const isOverdue = new Date() > expectedDate;
+        const canViewBorrowerPii = Boolean(
+          session &&
+            (['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER'].includes(session.role) ||
+              session.uid === latestBorrowReq.userId)
+        );
 
         activeBorrow = {
           requestNumber: latestBorrowReq.requestNumber,
-          borrowerName: formatUserName(latestBorrowReq.user) || 'ไม่ระบุชื่อ',
-          borrowerStudentId: latestBorrowReq.user?.studentId || null,
-          borrowerPhone: latestBorrowReq.user?.phone || null,
+          borrowerName: canViewBorrowerPii
+            ? formatUserName(latestBorrowReq.user) || 'ไม่ระบุชื่อ'
+            : 'ผู้ยืมในระบบ (เข้าสู่ระบบเจ้าหน้าที่เพื่อดูข้อมูล)',
+          borrowerStudentId: canViewBorrowerPii ? latestBorrowReq.user?.studentId || null : null,
+          borrowerPhone: canViewBorrowerPii ? latestBorrowReq.user?.phone || null : null,
           department: latestBorrowReq.user?.department || 'นิสิตพยาบาล',
           borrowDate: latestBorrowReq.borrowDate,
           expectedReturnDate: latestBorrowReq.expectedReturnDate,
@@ -183,7 +192,7 @@ export async function GET(
   } catch (error: any) {
     console.error('Public Asset Lookup Error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการดึงข้อมูลครุภัณฑ์' },
+      { error: 'เกิดข้อผิดพลาดในการดึงข้อมูลครุภัณฑ์' },
       { status: 500 }
     );
   }

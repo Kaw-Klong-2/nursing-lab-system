@@ -287,6 +287,6 @@ export async function GET(req: Request) {
     });
   } catch (error: any) {
     console.error('Dispense queue API error:', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

@@ -28,7 +28,7 @@ export async function GET(
     return NextResponse.json(booking);
   } catch (error: any) {
     console.error('Error fetching room booking:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch room booking' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch room booking' }, { status: 500 });
   }
 }
 
@@ -415,7 +415,7 @@ export async function PUT(
     return NextResponse.json(updated);
   } catch (error: any) {
     console.error('Error updating room booking:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update room booking' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update room booking' }, { status: 500 });
   }
 }
 
@@ -449,6 +449,6 @@ export async function DELETE(
     return NextResponse.json({ message: 'ลบรายการจองห้องเรียบร้อยแล้ว' });
   } catch (error: any) {
     console.error('Error deleting room booking:', error);
-    return NextResponse.json({ error: error.message || 'Failed to delete room booking' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to delete room booking' }, { status: 500 });
   }
 }

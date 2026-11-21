@@ -84,7 +84,7 @@ export async function PUT(req: Request) {
   } catch (error: any) {
     console.error('Error updating feedback config:', error);
     return NextResponse.json(
-      { error: error.message || 'ไม่สามารถบันทึกการตั้งค่าได้' },
+      { error: 'ไม่สามารถบันทึกการตั้งค่าได้' },
       { status: 500 }
     );
   }

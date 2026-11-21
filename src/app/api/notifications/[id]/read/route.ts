@@ -16,6 +16,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ success: true, notification });
   } catch (error: any) {
     console.error('Error marking notification as read:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update notification' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update notification' }, { status: 500 });
   }
 }

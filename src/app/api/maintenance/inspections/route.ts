@@ -35,7 +35,7 @@ export async function GET(req: Request) {
     return NextResponse.json(inspections);
   } catch (error: any) {
     console.error('Failed to get inspections:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch inspections' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch inspections' }, { status: 500 });
   }
 }
 
@@ -136,6 +136,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, log, asset: updatedAsset }, { status: 201 });
   } catch (error: any) {
     console.error('Failed to submit inspection:', error);
-    return NextResponse.json({ error: error.message || 'Inspection recording failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Inspection recording failed' }, { status: 500 });
   }
 }

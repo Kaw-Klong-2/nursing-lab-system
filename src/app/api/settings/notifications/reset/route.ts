@@ -77,6 +77,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, template: resetItem });
   } catch (error: any) {
     console.error('[API] Failed to reset notification template:', error);
-    return NextResponse.json({ error: error.message || 'ไม่สามารถคืนค่าเริ่มต้นได้' }, { status: 500 });
+    return NextResponse.json({ error: 'ไม่สามารถคืนค่าเริ่มต้นได้' }, { status: 500 });
   }
 }

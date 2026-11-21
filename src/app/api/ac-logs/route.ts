@@ -102,7 +102,7 @@ export async function GET(req: Request) {
   } catch (error: any) {
     console.error('Error fetching AC logs:', error);
     return NextResponse.json(
-      { error: error.message || 'ไม่สามารถโหลดข้อมูลการเปิด-ปิดแอร์ได้' },
+      { error: 'ไม่สามารถโหลดข้อมูลการเปิด-ปิดแอร์ได้' },
       { status: 500 }
     );
   }
@@ -252,7 +252,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Error saving AC log:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูลเครื่องปรับอากาศ' },
+      { error: 'เกิดข้อผิดพลาดในการบันทึกข้อมูลเครื่องปรับอากาศ' },
       { status: 500 }
     );
   }
@@ -310,7 +310,7 @@ export async function DELETE(req: Request) {
   } catch (error: any) {
     console.error('Error deleting AC log:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการลบข้อมูลเครื่องปรับอากาศ' },
+      { error: 'เกิดข้อผิดพลาดในการลบข้อมูลเครื่องปรับอากาศ' },
       { status: 500 }
     );
   }

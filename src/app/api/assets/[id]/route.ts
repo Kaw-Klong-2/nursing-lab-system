@@ -106,7 +106,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   } catch (error: any) {
     console.error('Update asset error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการแก้ไขข้อมูลอุปกรณ์' },
+      { error: 'เกิดข้อผิดพลาดในการแก้ไขข้อมูลอุปกรณ์' },
       { status: 500 }
     );
   }
@@ -171,7 +171,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   } catch (error: any) {
     console.error('Delete asset error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการลบอุปกรณ์' },
+      { error: 'เกิดข้อผิดพลาดในการลบอุปกรณ์' },
       { status: 500 }
     );
   }

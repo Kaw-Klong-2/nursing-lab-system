@@ -594,7 +594,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Failed to process unified request:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการประมวลผลคำขอรวม' },
+      { error: 'เกิดข้อผิดพลาดในการประมวลผลคำขอรวม' },
       { status: 500 }
     );
   }

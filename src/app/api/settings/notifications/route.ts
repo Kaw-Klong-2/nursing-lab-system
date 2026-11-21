@@ -60,7 +60,7 @@ export async function GET() {
     return NextResponse.json(merged);
   } catch (error: any) {
     console.error('[API] Failed to get notification templates:', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
@@ -100,6 +100,6 @@ export async function PUT(req: Request) {
     return NextResponse.json({ success: true, template: updated });
   } catch (error: any) {
     console.error('[API] Failed to update notification template:', error);
-    return NextResponse.json({ error: error.message || 'ไม่สามารถบันทึกข้อมูลได้' }, { status: 500 });
+    return NextResponse.json({ error: 'ไม่สามารถบันทึกข้อมูลได้' }, { status: 500 });
   }
 }

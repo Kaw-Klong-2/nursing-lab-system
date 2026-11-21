@@ -44,7 +44,7 @@ export async function GET(req: Request) {
     return NextResponse.json(rooms);
   } catch (error: any) {
     console.error('Error fetching practice rooms:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch rooms' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch rooms' }, { status: 500 });
   }
 }
 
@@ -71,6 +71,6 @@ export async function POST(req: Request) {
     return NextResponse.json(room);
   } catch (error: any) {
     console.error('Error creating practice room:', error);
-    return NextResponse.json({ error: error.message || 'Failed to create room' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create room' }, { status: 500 });
   }
 }

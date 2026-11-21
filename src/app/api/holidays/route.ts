@@ -33,7 +33,7 @@ export async function GET(req: Request) {
     });
   } catch (error: any) {
     console.error('Error fetching holidays:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'ไม่สามารถดึงข้อมูลวันหยุดได้' }, { status: 500 });
   }
 }
 
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error('Error creating holiday:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'ไม่สามารถบันทึกข้อมูลวันหยุดได้' }, { status: 500 });
   }
 }
 
@@ -98,6 +98,6 @@ export async function DELETE(req: Request) {
     });
   } catch (error: any) {
     console.error('Error deleting holiday:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'ไม่สามารถลบข้อมูลวันหยุดได้' }, { status: 500 });
   }
 }

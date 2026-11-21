@@ -42,7 +42,7 @@ export async function GET(req: Request) {
   } catch (err: any) {
     console.error('Fetch Allocations Error:', err);
     return NextResponse.json(
-      { error: err.message || 'เกิดข้อผิดพลาดในการโหลดรายการจัดสรร' },
+      { error: 'เกิดข้อผิดพลาดในการโหลดรายการจัดสรร' },
       { status: 500 }
     );
   }
@@ -177,7 +177,7 @@ export async function POST(req: Request) {
   } catch (err: any) {
     console.error('Create Allocation Error:', err);
     return NextResponse.json(
-      { error: err.message || 'เกิดข้อผิดพลาดในการสร้างคำขอจัดสรรประจำวิชา' },
+      { error: 'เกิดข้อผิดพลาดในการสร้างคำขอจัดสรรประจำวิชา' },
       { status: 500 }
     );
   }
@@ -287,7 +287,7 @@ export async function PUT(req: Request) {
   } catch (err: any) {
     console.error('Bulk Return Allocation Error:', err);
     return NextResponse.json(
-      { error: err.message || 'เกิดข้อผิดพลาดในการตรวจรับคืนอุปกรณ์' },
+      { error: 'เกิดข้อผิดพลาดในการตรวจรับคืนอุปกรณ์' },
       { status: 500 }
     );
   }

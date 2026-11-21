@@ -91,6 +91,7 @@ export async function POST() {
 
     return NextResponse.json({ success: true, message: 'สร้างชุดฝึกปฏิบัติการตัวอย่างเรียบร้อยแล้ว' });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Kit seed error:', error);
+    return NextResponse.json({ error: 'เกิดข้อผิดพลาดในการสร้างชุดฝึกปฏิบัติการตัวอย่าง' }, { status: 500 });
   }
 }

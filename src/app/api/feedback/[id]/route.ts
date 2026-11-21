@@ -99,7 +99,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   } catch (error: any) {
     console.error('Error updating system feedback:', error);
     return NextResponse.json(
-      { error: error.message || 'ไม่สามารถแก้ไขผลประเมินได้' },
+      { error: 'ไม่สามารถแก้ไขผลประเมินได้' },
       { status: 500 }
     );
   }
@@ -143,7 +143,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   } catch (error: any) {
     console.error('Error deleting system feedback:', error);
     return NextResponse.json(
-      { error: error.message || 'ไม่สามารถลบผลประเมินได้' },
+      { error: 'ไม่สามารถลบผลประเมินได้' },
       { status: 500 }
     );
   }

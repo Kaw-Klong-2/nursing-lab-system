@@ -28,7 +28,7 @@ export async function GET(req: Request) {
     });
   } catch (error: any) {
     console.error('Error getting push subscription status:', error);
-    return NextResponse.json({ error: error.message || 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
 
@@ -83,7 +83,7 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error('Error saving push subscription:', error);
-    return NextResponse.json({ error: error.message || 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
 
@@ -108,6 +108,6 @@ export async function DELETE(req: Request) {
     });
   } catch (error: any) {
     console.error('Error deleting push subscription:', error);
-    return NextResponse.json({ error: error.message || 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

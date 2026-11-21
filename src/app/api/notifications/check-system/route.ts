@@ -197,6 +197,6 @@ export async function POST() {
     });
   } catch (error: any) {
     console.error('System notification check error:', error);
-    return NextResponse.json({ error: error.message || 'System check failed' }, { status: 500 });
+    return NextResponse.json({ error: 'System check failed' }, { status: 500 });
   }
 }

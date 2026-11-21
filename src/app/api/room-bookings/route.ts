@@ -6,6 +6,36 @@ import { formatUserName, formatRequesterWithRole } from '@/lib/user-utils';
 import { getBangkokParts, getBangkokStartOfDay } from '@/lib/date-time-utils';
 import { isViewerUser, VIEWER_FORBIDDEN_MESSAGE } from '@/lib/viewer-guard';
 
+const TIME_HH_MM_REGEX = /^([01]?\d|2[0-3]):([0-5]\d)$/;
+const DATE_YYYY_MM_DD_REGEX = /^(\d{4})-(\d{2})-(\d{2})/;
+
+function parseTimeToMinutes(timeStr: unknown): { minutes: number; normalized: string } | null {
+  if (typeof timeStr !== 'string') return null;
+  const match = timeStr.trim().match(TIME_HH_MM_REGEX);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const mins = Number(match[2]);
+  return {
+    minutes: hours * 60 + mins,
+    normalized: `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`,
+  };
+}
+
+function isTimeRangeOverlapping(startA: number, endA: number, startBStr: string, endBStr: string): boolean {
+  const bStart = parseTimeToMinutes(startBStr);
+  const bEnd = parseTimeToMinutes(endBStr);
+  if (!bStart || !bEnd) return false;
+  return startA < bEnd.minutes && endA > bStart.minutes;
+}
+
+class RoomBookingError extends Error {
+  status: number;
+  constructor(message: string, status = 400) {
+    super(message);
+    this.status = status;
+  }
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -95,7 +125,7 @@ export async function GET(req: Request) {
     return NextResponse.json(bookings);
   } catch (error: any) {
     console.error('Error fetching room bookings:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch room bookings' }, { status: 500 });
+    return NextResponse.json({ error: 'ไม่สามารถดึงข้อมูลการจองห้องได้' }, { status: 500 });
   }
 }
 
@@ -142,170 +172,208 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1. Check if room exists and is active
-    const room = await prisma.practiceRoom.findUnique({
-      where: { id: roomId },
-    });
-
-    if (!room) {
-      return NextResponse.json({ error: 'ไม่พบห้องปฏิบัติการที่เลือก' }, { status: 404 });
-    }
-
-    if (!room.isActive) {
+    // 1. Validate time format and ordering (numeric minute comparison & HH:MM normalization)
+    const parsedStart = parseTimeToMinutes(startTime);
+    const parsedEnd = parseTimeToMinutes(endTime);
+    if (!parsedStart || !parsedEnd) {
       return NextResponse.json(
-        { error: `ห้อง "${room.name}" ปิดให้บริการชั่วคราว ${room.closeReason ? `(${room.closeReason})` : ''} ไม่สามารถจองได้` },
+        { error: 'รูปแบบเวลาไม่ถูกต้อง กรุณาระบุเวลาในรูปแบบ HH:MM (เช่น 08:30 - 12:00)' },
         { status: 400 }
       );
     }
 
-    // 2. Validate time format and ordering
-    if (startTime >= endTime) {
+    if (parsedStart.minutes >= parsedEnd.minutes) {
       return NextResponse.json(
         { error: 'เวลาเริ่มต้นต้องมาก่อนเวลาสิ้นสุดการใช้งาน' },
         { status: 400 }
       );
     }
 
-    const [y, m, d] = bookingDate.slice(0, 10).split('-').map(Number);
-    const bDate = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+    const normalizedStartTime = parsedStart.normalized;
+    const normalizedEndTime = parsedEnd.normalized;
 
-    // 3. Conflict Detection
+    const dateMatch = typeof bookingDate === 'string' ? bookingDate.trim().match(DATE_YYYY_MM_DD_REGEX) : null;
+    if (!dateMatch) {
+      return NextResponse.json({ error: 'รูปแบบวันที่ไม่ถูกต้อง' }, { status: 400 });
+    }
+
+    const y = Number(dateMatch[1]);
+    const m = Number(dateMatch[2]);
+    const d = Number(dateMatch[3]);
+    const bDate = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
     const nextDay = new Date(Date.UTC(y, m - 1, d + 1, 0, 0, 0, 0));
 
-    // 3.1 Check overlapping APPROVED or PENDING room bookings for the same room on the same date
-    const existingRoomBookings = await prisma.roomBooking.findMany({
-      where: {
-        roomId,
-        bookingDate: {
-          gte: bDate,
-          lt: nextDay,
-        },
-        status: { in: ['APPROVED', 'PENDING'] },
-      },
-    });
+    // 2. Conflict checks, booking number generation & create inside transaction (with P2002 retry)
+    let booking: any = null;
+    const maxAttempts = 3;
 
-    const approvedConflict = existingRoomBookings.find(
-      (existing) => existing.status === 'APPROVED' && startTime < existing.endTime && endTime > existing.startTime
-    );
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        booking = await prisma.$transaction(
+          async (tx) => {
+            // Check if room exists and is active
+            const room = await tx.practiceRoom.findUnique({
+              where: { id: roomId },
+            });
 
-    if (approvedConflict) {
-      return NextResponse.json(
-        {
-          error: `ห้อง "${room.name}" ได้รับการอนุมัติให้ใช้งานแล้วในช่วงเวลา ${approvedConflict.startTime} - ${approvedConflict.endTime} น. ("${approvedConflict.title}") กรุณาเลือกช่วงเวลาอื่น`,
-        },
-        { status: 409 }
-      );
-    }
+            if (!room) {
+              throw new RoomBookingError('ไม่พบห้องปฏิบัติการที่เลือก', 404);
+            }
 
-    const pendingConflict = existingRoomBookings.find(
-      (existing) => existing.status === 'PENDING' && startTime < existing.endTime && endTime > existing.startTime
-    );
+            if (!room.isActive) {
+              throw new RoomBookingError(
+                `ห้อง "${room.name}" ปิดให้บริการชั่วคราว ${room.closeReason ? `(${room.closeReason})` : ''} ไม่สามารถจองได้`,
+                400
+              );
+            }
 
-    if (pendingConflict) {
-      return NextResponse.json(
-        {
-          error: `ช่วงเวลา ${pendingConflict.startTime} - ${pendingConflict.endTime} น. มีคำขออื่นรอการพิจารณาอนุมัติอยู่แล้ว ("${pendingConflict.title}") เพื่อป้องกันการจองซ้ำซ้อน กรุณาเลือกช่วงเวลาอื่น`,
-        },
-        { status: 409 }
-      );
-    }
+            // 2.1 Check overlapping APPROVED or PENDING room bookings for the same room on the same date
+            const existingRoomBookings = await tx.roomBooking.findMany({
+              where: {
+                roomId,
+                bookingDate: {
+                  gte: bDate,
+                  lt: nextDay,
+                },
+                status: { in: ['APPROVED', 'PENDING'] },
+              },
+            });
 
-    // 3.2 Cross-system conflict: Check overlapping open PracticeSlot for the same room on this date
-    const conflictingSlots = await prisma.practiceSlot.findMany({
-      where: {
-        roomId,
-        date: {
-          gte: bDate,
-          lt: nextDay,
-        },
-        isOpen: true,
-      },
-      include: {
-        bookings: {
-          where: {
-            status: { in: ['PENDING', 'APPROVED', 'CHECKED_IN'] },
+            const approvedConflict = existingRoomBookings.find(
+              (existing) =>
+                existing.status === 'APPROVED' &&
+                isTimeRangeOverlapping(parsedStart.minutes, parsedEnd.minutes, existing.startTime, existing.endTime)
+            );
+
+            if (approvedConflict) {
+              throw new RoomBookingError(
+                `ห้อง "${room.name}" ได้รับการอนุมัติให้ใช้งานแล้วในช่วงเวลา ${approvedConflict.startTime} - ${approvedConflict.endTime} น. ("${approvedConflict.title}") กรุณาเลือกช่วงเวลาอื่น`,
+                409
+              );
+            }
+
+            const pendingConflict = existingRoomBookings.find(
+              (existing) =>
+                existing.status === 'PENDING' &&
+                isTimeRangeOverlapping(parsedStart.minutes, parsedEnd.minutes, existing.startTime, existing.endTime)
+            );
+
+            if (pendingConflict) {
+              throw new RoomBookingError(
+                `ช่วงเวลา ${pendingConflict.startTime} - ${pendingConflict.endTime} น. มีคำขออื่นรอการพิจารณาอนุมัติอยู่แล้ว ("${pendingConflict.title}") เพื่อป้องกันการจองซ้ำซ้อน กรุณาเลือกช่วงเวลาอื่น`,
+                409
+              );
+            }
+
+            // 2.2 Cross-system conflict: Check overlapping open PracticeSlot for the same room on this date
+            const conflictingSlots = await tx.practiceSlot.findMany({
+              where: {
+                roomId,
+                date: {
+                  gte: bDate,
+                  lt: nextDay,
+                },
+                isOpen: true,
+              },
+              include: {
+                bookings: {
+                  where: {
+                    status: { in: ['PENDING', 'APPROVED', 'CHECKED_IN'] },
+                  },
+                },
+              },
+            });
+
+            const slotConflict = conflictingSlots.find((s) =>
+              isTimeRangeOverlapping(parsedStart.minutes, parsedEnd.minutes, s.startTime, s.endTime)
+            );
+
+            if (slotConflict) {
+              const activeCount = slotConflict.bookings.length;
+              throw new RoomBookingError(
+                `ห้อง "${room.name}" มีรอบเปิดฝึกปฏิบัติการทักษะด้วยตนเอง (${slotConflict.startTime} - ${slotConflict.endTime} น.${activeCount > 0 ? ` มีนิสิตจองแล้ว ${activeCount} คน` : ''}) จึงไม่สามารถจองห้องแบบทั่วไปในช่วงเวลานี้ได้`,
+                409
+              );
+            }
+
+            // 2.3 Generate unique Booking Number e.g. "ROOM-25690911-001"
+            const now = new Date();
+            const bkk = getBangkokParts(now);
+            const thaiYear = bkk.year + 543;
+            const datePart = `${thaiYear}${String(bkk.month).padStart(2, '0')}${String(bkk.day).padStart(2, '0')}`;
+            const bnPrefix = `ROOM-${datePart}-`;
+
+            const [todayCount, latestBooking] = await Promise.all([
+              tx.roomBooking.count({
+                where: {
+                  createdAt: {
+                    gte: getBangkokStartOfDay(now),
+                  },
+                },
+              }),
+              tx.roomBooking.findFirst({
+                where: {
+                  bookingNumber: { startsWith: bnPrefix },
+                },
+                orderBy: { bookingNumber: 'desc' },
+                select: { bookingNumber: true },
+              }),
+            ]);
+
+            const latestSeq = latestBooking?.bookingNumber
+              ? parseInt(latestBooking.bookingNumber.slice(bnPrefix.length), 10) || 0
+              : 0;
+            const nextSeq = Math.max(todayCount, latestSeq) + 1;
+            const bookingNumber = `${bnPrefix}${String(nextSeq).padStart(3, '0')}`;
+
+            // 2.4 Create Room Booking Record
+            return tx.roomBooking.create({
+              data: {
+                bookingNumber,
+                roomId,
+                userId,
+                title,
+                purpose,
+                isTimetable: finalIsTimetable,
+                bookingDate: bDate,
+                startTime: normalizedStartTime,
+                endTime: normalizedEndTime,
+                attendeesCount: Number(attendeesCount) || 1,
+                courseId: courseId || null,
+                advisorName: advisorName || null,
+                contactPhone: contactPhone || null,
+                equipmentNeeded: equipmentNeeded || null,
+                note: note || null,
+                status: 'PENDING',
+              },
+              include: {
+                room: true,
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    prefix: true,
+                    studentId: true,
+                    email: true,
+                  },
+                },
+              },
+            });
           },
-        },
-      },
-    });
-
-    const slotConflict = conflictingSlots.find(
-      (s) => startTime < s.endTime && endTime > s.startTime
-    );
-
-    if (slotConflict) {
-      const activeCount = slotConflict.bookings.length;
-      return NextResponse.json(
-        {
-          error: `ห้อง "${room.name}" มีรอบเปิดฝึกปฏิบัติการทักษะด้วยตนเอง (${slotConflict.startTime} - ${slotConflict.endTime} น.${activeCount > 0 ? ` มีนิสิตจองแล้ว ${activeCount} คน` : ''}) จึงไม่สามารถจองห้องแบบทั่วไปในช่วงเวลานี้ได้`,
-        },
-        { status: 409 }
-      );
+          { timeout: 15000 }
+        );
+        break;
+      } catch (txErr: any) {
+        if (txErr?.code === 'P2002' && attempt < maxAttempts) {
+          continue;
+        }
+        throw txErr;
+      }
     }
 
-    // 3.3 Check duplicate submission by the same user for this room, date and overlapping time
-    const duplicateRequest = existingRoomBookings.find(
-      (existing) => existing.userId === userId && startTime < existing.endTime && endTime > existing.startTime
-    );
-
-    if (duplicateRequest) {
-      return NextResponse.json(
-        {
-          error: `ท่านได้ส่งคำขอจองห้องนี้ในช่วงเวลา ${duplicateRequest.startTime} - ${duplicateRequest.endTime} น. ไปแล้ว (เลขที่: ${duplicateRequest.bookingNumber})`,
-        },
-        { status: 409 }
-      );
+    if (!booking) {
+      throw new Error('Failed to create room booking after retries');
     }
-
-    // 4. Generate unique Booking Number e.g. "ROOM-25690911-001"
-    const now = new Date();
-    const bkk = getBangkokParts(now);
-    const thaiYear = bkk.year + 543;
-    const datePart = `${thaiYear}${String(bkk.month).padStart(2, '0')}${String(bkk.day).padStart(2, '0')}`;
-
-    const todayCount = await prisma.roomBooking.count({
-      where: {
-        createdAt: {
-          gte: getBangkokStartOfDay(now),
-        },
-      },
-    });
-
-    const bookingNumber = `ROOM-${datePart}-${String(todayCount + 1).padStart(3, '0')}`;
-
-    // 5. Create Room Booking Record
-    const booking = await prisma.roomBooking.create({
-      data: {
-        bookingNumber,
-        roomId,
-        userId,
-        title,
-        purpose,
-        isTimetable: finalIsTimetable,
-        bookingDate: bDate,
-        startTime,
-        endTime,
-        attendeesCount: Number(attendeesCount) || 1,
-        courseId: courseId || null,
-        advisorName: advisorName || null,
-        contactPhone: contactPhone || null,
-        equipmentNeeded: equipmentNeeded || null,
-        note: note || null,
-        status: 'PENDING',
-      },
-      include: {
-        room: true,
-        user: {
-          select: {
-            id: true,
-            name: true,
-            prefix: true,
-            studentId: true,
-            email: true,
-          },
-        },
-      },
-    });
 
     invalidateCache('room:bookings:');
 
@@ -361,7 +429,19 @@ export async function POST(req: Request) {
 
     return NextResponse.json(booking, { status: 201 });
   } catch (error: any) {
+    if (error instanceof RoomBookingError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    if (error?.code === 'P2002') {
+      return NextResponse.json(
+        { error: 'เกิดการจองห้องซ้อนกันในเวลาเดียวกัน กรุณาลองใหม่อีกครั้ง' },
+        { status: 409 }
+      );
+    }
     console.error('Error creating room booking:', error);
-    return NextResponse.json({ error: error.message || 'Failed to create room booking' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'เกิดข้อผิดพลาดในการสร้างคำขอจองห้องปฏิบัติการ' },
+      { status: 500 }
+    );
   }
 }

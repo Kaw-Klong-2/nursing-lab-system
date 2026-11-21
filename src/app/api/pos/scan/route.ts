@@ -439,7 +439,7 @@ export async function GET(req: Request) {
   } catch (err: any) {
     console.error('POS Scan Error:', err);
     return NextResponse.json(
-      { error: err.message || 'เกิดข้อผิดพลาดในการสแกนค้นหา' },
+      { error: 'เกิดข้อผิดพลาดในการสแกนค้นหา' },
       { status: 500 }
     );
   }

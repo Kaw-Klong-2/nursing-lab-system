@@ -141,7 +141,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Kit Quick Request Error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการยื่นคำขอชุดฝึกปฏิบัติการ' },
+      { error: 'เกิดข้อผิดพลาดในการยื่นคำขอชุดฝึกปฏิบัติการ' },
       { status: 500 }
     );
   }

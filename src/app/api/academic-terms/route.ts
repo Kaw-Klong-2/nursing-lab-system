@@ -73,7 +73,7 @@ export async function GET(req: Request) {
     return NextResponse.json(terms);
   } catch (error: any) {
     console.error('Error fetching academic terms:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch academic terms' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch academic terms' }, { status: 500 });
   }
 }
 
@@ -137,6 +137,6 @@ export async function POST(req: Request) {
     return NextResponse.json(created, { status: 201 });
   } catch (error: any) {
     console.error('Error creating academic term:', error);
-    return NextResponse.json({ error: error.message || 'Failed to create academic term' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create academic term' }, { status: 500 });
   }
 }

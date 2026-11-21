@@ -182,7 +182,7 @@ export async function PATCH(req: Request) {
   } catch (error: any) {
     console.error('Batch user status update error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการอัปเดตสถานะผู้ใช้' },
+      { error: 'เกิดข้อผิดพลาดในการอัปเดตสถานะผู้ใช้' },
       { status: 500 }
     );
   }

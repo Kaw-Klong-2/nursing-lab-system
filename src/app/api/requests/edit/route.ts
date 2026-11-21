@@ -801,6 +801,6 @@ export async function PUT(req: Request) {
     });
   } catch (error: any) {
     console.error('Error in request edit:', error);
-    return NextResponse.json({ error: error?.message || 'เกิดข้อผิดพลาดในการแก้ไขคำขอ' }, { status: 500 });
+    return NextResponse.json({ error: 'เกิดข้อผิดพลาดในการแก้ไขคำขอ' }, { status: 500 });
   }
 }

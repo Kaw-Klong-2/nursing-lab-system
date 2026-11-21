@@ -63,7 +63,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   } catch (error: any) {
     console.error('Update Kit Error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการแก้ไขชุดฝึกปฏิบัติการ' },
+      { error: 'เกิดข้อผิดพลาดในการแก้ไขชุดฝึกปฏิบัติการ' },
       { status: 500 }
     );
   }
@@ -80,7 +80,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   } catch (error: any) {
     console.error('Delete Kit Error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการลบชุดฝึกปฏิบัติการ' },
+      { error: 'เกิดข้อผิดพลาดในการลบชุดฝึกปฏิบัติการ' },
       { status: 500 }
     );
   }

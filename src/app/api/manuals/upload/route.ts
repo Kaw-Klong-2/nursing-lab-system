@@ -57,7 +57,7 @@ export async function GET() {
   } catch (error: any) {
     console.error('Error fetching persisted ebooks:', error);
     return NextResponse.json(
-      { success: false, ebooks: [], error: error?.message || 'ไม่สามารถโหลดข้อมูลคู่มือได้' },
+      { success: false, ebooks: [], error: 'ไม่สามารถโหลดข้อมูลคู่มือได้' },
       { status: 500 }
     );
   }
@@ -229,7 +229,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Error in manual upload:', error);
     return NextResponse.json(
-      { error: error?.message || 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์คู่มือ' },
+      { error: 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์คู่มือ' },
       { status: 500 }
     );
   }
@@ -256,7 +256,7 @@ export async function DELETE(req: NextRequest) {
   } catch (error: any) {
     console.error('Error deleting persisted ebook:', error);
     return NextResponse.json(
-      { error: error?.message || 'เกิดข้อผิดพลาดในการลบคู่มือ' },
+      { error: 'เกิดข้อผิดพลาดในการลบคู่มือ' },
       { status: 500 }
     );
   }

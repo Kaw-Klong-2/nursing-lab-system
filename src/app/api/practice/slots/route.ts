@@ -120,7 +120,7 @@ export async function GET(req: Request) {
     return NextResponse.json(enrichedSlots);
   } catch (error: any) {
     console.error('Error fetching practice slots:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch slots' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch slots' }, { status: 500 });
   }
 }
 
@@ -265,6 +265,6 @@ export async function POST(req: Request) {
     return NextResponse.json(slot);
   } catch (error: any) {
     console.error('Error creating practice slot:', error);
-    return NextResponse.json({ error: error.message || 'Failed to create slot' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create slot' }, { status: 500 });
   }
 }

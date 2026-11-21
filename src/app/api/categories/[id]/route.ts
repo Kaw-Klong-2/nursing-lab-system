@@ -68,7 +68,7 @@ export async function PUT(
     return NextResponse.json({ success: true, category: updated });
   } catch (error: any) {
     console.error('Update category error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update category' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update category' }, { status: 500 });
   }
 }
 
@@ -98,6 +98,6 @@ export async function DELETE(
     return NextResponse.json({ success: true, message: 'ลบหมวดหมู่สำเร็จ' });
   } catch (error: any) {
     console.error('Delete category error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to delete category' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to delete category' }, { status: 500 });
   }
 }

@@ -149,6 +149,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     });
   } catch (error: any) {
     console.error('Error fetching room storage data:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch room storage data' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch room storage data' }, { status: 500 });
   }
 }

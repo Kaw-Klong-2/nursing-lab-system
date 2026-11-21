@@ -39,7 +39,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json(booking);
   } catch (error: any) {
     console.error('Error fetching practice booking:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch booking' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch booking' }, { status: 500 });
   }
 }
 
@@ -470,6 +470,6 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error: any) {
     console.error('Error updating practice booking:', error);
-    return NextResponse.json({ error: error.message || 'Update failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Update failed' }, { status: 500 });
   }
 }

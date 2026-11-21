@@ -24,6 +24,6 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ success: true, message: 'ทำเครื่องหมายว่าอ่านทั้งหมดแล้ว' });
   } catch (error: any) {
     console.error('Error marking all notifications as read:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update notifications' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update notifications' }, { status: 500 });
   }
 }

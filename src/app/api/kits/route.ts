@@ -100,7 +100,7 @@ export async function GET(req: Request) {
   } catch (error: any) {
     console.error('Fetch Kits Error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการดึงข้อมูลชุดฝึกปฏิบัติการ' },
+      { error: 'เกิดข้อผิดพลาดในการดึงข้อมูลชุดฝึกปฏิบัติการ' },
       { status: 500 }
     );
   }
@@ -158,7 +158,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Create Kit Error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการสร้างชุดฝึกปฏิบัติการ' },
+      { error: 'เกิดข้อผิดพลาดในการสร้างชุดฝึกปฏิบัติการ' },
       { status: 500 }
     );
   }

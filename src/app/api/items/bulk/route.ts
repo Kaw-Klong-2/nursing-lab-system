@@ -702,7 +702,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Bulk item import error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการนำเข้าพัสดุ' },
+      { error: 'เกิดข้อผิดพลาดในการนำเข้าพัสดุ' },
       { status: 500 }
     );
   }

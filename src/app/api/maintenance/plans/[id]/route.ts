@@ -74,7 +74,7 @@ export async function GET(
     });
   } catch (error: any) {
     console.error('Failed to get plan detail:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch plan detail' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch plan detail' }, { status: 500 });
   }
 }
 
@@ -120,7 +120,7 @@ export async function PUT(
     return NextResponse.json({ success: true, plan: updated });
   } catch (error: any) {
     console.error('Failed to update plan:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update plan' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update plan' }, { status: 500 });
   }
 }
 
@@ -135,6 +135,6 @@ export async function DELETE(
     return NextResponse.json({ success: true, message: 'ลบแผนงานเรียบร้อยแล้ว' });
   } catch (error: any) {
     console.error('Failed to delete plan:', error);
-    return NextResponse.json({ error: error.message || 'Failed to delete plan' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to delete plan' }, { status: 500 });
   }
 }

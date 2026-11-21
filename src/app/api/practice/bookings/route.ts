@@ -54,7 +54,7 @@ export async function GET(req: Request) {
     return NextResponse.json(bookings);
   } catch (error: any) {
     console.error('Error fetching practice bookings:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch bookings' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch bookings' }, { status: 500 });
   }
 }
 
@@ -456,6 +456,6 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error('Error creating practice booking:', error);
-    return NextResponse.json({ error: error.message || 'Failed to create booking' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create booking' }, { status: 500 });
   }
 }

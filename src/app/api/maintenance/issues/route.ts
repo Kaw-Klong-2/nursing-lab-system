@@ -41,7 +41,7 @@ export async function GET(req: Request) {
     return NextResponse.json(reports);
   } catch (error: any) {
     console.error('Failed to get issue reports:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch issues' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch issues' }, { status: 500 });
   }
 }
 
@@ -159,6 +159,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, report }, { status: 201 });
   } catch (error: any) {
     console.error('Failed to submit equipment issue:', error);
-    return NextResponse.json({ error: error.message || 'Submission failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Submission failed' }, { status: 500 });
   }
 }

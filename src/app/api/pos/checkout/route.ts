@@ -381,7 +381,7 @@ export async function POST(req: Request) {
   } catch (err: any) {
     console.error('POS Checkout Error:', err);
     return NextResponse.json(
-      { error: err.message || 'เกิดข้อผิดพลาดในการทำรายการเบิกจ่าย' },
+      { error: 'เกิดข้อผิดพลาดในการทำรายการเบิกจ่าย' },
       { status: 500 }
     );
   }

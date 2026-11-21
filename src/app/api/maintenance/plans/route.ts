@@ -83,7 +83,7 @@ export async function GET(req: Request) {
     return NextResponse.json(formatted);
   } catch (error: any) {
     console.error('Failed to get inspection plans:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch inspection plans' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch inspection plans' }, { status: 500 });
   }
 }
 
@@ -169,6 +169,6 @@ export async function POST(req: Request) {
     }, { status: 201 });
   } catch (error: any) {
     console.error('Failed to create inspection plan:', error);
-    return NextResponse.json({ error: error.message || 'Failed to create plan' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create plan' }, { status: 500 });
   }
 }

@@ -110,7 +110,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   } catch (error: any) {
     console.error('Update item error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการแก้ไขรายการพัสดุ' },
+      { error: 'เกิดข้อผิดพลาดในการแก้ไขรายการพัสดุ' },
       { status: 500 }
     );
   }
@@ -171,7 +171,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   } catch (error: any) {
     console.error('Delete item error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการลบรายการพัสดุ' },
+      { error: 'เกิดข้อผิดพลาดในการลบรายการพัสดุ' },
       { status: 500 }
     );
   }

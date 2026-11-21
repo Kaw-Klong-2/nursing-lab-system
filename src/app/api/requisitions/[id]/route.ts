@@ -873,7 +873,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error: any) {
     console.error('Requisition dispense error:', error);
-    return NextResponse.json({ error: error.message || 'Dispense failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Dispense failed' }, { status: 500 });
   }
 }
 

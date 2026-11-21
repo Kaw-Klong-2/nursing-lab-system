@@ -116,7 +116,7 @@ export async function GET(req: Request) {
     return NextResponse.json(filtered);
   } catch (error: any) {
     console.error('Failed to get maintenance assets:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch assets' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch assets' }, { status: 500 });
   }
 }
 
@@ -170,7 +170,7 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: 'กรุณาระบุ assetId หรือ itemId' }, { status: 400 });
   } catch (error: any) {
     console.error('Update inspection interval error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update interval' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update interval' }, { status: 500 });
   }
 }
 

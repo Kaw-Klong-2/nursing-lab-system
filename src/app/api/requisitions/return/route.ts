@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
 import { logActivity } from '@/lib/activity-log';
+
+class ReturnValidationError extends Error {}
 import { formatUserName } from '@/lib/user-utils';
 
 export async function POST(req: Request) {
@@ -74,7 +76,7 @@ export async function POST(req: Request) {
 
         const maxAvailableToReturn = Math.max(0, reqItem.quantityDispensed - (reqItem.quantityReturned || 0));
         if (returnQty > maxAvailableToReturn) {
-          throw new Error(
+          throw new ReturnValidationError(
             `จำนวนคืนของ "${reqItem.item.name}" (${returnQty}) เกินจำนวนที่เบิกไปคงเหลือ (${maxAvailableToReturn})`
           );
         }
@@ -254,9 +256,12 @@ export async function POST(req: Request) {
       totalItemsReturnedCount,
     });
   } catch (error: any) {
+    if (error instanceof ReturnValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.error('Consumable return error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการประมวลผลรับคืนวัสดุสิ้นเปลือง' },
+      { error: 'เกิดข้อผิดพลาดในการประมวลผลรับคืนวัสดุสิ้นเปลือง' },
       { status: 500 }
     );
   }

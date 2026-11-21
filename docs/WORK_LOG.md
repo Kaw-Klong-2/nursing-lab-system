@@ -17,6 +17,25 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-21] ปรับเลขเวอร์ชันเป็น v2.7.1 + ดำเนินการแก้ไขระยะที่ 2 (Data Integrity, Transactions, Privacy & Error Sanitization)
+- **หมวดหมู่**: Data Integrity, Database Transactions, Concurrency Control, Privacy, CSRF & Error Handling (`v2.7.1`)
+- **สิ่งที่ดำเนินการ**:
+  - **Version Bump (`v2.7.0` -> `v2.7.1`)**: รัน `node scripts/version-bump.mjs patch` ซิงก์ `package.json` และ `src/lib/version.ts` เป็น `v2.7.1`
+  - **แก้ไขบั๊กสต็อกและครอบ `prisma.$transaction`**:
+    - `src/app/api/kits/dispense/route.ts`: แก้เงื่อนไขตรวจสต็อกวัสดุเทียบกับจำนวนชิ้นทั้งหมดที่ต้องใช้จริง (`effectivePiecesAvailable < requiredQty`), ข้ามล็อตที่ไม่ได้ตัด, และครอบการตัด `StockLot` + บันทึก `StockTransaction` ใน `prisma.$transaction` พร้อม `KitDispenseError` (400/404/409) และ optimistic check ป้องกันสต็อกติดลบ
+    - `src/app/api/borrow/[id]/route.ts`: ย้ายบล็อกคืนวัสดุสิ้นเปลืองเหลือใช้ (`requisitionReturns`) จาก `ACKNOWLEDGE` ไปไว้ใน `RETURN` (ให้ตรงกับ Frontend ที่ส่งมากับ `action: 'RETURN'`), ครอบทั้ง `CHECKOUT` (รวมการตัดสต็อก FIFO ของ `linkedReq` แบบมี conditional guard `{ gte: ... }` และลบ inner `try/catch` ที่กลืน error) และ `RETURN` ใน `prisma.$transaction` พร้อมคงรูปแบบ error `CONCURRENCY_CONFLICT` (409)
+    - `src/app/api/stock/in/route.ts`: ครอบรับเข้าวัสดุสิ้นเปลือง (`Item`, `StockLot`, `StockTransaction`, `StockLotBox`) และครุภัณฑ์ (`EquipmentAsset`, `StockTransaction`) ด้วย `prisma.$transaction` พร้อม retry กรณีชน `P2002` และคืน status 409 เมื่อรหัสซ้ำ
+    - `src/app/api/repack/route.ts`: ครอบงานแบ่งบรรจุทั้งหมดใน `prisma.$transaction` พร้อม conditional atomic decrement (`quantityRemaining: { gte: qtyUsed }`), สร้าง `recordNumber` แบบป้องกันชนซ้ำ, และจัดการ error ด้วย `RepackError` (400/404/409)
+    - `src/app/api/room-bookings/route.ts`: เพิ่ม `parseTimeToMinutes` และ `isTimeRangeOverlapping` (ตรวจรูปแบบ `HH:MM`, normalize เป็น 2 หลัก, เปรียบเทียบเวลาเป็นนาที), ลบ dead code `duplicateRequest`, และครอบตรวจจองซ้อน + สร้าง `bookingNumber` + `roomBooking.create` ใน `prisma.$transaction` (retry สูงสุด 3 รอบเมื่อ `P2002`)
+  - **ยกระดับความเป็นส่วนตัวและการป้องกันเพิ่มเติม**:
+    - `src/app/api/assets/public/[code]/route.ts`: ตรวจ `getSessionFromRequest(req)` เพื่อซ่อนข้อมูลส่วนตัวผู้ยืม (`borrowerStudentId`, `borrowerPhone`, ชื่อเต็ม) สำหรับผู้สแกน QR ที่ยังไม่ได้ล็อกอินหรือไม่ใช่เจ้าหน้าที่/อาจารย์/เจ้าของรายการ
+    - `src/lib/google-auth.ts`: เพิ่มการตรวจ `g_csrf_token` ระหว่าง cookie กับ form body ด้วย `crypto.timingSafeEqual` ในโหมด `isFormPost` (GIS redirect)
+    - `src/app/api/health/route.ts`: จำกัดผลลัพธ์เชิงลึก (env keys / runtime context) ให้เฉพาะผู้ใช้ `ADMIN` ที่ล็อกอินแล้ว ส่วนบุคคลทั่วไปคืนเฉพาะ `{ status: 'ok', timestamp }`
+  - **ปิดการเปิดเผย `error.message` ภายในสู่ Client (85 ไฟล์)**:
+    - แยก validation domain error (`ReturnValidationError`) ใน `src/app/api/requisitions/return/route.ts` และแทนที่ข้อความ HTTP 500 ที่มี `error.message` ใน catch blocks ทุก API routes (`src/app/api/**`) ด้วยข้อความมาตรฐานที่ปลอดภัย (คง `console.error` ฝั่งเซิร์ฟเวอร์ไว้ครบ)
+- **ไฟล์สำคัญที่แก้ไข**: `package.json`, `src/lib/version.ts`, `src/app/api/kits/dispense/route.ts`, `src/app/api/borrow/[id]/route.ts`, `src/app/api/stock/in/route.ts`, `src/app/api/repack/route.ts`, `src/app/api/room-bookings/route.ts`, `src/app/api/assets/public/[code]/route.ts`, `src/lib/google-auth.ts`, `src/app/api/health/route.ts`, `src/app/api/requisitions/return/route.ts`, `src/app/api/holidays/route.ts`, `src/app/api/kits/seed/route.ts` และ API routes รวม 85 ไฟล์
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ผ่าน 100% (`v2.7.1` ซิงก์ตรง, ไม่พบคำต้องห้าม, ไม่พบ UTF-8 Mojibake, `npx tsc --noEmit` & `npm run build` ผ่านสมบูรณ์)
+
 ### [2026-11-21] เสริมความเสถียรระบบล็อกอิน (Static Edge Env Reads, Dynamic HTTPS Cookie & Await Logout)
 - **สิ่งที่ดำเนินการ**:
   - `src/lib/session.ts` และ `src/lib/token.ts`: เปลี่ยนการอ่าน `process.env` จาก dynamic key เป็น static switch เพื่อให้ Edge Middleware analyzer มองเห็นตัวแปรครบทุกตัว ร่วมกับ Cloudflare context fallback

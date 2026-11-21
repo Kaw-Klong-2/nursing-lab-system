@@ -108,7 +108,7 @@ export async function GET(req: Request) {
   } catch (error: any) {
     console.error('Error fetching system feedback:', error);
     return NextResponse.json(
-      { error: error.message || 'ไม่สามารถดึงข้อมูลผลประเมินได้' },
+      { error: 'ไม่สามารถดึงข้อมูลผลประเมินได้' },
       { status: 500 }
     );
   }
@@ -216,7 +216,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Error creating system feedback:', error);
     return NextResponse.json(
-      { error: error.message || 'ไม่สามารถบันทึกคะแนนประเมินได้' },
+      { error: 'ไม่สามารถบันทึกคะแนนประเมินได้' },
       { status: 500 }
     );
   }

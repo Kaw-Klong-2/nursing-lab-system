@@ -225,7 +225,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Error creating walk-in practice booking:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการบันทึก Walk-in' },
+      { error: 'เกิดข้อผิดพลาดในการบันทึก Walk-in' },
       { status: 500 }
     );
   }

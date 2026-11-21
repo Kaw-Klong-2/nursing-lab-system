@@ -89,77 +89,103 @@ export async function POST(req: Request) {
       const parsedReceivedDate = receivedDate ? new Date(receivedDate) : new Date();
       const effectiveUsageUnit = usageUnit ? String(usageUnit).trim() : (item.usageUnit || 'ชิ้น');
 
-      if (usageUnit && String(usageUnit).trim() && String(usageUnit).trim() !== item.usageUnit) {
-        await prisma.item.update({
-          where: { id: itemId },
-          data: { usageUnit: String(usageUnit).trim() },
-        });
+      let result: { lot: any; tx: any; createdBoxes: any[] } | null = null;
+      const maxAttempts = 2;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          result = await prisma.$transaction(
+            async (db) => {
+              if (usageUnit && String(usageUnit).trim() && String(usageUnit).trim() !== item.usageUnit) {
+                await db.item.update({
+                  where: { id: itemId },
+                  data: { usageUnit: String(usageUnit).trim() },
+                });
+              }
+
+              const lot = await db.stockLot.create({
+                data: {
+                  itemId,
+                  lotNumber,
+                  brand: brand ? String(brand).trim() : null,
+                  packSize: parsedPackSize,
+                  packageUnit: packageUnit ? String(packageUnit).trim() : (item.unit || 'หน่วย'),
+                  totalPieces: computedTotalPieces,
+                  piecesRemaining: computedTotalPieces,
+                  quantityInitial: qty,
+                  quantityRemaining: qty,
+                  unitCost: cst,
+                  expiryDate: expiryDate ? new Date(expiryDate) : null,
+                  receivedDate: parsedReceivedDate,
+                  supplier: supplier || null,
+                },
+              });
+
+              const txRecord = await db.stockTransaction.create({
+                data: {
+                  itemId,
+                  lotId: lot.id,
+                  type: 'IN',
+                  quantity: qty,
+                  unitCost: cst,
+                  totalCost: total,
+                  createdById: userId,
+                  createdAt: parsedReceivedDate,
+                  note: note || `รับเข้าสต็อก Lot: ${lotNumber}${brand ? ` (ยี่ห้อ: ${brand})` : ''} ขนาดบรรจุ ${parsedPackSize} ${effectiveUsageUnit}/${packageUnit || item.unit || 'หน่วย'} (รวม ${computedTotalPieces.toLocaleString()} ${effectiveUsageUnit})`,
+                },
+              });
+
+              // Auto-generate boxes for this consumable lot with yearly sequence
+              const currentYearThai = String(new Date().getFullYear() + 543);
+              const maxBox = await db.stockLotBox.findFirst({
+                where: { itemId, year: currentYearThai },
+                orderBy: { boxNumberInYear: 'desc' },
+              });
+              let currentYearCounter = maxBox ? maxBox.boxNumberInYear : 0;
+
+              const cleanItemCode = (item.code || 'ITEM').replace(/[^a-zA-Z0-9-]/g, '');
+              const boxesData = [];
+              const boxesCount = Math.min(qty, 200);
+              for (let i = 1; i <= boxesCount; i++) {
+                currentYearCounter++;
+                boxesData.push({
+                  lotId: lot.id,
+                  itemId: item.id,
+                  boxCode: `${cleanItemCode}-${currentYearThai}-B${String(currentYearCounter).padStart(3, '0')}`,
+                  boxNumberInLot: i,
+                  boxNumberInYear: currentYearCounter,
+                  year: currentYearThai,
+                  status: 'IN_STOCK',
+                });
+              }
+
+              if (boxesData.length > 0) {
+                await db.stockLotBox.createMany({ data: boxesData });
+              }
+
+              const createdBoxes = await db.stockLotBox.findMany({
+                where: { lotId: lot.id },
+                orderBy: { boxNumberInLot: 'asc' },
+              });
+
+              return { lot, tx: txRecord, createdBoxes };
+            },
+            { timeout: 20000 }
+          );
+          break;
+        } catch (txErr: any) {
+          if (txErr?.code === 'P2002' && attempt < maxAttempts) {
+            continue;
+          }
+          throw txErr;
+        }
       }
 
-      const lot = await prisma.stockLot.create({
-        data: {
-          itemId,
-          lotNumber,
-          brand: brand ? String(brand).trim() : null,
-          packSize: parsedPackSize,
-          packageUnit: packageUnit ? String(packageUnit).trim() : (item.unit || 'หน่วย'),
-          totalPieces: computedTotalPieces,
-          piecesRemaining: computedTotalPieces,
-          quantityInitial: qty,
-          quantityRemaining: qty,
-          unitCost: cst,
-          expiryDate: expiryDate ? new Date(expiryDate) : null,
-          receivedDate: parsedReceivedDate,
-          supplier: supplier || null,
-        },
-      });
-
-      const tx = await prisma.stockTransaction.create({
-        data: {
-          itemId,
-          lotId: lot.id,
-          type: 'IN',
-          quantity: qty,
-          unitCost: cst,
-          totalCost: total,
-          createdById: userId,
-          createdAt: parsedReceivedDate,
-          note: note || `รับเข้าสต็อก Lot: ${lotNumber}${brand ? ` (ยี่ห้อ: ${brand})` : ''} ขนาดบรรจุ ${parsedPackSize} ${effectiveUsageUnit}/${packageUnit || item.unit || 'หน่วย'} (รวม ${computedTotalPieces.toLocaleString()} ${effectiveUsageUnit})`,
-        },
-      });
-
-      // Auto-generate boxes for this consumable lot with yearly sequence
-      const currentYearThai = String(new Date().getFullYear() + 543);
-      const maxBox = await prisma.stockLotBox.findFirst({
-        where: { itemId, year: currentYearThai },
-        orderBy: { boxNumberInYear: 'desc' },
-      });
-      let currentYearCounter = maxBox ? maxBox.boxNumberInYear : 0;
-
-      const cleanItemCode = (item.code || 'ITEM').replace(/[^a-zA-Z0-9-]/g, '');
-      const boxesData = [];
-      const boxesCount = Math.min(qty, 200);
-      for (let i = 1; i <= boxesCount; i++) {
-        currentYearCounter++;
-        boxesData.push({
-          lotId: lot.id,
-          itemId: item.id,
-          boxCode: `${cleanItemCode}-${currentYearThai}-B${String(currentYearCounter).padStart(3, '0')}`,
-          boxNumberInLot: i,
-          boxNumberInYear: currentYearCounter,
-          year: currentYearThai,
-          status: 'IN_STOCK',
-        });
+      if (!result) {
+        throw new Error('Failed to complete stock-in transaction');
       }
 
-      if (boxesData.length > 0) {
-        await prisma.stockLotBox.createMany({ data: boxesData });
-      }
-
-      const createdBoxes = await prisma.stockLotBox.findMany({
-        where: { lotId: lot.id },
-        orderBy: { boxNumberInLot: 'asc' },
-      });
+      const { lot, tx, createdBoxes } = result;
 
       invalidateCache('items:');
       invalidateCache('dashboard:');
@@ -180,44 +206,57 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'กรุณาระบุรหัสประจำชิ้น (Asset Code)' }, { status: 400 });
       }
 
-      // Find next sequence number if not explicitly specified
-      let seq = Number(sequenceNumber);
-      if (!seq || isNaN(seq)) {
-        const existingCount = await prisma.equipmentAsset.count({ where: { itemId } });
-        seq = existingCount + 1;
-      }
-
       const assetCost = Number(cost) || 0;
+      const parsedSeqInput = Number(sequenceNumber);
 
-      const asset = await prisma.equipmentAsset.create({
-        data: {
-          itemId,
-          assetCode,
-          govAssetCode: govAssetCode || null,
-          sequenceNumber: seq,
-          serialNumber: serialNumber || null,
-          location: location || item.location || 'ห้องปฏิบัติการพยาบาล',
-          receivedDate: receivedDate ? new Date(receivedDate) : new Date(),
-          cost: assetCost,
-          imageUrl: imageUrl || null,
-          status: 'AVAILABLE',
-          condition: 'GOOD',
-          note: note || `${item.unit || "ชิ้น"}ที่ ${seq}`,
-        },
-      });
+      const { asset, tx } = await prisma.$transaction(
+        async (db) => {
+          // Find next sequence number if not explicitly specified
+          let seq = parsedSeqInput;
+          if (!seq || isNaN(seq)) {
+            const maxAsset = await db.equipmentAsset.findFirst({
+              where: { itemId },
+              orderBy: { sequenceNumber: 'desc' },
+              select: { sequenceNumber: true },
+            });
+            const existingCount = await db.equipmentAsset.count({ where: { itemId } });
+            seq = Math.max(existingCount, maxAsset?.sequenceNumber || 0) + 1;
+          }
 
-      const tx = await prisma.stockTransaction.create({
-        data: {
-          itemId,
-          type: 'IN',
-          quantity: 1,
-          unitCost: assetCost,
-          totalCost: assetCost,
-          createdById: userId,
-          createdAt: asset.receivedDate,
-          note: note || `รับเข้าครุภัณฑ์ ${item.name} ${item.unit || "ชิ้น"}ที่ ${seq} (รหัส: ${assetCode})`,
+          const createdAsset = await db.equipmentAsset.create({
+            data: {
+              itemId,
+              assetCode,
+              govAssetCode: govAssetCode || null,
+              sequenceNumber: seq,
+              serialNumber: serialNumber || null,
+              location: location || item.location || 'ห้องปฏิบัติการพยาบาล',
+              receivedDate: receivedDate ? new Date(receivedDate) : new Date(),
+              cost: assetCost,
+              imageUrl: imageUrl || null,
+              status: 'AVAILABLE',
+              condition: 'GOOD',
+              note: note || `${item.unit || "ชิ้น"}ที่ ${seq}`,
+            },
+          });
+
+          const txRecord = await db.stockTransaction.create({
+            data: {
+              itemId,
+              type: 'IN',
+              quantity: 1,
+              unitCost: assetCost,
+              totalCost: assetCost,
+              createdById: userId,
+              createdAt: createdAsset.receivedDate,
+              note: note || `รับเข้าครุภัณฑ์ ${item.name} ${item.unit || "ชิ้น"}ที่ ${seq} (รหัส: ${assetCode})`,
+            },
+          });
+
+          return { asset: createdAsset, tx: txRecord };
         },
-      });
+        { timeout: 15000 }
+      );
 
       invalidateCache('items:');
       invalidateCache('dashboard:');
@@ -234,7 +273,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, asset, transaction: tx });
     }
   } catch (error: any) {
+    if (error?.code === 'P2002') {
+      return NextResponse.json(
+        { error: 'รหัสประจำชิ้น (Asset Code) หรือรหัสกล่องนี้มีอยู่ในระบบแล้ว กรุณาตรวจสอบและลองใหม่อีกครั้ง' },
+        { status: 409 }
+      );
+    }
     console.error('Stock in error:', error);
-    return NextResponse.json({ error: error.message || 'เกิดข้อผิดพลาดในการบันทึกรับเข้า' }, { status: 500 });
+    return NextResponse.json({ error: 'เกิดข้อผิดพลาดในการบันทึกรับเข้า' }, { status: 500 });
   }
 }

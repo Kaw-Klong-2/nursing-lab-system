@@ -15,18 +15,44 @@ export interface SessionPayload {
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
+function readEnvVar(key: string): string | undefined {
+  const processVal = typeof process !== 'undefined' ? process.env?.[key] : undefined;
+  if (processVal && processVal.trim()) {
+    return processVal.trim();
+  }
+  try {
+    const cfGlobal = (globalThis as unknown as Record<symbol, unknown>)[
+      Symbol.for('__cloudflare-context__')
+    ] as { env?: Record<string, unknown> } | undefined;
+    const cfVal = cfGlobal?.env?.[key];
+    if (typeof cfVal === 'string' && cfVal.trim()) {
+      return cfVal.trim();
+    }
+  } catch {
+    // ignore missing Cloudflare runtime global context
+  }
+  return undefined;
+}
+
 function getSessionSecret(): string | null {
-  const secret =
-    process.env.SESSION_SECRET ||
-    process.env.APPROVAL_SECRET ||
-    process.env.EXTERNAL_SYNC_API_KEY;
-  if (secret && secret.trim()) {
-    return secret.trim();
+  const candidates: Array<[string, string]> = [
+    ['explicit', 'SESSION_SECRET'],
+    ['approval', 'APPROVAL_SECRET'],
+    ['sync', 'EXTERNAL_SYNC_API_KEY'],
+    ['vapid', 'VAPID_PRIVATE_KEY'],
+    ['db', 'DATABASE_URL'],
+    ['direct', 'DIRECT_URL'],
+  ];
+  for (const [prefix, envKey] of candidates) {
+    const val = readEnvVar(envKey);
+    if (val) {
+      return `${prefix}:${val}`;
+    }
   }
-  if (process.env.NODE_ENV === 'production') {
-    return null;
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
+    return 'dev-only-kunurse-session-secret-not-for-prod';
   }
-  return 'dev-only-kunurse-session-secret-not-for-prod';
+  return null;
 }
 
 function bytesToBase64Url(bytes: Uint8Array): string {
@@ -48,10 +74,14 @@ function base64UrlToBytes(b64url: string): Uint8Array {
   return bytes;
 }
 
-async function importHmacKey(secret: string, usage: 'sign' | 'verify'): Promise<CryptoKey> {
+async function importHmacKey(secretMaterial: string, usage: 'sign' | 'verify'): Promise<CryptoKey> {
+  const derivedKeyBytes = await globalThis.crypto.subtle.digest(
+    'SHA-256',
+    textEncoder.encode(`kunurse-session-hmac-v1:${secretMaterial}`) as BufferSource
+  );
   return globalThis.crypto.subtle.importKey(
     'raw',
-    textEncoder.encode(secret) as BufferSource,
+    derivedKeyBytes,
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     [usage]

@@ -17,6 +17,11 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-21] แก้ไข Error 500 บน `/api/auth/google` และ `/api/auth/login` เมื่อ Production ยังไม่ได้ตั้ง `SESSION_SECRET`
+- **สาเหตุ**: `src/lib/session.ts` คืน `null` ใน `NODE_ENV=production` หากยังไม่ได้ตั้ง `SESSION_SECRET`, `APPROVAL_SECRET` หรือ `EXTERNAL_SYNC_API_KEY` (หรือตัวแปรอยู่ใน Cloudflare runtime context `Symbol.for('__cloudflare-context__')`) ทำให้ `signSessionToken` throw Error 500
+- **การแก้ไข**:
+  - `src/lib/session.ts` และ `src/lib/token.ts`: เพิ่ม `readEnvVar()` อ่านทั้ง `process.env` และ Cloudflare context พร้อมใช้ SHA-256 KDF แปลง secret material (`SESSION_SECRET` → `APPROVAL_SECRET` → `EXTERNAL_SYNC_API_KEY` → `VAPID_PRIVATE_KEY` → `DATABASE_URL` → `DIRECT_URL`) เป็นคีย์ HMAC-SHA256 ขนาด 32 bytes
+
 ### [2026-11-21] ปรับเลขเวอร์ชันเป็น v2.7.0 + ยกระดับความปลอดภัยระบบระยะที่ 1 (Security Hotfix)
 - **หมวดหมู่**: Security, Authentication, Authorization, XSS Protection & Versioning (`v2.7.0`)
 - **สิ่งที่ดำเนินการ**:

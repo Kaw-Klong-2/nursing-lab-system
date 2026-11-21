@@ -1,14 +1,54 @@
 import crypto from 'crypto';
 
-function getApprovalSecret(): string {
-  const secret = process.env.APPROVAL_SECRET || process.env.SESSION_SECRET;
-  if (secret && secret.trim()) {
-    return secret.trim();
+function readEnvVar(key: string): string | undefined {
+  const processVal = typeof process !== 'undefined' ? process.env?.[key] : undefined;
+  if (processVal && processVal.trim()) {
+    return processVal.trim();
   }
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('APPROVAL_SECRET (or SESSION_SECRET) must be configured in production');
+  try {
+    const cfGlobal = (globalThis as unknown as Record<symbol, unknown>)[
+      Symbol.for('__cloudflare-context__')
+    ] as { env?: Record<string, unknown> } | undefined;
+    const cfVal = cfGlobal?.env?.[key];
+    if (typeof cfVal === 'string' && cfVal.trim()) {
+      return cfVal.trim();
+    }
+  } catch {
+    // ignore missing Cloudflare runtime global context
   }
-  return 'dev-only-approval-secret-not-for-prod';
+  return undefined;
+}
+
+function getApprovalSecret(): Buffer {
+  const candidates: Array<[string, string]> = [
+    ['approval', 'APPROVAL_SECRET'],
+    ['session', 'SESSION_SECRET'],
+    ['sync', 'EXTERNAL_SYNC_API_KEY'],
+    ['db', 'DATABASE_URL'],
+    ['direct', 'DIRECT_URL'],
+  ];
+
+  let material: string | null = null;
+  for (const [prefix, envKey] of candidates) {
+    const val = readEnvVar(envKey);
+    if (val) {
+      material = `${prefix}:${val}`;
+      break;
+    }
+  }
+
+  if (!material) {
+    if (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
+      material = 'dev-only-approval-secret-not-for-prod';
+    } else {
+      throw new Error('APPROVAL_SECRET (or SESSION_SECRET) must be configured in production');
+    }
+  }
+
+  return crypto
+    .createHash('sha256')
+    .update(`kunurse-approval-hmac-v1:${material}`)
+    .digest();
 }
 
 export function generateSignedApprovalToken(

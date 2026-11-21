@@ -16,6 +16,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { formatUserName, formatTeacherName } from '@/lib/user-utils';
+import { escapeHtml } from '@/lib/html-escape';
 
 interface RequisitionSlipModalProps {
   requisition: any;
@@ -73,14 +74,14 @@ export default function RequisitionSlipModal({ requisition, onClose }: Requisiti
         <tr style="border-bottom: 1px solid #cbd5e1;">
           <td style="padding: 6px 8px; text-align: center;">${idx + 1}</td>
           <td style="padding: 6px 8px; font-weight: 600;">
-            ${it.item?.name || it.name}
+            ${escapeHtml(it.item?.name || it.name)}
             ${it.isSubUnit ? '<span style="font-size: 10px; color: #0f766e; background: #ccfbf1; padding: 1px 4px; border-radius: 4px; margin-left: 4px;">เบิกย่อย</span>' : ''}
           </td>
           <td style="padding: 6px 8px; text-align: center;">
-            ${it.quantityRequested} ${it.requestedUnit || it.item?.unit || 'หน่วย'}
+            ${escapeHtml(it.quantityRequested)} ${escapeHtml(it.requestedUnit || it.item?.unit || 'หน่วย')}
           </td>
           <td style="padding: 6px 8px; text-align: center; font-weight: bold; color: #047857;">
-            ${it.quantityDispensed > 0 ? it.quantityDispensed : it.quantityRequested} ${it.requestedUnit || it.item?.unit || 'หน่วย'}
+            ${escapeHtml(it.quantityDispensed > 0 ? it.quantityDispensed : it.quantityRequested)} ${escapeHtml(it.requestedUnit || it.item?.unit || 'หน่วย')}
           </td>
           <td style="padding: 6px 8px; text-align: right; color: #64748b;">
             ฿${it.unitCost?.toFixed(2) || '0.00'}
@@ -98,7 +99,7 @@ export default function RequisitionSlipModal({ requisition, onClose }: Requisiti
       <html lang="th">
         <head>
           <meta charset="utf-8" />
-          <title>ใบเบิกจ่ายพัสดุและวัสดุสิ้นเปลือง - ${requisition.requestNumber}</title>
+          <title>ใบเบิกจ่ายพัสดุและวัสดุสิ้นเปลือง - ${escapeHtml(requisition.requestNumber)}</title>
           <style>
             *, *::before, *::after {
               box-sizing: border-box;
@@ -214,7 +215,7 @@ export default function RequisitionSlipModal({ requisition, onClose }: Requisiti
               <h1>ห้องปฏิบัติการพยาบาลศาสตร์ คณะพยาบาลศาสตร์</h1>
               <h2>ใบเบิกจ่ายพัสดุและวัสดุสิ้นเปลืองทางการ (Material Requisition Docket)</h2>
               <div style="font-size: 11px; color: #64748b; margin-top: 3px;">
-                เลขที่เอกสาร: <b style="font-family: monospace; color: #0f172a;">${requisition.requestNumber}</b>
+                เลขที่เอกสาร: <b style="font-family: monospace; color: #0f172a;">${escapeHtml(requisition.requestNumber)}</b>
               </div>
             </div>
             <div class="qr-box">
@@ -224,11 +225,11 @@ export default function RequisitionSlipModal({ requisition, onClose }: Requisiti
           </div>
 
           <div class="meta-grid">
-            <div><b>ผู้ขอเบิก:</b> ${formatUserName(requisition.user)} ${requisition.user?.studentId ? `(${requisition.user.studentId})` : ''}</div>
-            <div><b>รายวิชา:</b> ${requisition.course ? `[${requisition.course.code}] ${requisition.course.name}` : 'ทั่วไป'}</div>
-            <div><b>อาจารย์ผู้รับผิดชอบ:</b> ${instructorDisplay}</div>
-            <div><b>วันที่จ่ายของ:</b> ${dispensedAtStr} น.</div>
-            <div style="grid-column: span 2;"><b>วัตถุประสงค์:</b> ${requisition.purpose || '-'}</div>
+            <div><b>ผู้ขอเบิก:</b> ${escapeHtml(formatUserName(requisition.user))} ${requisition.user?.studentId ? `(${escapeHtml(requisition.user.studentId)})` : ''}</div>
+            <div><b>รายวิชา:</b> ${requisition.course ? `[${escapeHtml(requisition.course.code)}] ${escapeHtml(requisition.course.name)}` : 'ทั่วไป'}</div>
+            <div><b>อาจารย์ผู้รับผิดชอบ:</b> ${escapeHtml(instructorDisplay)}</div>
+            <div><b>วันที่จ่ายของ:</b> ${escapeHtml(dispensedAtStr)} น.</div>
+            <div style="grid-column: span 2;"><b>วัตถุประสงค์:</b> ${escapeHtml(requisition.purpose || '-')}</div>
           </div>
 
           <div style="font-size: 12px; font-weight: bold; color: #0f766e; margin-bottom: 6px;">📦 รายการวัสดุสิ้นเปลืองที่ตัดจ่าย:</div>
@@ -267,7 +268,7 @@ export default function RequisitionSlipModal({ requisition, onClose }: Requisiti
           <div class="signatures-grid">
             <div class="signature-block">
               <div>ลงชื่อ ....................................................</div>
-              <div class="sign-line">( ${formatUserName(requisition.user)} )</div>
+              <div class="sign-line">( ${escapeHtml(formatUserName(requisition.user))} )</div>
               <div style="font-size: 10px; color: #64748b; margin-top: 2px;">ผู้รับพัสดุ (นิสิต/ผู้เบิก)</div>
               <div style="font-size: 9.5px; color: #94a3b8; margin-top: 4px;">วันที่ ......./......./...........</div>
             </div>
@@ -306,10 +307,10 @@ export default function RequisitionSlipModal({ requisition, onClose }: Requisiti
         (it: any) => `
         <tr>
           <td style="padding: 2px 0;">
-            <div style="font-weight: bold;">${it.item?.name || it.name}</div>
+            <div style="font-weight: bold;">${escapeHtml(it.item?.name || it.name)}</div>
           </td>
           <td style="text-align: right; vertical-align: top; white-space: nowrap; font-weight: bold;">
-            ${it.quantityDispensed > 0 ? it.quantityDispensed : it.quantityRequested} ${it.requestedUnit || it.item?.unit || 'หน่วย'}
+            ${escapeHtml(it.quantityDispensed > 0 ? it.quantityDispensed : it.quantityRequested)} ${escapeHtml(it.requestedUnit || it.item?.unit || 'หน่วย')}
           </td>
           <td style="text-align: right; vertical-align: top; white-space: nowrap; font-family: monospace;">
             ฿${it.totalCost?.toFixed(1) || '0.0'}
@@ -324,7 +325,7 @@ export default function RequisitionSlipModal({ requisition, onClose }: Requisiti
       <html>
         <head>
           <meta charset="utf-8" />
-          <title>สลิปเบิกพัสดุ - ${requisition.requestNumber}</title>
+          <title>สลิปเบิกพัสดุ - ${escapeHtml(requisition.requestNumber)}</title>
           <style>
             @page { size: 80mm auto; margin: 0; }
             body {
@@ -346,11 +347,11 @@ export default function RequisitionSlipModal({ requisition, onClose }: Requisiti
           <div class="divider"></div>
 
           <div style="font-size: 10.5px;">
-            <div>เลขที่: <b>${requisition.requestNumber}</b></div>
-            <div>วันจ่าย: ${dispensedAtStr} น.</div>
-            <div>ผู้เบิก: <b>${formatUserName(requisition.user)}</b> ${requisition.user?.studentId ? `(${requisition.user.studentId})` : ''}</div>
-            ${requisition.course ? `<div>วิชา: <b>[${requisition.course.code}] ${requisition.course.name}</b></div>` : ''}
-            <div>วัตถุประสงค์: ${requisition.purpose || '-'}</div>
+            <div>เลขที่: <b>${escapeHtml(requisition.requestNumber)}</b></div>
+            <div>วันจ่าย: ${escapeHtml(dispensedAtStr)} น.</div>
+            <div>ผู้เบิก: <b>${escapeHtml(formatUserName(requisition.user))}</b> ${requisition.user?.studentId ? `(${escapeHtml(requisition.user.studentId)})` : ''}</div>
+            ${requisition.course ? `<div>วิชา: <b>[${escapeHtml(requisition.course.code)}] ${escapeHtml(requisition.course.name)}</b></div>` : ''}
+            <div>วัตถุประสงค์: ${escapeHtml(requisition.purpose || '-')}</div>
           </div>
 
           <div class="divider"></div>

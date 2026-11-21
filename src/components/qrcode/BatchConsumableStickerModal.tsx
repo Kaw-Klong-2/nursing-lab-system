@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import QRCode from 'qrcode';
+import { escapeHtml } from '@/lib/html-escape';
 import {
   QrCode,
   Printer,
@@ -493,11 +494,11 @@ export default function BatchConsumableStickerModal({
                   <div class="doc-info">
                     <div class="doc-org-text">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
                     <div class="doc-code-row">
-                      <span class="doc-code">LOT: ${lot.lotNumber}</span>
-                      <span class="doc-seq">ป้ายล็อต (${unitLabel})</span>
+                      <span class="doc-code">LOT: ${escapeHtml(lot.lotNumber)}</span>
+                      <span class="doc-seq">ป้ายล็อต (${escapeHtml(unitLabel)})</span>
                     </div>
-                    <div class="doc-name" title="${item.name}">${item.name}</div>
-                    <div class="doc-loc">EXP: ${formattedExpiry}</div>
+                    <div class="doc-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+                    <div class="doc-loc">EXP: ${escapeHtml(formattedExpiry)}</div>
                   </div>
                 </div>
               `);
@@ -514,11 +515,11 @@ export default function BatchConsumableStickerModal({
                   <div class="doc-info">
                     <div class="doc-org-text">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
                     <div class="doc-code-row">
-                      <span class="doc-code">${box.boxCode}</span>
-                      <span class="doc-seq">${unitLabel}ที่ #${box.boxNumberInYear}</span>
+                      <span class="doc-code">${escapeHtml(box.boxCode)}</span>
+                      <span class="doc-seq">${escapeHtml(unitLabel)}ที่ #${box.boxNumberInYear}</span>
                     </div>
-                    <div class="doc-name" title="${item.name}">${item.name}</div>
-                    <div class="doc-loc">EXP: ${formattedExpiry}</div>
+                    <div class="doc-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+                    <div class="doc-loc">EXP: ${escapeHtml(formattedExpiry)}</div>
                   </div>
                 </div>
               `);
@@ -596,10 +597,10 @@ export default function BatchConsumableStickerModal({
                   <div class="box-card-mini lot-header-card-mini">
                     <img src="${lotQrUrl}" class="box-qr-mini" />
                     <div class="box-info-mini">
-                      <div class="lot-header-badge-mini">🏷️ ป้ายประจำล็อต (${unitLabel})</div>
-                      <div class="box-title-mini">${item.name}</div>
-                      <div class="box-num-mini font-mono">LOT: ${lot.lotNumber}</div>
-                      <div class="box-dates-mini">รวม ${totalLotBoxes} ${unitLabel} | <span class="box-exp">EXP: ${formattedExpiry}</span></div>
+                      <div class="lot-header-badge-mini">🏷️ ป้ายประจำล็อต (${escapeHtml(unitLabel)})</div>
+                      <div class="box-title-mini">${escapeHtml(item.name)}</div>
+                      <div class="box-num-mini font-mono">LOT: ${escapeHtml(lot.lotNumber)}</div>
+                      <div class="box-dates-mini">รวม ${totalLotBoxes} ${escapeHtml(unitLabel)} | <span class="box-exp">EXP: ${escapeHtml(formattedExpiry)}</span></div>
                     </div>
                   </div>
                 `;
@@ -613,10 +614,10 @@ export default function BatchConsumableStickerModal({
                     <div class="box-body-compact">
                       <img src="${lotQrUrl}" class="box-qr-compact" />
                       <div class="box-info-compact">
-                        <div class="box-title-compact">${item.name}</div>
-                        <div class="box-num-compact font-mono">LOT: ${lot.lotNumber}</div>
-                        <div class="box-code-compact">รหัสพัสดุ: ${item.code} (จำนวน ${totalLotBoxes} ${unitLabel})</div>
-                        <div class="box-dates-compact"><span class="box-exp">EXP: ${formattedExpiry}</span> (รับเข้า ${formattedReceived})</div>
+                        <div class="box-title-compact">${escapeHtml(item.name)}</div>
+                        <div class="box-num-compact font-mono">LOT: ${escapeHtml(lot.lotNumber)}</div>
+                        <div class="box-code-compact">รหัสพัสดุ: ${escapeHtml(item.code)} (จำนวน ${totalLotBoxes} ${escapeHtml(unitLabel)})</div>
+                        <div class="box-dates-compact"><span class="box-exp">EXP: ${escapeHtml(formattedExpiry)}</span> (รับเข้า ${escapeHtml(formattedReceived)})</div>
                       </div>
                     </div>
                   </div>
@@ -633,10 +634,10 @@ export default function BatchConsumableStickerModal({
                   <div class="box-card-mini">
                     <img src="${boxQrUrl}" class="box-qr-mini" />
                     <div class="box-info-mini">
-                      <div class="box-title-mini">${item.name}</div>
-                      <div class="box-num-mini">👉 ${unitLabel}ที่ #${box.boxNumberInYear} (B${String(box.boxNumberInYear).padStart(3, '0')})</div>
-                      <div class="box-code-mini">Lot: ${lot.lotNumber} (${box.boxNumberInLot}/${totalLotBoxes})</div>
-                      <div class="box-dates-mini"><span class="box-exp">EXP: ${formattedExpiry}</span> (รับ ${formattedReceived})</div>
+                      <div class="box-title-mini">${escapeHtml(item.name)}</div>
+                      <div class="box-num-mini">👉 ${escapeHtml(unitLabel)}ที่ #${box.boxNumberInYear} (B${String(box.boxNumberInYear).padStart(3, '0')})</div>
+                      <div class="box-code-mini">Lot: ${escapeHtml(lot.lotNumber)} (${box.boxNumberInLot}/${totalLotBoxes})</div>
+                      <div class="box-dates-mini"><span class="box-exp">EXP: ${escapeHtml(formattedExpiry)}</span> (รับ ${escapeHtml(formattedReceived)})</div>
                     </div>
                   </div>
                 `;
@@ -650,10 +651,10 @@ export default function BatchConsumableStickerModal({
                     <div class="box-body-compact">
                       <img src="${boxQrUrl}" class="box-qr-compact" />
                       <div class="box-info-compact">
-                        <div class="box-title-compact">${item.name}</div>
-                        <div class="box-num-compact">👉 ${unitLabel}ที่ #${box.boxNumberInYear} (B${String(box.boxNumberInYear).padStart(3, '0')})</div>
-                        <div class="box-code-compact">Lot: ${lot.lotNumber} (${box.boxNumberInLot}/${totalLotBoxes}) • ${box.boxCode}</div>
-                        <div class="box-dates-compact"><span class="box-exp">EXP: ${formattedExpiry}</span> (รับ ${formattedReceived})</div>
+                        <div class="box-title-compact">${escapeHtml(item.name)}</div>
+                        <div class="box-num-compact">👉 ${escapeHtml(unitLabel)}ที่ #${box.boxNumberInYear} (B${String(box.boxNumberInYear).padStart(3, '0')})</div>
+                        <div class="box-code-compact">Lot: ${escapeHtml(lot.lotNumber)} (${box.boxNumberInLot}/${totalLotBoxes}) • ${escapeHtml(box.boxCode)}</div>
+                        <div class="box-dates-compact"><span class="box-exp">EXP: ${escapeHtml(formattedExpiry)}</span> (รับ ${escapeHtml(formattedReceived)})</div>
                       </div>
                     </div>
                   </div>

@@ -1,54 +1,47 @@
+import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { notifyRoles, createNotification } from '@/lib/notifications';
 import { formatUserName } from '@/lib/user-utils';
 import { getBangkokStartOfDay, getBangkokEndOfDay, formatOverdueDuration } from '@/lib/date-time-utils';
+import { getSessionFromRequest } from '@/lib/session';
+
+function timingSafeMatch(provided?: string | null, expected?: string | null): boolean {
+  if (!provided || !expected) return false;
+  const a = Buffer.from(provided, 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
 
 /**
  * ตรวจสอบความปลอดภัยของคำขอ Cron หรือสิทธิ์ของผู้เรียกใช้
  */
 async function verifyAuth(req: Request): Promise<{ authorized: boolean; reason?: string }> {
   const authHeader = req.headers.get('authorization');
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
   const cronSecret = process.env.CRON_SECRET;
   const url = new URL(req.url);
   const secretParam = url.searchParams.get('secret') || url.searchParams.get('key');
 
-  // 1. ตรวจสอบ Bearer Token จาก Vercel Cron (เมื่อมีการตั้งค่า CRON_SECRET)
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+  // 1. ตรวจสอบ Bearer Token หรือ Query Secret ด้วย CRON_SECRET แบบ constant-time
+  if (cronSecret && (timingSafeMatch(bearerToken, cronSecret) || timingSafeMatch(secretParam, cronSecret))) {
     return { authorized: true };
   }
 
-  // 2. ตรวจสอบ Secret หรือ Key ใน Query String
-  if (cronSecret && secretParam === cronSecret) {
-    return { authorized: true };
-  }
-
-  // 3. ตรวจสอบ Master Key สำหรับ External Cron (เช่น cron-job.org หรือ GitHub Actions)
-  const systemKey = process.env.EXTERNAL_SYNC_API_KEY || 'lab_nursing_cron_secure_2026';
-  if (secretParam === systemKey || secretParam === 'lab_nursing_cron_secure_2026') {
-    return { authorized: true };
-  }
-
-  // 4. ตรวจสอบสัญญาณ Vercel Cron โดยตรง (Vercel จะส่ง Header "x-vercel-cron: 1" หรือ User-Agent "vercel-cron/...")
-  const vercelCronHeader = req.headers.get('x-vercel-cron');
-  const userAgent = req.headers.get('user-agent') || '';
-  if (vercelCronHeader === '1' || userAgent.toLowerCase().includes('vercel-cron')) {
-    return { authorized: true };
-  }
-
-  // 5. ตรวจสอบสิทธิ์เจ้าหน้าที่หรือผู้ดูแลระบบผ่าน Header x-user-id (สำหรับ Client Heartbeat / การทดสอบ)
-  const userId = req.headers.get('x-user-id');
-  if (userId) {
+  // 2. ตรวจสอบสิทธิ์เจ้าหน้าที่หรือผู้ดูแลระบบผ่าน Signed HttpOnly Session Cookie
+  const session = await getSessionFromRequest(req);
+  if (session?.uid) {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: session.uid },
       select: { id: true, role: true, status: true },
     });
-    if (user && user.status === 'ACTIVE' && (user.role === 'OFFICER' || user.role === 'ADMIN')) {
+    if (user && (!user.status || user.status === 'ACTIVE') && (user.role === 'OFFICER' || user.role === 'ADMIN')) {
       return { authorized: true };
     }
   }
 
-  // 6. สภาพแวดล้อม Development ที่ยังไม่ได้ตั้ง CRON_SECRET อนุญาตให้รันเพื่อทดสอบได้
+  // 3. สภาพแวดล้อม Development ที่ยังไม่ได้ตั้ง CRON_SECRET อนุญาตให้รันเพื่อทดสอบได้
   if (process.env.NODE_ENV !== 'production' && !cronSecret) {
     return { authorized: true };
   }

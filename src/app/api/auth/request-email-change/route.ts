@@ -2,15 +2,33 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateOtp } from '@/lib/auth-security';
 import { sendEmailChangeOtpEmail } from '@/lib/email';
+import { getSessionFromRequest } from '@/lib/session';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { userId, newEmail } = body;
-
-    if (!userId || !newEmail) {
+    const session = await getSessionFromRequest(req);
+    if (!session?.uid) {
       return NextResponse.json(
-        { error: 'ข้อมูลไม่ครบถ้วน กรุณาระบุรหัสผู้ใช้และอีเมลใหม่' },
+        { error: 'กรุณาเข้าสู่ระบบก่อนใช้งาน' },
+        { status: 401 }
+      );
+    }
+
+    const body = await req.json();
+    const { userId: bodyUserId, newEmail } = body;
+
+    if (bodyUserId && bodyUserId !== session.uid) {
+      return NextResponse.json(
+        { error: 'ไม่มีสิทธิ์ร้องขอเปลี่ยนอีเมลของบัญชีผู้ใช้อื่น' },
+        { status: 403 }
+      );
+    }
+
+    const userId = session.uid;
+
+    if (!newEmail) {
+      return NextResponse.json(
+        { error: 'ข้อมูลไม่ครบถ้วน กรุณาระบุอีเมลใหม่' },
         { status: 400 }
       );
     }
@@ -24,7 +42,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Find the user
     const user = await prisma.user.findUnique({
       where: { id: userId },
     });
@@ -43,7 +60,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check if new email is already taken by another user
     const existingUser = await prisma.user.findFirst({
       where: {
         email: { equals: trimmedEmail, mode: 'insensitive' },
@@ -58,11 +74,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // Generate 6-digit OTP and 15-minute expiry
     const otpCode = generateOtp();
     const expiry = new Date(Date.now() + 15 * 60 * 1000);
 
-    // Save pending email and OTP to user
     await prisma.user.update({
       where: { id: userId },
       data: {
@@ -72,7 +86,6 @@ export async function POST(req: Request) {
       },
     });
 
-    // Send email to the NEW email address
     const emailResult = await sendEmailChangeOtpEmail({
       recipientEmail: trimmedEmail,
       recipientName: user.name,
@@ -82,9 +95,9 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       message: `ระบบได้ส่งรหัส OTP 6 หลักไปยัง ${trimmedEmail} แล้ว (รหัสมีอายุ 15 นาที)`,
-      ...(emailResult?.devMode ? { devOtp: otpCode } : {}),
+      ...(process.env.NODE_ENV !== 'production' && emailResult?.devMode ? { devOtp: otpCode } : {}),
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Request email change error:', error);
     return NextResponse.json(
       { error: 'เกิดข้อผิดพลาดในการส่งรหัส OTP กรุณาลองใหม่อีกครั้ง' },

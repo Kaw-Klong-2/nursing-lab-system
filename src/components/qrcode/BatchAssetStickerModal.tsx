@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import QRCode from 'qrcode';
+import { escapeHtml } from '@/lib/html-escape';
 import {
   Printer,
   X,
@@ -448,12 +449,12 @@ export default function BatchAssetStickerModal({
                 <div class="doc-info">
                   <div class="doc-org-text">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
                   <div class="doc-code-row">
-                    <span class="doc-code">${asset.assetCode}</span>
-                    <span class="doc-seq">${unitName}ที่ ${asset.sequenceNumber || 1}</span>
+                    <span class="doc-code">${escapeHtml(asset.assetCode)}</span>
+                    <span class="doc-seq">${escapeHtml(unitName)}ที่ ${asset.sequenceNumber || 1}</span>
                   </div>
-                  ${govCode ? `<div class="doc-gov" style="${docGovStyle}">${govCode}</div>` : ''}
-                  <div class="doc-name${govCode ? ' doc-name-single' : ''}">${item.name}</div>
-                  <div class="doc-loc">📍 ${asset.location || item.location || 'ห้องปฏิบัติการ'}</div>
+                  ${govCode ? `<div class="doc-gov" style="${docGovStyle}">${escapeHtml(govCode)}</div>` : ''}
+                  <div class="doc-name${govCode ? ' doc-name-single' : ''}">${escapeHtml(item.name)}</div>
+                  <div class="doc-loc">📍 ${escapeHtml(asset.location || item.location || 'ห้องปฏิบัติการ')}</div>
                 </div>
               </div>
             `);
@@ -537,12 +538,12 @@ export default function BatchAssetStickerModal({
                   <div class="mini-info">
                     <div class="mini-org">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
                     <div class="mini-code-row">
-                      <span class="mini-code">${asset.assetCode}</span>
-                      <span class="mini-seq">${unitName}ที่ ${asset.sequenceNumber || 1}</span>
+                      <span class="mini-code">${escapeHtml(asset.assetCode)}</span>
+                      <span class="mini-seq">${escapeHtml(unitName)}ที่ ${asset.sequenceNumber || 1}</span>
                     </div>
-                    ${govCode ? `<div class="mini-gov" style="${miniGovStyle}">${govCode}</div>` : ''}
-                    <div class="mini-title">${item.name}</div>
-                    <div class="mini-loc">📍 ${asset.location || item.location || 'ห้องแล็บพยาบาล'}</div>
+                    ${govCode ? `<div class="mini-gov" style="${miniGovStyle}">${escapeHtml(govCode)}</div>` : ''}
+                    <div class="mini-title">${escapeHtml(item.name)}</div>
+                    <div class="mini-loc">📍 ${escapeHtml(asset.location || item.location || 'ห้องแล็บพยาบาล')}</div>
                   </div>
                 </div>
               `;
@@ -557,14 +558,14 @@ export default function BatchAssetStickerModal({
                     <img src="${qrUrl}" class="compact-qr" />
                     <div class="compact-info">
                       <div class="compact-code-row">
-                        <span class="compact-code">${asset.assetCode}</span>
-                        <span class="compact-seq">${unitName}ที่ ${asset.sequenceNumber || 1}</span>
+                        <span class="compact-code">${escapeHtml(asset.assetCode)}</span>
+                        <span class="compact-seq">${escapeHtml(unitName)}ที่ ${asset.sequenceNumber || 1}</span>
                       </div>
-                      ${govCode ? `<div class="compact-gov" style="${compactGovStyle}">${govCode}</div>` : ''}
-                      <div class="compact-title">${item.name}</div>
-                      ${brandModel ? `<div class="compact-brand">${brandModel}</div>` : ''}
+                      ${govCode ? `<div class="compact-gov" style="${compactGovStyle}">${escapeHtml(govCode)}</div>` : ''}
+                      <div class="compact-title">${escapeHtml(item.name)}</div>
+                      ${brandModel ? `<div class="compact-brand">${escapeHtml(brandModel)}</div>` : ''}
                       <div class="compact-meta">
-                        <span>📍 ${asset.location || item.location || 'ห้องปฏิบัติการ'}</span>
+                        <span>📍 ${escapeHtml(asset.location || item.location || 'ห้องปฏิบัติการ')}</span>
                       </div>
                     </div>
                   </div>
@@ -582,14 +583,14 @@ export default function BatchAssetStickerModal({
                     <img src="${qrUrl}" class="std-qr" />
                     <div class="std-info">
                       <div class="std-code-row">
-                        <div class="std-asset-code">${asset.assetCode}</div>
-                        <div class="std-seq-badge">${unitName}ที่ ${asset.sequenceNumber || 1}</div>
+                        <div class="std-asset-code">${escapeHtml(asset.assetCode)}</div>
+                        <div class="std-seq-badge">${escapeHtml(unitName)}ที่ ${asset.sequenceNumber || 1}</div>
                       </div>
-                      ${govCode ? `<div class="std-gov-code" style="${stdGovStyle}">${govCode}</div>` : ''}
-                      <div class="std-title">${item.name}</div>
-                      ${brandModel ? `<div class="std-model">${brandModel}</div>` : ''}
+                      ${govCode ? `<div class="std-gov-code" style="${stdGovStyle}">${escapeHtml(govCode)}</div>` : ''}
+                      <div class="std-title">${escapeHtml(item.name)}</div>
+                      ${brandModel ? `<div class="std-model">${escapeHtml(brandModel)}</div>` : ''}
                       <div class="std-footer-row">
-                        <div class="std-loc">📍 ${asset.location || item.location || 'ห้องปฏิบัติการ'}</div>
+                        <div class="std-loc">📍 ${escapeHtml(asset.location || item.location || 'ห้องปฏิบัติการ')}</div>
                       </div>
                     </div>
                   </div>

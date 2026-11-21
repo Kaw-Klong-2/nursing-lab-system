@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCached, setCached, invalidateCache } from '@/lib/cache';
 import { hashPassword } from '@/lib/auth-security';
+import { requireActiveActor } from '@/lib/viewer-guard';
 
 export async function GET(req: Request) {
   try {
@@ -86,6 +87,11 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireActiveActor(req, ['ADMIN']);
+    if (auth.errorResponse) {
+      return auth.errorResponse;
+    }
+
     const body = await req.json();
     const rawPassword = body.password || '123456';
     const hashedPassword = await hashPassword(rawPassword);
@@ -123,7 +129,22 @@ export async function POST(req: Request) {
     });
 
     invalidateCache('users:');
-    return NextResponse.json(user, { status: 201 });
+    const sanitizedUser = {
+      id: user.id,
+      prefix: user.prefix,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      department: user.department,
+      studentId: user.studentId,
+      phone: user.phone,
+      avatar: user.avatar,
+      status: user.status,
+      approvalScopes: user.role === 'USER' || user.role === 'VIEWER' ? null : (user.approvalScopes || null),
+      isExecutive: user.role === 'VIEWER' ? false : Boolean(user.isExecutive),
+      executiveRole: user.role === 'VIEWER' ? null : (user.executiveRole || null),
+    };
+    return NextResponse.json(sanitizedUser, { status: 201 });
   } catch (error) {
     console.error('Failed to create user:', error);
     return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
@@ -132,6 +153,11 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
+    const auth = await requireActiveActor(req, ['ADMIN']);
+    if (auth.errorResponse) {
+      return auth.errorResponse;
+    }
+
     const body = await req.json();
     const { userIds, status } = body;
 

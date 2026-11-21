@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 
 /**
@@ -46,8 +47,8 @@ export function validatePasswordStrength(password: string): { valid: boolean; me
 }
 
 /**
- * Generate 6-digit numeric OTP code for password reset
+ * Generate cryptographically random 6-digit numeric OTP code for password reset
  */
 export function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 1000000).toString();
 }

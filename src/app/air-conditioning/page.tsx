@@ -29,6 +29,7 @@ import {
 import * as XLSX from 'xlsx';
 import { useAuth } from '@/lib/auth-context';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { escapeHtml } from '@/lib/html-escape';
 
 const THAI_MONTHS = [
   'มกราคม',
@@ -877,7 +878,7 @@ export default function AirConditioningPage() {
               <tr>
                 <th style="width: 65px;">วันที่</th>
                 <th style="width: 32px;">วัน</th>
-                ${activeRooms.map((r: any) => `<th>${r.code || r.name}</th>`).join('')}
+                ${activeRooms.map((r: any) => `<th>${escapeHtml(r.code || r.name)}</th>`).join('')}
                 <th style="width: 58px; background-color: #cbd5e1;">รวม (ชม.)</th>
               </tr>
             </thead>
@@ -933,7 +934,7 @@ export default function AirConditioningPage() {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1px 8px; line-height: 1.15;">
               ${activeRooms.map((r: any) => {
                 const isLong = (r.name || '').length > 35;
-                const fullText = `<b>${r.code}</b>: ${r.name}${r.location ? ` (${r.location})` : ''}`;
+                const fullText = `<b>${escapeHtml(r.code)}</b>: ${escapeHtml(r.name)}${r.location ? ` (${escapeHtml(r.location)})` : ''}`;
                 if (isLong) {
                   return `<div style="grid-column: 1 / -1; font-weight: 500;">${fullText}</div>`;
                 }
@@ -990,7 +991,7 @@ export default function AirConditioningPage() {
                 <th rowspan="2" style="width: 22px;">วัน</th>
                 ${chunkRooms.map((r: any) => `
                   <th colspan="5" style="font-size: 7.2pt; line-height: 1.15; padding: 2px 2px; white-space: normal; height: 26px;">
-                    <b>${r.name}</b> ${r.code ? `<span style="font-size: 6.5pt; color: #475569;">(${r.code})</span>` : ''}
+                    <b>${escapeHtml(r.name)}</b> ${r.code ? `<span style="font-size: 6.5pt; color: #475569;">(${escapeHtml(r.code)})</span>` : ''}
                   </th>
                 `).join('')}
               </tr>
@@ -1013,13 +1014,14 @@ export default function AirConditioningPage() {
                   const log = data?.logsMap?.[d.dateStr]?.[r.id];
                   if (log && Number(log.usageHours) > 0) {
                     const hrs = Number(log.usageHours);
+                    const safePurposeNote = escapeHtml(formatPurposeWithNote(log.purpose, log.note));
                     return `
-                      <td style="${bgStyle}">${log.openTime || '-'}</td>
-                      <td style="${bgStyle}">${log.closeTime || '-'}</td>
+                      <td style="${bgStyle}">${escapeHtml(log.openTime || '-')}</td>
+                      <td style="${bgStyle}">${escapeHtml(log.closeTime || '-')}</td>
                       <td class="font-bold" style="${bgStyle}">${hrs}</td>
-                      <td style="${bgStyle}">${log.temperature ? `${log.temperature}°C` : '22°C'}</td>
-                      <td class="text-left" style="font-size: 6.2pt; padding: 0.5px 3px; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; ${bgStyle}" title="${formatPurposeWithNote(log.purpose, log.note)}">
-                        ${formatPurposeWithNote(log.purpose, log.note)}
+                      <td style="${bgStyle}">${log.temperature ? `${escapeHtml(log.temperature)}°C` : '22°C'}</td>
+                      <td class="text-left" style="font-size: 6.2pt; padding: 0.5px 3px; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; ${bgStyle}" title="${safePurposeNote}">
+                        ${safePurposeNote}
                       </td>
                     `;
                   }
@@ -1077,7 +1079,7 @@ export default function AirConditioningPage() {
           <div class="header-box">
             <div class="header-title">ตารางบันทึกการเปิด-ปิดเครื่องปรับอากาศประจำห้อง</div>
             <div class="header-subtitle font-bold" style="font-size: 10.5pt; color: #0284c7; margin-top: 2px;">
-              ${targetRoom?.name || 'ห้องปฏิบัติการ'} (${targetRoom?.code || '-'})
+              ${escapeHtml(targetRoom?.name || 'ห้องปฏิบัติการ')} (${escapeHtml(targetRoom?.code || '-')})
             </div>
             <div class="header-subtitle">
               คณะพยาบาลศาสตร์ • ประจำเดือน${monthName} ปี พ.ศ. ${yearBE} (ค.ศ. ${currentYear})
@@ -1118,14 +1120,14 @@ export default function AirConditioningPage() {
                   <tr class="${isRowHoliday ? 'weekend-row' : ''}" style="${bgStyle}">
                     <td style="white-space: nowrap; ${bgStyle}">${d.day} ${d.dateObj.toLocaleString('th-TH', { month: 'short' })} ${yearShortBE}</td>
                     <td style="${isRowHoliday ? 'color: #b91c1c; font-weight: bold;' : ''} ${bgStyle}">${d.dayOfWeek}</td>
-                    <td style="${bgStyle}">${hasLog ? log.openTime || '-' : '-'}</td>
-                    <td style="${bgStyle}">${hasLog ? log.closeTime || '-' : '-'}</td>
-                    <td class="font-bold" style="${bgStyle}">${hasLog ? log.usageHours : '-'}</td>
-                    <td style="${bgStyle}">${hasLog ? `${log.temperature || 22}°C` : '-'}</td>
+                    <td style="${bgStyle}">${hasLog ? escapeHtml(log.openTime || '-') : '-'}</td>
+                    <td style="${bgStyle}">${hasLog ? escapeHtml(log.closeTime || '-') : '-'}</td>
+                    <td class="font-bold" style="${bgStyle}">${hasLog ? escapeHtml(log.usageHours) : '-'}</td>
+                    <td style="${bgStyle}">${hasLog ? `${escapeHtml(log.temperature || 22)}°C` : '-'}</td>
                     <td class="text-left" style="padding-left: 6px; font-size: 6.8pt; ${bgStyle}">
-                      ${hasLog ? formatPurposeWithNote(log.purpose, log.note) : '-'}
+                      ${hasLog ? escapeHtml(formatPurposeWithNote(log.purpose, log.note)) : '-'}
                     </td>
-                    <td style="${bgStyle}">${hasLog ? log.recordedName || 'เจ้าหน้าที่' : ''}</td>
+                    <td style="${bgStyle}">${hasLog ? escapeHtml(log.recordedName || 'เจ้าหน้าที่') : ''}</td>
                   </tr>
                 `;
               }).join('')}
@@ -1165,7 +1167,7 @@ export default function AirConditioningPage() {
       <html lang="th">
         <head>
           <meta charset="utf-8" />
-          <title>พิมพ์ตารางบันทึกการเปิด-ปิดเครื่องปรับอากาศ - ${monthName} ${yearBE}</title>
+          <title>พิมพ์ตารางบันทึกการเปิด-ปิดเครื่องปรับอากาศ - ${escapeHtml(monthName)} ${yearBE}</title>
           <style>${css}</style>
         </head>
         <body>

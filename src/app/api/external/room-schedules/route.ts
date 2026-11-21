@@ -1,12 +1,24 @@
+import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getBangkokParts } from '@/lib/date-time-utils';
 
 export const dynamic = 'force-dynamic';
 
-// API Key สำหรับระบบภายนอกดึงข้อมูลตารางห้อง
-const SYNC_API_KEY =
-  process.env.EXTERNAL_SYNC_API_KEY || 'lab_nursing_sync_key_2026_sec';
+function getSyncApiKey(): string {
+  const key = process.env.EXTERNAL_SYNC_API_KEY;
+  if (key && key.trim()) return key.trim();
+  if (process.env.NODE_ENV !== 'production') return 'dev-only-external-sync-key';
+  return '';
+}
+
+function timingSafeKeyMatch(provided: string | null | undefined, expected: string): boolean {
+  if (!provided || !expected) return false;
+  const a = Buffer.from(provided, 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
 
 // CORS Headers เพื่อให้ฝั่งโน้นเรียกใช้งานได้ทั้งจาก Server และ Client
 const CORS_HEADERS = {
@@ -28,6 +40,14 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
 
     // 1. ตรวจสอบความถูกต้องของ API Key
+    const syncApiKey = getSyncApiKey();
+    if (!syncApiKey) {
+      return NextResponse.json(
+        { error: 'Service misconfigured: EXTERNAL_SYNC_API_KEY is not set' },
+        { status: 503, headers: CORS_HEADERS }
+      );
+    }
+
     const apiKeyHeader =
       req.headers.get('x-api-key') ||
       req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
@@ -35,7 +55,7 @@ export async function GET(req: Request) {
     const apiKeyQuery = searchParams.get('api_key');
     const providedKey = apiKeyHeader || apiKeyQuery;
 
-    if (!providedKey || providedKey !== SYNC_API_KEY) {
+    if (!timingSafeKeyMatch(providedKey, syncApiKey)) {
       return NextResponse.json(
         {
           error: 'Unauthorized: Invalid or missing API key in x-api-key header',

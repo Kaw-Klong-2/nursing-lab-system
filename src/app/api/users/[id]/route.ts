@@ -3,40 +3,40 @@ import { prisma } from '@/lib/prisma';
 import { hashPassword } from '@/lib/auth-security';
 import { invalidateCache } from '@/lib/cache';
 import { logActivity } from '@/lib/activity-log';
+import { requireActiveActor } from '@/lib/viewer-guard';
 
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const body = await req.json();
+    const auth = await requireActiveActor(req);
+    if (auth.errorResponse) {
+      return auth.errorResponse;
+    }
+    const actor = auth.actor;
 
+    const { id } = await params;
+    const isAdminActor = actor.role === 'ADMIN';
+
+    // Non-admins can only edit their own basic profile fields
+    if (!isAdminActor && actor.id !== id) {
+      return NextResponse.json(
+        { error: 'ไม่มีสิทธิ์แก้ไขข้อมูลบัญชีผู้ใช้อื่น' },
+        { status: 403 }
+      );
+    }
+
+    const body = await req.json();
     const dataToUpdate: any = {};
+
     if (body.prefix !== undefined) {
       dataToUpdate.prefix = body.prefix ? String(body.prefix).trim() : null;
     }
     if (body.name !== undefined) dataToUpdate.name = body.name;
-    if (body.email !== undefined) {
-      const trimmedEmail = body.email ? String(body.email).trim().toLowerCase() : '';
-      if (trimmedEmail) {
-        const duplicateEmail = await prisma.user.findFirst({
-          where: {
-            email: { equals: trimmedEmail, mode: 'insensitive' },
-            id: { not: id },
-          },
-        });
-        if (duplicateEmail) {
-          return NextResponse.json(
-            { error: `อีเมล "${trimmedEmail}" นี้มีผู้ใช้งานอื่นในระบบใช้อยู่แล้ว` },
-            { status: 400 }
-          );
-        }
-      }
-      dataToUpdate.email = trimmedEmail;
-    }
     if (body.phone !== undefined) dataToUpdate.phone = body.phone;
     if (body.department !== undefined) dataToUpdate.department = body.department;
+
     if (body.studentId !== undefined) {
       const trimmedId = body.studentId ? String(body.studentId).trim() : null;
       if (trimmedId) {
@@ -55,39 +55,61 @@ export async function PUT(
       }
       dataToUpdate.studentId = trimmedId;
     }
-    if (body.role !== undefined) dataToUpdate.role = body.role;
-    if (body.password) {
-      dataToUpdate.password = await hashPassword(body.password);
-    }
-    if (body.status !== undefined) dataToUpdate.status = body.status;
-    
-    // Check effective role to strictly forbid approvalScopes for USER (นิสิต)
-    let effectiveRole = body.role;
-    if (!effectiveRole) {
-      const existingUser = await prisma.user.findUnique({
-        where: { id },
-        select: { role: true },
-      });
-      effectiveRole = existingUser?.role;
-    }
 
-    if (effectiveRole === 'USER' || effectiveRole === 'VIEWER') {
-      dataToUpdate.approvalScopes = null;
-    } else if (body.approvalScopes !== undefined) {
-      dataToUpdate.approvalScopes = body.approvalScopes || null;
-    }
-    if (effectiveRole === 'VIEWER') {
-      dataToUpdate.isExecutive = false;
-      dataToUpdate.executiveRole = null;
-    } else {
-      if (body.isExecutive !== undefined) {
-        dataToUpdate.isExecutive = body.isExecutive === true;
-        if (!body.isExecutive) {
-          dataToUpdate.executiveRole = null;
+    // Privileged fields are strictly restricted to ADMIN actors
+    if (isAdminActor) {
+      if (body.email !== undefined) {
+        const trimmedEmail = body.email ? String(body.email).trim().toLowerCase() : '';
+        if (trimmedEmail) {
+          const duplicateEmail = await prisma.user.findFirst({
+            where: {
+              email: { equals: trimmedEmail, mode: 'insensitive' },
+              id: { not: id },
+            },
+          });
+          if (duplicateEmail) {
+            return NextResponse.json(
+              { error: `อีเมล "${trimmedEmail}" นี้มีผู้ใช้งานอื่นในระบบใช้อยู่แล้ว` },
+              { status: 400 }
+            );
+          }
         }
+        dataToUpdate.email = trimmedEmail;
       }
-      if (body.executiveRole !== undefined) {
-        dataToUpdate.executiveRole = body.executiveRole ? String(body.executiveRole).trim() : null;
+      if (body.role !== undefined) dataToUpdate.role = body.role;
+      if (body.password) {
+        dataToUpdate.password = await hashPassword(body.password);
+      }
+      if (body.status !== undefined) dataToUpdate.status = body.status;
+
+      let effectiveRole = body.role;
+      if (!effectiveRole) {
+        const existingUser = await prisma.user.findUnique({
+          where: { id },
+          select: { role: true },
+        });
+        effectiveRole = existingUser?.role;
+      }
+
+      if (effectiveRole === 'USER' || effectiveRole === 'VIEWER') {
+        dataToUpdate.approvalScopes = null;
+      } else if (body.approvalScopes !== undefined) {
+        dataToUpdate.approvalScopes = body.approvalScopes || null;
+      }
+
+      if (effectiveRole === 'VIEWER') {
+        dataToUpdate.isExecutive = false;
+        dataToUpdate.executiveRole = null;
+      } else {
+        if (body.isExecutive !== undefined) {
+          dataToUpdate.isExecutive = body.isExecutive === true;
+          if (!body.isExecutive) {
+            dataToUpdate.executiveRole = null;
+          }
+        }
+        if (body.executiveRole !== undefined) {
+          dataToUpdate.executiveRole = body.executiveRole ? String(body.executiveRole).trim() : null;
+        }
       }
     }
 
@@ -98,11 +120,15 @@ export async function PUT(
 
     invalidateCache('users:');
 
-    // Audit log
-    const actorId = body.actorId || body.userId;
-    if (body.role !== undefined || body.approvalScopes !== undefined || body.status !== undefined || body.isExecutive !== undefined) {
+    if (
+      isAdminActor &&
+      (body.role !== undefined ||
+        body.approvalScopes !== undefined ||
+        body.status !== undefined ||
+        body.isExecutive !== undefined)
+    ) {
       logActivity({
-        userId: actorId,
+        userId: actor.id,
         action: 'ROLE_UPDATE',
         entityType: 'USER',
         entityId: id,
@@ -117,7 +143,7 @@ export async function PUT(
       });
     } else {
       logActivity({
-        userId: actorId,
+        userId: actor.id,
         action: 'UPDATE',
         entityType: 'USER',
         entityId: id,
@@ -139,18 +165,18 @@ export async function PUT(
       phone: updatedUser.phone,
       avatar: updatedUser.avatar,
       status: updatedUser.status,
-      approvalScopes: updatedUser.role === 'USER' || updatedUser.role === 'VIEWER' ? null : (updatedUser.approvalScopes || null),
+      approvalScopes:
+        updatedUser.role === 'USER' || updatedUser.role === 'VIEWER'
+          ? null
+          : (updatedUser.approvalScopes || null),
       isExecutive: updatedUser.role === 'VIEWER' ? false : Boolean(updatedUser.isExecutive),
       executiveRole: updatedUser.role === 'VIEWER' ? null : (updatedUser.executiveRole || null),
     };
 
     return NextResponse.json(sanitizedUser);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Update user error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to update user' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'ไม่สามารถอัปเดตข้อมูลผู้ใช้ได้' }, { status: 500 });
   }
 }
 
@@ -159,7 +185,19 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireActiveActor(req, ['ADMIN']);
+    if (auth.errorResponse) {
+      return auth.errorResponse;
+    }
+
     const { id } = await params;
+    if (auth.actor.id === id) {
+      return NextResponse.json(
+        { error: 'ไม่สามารถลบบัญชีของตนเองที่กำลังใช้งานอยู่ได้' },
+        { status: 400 }
+      );
+    }
+
     const existing = await prisma.user.findUnique({
       where: { id },
       select: { name: true, email: true },
@@ -168,6 +206,7 @@ export async function DELETE(
     invalidateCache('users:');
 
     logActivity({
+      userId: auth.actor.id,
       action: 'DELETE',
       entityType: 'USER',
       entityId: id,
@@ -175,11 +214,8 @@ export async function DELETE(
     });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Delete user error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to delete user' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'ไม่สามารถลบบัญชีผู้ใช้ได้' }, { status: 500 });
   }
 }

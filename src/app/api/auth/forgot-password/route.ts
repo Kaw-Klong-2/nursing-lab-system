@@ -55,13 +55,13 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       message: 'ระบบได้ส่งรหัสยืนยัน (OTP) ไปยังอีเมลของท่านแล้ว (รหัสมีอายุ 15 นาที)',
-      // Provide devOtp if in dev mode / email not sent for immediate testing convenience
-      ...(emailResult?.devMode ? { devOtp: otpCode } : {}),
+      // Provide devOtp only in non-production environments when email delivery is in dev mode
+      ...(process.env.NODE_ENV !== 'production' && emailResult?.devMode ? { devOtp: otpCode } : {}),
     });
   } catch (error: any) {
     console.error('Forgot password error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการส่งคำขอรีเซ็ตรหัสผ่าน' },
+      { error: 'เกิดข้อผิดพลาดในการส่งคำขอรีเซ็ตรหัสผ่าน' },
       { status: 500 }
     );
   }

@@ -1,12 +1,30 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getSessionFromRequest } from '@/lib/session';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { userId, otp } = body;
+    const session = await getSessionFromRequest(req);
+    if (!session?.uid) {
+      return NextResponse.json(
+        { error: 'กรุณาเข้าสู่ระบบก่อนใช้งาน' },
+        { status: 401 }
+      );
+    }
 
-    if (!userId || !otp) {
+    const body = await req.json();
+    const { userId: bodyUserId, otp } = body;
+
+    if (bodyUserId && bodyUserId !== session.uid) {
+      return NextResponse.json(
+        { error: 'ไม่มีสิทธิ์ยืนยันการเปลี่ยนอีเมลของบัญชีผู้ใช้อื่น' },
+        { status: 403 }
+      );
+    }
+
+    const userId = session.uid;
+
+    if (!otp) {
       return NextResponse.json(
         { error: 'กรุณาระบุรหัสยืนยัน OTP' },
         { status: 400 }
@@ -33,7 +51,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check expiry
     if (!user.emailOtpExpiry || new Date() > user.emailOtpExpiry) {
       return NextResponse.json(
         { error: 'รหัส OTP หมดอายุแล้ว กรุณากดส่งรหัสยืนยันใหม่อีกครั้ง' },
@@ -41,7 +58,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check OTP match
     if (user.emailOtp !== trimmedOtp) {
       return NextResponse.json(
         { error: 'รหัสยืนยัน (OTP) ไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง' },
@@ -49,7 +65,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Re-check if pendingEmail got taken while waiting for OTP
     const emailConflict = await prisma.user.findFirst({
       where: {
         email: { equals: user.pendingEmail, mode: 'insensitive' },
@@ -66,7 +81,6 @@ export async function POST(req: Request) {
 
     const newEmail = user.pendingEmail;
 
-    // Apply email change and clear pending fields
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
@@ -94,12 +108,15 @@ export async function POST(req: Request) {
         phone: updatedUser.phone,
         avatar: updatedUser.avatar,
         status: updatedUser.status,
-        approvalScopes: updatedUser.role === 'USER' ? null : (updatedUser.approvalScopes || null),
-        isExecutive: Boolean(updatedUser.isExecutive),
-        executiveRole: updatedUser.executiveRole || null,
+        approvalScopes:
+          updatedUser.role === 'USER' || updatedUser.role === 'VIEWER'
+            ? null
+            : (updatedUser.approvalScopes || null),
+        isExecutive: updatedUser.role === 'VIEWER' ? false : Boolean(updatedUser.isExecutive),
+        executiveRole: updatedUser.role === 'VIEWER' ? null : (updatedUser.executiveRole || null),
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Verify email change error:', error);
     return NextResponse.json(
       { error: 'เกิดข้อผิดพลาดในการยืนยันรหัส OTP กรุณาลองใหม่อีกครั้ง' },

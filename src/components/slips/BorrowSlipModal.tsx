@@ -18,6 +18,7 @@ import {
   Boxes,
 } from 'lucide-react';
 import { formatUserName, formatTeacherName } from '@/lib/user-utils';
+import { escapeHtml } from '@/lib/html-escape';
 
 interface BorrowSlipModalProps {
   borrow: any;
@@ -78,13 +79,13 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
         <tr style="border-bottom: 1px solid #cbd5e1;">
           <td style="padding: 6px 8px; text-align: center;">${idx + 1}</td>
           <td style="padding: 6px 8px; font-family: monospace; font-weight: bold; color: #0f766e;">
-            ${it.asset?.assetCode || it.assetCode || '-'}
+            ${escapeHtml(it.asset?.assetCode || it.assetCode || '-')}
           </td>
           <td style="padding: 6px 8px; font-weight: 600;">
-            ${it.item?.name || it.name || 'ครุภัณฑ์'}
+            ${escapeHtml(it.item?.name || it.name || 'ครุภัณฑ์')}
           </td>
           <td style="padding: 6px 8px; text-align: center;">
-            ${it.quantity || 1} ${it.item?.unit || it.unit || 'ชิ้น'}
+            ${escapeHtml(it.quantity || 1)} ${escapeHtml(it.item?.unit || it.unit || 'ชิ้น')}
           </td>
           <td style="padding: 6px 8px; text-align: center; color: #047857; font-size: 11px;">
             ${it.asset?.condition === 'DAMAGED' ? '⚠️ ชำรุด' : 'สมบูรณ์พร้อมใช้'}
@@ -102,9 +103,9 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
         (it: any, idx: number) => `
         <tr style="border-bottom: 1px solid #cbd5e1;">
           <td style="padding: 5px 8px; text-align: center;">${idx + 1}</td>
-          <td style="padding: 5px 8px;">${it.item?.name || it.name}</td>
+          <td style="padding: 5px 8px;">${escapeHtml(it.item?.name || it.name)}</td>
           <td style="padding: 5px 8px; text-align: center; font-weight: bold;">
-            ${it.quantityDispensed > 0 ? it.quantityDispensed : it.quantityRequested} ${it.requestedUnit || it.item?.unit || 'หน่วย'}
+            ${escapeHtml(it.quantityDispensed > 0 ? it.quantityDispensed : it.quantityRequested)} ${escapeHtml(it.requestedUnit || it.item?.unit || 'หน่วย')}
           </td>
         </tr>
       `
@@ -116,7 +117,7 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
       <html lang="th">
         <head>
           <meta charset="utf-8" />
-          <title>ใบรายการยืม-คืนอุปกรณ์ - ${borrow.requestNumber}</title>
+          <title>ใบรายการยืม-คืนอุปกรณ์ - ${escapeHtml(borrow.requestNumber)}</title>
           <style>
             *, *::before, *::after {
               box-sizing: border-box;
@@ -289,8 +290,8 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
               <h1>ห้องปฏิบัติการพยาบาลศาสตร์ คณะพยาบาลศาสตร์</h1>
               <h2>ใบรายการยืม-คืนอุปกรณ์การเรียนการสอนและเบิกพัสดุ (Equipment Loan Docket)</h2>
               <div style="font-size: 11px; color: #64748b; margin-top: 3px;">
-                เลขที่เอกสาร: <b style="font-family: monospace; color: #0f172a;">${borrow.requestNumber}</b>
-                ${borrow.requisitionRequest ? ` &bull; ใบเบิกพัสดุควบ: <b style="font-family: monospace; color: #0f172a;">${borrow.requisitionRequest.requestNumber}</b>` : ''}
+                เลขที่เอกสาร: <b style="font-family: monospace; color: #0f172a;">${escapeHtml(borrow.requestNumber)}</b>
+                ${borrow.requisitionRequest ? ` &bull; ใบเบิกพัสดุควบ: <b style="font-family: monospace; color: #0f172a;">${escapeHtml(borrow.requisitionRequest.requestNumber)}</b>` : ''}
               </div>
             </div>
             <div class="qr-box">
@@ -302,27 +303,27 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
           <div class="meta-grid">
             <div class="meta-item">
               <span class="meta-label">ผู้ยืม-เบิก:</span>
-              <span class="meta-value">${formatUserName(borrow.user)} ${borrow.user?.studentId ? `(${borrow.user.studentId})` : ''}</span>
+              <span class="meta-value">${escapeHtml(formatUserName(borrow.user))} ${borrow.user?.studentId ? `(${escapeHtml(borrow.user.studentId)})` : ''}</span>
             </div>
             <div class="meta-item">
               <span class="meta-label">รายวิชา:</span>
-              <span class="meta-value">${borrow.course ? `[${borrow.course.code}] ${borrow.course.name}` : 'ใช้ทั่วไปในห้องแล็บ'}</span>
+              <span class="meta-value">${borrow.course ? `[${escapeHtml(borrow.course.code)}] ${escapeHtml(borrow.course.name)}` : 'ใช้ทั่วไปในห้องแล็บ'}</span>
             </div>
             <div class="meta-item">
               <span class="meta-label">อาจารย์ผู้สอน:</span>
-              <span class="meta-value">${instructorDisplay}</span>
+              <span class="meta-value">${escapeHtml(instructorDisplay)}</span>
             </div>
             <div class="meta-item">
               <span class="meta-label">วันที่จ่ายของ:</span>
-              <span class="meta-value">${checkoutDateStr} น.</span>
+              <span class="meta-value">${escapeHtml(checkoutDateStr)} น.</span>
             </div>
             <div class="meta-item" style="grid-column: span 2;">
               <span class="meta-label">วัตถุประสงค์:</span>
-              <span class="meta-value">${borrow.purpose || '-'} (${borrow.useTarget === 'HUMAN' ? 'ใช้กับคนจริง' : 'ฝึกกับหุ่นจำลอง'})</span>
+              <span class="meta-value">${escapeHtml(borrow.purpose || '-')} (${borrow.useTarget === 'HUMAN' ? 'ใช้กับคนจริง' : 'ฝึกกับหุ่นจำลอง'})</span>
             </div>
             <div class="due-highlight">
               <span>⏰ กำหนดส่งคืนห้องปฏิบัติการ:</span>
-              <span style="font-size: 12.5px;">${expectedReturnStr} น.</span>
+              <span style="font-size: 12.5px;">${escapeHtml(expectedReturnStr)} น.</span>
             </div>
           </div>
 
@@ -385,7 +386,7 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
           <div class="signatures-grid">
             <div class="signature-block">
               <div>ลงชื่อ ....................................................</div>
-              <div class="sign-line">( ${formatUserName(borrow.user)} )</div>
+              <div class="sign-line">( ${escapeHtml(formatUserName(borrow.user))} )</div>
               <div style="font-size: 10px; color: #64748b; margin-top: 2px;">ผู้ยืม-เบิกอุปกรณ์ (นิสิต/ผู้ใช้)</div>
               <div style="font-size: 9.5px; color: #94a3b8; margin-top: 4px;">วันที่ ......./......./...........</div>
             </div>
@@ -431,11 +432,11 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
         (it: any) => `
         <tr>
           <td style="padding: 2px 0;">
-            <div style="font-weight: bold;">${it.item?.name || it.name}</div>
-            <div style="font-size: 10px; font-family: monospace; color: #0e7490;">${it.asset?.assetCode || it.assetCode || '-'}</div>
+            <div style="font-weight: bold;">${escapeHtml(it.item?.name || it.name)}</div>
+            <div style="font-size: 10px; font-family: monospace; color: #0e7490;">${escapeHtml(it.asset?.assetCode || it.assetCode || '-')}</div>
           </td>
           <td style="text-align: right; vertical-align: top; white-space: nowrap; font-weight: bold;">
-            ${it.quantity || 1} ${it.item?.unit || it.unit || 'ชิ้น'}
+            ${escapeHtml(it.quantity || 1)} ${escapeHtml(it.item?.unit || it.unit || 'ชิ้น')}
           </td>
         </tr>
       `
@@ -452,9 +453,9 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
               .map(
                 (r: any) => `
               <tr>
-                <td>${r.item?.name || r.name}</td>
+                <td>${escapeHtml(r.item?.name || r.name)}</td>
                 <td style="text-align: right; font-weight: bold;">
-                  ${r.quantityDispensed > 0 ? r.quantityDispensed : r.quantityRequested} ${r.requestedUnit || r.item?.unit || 'หน่วย'}
+                  ${escapeHtml(r.quantityDispensed > 0 ? r.quantityDispensed : r.quantityRequested)} ${escapeHtml(r.requestedUnit || r.item?.unit || 'หน่วย')}
                 </td>
               </tr>
             `
@@ -470,7 +471,7 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
       <html>
         <head>
           <meta charset="utf-8" />
-          <title>สลิปยืม-คืนอุปกรณ์ - ${borrow.requestNumber}</title>
+          <title>สลิปยืม-คืนอุปกรณ์ - ${escapeHtml(borrow.requestNumber)}</title>
           <style>
             @page {
               size: 80mm auto;
@@ -501,13 +502,13 @@ export default function BorrowSlipModal({ borrow, onClose }: BorrowSlipModalProp
           <div class="divider"></div>
 
           <div style="font-size: 10.5px;">
-            <div>เลขที่: <b>${borrow.requestNumber}</b></div>
-            <div>วันจ่าย: ${checkoutDateStr} น.</div>
-            <div>ผู้ยืม: <b>${formatUserName(borrow.user)}</b> ${borrow.user?.studentId ? `(${borrow.user.studentId})` : ''}</div>
-            ${borrow.course ? `<div>วิชา: <b>[${borrow.course.code}] ${borrow.course.name}</b></div>` : ''}
-            <div>วัตถุประสงค์: ${borrow.purpose || '-'}</div>
+            <div>เลขที่: <b>${escapeHtml(borrow.requestNumber)}</b></div>
+            <div>วันจ่าย: ${escapeHtml(checkoutDateStr)} น.</div>
+            <div>ผู้ยืม: <b>${escapeHtml(formatUserName(borrow.user))}</b> ${borrow.user?.studentId ? `(${escapeHtml(borrow.user.studentId)})` : ''}</div>
+            ${borrow.course ? `<div>วิชา: <b>[${escapeHtml(borrow.course.code)}] ${escapeHtml(borrow.course.name)}</b></div>` : ''}
+            <div>วัตถุประสงค์: ${escapeHtml(borrow.purpose || '-')}</div>
             <div style="margin-top: 4px; padding: 4px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 4px; color: #be123c; font-weight: bold;">
-              ⏰ กำหนดคืน: ${expectedReturnStr} น.
+              ⏰ กำหนดคืน: ${escapeHtml(expectedReturnStr)} น.
             </div>
           </div>
 

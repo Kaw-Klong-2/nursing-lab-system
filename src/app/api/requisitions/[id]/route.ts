@@ -6,9 +6,12 @@ import { canUserApprove } from '@/lib/approval-scope';
 import { logActivity } from '@/lib/activity-log';
 import { formatAcknowledgeDisplay } from '@/lib/user-utils';
 import { parseBangkokDateTime } from '@/lib/date-time-utils';
+import { getSessionFromRequest } from '@/lib/session';
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await getSessionFromRequest(req);
+    const effectiveUserId = session?.uid;
     const { id } = await params;
     const body = await req.json();
     const { action, userId, reason, itemAdjustments, dispenseNote } = body;
@@ -108,17 +111,25 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     if (action === 'APPROVE') {
-      if (userId) {
-        const approverUser = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { role: true, approvalScopes: true },
-        });
-        if (approverUser && !canUserApprove(approverUser, 'REQUISITION')) {
-          return NextResponse.json(
-            { error: 'ท่านไม่มีสิทธิ์อนุมัติรายการเบิกวัสดุสิ้นเปลือง (อยู่นอกเหนือขอบเขตความรับผิดชอบ)' },
-            { status: 403 }
-          );
-        }
+      if (!effectiveUserId) {
+        return NextResponse.json(
+          { error: 'กรุณาเข้าสู่ระบบก่อนดำเนินการอนุมัติรายการ' },
+          { status: 401 }
+        );
+      }
+      const approverUser = await prisma.user.findUnique({
+        where: { id: effectiveUserId },
+        select: { role: true, status: true, approvalScopes: true },
+      });
+      if (
+        !approverUser ||
+        (approverUser.status && approverUser.status !== 'ACTIVE') ||
+        !canUserApprove(approverUser, 'REQUISITION')
+      ) {
+        return NextResponse.json(
+          { error: 'ท่านไม่มีสิทธิ์อนุมัติรายการเบิกวัสดุสิ้นเปลือง (อยู่นอกเหนือขอบเขตความรับผิดชอบ)' },
+          { status: 403 }
+        );
       }
 
       if (requisition.status !== 'PENDING') {
@@ -136,7 +147,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         where: { id },
         data: {
           status: 'APPROVED',
-          approverId: userId,
+          approverId: effectiveUserId,
           approvedAt: new Date(),
         },
       });
@@ -147,7 +158,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           where: { id: requisition.borrowRequest.id },
           data: {
             status: 'APPROVED',
-            approverId: userId,
+            approverId: effectiveUserId,
             approvedAt: new Date(),
           },
         }).catch((e) => console.error('Failed to sync linked borrow approve:', e));
@@ -180,7 +191,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       }).catch(() => {});
 
       logActivity({
-        userId,
+        userId: effectiveUserId,
         action: 'APPROVE',
         entityType: 'REQUISITION',
         entityId: requisition.id,
@@ -191,17 +202,25 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     if (action === 'REJECT') {
-      if (userId) {
-        const approverUser = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { role: true, approvalScopes: true },
-        });
-        if (approverUser && !canUserApprove(approverUser, 'REQUISITION')) {
-          return NextResponse.json(
-            { error: 'ท่านไม่มีสิทธิ์ปฏิเสธรายการเบิกวัสดุสิ้นเปลือง (อยู่นอกเหนือขอบเขตความรับผิดชอบ)' },
-            { status: 403 }
-          );
-        }
+      if (!effectiveUserId) {
+        return NextResponse.json(
+          { error: 'กรุณาเข้าสู่ระบบก่อนดำเนินการปฏิเสธรายการ' },
+          { status: 401 }
+        );
+      }
+      const approverUser = await prisma.user.findUnique({
+        where: { id: effectiveUserId },
+        select: { role: true, status: true, approvalScopes: true },
+      });
+      if (
+        !approverUser ||
+        (approverUser.status && approverUser.status !== 'ACTIVE') ||
+        !canUserApprove(approverUser, 'REQUISITION')
+      ) {
+        return NextResponse.json(
+          { error: 'ท่านไม่มีสิทธิ์ปฏิเสธรายการเบิกวัสดุสิ้นเปลือง (อยู่นอกเหนือขอบเขตความรับผิดชอบ)' },
+          { status: 403 }
+        );
       }
 
       if (requisition.status !== 'PENDING') {
@@ -219,7 +238,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         where: { id },
         data: {
           status: 'REJECTED',
-          approverId: userId,
+          approverId: effectiveUserId,
           rejectionReason: reason || 'ไม่อนุมัติ',
         },
       });
@@ -230,7 +249,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           where: { id: requisition.borrowRequest.id },
           data: {
             status: 'REJECTED',
-            approverId: userId,
+            approverId: effectiveUserId,
             rejectionReason: reason || 'ไม่อนุมัติ',
           },
         }).catch((e) => console.error('Failed to sync linked borrow reject:', e));

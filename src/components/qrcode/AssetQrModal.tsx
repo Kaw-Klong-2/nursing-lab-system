@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { formatImageUrl } from '@/lib/image-helper';
+import { escapeHtml } from '@/lib/html-escape';
 import { QrCode, Printer, X, Tag, MapPin, Calendar, Coins, Image as ImageIcon, SlidersHorizontal, Copy, FileDown } from 'lucide-react';
 import { downloadStickerDocx, type DocxCardItem } from '@/lib/exportStickerDocx';
 import { downloadStickerPdf, type PdfCardItem } from '@/lib/exportStickerPdf';
@@ -275,12 +276,12 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           <div class="mini-info">
             <div class="mini-org">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
             <div class="mini-code-row">
-              <span class="mini-code">${asset.assetCode}</span>
-              <span class="mini-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>
+              <span class="mini-code">${escapeHtml(asset.assetCode)}</span>
+              <span class="mini-seq">${escapeHtml(unit)}ที่ ${asset.sequenceNumber || 1}</span>
             </div>
-            ${govCode ? `<div class="mini-gov" style="${miniGovStyle}">${govCode}</div>` : ''}
-            <div class="mini-title">${title}</div>
-            <div class="mini-loc">📍 ${asset.location || 'ห้องแล็บพยาบาล'}</div>
+            ${govCode ? `<div class="mini-gov" style="${miniGovStyle}">${escapeHtml(govCode)}</div>` : ''}
+            <div class="mini-title">${escapeHtml(title)}</div>
+            <div class="mini-loc">📍 ${escapeHtml(asset.location || 'ห้องแล็บพยาบาล')}</div>
           </div>
         </div>
       `;
@@ -428,14 +429,14 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
             <img src="${qrDataUrl}" class="compact-qr" />
             <div class="compact-info">
               <div class="compact-code-row">
-                <span class="compact-code">${asset.assetCode}</span>
-                <span class="compact-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>
+                <span class="compact-code">${escapeHtml(asset.assetCode)}</span>
+                <span class="compact-seq">${escapeHtml(unit)}ที่ ${asset.sequenceNumber || 1}</span>
               </div>
-              ${asset.govAssetCode ? `<div class="compact-gov" style="${compactGovStyle}">${asset.govAssetCode}</div>` : ''}
-              <div class="compact-title">${title}</div>
+              ${asset.govAssetCode ? `<div class="compact-gov" style="${compactGovStyle}">${escapeHtml(asset.govAssetCode)}</div>` : ''}
+              <div class="compact-title">${escapeHtml(title)}</div>
               <div class="compact-meta">
-                <span>📍 ${asset.location || 'ห้องแล็บพยาบาล'}</span>
-                ${asset.serialNumber ? ` | SN: ${asset.serialNumber}` : ''}
+                <span>📍 ${escapeHtml(asset.location || 'ห้องแล็บพยาบาล')}</span>
+                ${asset.serialNumber ? ` | SN: ${escapeHtml(asset.serialNumber)}` : ''}
               </div>
             </div>
           </div>
@@ -546,15 +547,15 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
             <div class="header-org-main">คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์</div>
             <div class="header-org-sub">ห้องปฏิบัติการ</div>
           </div>
-          <div class="item-title">${title}</div>
-          <div class="seq-badge">${unit}ที่ ${asset.sequenceNumber || 1}</div>
+          <div class="item-title">${escapeHtml(title)}</div>
+          <div class="seq-badge">${escapeHtml(unit)}ที่ ${asset.sequenceNumber || 1}</div>
           <img src="${qrDataUrl}" class="qr-img" />
-          <div class="asset-code">${asset.assetCode}</div>
-          ${asset.govAssetCode ? `<div class="gov-code" style="${stdGovStyle}">${asset.govAssetCode}</div>` : ''}
+          <div class="asset-code">${escapeHtml(asset.assetCode)}</div>
+          ${asset.govAssetCode ? `<div class="gov-code" style="${stdGovStyle}">${escapeHtml(asset.govAssetCode)}</div>` : ''}
           <div class="details">
-            <div><strong>สถานที่เก็บ:</strong> ${asset.location || 'ห้องปฏิบัติการพยาบาล'}</div>
-            ${asset.serialNumber ? `<div><strong>Serial No.:</strong> ${asset.serialNumber}</div>` : ''}
-            ${asset.receivedDate ? `<div><strong>รับเข้า:</strong> ${new Date(asset.receivedDate).toLocaleDateString('th-TH')}</div>` : ''}
+            <div><strong>สถานที่เก็บ:</strong> ${escapeHtml(asset.location || 'ห้องปฏิบัติการพยาบาล')}</div>
+            ${asset.serialNumber ? `<div><strong>Serial No.:</strong> ${escapeHtml(asset.serialNumber)}</div>` : ''}
+            ${asset.receivedDate ? `<div><strong>รับเข้า:</strong> ${escapeHtml(new Date(asset.receivedDate).toLocaleDateString('th-TH'))}</div>` : ''}
             ${asset.cost ? `<div><strong>มูลค่า:</strong> ฿${Number(asset.cost).toLocaleString('th-TH')} บาท</div>` : ''}
           </div>
         </div>
@@ -744,12 +745,12 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
           <div class="doc-info">
             <div class="doc-org-text">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
             <div class="doc-code-row">
-              <span class="doc-code">${asset.assetCode}</span>
-              <span class="doc-seq">${unit}ที่ ${asset.sequenceNumber || 1}</span>
+              <span class="doc-code">${escapeHtml(asset.assetCode)}</span>
+              <span class="doc-seq">${escapeHtml(unit)}ที่ ${asset.sequenceNumber || 1}</span>
             </div>
-            ${govCode ? `<div class="doc-gov" style="${docGovStyle}">${govCode}</div>` : ''}
-            <div class="doc-name${govCode ? ' doc-name-single' : ''}" title="${title}">${title}</div>
-            <div class="doc-loc">📍 ${asset.location || 'ห้องปฏิบัติการ'}</div>
+            ${govCode ? `<div class="doc-gov" style="${docGovStyle}">${escapeHtml(govCode)}</div>` : ''}
+            <div class="doc-name${govCode ? ' doc-name-single' : ''}" title="${escapeHtml(title)}">${escapeHtml(title)}</div>
+            <div class="doc-loc">📍 ${escapeHtml(asset.location || 'ห้องปฏิบัติการ')}</div>
           </div>
         </div>
       `;
@@ -815,7 +816,7 @@ export default function AssetQrModal({ asset, itemName, itemUnit, onClose }: Ass
       <html>
         <head>
           <meta charset="utf-8" />
-          <title>${labelSize === 'template_doc' ? '' : `ป้าย QR Code ครุภัณฑ์ - ${asset.assetCode}`}</title>
+          <title>${labelSize === 'template_doc' ? '' : `ป้าย QR Code ครุภัณฑ์ - ${escapeHtml(asset.assetCode)}`}</title>
           <style>
             ${pageCss}
           </style>

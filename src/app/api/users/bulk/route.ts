@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { hashPassword } from '@/lib/auth-security';
 import { invalidateCache } from '@/lib/cache';
+import { requireActiveActor } from '@/lib/viewer-guard';
 
 // Map Thai or common role words to valid UserRole
 function normalizeRole(roleInput?: string): string {
@@ -194,6 +195,11 @@ function extractUserFromRow(row: Record<string, any>) {
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireActiveActor(req, ['ADMIN']);
+    if (auth.errorResponse) {
+      return auth.errorResponse;
+    }
+
     const body = await req.json();
     const { users } = body;
 

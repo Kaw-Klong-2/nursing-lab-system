@@ -1,13 +1,31 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyPassword, hashPassword, validatePasswordStrength } from '@/lib/auth-security';
+import { getSessionFromRequest } from '@/lib/session';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { userId, currentPassword, newPassword } = body;
+    const session = await getSessionFromRequest(req);
+    if (!session?.uid) {
+      return NextResponse.json(
+        { error: 'กรุณาเข้าสู่ระบบก่อนใช้งาน' },
+        { status: 401 }
+      );
+    }
 
-    if (!userId || !currentPassword || !newPassword) {
+    const body = await req.json();
+    const { userId: bodyUserId, currentPassword, newPassword } = body;
+
+    if (bodyUserId && bodyUserId !== session.uid) {
+      return NextResponse.json(
+        { error: 'ไม่มีสิทธิ์เปลี่ยนรหัสผ่านของบัญชีผู้ใช้อื่น' },
+        { status: 403 }
+      );
+    }
+
+    const userId = session.uid;
+
+    if (!currentPassword || !newPassword) {
       return NextResponse.json(
         { error: 'กรุณากรอกข้อมูลให้ครบถ้วน' },
         { status: 400 }
@@ -52,10 +70,10 @@ export async function POST(req: Request) {
       success: true,
       message: 'เปลี่ยนรหัสผ่านสำเร็จแล้ว กรุณาใช้รหัสผ่านใหม่ในการเข้าสู่ระบบครั้งถัดไป',
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Change password error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน' },
+      { error: 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน' },
       { status: 500 }
     );
   }

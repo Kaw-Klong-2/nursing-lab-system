@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
+import { escapeHtml } from '@/lib/html-escape';
 import { QrCode, Printer, X, Tag, Calendar, MapPin, SlidersHorizontal, Layers, CheckSquare, Square, Box, FileDown } from 'lucide-react';
 import { downloadStickerDocx, type DocxCardItem } from '@/lib/exportStickerDocx';
 import { downloadStickerPdf, type PdfCardItem } from '@/lib/exportStickerPdf';
@@ -328,10 +329,10 @@ export default function BoxStickerModal({ item, lot, boxes, onClose }: BoxSticke
         <div class="box-card-mini" style="border: 1.5px solid #0f766e; background: #f0fdfa;">
           <img src="${boxQrs[lot.lotNumber] || ''}" class="box-qr-mini" />
           <div class="box-info-mini">
-            <div class="box-title-mini">${item.name}</div>
-            <div class="box-num-mini font-mono">🏷️ ป้ายประจำล็อต: ${lot.lotNumber}</div>
-            <div class="box-code-mini">รวม ${totalLotBoxes} ${unitLabel} (รหัสพัสดุ: ${item.code})</div>
-            <div class="box-dates-mini"><span class="box-exp">EXP: ${formattedExpiry}</span> (รับ ${formattedReceived})</div>
+            <div class="box-title-mini">${escapeHtml(item.name)}</div>
+            <div class="box-num-mini font-mono">🏷️ ป้ายประจำล็อต: ${escapeHtml(lot.lotNumber)}</div>
+            <div class="box-code-mini">รวม ${totalLotBoxes} ${escapeHtml(unitLabel)} (รหัสพัสดุ: ${escapeHtml(item.code)})</div>
+            <div class="box-dates-mini"><span class="box-exp">EXP: ${escapeHtml(formattedExpiry)}</span> (รับ ${escapeHtml(formattedReceived)})</div>
           </div>
         </div>
         `;
@@ -343,10 +344,10 @@ export default function BoxStickerModal({ item, lot, boxes, onClose }: BoxSticke
         <div class="box-card-mini">
           <img src="${boxQrs[box.boxCode] || ''}" class="box-qr-mini" />
           <div class="box-info-mini">
-            <div class="box-title-mini">${item.name}</div>
-            <div class="box-num-mini">👉 ${unitLabel}ที่ #${box.boxNumberInYear} (B${String(box.boxNumberInYear).padStart(3, '0')})</div>
-            <div class="box-code-mini">Lot: ${lot.lotNumber} (${box.boxNumberInLot}/${totalLotBoxes})</div>
-            <div class="box-dates-mini"><span class="box-exp">EXP: ${formattedExpiry}</span> (รับ ${formattedReceived})</div>
+            <div class="box-title-mini">${escapeHtml(item.name)}</div>
+            <div class="box-num-mini">👉 ${escapeHtml(unitLabel)}ที่ #${box.boxNumberInYear} (B${String(box.boxNumberInYear).padStart(3, '0')})</div>
+            <div class="box-code-mini">Lot: ${escapeHtml(lot.lotNumber)} (${box.boxNumberInLot}/${totalLotBoxes})</div>
+            <div class="box-dates-mini"><span class="box-exp">EXP: ${escapeHtml(formattedExpiry)}</span> (รับ ${escapeHtml(formattedReceived)})</div>
           </div>
         </div>
       `
@@ -496,11 +497,11 @@ export default function BoxStickerModal({ item, lot, boxes, onClose }: BoxSticke
           <div class="box-body-compact">
             <img src="${boxQrs[lot.lotNumber] || ''}" class="box-qr-compact" />
             <div class="box-info-compact">
-              <div class="box-title-compact">${item.name}</div>
-              <div class="box-num-compact font-mono">LOT: ${lot.lotNumber}</div>
-              <div class="box-code-compact">รหัสพัสดุ: ${item.code} • ทั้งหมด ${totalLotBoxes} ${unitLabel}</div>
+              <div class="box-title-compact">${escapeHtml(item.name)}</div>
+              <div class="box-num-compact font-mono">LOT: ${escapeHtml(lot.lotNumber)}</div>
+              <div class="box-code-compact">รหัสพัสดุ: ${escapeHtml(item.code)} • ทั้งหมด ${totalLotBoxes} ${escapeHtml(unitLabel)}</div>
               <div class="box-meta-compact">
-                <span class="box-exp">EXP: ${formattedExpiry}</span> | รับเข้า: ${formattedReceived}
+                <span class="box-exp">EXP: ${escapeHtml(formattedExpiry)}</span> | รับเข้า: ${escapeHtml(formattedReceived)}
               </div>
             </div>
           </div>
@@ -519,11 +520,11 @@ export default function BoxStickerModal({ item, lot, boxes, onClose }: BoxSticke
           <div class="box-body-compact">
             <img src="${boxQrs[box.boxCode] || ''}" class="box-qr-compact" />
             <div class="box-info-compact">
-              <div class="box-title-compact">${item.name}</div>
-              <div class="box-num-compact">👉 ${unitLabel}ที่ #${box.boxNumberInYear} • B${String(box.boxNumberInYear).padStart(3, '0')}</div>
-              <div class="box-code-compact">Lot: ${lot.lotNumber} (${box.boxNumberInLot}/${totalLotBoxes})</div>
+              <div class="box-title-compact">${escapeHtml(item.name)}</div>
+              <div class="box-num-compact">👉 ${escapeHtml(unitLabel)}ที่ #${box.boxNumberInYear} • B${String(box.boxNumberInYear).padStart(3, '0')}</div>
+              <div class="box-code-compact">Lot: ${escapeHtml(lot.lotNumber)} (${box.boxNumberInLot}/${totalLotBoxes})</div>
               <div class="box-meta-compact">
-                <span class="box-exp">EXP: ${formattedExpiry}</span> | รับ: ${formattedReceived}
+                <span class="box-exp">EXP: ${escapeHtml(formattedExpiry)}</span> | รับ: ${escapeHtml(formattedReceived)}
               </div>
             </div>
           </div>
@@ -705,11 +706,11 @@ export default function BoxStickerModal({ item, lot, boxes, onClose }: BoxSticke
             <div class="doc-info">
               <div class="doc-org-text">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
               <div class="doc-code-row">
-                <span class="doc-code">LOT: ${lot.lotNumber}</span>
-                <span class="doc-seq">ป้ายล็อต (${unitLabel})</span>
+                <span class="doc-code">LOT: ${escapeHtml(lot.lotNumber)}</span>
+                <span class="doc-seq">ป้ายล็อต (${escapeHtml(unitLabel)})</span>
               </div>
-              <div class="doc-name" title="${item.name}">${item.name}</div>
-              <div class="doc-loc">EXP: ${formattedExpiry}</div>
+              <div class="doc-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+              <div class="doc-loc">EXP: ${escapeHtml(formattedExpiry)}</div>
             </div>
           </div>
         `);
@@ -724,11 +725,11 @@ export default function BoxStickerModal({ item, lot, boxes, onClose }: BoxSticke
             <div class="doc-info">
               <div class="doc-org-text">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
               <div class="doc-code-row">
-                <span class="doc-code">${box.boxCode}</span>
-                <span class="doc-seq">${unitLabel}ที่ #${box.boxNumberInYear}</span>
+                <span class="doc-code">${escapeHtml(box.boxCode)}</span>
+                <span class="doc-seq">${escapeHtml(unitLabel)}ที่ #${box.boxNumberInYear}</span>
               </div>
-              <div class="doc-name" title="${item.name}">${item.name}</div>
-              <div class="doc-loc">EXP: ${formattedExpiry}</div>
+              <div class="doc-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+              <div class="doc-loc">EXP: ${escapeHtml(formattedExpiry)}</div>
             </div>
           </div>
         `);
@@ -788,7 +789,7 @@ export default function BoxStickerModal({ item, lot, boxes, onClose }: BoxSticke
       <html>
         <head>
           <meta charset="utf-8" />
-          <title>${labelSize === 'template_doc' ? '' : `สติกเกอร์กล่อง - ${item.name}`}</title>
+          <title>${labelSize === 'template_doc' ? '' : `สติกเกอร์กล่อง - ${escapeHtml(item.name)}`}</title>
           <style>
             ${pageCss}
           </style>

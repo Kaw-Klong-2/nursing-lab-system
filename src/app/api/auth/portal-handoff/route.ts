@@ -1,59 +1,93 @@
+import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { signSessionToken, attachSessionCookie } from '@/lib/session';
+
+const PORTAL_TOKEN_MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const rawEmail = body.email || '';
     const token = body.token;
 
-    // 1. Identify target email (from body.email or token payload)
-    let requestedEmail = String(rawEmail).trim().toLowerCase();
-
-    if (token) {
-      try {
-        const decodedStr = Buffer.from(token, 'base64').toString('utf-8');
-        const payload = JSON.parse(decodedStr);
-        if (payload?.email) {
-          const tokenEmail = String(payload.email).trim().toLowerCase();
-          if (requestedEmail && requestedEmail !== tokenEmail) {
-            return NextResponse.json(
-              { error: 'อีเมลที่ระบุไม่ตรงกับข้อมูลใน Hand-off token' },
-              { status: 400 }
-            );
-          }
-          requestedEmail = tokenEmail;
-        }
-
-        // Optional HMAC signature verification if sig is present
-        if (payload?.sig) {
-          const crypto = await import('crypto');
-          const secret = process.env.EXTERNAL_SYNC_API_KEY || 'lab_nursing_sync_key_2026_sec';
-          const expectedSig = crypto
-            .createHmac('sha256', secret)
-            .update(`${payload.email}:${payload.ts}:${payload.source}`)
-            .digest('hex');
-          if (payload.sig !== expectedSig) {
-            return NextResponse.json(
-              { error: 'ลายเซ็นดิจิทัล (HMAC signature) ของ portal_token ไม่ถูกต้อง' },
-              { status: 403 }
-            );
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to parse portal_token, falling back to direct email handoff:', e);
-      }
+    if (!token || typeof token !== 'string') {
+      return NextResponse.json(
+        { error: 'จำเป็นต้องมี portal_token ที่ลงนามยืนยันตัวตนแล้วเท่านั้น' },
+        { status: 401 }
+      );
     }
 
-    if (!requestedEmail) {
+    const secret =
+      process.env.EXTERNAL_SYNC_API_KEY ||
+      (process.env.NODE_ENV !== 'production' ? 'dev-only-external-sync-key' : '');
+    if (!secret) {
       return NextResponse.json(
-        { error: 'ไม่พบข้อมูลอีเมลสำหรับยืนยันตัวตน' },
+        { error: 'ระบบยังไม่ได้ตั้งค่า EXTERNAL_SYNC_API_KEY' },
+        { status: 503 }
+      );
+    }
+
+    let payload: { email?: unknown; ts?: unknown; source?: unknown; sig?: unknown };
+    try {
+      const decodedStr = Buffer.from(token, 'base64').toString('utf-8');
+      payload = JSON.parse(decodedStr);
+    } catch {
+      return NextResponse.json(
+        { error: 'รูปแบบ portal_token ไม่ถูกต้อง' },
         { status: 400 }
       );
     }
 
-    // 2. SECURITY GUARD: The generic shared root admin account MUST NEVER be logged in via external link without password
-    if (requestedEmail === 'admin@lab.nurse.ac.th' || requestedEmail === 'admin') {
+    if (
+      !payload ||
+      typeof payload.email !== 'string' ||
+      !payload.email.trim() ||
+      (typeof payload.ts !== 'number' && typeof payload.ts !== 'string') ||
+      typeof payload.source !== 'string' ||
+      !payload.source ||
+      typeof payload.sig !== 'string' ||
+      !payload.sig
+    ) {
+      return NextResponse.json(
+        { error: 'ข้อมูลใน portal_token ไม่ครบถ้วน' },
+        { status: 400 }
+      );
+    }
+
+    const tokenEmail = payload.email.trim().toLowerCase();
+    const requestedEmail = String(rawEmail).trim().toLowerCase();
+    if (requestedEmail && requestedEmail !== tokenEmail) {
+      return NextResponse.json(
+        { error: 'อีเมลที่ระบุไม่ตรงกับข้อมูลใน Hand-off token' },
+        { status: 400 }
+      );
+    }
+
+    const tsNum = Number(payload.ts);
+    if (!Number.isFinite(tsNum) || Math.abs(Date.now() - tsNum) > PORTAL_TOKEN_MAX_AGE_MS) {
+      return NextResponse.json(
+        { error: 'portal_token หมดอายุแล้ว กรุณาเข้าสู่ระบบใหม่อีกครั้ง' },
+        { status: 403 }
+      );
+    }
+
+    const expectedSigHex = crypto
+      .createHmac('sha256', secret)
+      .update(`${payload.email}:${payload.ts}:${payload.source}`)
+      .digest('hex');
+
+    const providedBuf = Buffer.from(payload.sig.trim(), 'utf8');
+    const expectedBuf = Buffer.from(expectedSigHex, 'utf8');
+    if (providedBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(providedBuf, expectedBuf)) {
+      return NextResponse.json(
+        { error: 'ลายเซ็นดิจิทัล (HMAC signature) ของ portal_token ไม่ถูกต้อง' },
+        { status: 403 }
+      );
+    }
+
+    // SECURITY GUARD: The generic shared root admin account MUST NEVER be logged in via external link without password
+    if (tokenEmail === 'admin@lab.nurse.ac.th' || tokenEmail === 'admin') {
       return NextResponse.json(
         {
           error: 'ROOT_ADMIN_BLOCKED',
@@ -63,10 +97,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3. Find matching user in database (case-insensitive)
     const user = await prisma.user.findFirst({
       where: {
-        email: { equals: requestedEmail, mode: 'insensitive' },
+        email: { equals: tokenEmail, mode: 'insensitive' },
       },
     });
 
@@ -74,7 +107,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error: 'NOT_FOUND',
-          message: `ไม่พบบัญชี ${requestedEmail} ในระบบห้องปฏิบัติการพยาบาล กรุณาลงทะเบียนก่อนเข้าใช้งาน`,
+          message: `ไม่พบบัญชี ${tokenEmail} ในระบบห้องปฏิบัติการพยาบาล กรุณาลงทะเบียนก่อนเข้าใช้งาน`,
         },
         { status: 404 }
       );
@@ -90,7 +123,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4. Return sanitized user for instant auto-login
     const sanitizedUser = {
       id: user.id,
       prefix: user.prefix,
@@ -106,9 +138,6 @@ export async function POST(req: Request) {
       executiveRole: user.role === 'VIEWER' ? null : (user.executiveRole || null),
     };
 
-    console.log(`[AUTH HAND-OFF SUCCESS] User ${sanitizedUser.email} (${sanitizedUser.role}) logged in via portal hand-off.`);
-
-    // Record login presence and activity log
     const userAgent = req.headers.get('user-agent');
     const forwardedFor = req.headers.get('x-forwarded-for');
     const ipAddress = forwardedFor ? forwardedFor.split(',')[0].trim() : req.headers.get('x-real-ip');
@@ -141,14 +170,18 @@ export async function POST(req: Request) {
       metadata: { device, userAgent, source: 'SSO_HANDOFF' },
     }).catch(() => {});
 
-    return NextResponse.json({
+    const ttlMs = 30 * 24 * 60 * 60 * 1000;
+    const sessionToken = await signSessionToken({ uid: user.id, role: user.role }, ttlMs);
+
+    const res = NextResponse.json({
       success: true,
       user: sanitizedUser,
     });
-  } catch (error: any) {
+    return attachSessionCookie(res, sessionToken, { rememberMe: true, isRootAdmin: false });
+  } catch (error) {
     console.error('Portal hand-off error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ Portal Hand-off' },
+      { error: 'เกิดข้อผิดพลาดในการเชื่อมต่อ Portal Hand-off' },
       { status: 500 }
     );
   }

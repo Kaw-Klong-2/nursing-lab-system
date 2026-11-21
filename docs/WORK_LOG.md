@@ -17,6 +17,20 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-21] ปรับเลขเวอร์ชันเป็น v2.7.0 + ยกระดับความปลอดภัยระบบระยะที่ 1 (Security Hotfix)
+- **หมวดหมู่**: Security, Authentication, Authorization, XSS Protection & Versioning (`v2.7.0`)
+- **สิ่งที่ดำเนินการ**:
+  - **Version Bump (`v2.6.0` -> `v2.7.0`)**: รัน `scripts/version-bump.mjs minor` อัปเดต `package.json`, `src/lib/version.ts`, และเชื่อม `APP_VERSION` ใน `src/app/admin/sandbox/ebooks/page.tsx`
+  - **Signed `HttpOnly` Session Cookie & Global API Middleware**:
+    - สร้าง `src/lib/session.ts` (Web Crypto HMAC-SHA256 Edge-compatible) และ `src/middleware.ts` บังคับตรวจ session cookie ในทุก `/api/*` (ยกเว้น public/webhook endpoints ที่กำหนด) พร้อมบล็อก mutating methods (`POST`/`PUT`/`PATCH`/`DELETE`) ของบัญชี `VIEWER` จากฝั่งเซิร์ฟเวอร์โดยตรง
+    - เพิ่ม `/api/auth/me` และ `/api/auth/logout`, ผูก session cookie ใน `/api/auth/login`, `src/lib/google-auth.ts`, `/api/auth/portal-handoff`, `/api/auth/heartbeat`, `/api/auth/change-password`, `/api/auth/request-email-change`, `/api/auth/verify-email-change` และอัปเดต `src/lib/auth-context.tsx`
+  - **อุดช่องโหว่ Auth Bypass, Admin Guards & Hardcoded Secrets**:
+    - ปิดการล็อกอินข้าม token ใน `portal-handoff` (บังคับ HMAC + อายุ 5 นาที), ปิด unsigned `GET` mutation ใน `approvals/quick-action` (บังคับ token + หน้ายืนยัน `POST`), บังคับตรวจ session & role ใน `backup`, `users`, `users/[id]`, `users/bulk`, `force-logout`, `active-sessions`, `analytics`, `activity-logs`, `borrow/[id]`, และ `requisitions/[id]`
+    - เปลี่ยน OTP เป็น `crypto.randomInt`, จำกัดลองผิด 5 ครั้ง + ล็อก `devOtp` เฉพาะ non-production, ลบ hardcoded fallback secrets ใน `token.ts`, `cron/reminders`, `external/room-schedules`, และยกเลิกการเขียน DB credentials ลง `wrangler.jsonc` ใน `scripts/inject-cf-vars.js`
+  - **ป้องกัน Stored XSS ในหน้าต่างสั่งพิมพ์ & Security Headers**:
+    - สร้าง `src/lib/html-escape.ts` (`escapeHtml`) ครอบค่าที่พิมพ์ใน `document.write` ครบทั้ง 12 ไฟล์และหน้า HTML ของ `approvals/quick-action`
+    - เพิ่ม HTTP Security Headers ใน `next.config.mjs`, ถอด `NEXT_PUBLIC_GEMINI_API_KEY` ใน `chatbot-gemini.ts`, และปรับปรุง `.env.example`
+
 ### [2026-11-20] ลดช่องว่างส่วนเกินใต้เส้นขอบล่างแถบชื่อคณะบนสติกเกอร์ครุภัณฑ์และตัวอย่างก่อนพิมพ์
 - **ปัญหา**: สติกเกอร์ครุภัณฑ์และตัวอย่างก่อนพิมพ์มีการจัดกึ่งกลางแนวตั้ง (`align-items: center`, `justify-content: center`, `flex: 1`) ร่วมกับ `min-height` ที่สูงเกินจำเป็น ทำให้เกิดพื้นที่ว่างสีขาวขนาดใหญ่ใต้เส้นขอบล่างแถบชื่อคณะ (`คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์`)
 - **การแก้ไข**:

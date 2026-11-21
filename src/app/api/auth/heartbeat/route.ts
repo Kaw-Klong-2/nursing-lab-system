@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { recordUserHeartbeat, isUserForceLoggedOut, removeUserPresence } from '@/lib/user-presence';
+import { getSessionFromRequest, clearSessionCookie } from '@/lib/session';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const userId = body.userId || req.headers.get('x-user-id');
-    const sessionLoginTime = body.loginTime ? Number(body.loginTime) : undefined;
-    const isLogout = Boolean(body.isLogout);
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
+    const session = await getSessionFromRequest(req);
+    if (!session?.uid) {
+      return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบก่อนใช้งาน' }, { status: 401 });
     }
+
+    const userId = session.uid;
+    const body = await req.json().catch(() => ({}));
+    const sessionLoginTime = body.loginTime ? Number(body.loginTime) : session.iat;
+    const isLogout = Boolean(body.isLogout);
 
     // กรณีไคลเอนต์แจ้งออกจากระบบ (Explicit Logout)
     if (isLogout) {
@@ -19,29 +20,31 @@ export async function POST(req: Request) {
       const { logActivity } = await import('@/lib/activity-log');
       logActivity({
         userId,
+        userRole: session.role,
         action: 'LOGOUT',
         entityType: 'USER',
         entityId: userId,
         details: 'ออกจากระบบปกติ',
       }).catch(() => {});
-      return NextResponse.json({ success: true, loggedOut: true });
+      const res = NextResponse.json({ success: true, loggedOut: true });
+      return clearSessionCookie(res);
     }
 
     // ตรวจสอบว่าผู้ใช้ถูกสั่งให้ออกจากระบบระยะไกล (Force Logout) หรือไม่
     const forceLoggedOut = await isUserForceLoggedOut(userId, sessionLoginTime);
     if (forceLoggedOut) {
-      return NextResponse.json({
+      const res = NextResponse.json({
         success: false,
         forceLogout: true,
         message: 'เซสชันของคุณถูกสั่งให้ออกจากระบบโดยผู้ดูแลระบบ เพื่อความปลอดภัย',
       });
+      return clearSessionCookie(res);
     }
 
     const userAgent = req.headers.get('user-agent');
     const forwardedFor = req.headers.get('x-forwarded-for');
     const ipAddress = forwardedFor ? forwardedFor.split(',')[0].trim() : req.headers.get('x-real-ip');
 
-    // บันทึก Heartbeat ใน Presence Engine (Memory + Supabase DB)
     await recordUserHeartbeat({
       userId,
       userAgent,
@@ -53,7 +56,8 @@ export async function POST(req: Request) {
       online: true,
       timestamp: Date.now(),
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Heartbeat error' }, { status: 500 });
+  } catch (err) {
+    console.error('Heartbeat error:', err);
+    return NextResponse.json({ error: 'เกิดข้อผิดพลาดในการส่งสัญญาณ Heartbeat' }, { status: 500 });
   }
 }

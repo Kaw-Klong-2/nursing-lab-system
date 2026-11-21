@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import QRCode from 'qrcode';
+import { escapeHtml } from '@/lib/html-escape';
 import {
   Printer,
   X,
@@ -447,11 +448,11 @@ export default function BatchRepackStickerModal({
                 <div class="doc-info">
                   <div class="doc-org-text">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
                   <div class="doc-code-row">
-                    <span class="doc-code">SUB-LOT: ${rec.subLotNumber}</span>
+                    <span class="doc-code">SUB-LOT: ${escapeHtml(rec.subLotNumber)}</span>
                     <span class="doc-seq">ป้าย Sub-lot (${totalPacksInLot} ซอง)</span>
                   </div>
-                  <div class="doc-name" title="${itemName}">${itemName}</div>
-                  <div class="doc-loc">EXP: ${formattedExpiry}</div>
+                  <div class="doc-name" title="${escapeHtml(itemName)}">${escapeHtml(itemName)}</div>
+                  <div class="doc-loc">EXP: ${escapeHtml(formattedExpiry)}</div>
                 </div>
               </div>
             `);
@@ -469,11 +470,11 @@ export default function BatchRepackStickerModal({
                 <div class="doc-info">
                   <div class="doc-org-text">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
                   <div class="doc-code-row">
-                    <span class="doc-code">${pack.packCode}</span>
-                    <span class="doc-seq">#${pack.packNumber}/${totalPacksInLot} (${packUnits} ${usageUnit})</span>
+                    <span class="doc-code">${escapeHtml(pack.packCode)}</span>
+                    <span class="doc-seq">#${pack.packNumber}/${totalPacksInLot} (${packUnits} ${escapeHtml(usageUnit)})</span>
                   </div>
-                  <div class="doc-name" title="${itemName}">${itemName}</div>
-                  <div class="doc-loc">EXP: ${formattedExpiry}</div>
+                  <div class="doc-name" title="${escapeHtml(itemName)}">${escapeHtml(itemName)}</div>
+                  <div class="doc-loc">EXP: ${escapeHtml(formattedExpiry)}</div>
                 </div>
               </div>
             `);
@@ -709,9 +710,9 @@ export default function BatchRepackStickerModal({
                   <img src="${lotQr}" class="box-qr-mini" />
                   <div class="box-info-mini">
                     <div class="lot-header-badge-mini">🏷️ ป้ายประจำ Sub-lot (${totalPacksInLot} ซอง)</div>
-                    <div class="box-title-mini">${itemName}</div>
-                    <div class="box-num-mini font-mono">SUB-LOT: ${rec.subLotNumber}</div>
-                    <div class="box-dates-mini">ซองละ ${rec.unitsPerPack} ${usageUnit} | <span class="box-exp">EXP: ${formattedExpiry}</span></div>
+                    <div class="box-title-mini">${escapeHtml(itemName)}</div>
+                    <div class="box-num-mini font-mono">SUB-LOT: ${escapeHtml(rec.subLotNumber)}</div>
+                    <div class="box-dates-mini">ซองละ ${rec.unitsPerPack} ${escapeHtml(usageUnit)} | <span class="box-exp">EXP: ${escapeHtml(formattedExpiry)}</span></div>
                   </div>
                 </div>
               `;
@@ -725,10 +726,10 @@ export default function BatchRepackStickerModal({
                   <div class="box-body-compact">
                     <img src="${lotQr}" class="box-qr-compact" />
                     <div class="box-info-compact">
-                      <div class="box-title-compact">${itemName}</div>
-                      <div class="box-num-compact font-mono">SUB-LOT: ${rec.subLotNumber}</div>
-                      <div class="box-code-compact">รวม ${totalPacksInLot} ซอง (ซองละ ${rec.unitsPerPack} ${usageUnit}) • รหัส: ${itemCode}</div>
-                      <div class="box-dates-compact"><span class="box-exp">EXP ปลอดเชื้อ: ${formattedExpiry}</span> (อบ ${formattedPacked})</div>
+                      <div class="box-title-compact">${escapeHtml(itemName)}</div>
+                      <div class="box-num-compact font-mono">SUB-LOT: ${escapeHtml(rec.subLotNumber)}</div>
+                      <div class="box-code-compact">รวม ${totalPacksInLot} ซอง (ซองละ ${rec.unitsPerPack} ${escapeHtml(usageUnit)}) • รหัส: ${escapeHtml(itemCode)}</div>
+                      <div class="box-dates-compact"><span class="box-exp">EXP ปลอดเชื้อ: ${escapeHtml(formattedExpiry)}</span> (อบ ${escapeHtml(formattedPacked)})</div>
                     </div>
                   </div>
                 </div>
@@ -746,10 +747,10 @@ export default function BatchRepackStickerModal({
                 <div class="box-card-mini">
                   <img src="${packQr}" class="box-qr-mini" />
                   <div class="box-info-mini">
-                    <div class="box-title-mini">${itemName}</div>
-                    <div class="box-num-mini">👉 ซองที่ #${pack.packNumber}/${totalPacksInLot} (${packUnits} ${usageUnit})</div>
-                    <div class="box-code-mini">Lot: ${rec.subLotNumber} • ${pack.packCode}</div>
-                    <div class="box-dates-mini"><span class="box-exp">EXP: ${formattedExpiry}</span> (อบ ${formattedPacked})</div>
+                    <div class="box-title-mini">${escapeHtml(itemName)}</div>
+                    <div class="box-num-mini">👉 ซองที่ #${pack.packNumber}/${totalPacksInLot} (${packUnits} ${escapeHtml(usageUnit)})</div>
+                    <div class="box-code-mini">Lot: ${escapeHtml(rec.subLotNumber)} • ${escapeHtml(pack.packCode)}</div>
+                    <div class="box-dates-mini"><span class="box-exp">EXP: ${escapeHtml(formattedExpiry)}</span> (อบ ${escapeHtml(formattedPacked)})</div>
                   </div>
                 </div>
               `;
@@ -763,10 +764,10 @@ export default function BatchRepackStickerModal({
                   <div class="box-body-compact">
                     <img src="${packQr}" class="box-qr-compact" />
                     <div class="box-info-compact">
-                      <div class="box-title-compact">${itemName}</div>
-                      <div class="box-num-compact">👉 ซองที่ #${pack.packNumber}/${totalPacksInLot} (${packUnits} ${usageUnit})</div>
-                      <div class="box-code-compact">Lot: ${rec.subLotNumber} • ${pack.packCode}</div>
-                      <div class="box-dates-compact"><span class="box-exp">EXP ปลอดเชื้อ: ${formattedExpiry}</span> (อบ ${formattedPacked})</div>
+                      <div class="box-title-compact">${escapeHtml(itemName)}</div>
+                      <div class="box-num-compact">👉 ซองที่ #${pack.packNumber}/${totalPacksInLot} (${packUnits} ${escapeHtml(usageUnit)})</div>
+                      <div class="box-code-compact">Lot: ${escapeHtml(rec.subLotNumber)} • ${escapeHtml(pack.packCode)}</div>
+                      <div class="box-dates-compact"><span class="box-exp">EXP ปลอดเชื้อ: ${escapeHtml(formattedExpiry)}</span> (อบ ${escapeHtml(formattedPacked)})</div>
                     </div>
                   </div>
                 </div>

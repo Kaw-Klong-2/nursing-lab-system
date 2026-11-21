@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
+import { escapeHtml } from '@/lib/html-escape';
 import { QrCode, Printer, X, Tag, Calendar, MapPin, SlidersHorizontal, Copy, Check, FileDown } from 'lucide-react';
 import { downloadStickerDocx, type DocxCardItem } from '@/lib/exportStickerDocx';
 import { downloadStickerPdf, type PdfCardItem } from '@/lib/exportStickerPdf';
@@ -305,11 +306,11 @@ export default function ConsumableQrModal({ item, lot, onClose }: ConsumableQrMo
           <div class="doc-info">
             <div class="doc-org-text">คณะพยาบาลศาสตร์ ม.เกษตรศาสตร์</div>
             <div class="doc-code-row">
-              <span class="doc-code">Lot: ${lot.lotNumber}</span>
-              <span class="doc-badge">${item.code}</span>
+              <span class="doc-code">Lot: ${escapeHtml(lot.lotNumber)}</span>
+              <span class="doc-badge">${escapeHtml(item.code)}</span>
             </div>
-            <div class="doc-name" title="${item.name}">${item.name}</div>
-            <div class="doc-loc">EXP: ${formattedExpiry}</div>
+            <div class="doc-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+            <div class="doc-loc">EXP: ${escapeHtml(formattedExpiry)}</div>
           </div>
         </div>
       `;
@@ -438,10 +439,10 @@ export default function ConsumableQrModal({ item, lot, onClose }: ConsumableQrMo
         <div class="lot-mini-card">
           <img src="${qrDataUrl}" class="lot-mini-qr" />
           <div class="lot-mini-info">
-            <div class="lot-mini-title">${item.name}</div>
-            <div class="lot-mini-num">Lot: ${lot.lotNumber}</div>
-            <div class="lot-mini-exp">EXP: ${formattedExpiry}</div>
-            <div class="lot-mini-loc">📍 ${item.location || 'ห้องปฏิบัติการ'}</div>
+            <div class="lot-mini-title">${escapeHtml(item.name)}</div>
+            <div class="lot-mini-num">Lot: ${escapeHtml(lot.lotNumber)}</div>
+            <div class="lot-mini-exp">EXP: ${escapeHtml(formattedExpiry)}</div>
+            <div class="lot-mini-loc">📍 ${escapeHtml(item.location || 'ห้องปฏิบัติการ')}</div>
           </div>
         </div>
       `;
@@ -528,10 +529,10 @@ export default function ConsumableQrModal({ item, lot, onClose }: ConsumableQrMo
           <img src="${qrDataUrl}" class="lot-std-qr" />
           <div class="lot-std-info">
             <div class="lot-std-org">เวชภัณฑ์ • คณะพยาบาลศาสตร์</div>
-            <div class="lot-std-title">${item.name}</div>
-            <div class="lot-std-num">Lot: ${lot.lotNumber}</div>
-            <div class="lot-std-exp">หมดอายุ: ${formattedExpiry}</div>
-            <div class="lot-std-meta">📍 ${item.location || 'ห้องปฏิบัติการพยาบาล'}</div>
+            <div class="lot-std-title">${escapeHtml(item.name)}</div>
+            <div class="lot-std-num">Lot: ${escapeHtml(lot.lotNumber)}</div>
+            <div class="lot-std-exp">หมดอายุ: ${escapeHtml(formattedExpiry)}</div>
+            <div class="lot-std-meta">📍 ${escapeHtml(item.location || 'ห้องปฏิบัติการพยาบาล')}</div>
           </div>
         </div>
       `;
@@ -549,7 +550,7 @@ export default function ConsumableQrModal({ item, lot, onClose }: ConsumableQrMo
       <html>
         <head>
           <meta charset="utf-8" />
-          <title>${labelSize === 'template_doc' ? '' : `ป้าย QR Lot - ${lot.lotNumber}`}</title>
+          <title>${labelSize === 'template_doc' ? '' : `ป้าย QR Lot - ${escapeHtml(lot.lotNumber)}`}</title>
           <style>
             ${pageCss}
           </style>

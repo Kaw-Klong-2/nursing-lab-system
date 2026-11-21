@@ -1,31 +1,19 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getBangkokStartOfDay, getBangkokEndOfDay } from '@/lib/date-time-utils';
+import { requireActiveActor } from '@/lib/viewer-guard';
 
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const userId = req.headers.get('x-user-id') || searchParams.get('userId');
-
-    // 1. Strict Security Guard: Only ADMIN and OFFICER can access activity logs
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบ' },
-        { status: 401 }
-      );
-    }
-
-    const requester = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, role: true },
-    });
-
-    if (!requester || (requester.role !== 'ADMIN' && requester.role !== 'OFFICER')) {
+    const auth = await requireActiveActor(req, ['ADMIN', 'OFFICER']);
+    if (auth.errorResponse) {
       return NextResponse.json(
         { error: 'คุณไม่มีสิทธิ์เข้าถึงประวัติการทำรายการ (เฉพาะผู้ดูแลระบบและเจ้าหน้าที่ห้องแล็บเท่านั้น)' },
-        { status: 403 }
+        { status: auth.errorResponse.status }
       );
     }
+
+    const { searchParams } = new URL(req.url);
 
     // 2. Query Filters & Pagination
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));

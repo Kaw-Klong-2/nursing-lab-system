@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { OAuth2Client } from 'google-auth-library';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
+import { signSessionToken, attachSessionCookie } from '@/lib/session';
 
 // Use configured client ID or fallback
 const googleClientId =
@@ -18,6 +19,7 @@ export async function handleGoogleAuthRequest(req: Request) {
 
   try {
     let credential = '';
+    let rememberMe = true;
 
     if (isFormPost) {
       const formData = await req.formData();
@@ -25,6 +27,7 @@ export async function handleGoogleAuthRequest(req: Request) {
     } else {
       const body = await req.json().catch(() => ({}));
       credential = body.credential || '';
+      rememberMe = body.rememberMe !== false;
     }
 
     if (!credential) {
@@ -71,8 +74,10 @@ export async function handleGoogleAuthRequest(req: Request) {
       }
     }
 
-    if (!payload || !payload.email) {
-      const errMsg = 'ไม่พบข้อมูลอีเมลจากบัญชี Google';
+    if (!payload || !payload.email || payload.email_verified === false) {
+      const errMsg = !payload || !payload.email
+        ? 'ไม่พบข้อมูลอีเมลจากบัญชี Google'
+        : 'อีเมล Google นี้ยังไม่ได้รับการยืนยัน (Unverified Email)';
       if (isFormPost) {
         return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(errMsg)}`, req.url), 303);
       }
@@ -118,9 +123,9 @@ export async function handleGoogleAuthRequest(req: Request) {
       phone: user.phone,
       avatar: user.avatar,
       status: user.status,
-      approvalScopes: user.role === 'USER' ? null : (user.approvalScopes || null),
-      isExecutive: Boolean(user.isExecutive),
-      executiveRole: user.executiveRole || null,
+      approvalScopes: user.role === 'USER' || user.role === 'VIEWER' ? null : (user.approvalScopes || null),
+      isExecutive: user.role === 'VIEWER' ? false : Boolean(user.isExecutive),
+      executiveRole: user.role === 'VIEWER' ? null : (user.executiveRole || null),
     };
 
     // Record login presence and activity log
@@ -156,24 +161,37 @@ export async function handleGoogleAuthRequest(req: Request) {
       metadata: { device, userAgent, provider: 'GOOGLE' },
     }).catch(() => {});
 
+    const normalizedEmail = (user.email || '').toLowerCase().trim();
+    const normalizedStudentId = (user.studentId || '').toLowerCase().trim();
+    const isRootAdmin =
+      normalizedEmail === 'admin@lab.nurse.ac.th' ||
+      (normalizedEmail === 'admin' && normalizedStudentId === 'admin');
+    const ttlMs = isRootAdmin || !rememberMe ? 8 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000;
+    const sessionToken = await signSessionToken({ uid: user.id, role: user.role }, ttlMs);
+
     // If request was sent via Google GIS Redirect Mode (HTTP Form POST)
     if (isFormPost) {
-      const secret = process.env.EXTERNAL_SYNC_API_KEY || 'lab_nursing_sync_key_2026_sec';
-      const ts = Date.now();
-      const source = 'google_gis_redirect';
-      const sig = crypto
-        .createHmac('sha256', secret)
-        .update(`${user.email.toLowerCase()}:${ts}:${source}`)
-        .digest('hex');
-      const tokenPayload = {
-        email: user.email.toLowerCase(),
-        ts,
-        source,
-        sig,
-      };
-      const portalToken = Buffer.from(JSON.stringify(tokenPayload)).toString('base64');
-      const encodedToken = encodeURIComponent(portalToken);
-      const targetUrl = `/?portal_token=${encodedToken}`;
+      const secret =
+        process.env.EXTERNAL_SYNC_API_KEY ||
+        (process.env.NODE_ENV !== 'production' ? 'dev-only-external-sync-key' : '');
+      let targetUrl = '/';
+      if (secret) {
+        const ts = Date.now();
+        const source = 'google_gis_redirect';
+        const sig = crypto
+          .createHmac('sha256', secret)
+          .update(`${user.email.toLowerCase()}:${ts}:${source}`)
+          .digest('hex');
+        const tokenPayload = {
+          email: user.email.toLowerCase(),
+          ts,
+          source,
+          sig,
+        };
+        const portalToken = Buffer.from(JSON.stringify(tokenPayload)).toString('base64');
+        const encodedToken = encodeURIComponent(portalToken);
+        targetUrl = `/?portal_token=${encodedToken}`;
+      }
       const serializedUser = JSON.stringify(sanitizedUser).replace(/</g, '\\u003c');
 
       const html = `<!DOCTYPE html>
@@ -207,22 +225,24 @@ export async function handleGoogleAuthRequest(req: Request) {
 </body>
 </html>`;
 
-      return new NextResponse(html, {
+      const htmlRes = new NextResponse(html, {
         status: 200,
         headers: {
           'Content-Type': 'text/html; charset=utf-8',
           'Cache-Control': 'no-store, no-cache, must-revalidate',
         },
       });
+      return attachSessionCookie(htmlRes, sessionToken, { rememberMe: true, isRootAdmin });
     }
 
-    return NextResponse.json({
+    const jsonRes = NextResponse.json({
       success: true,
       user: sanitizedUser,
     });
+    return attachSessionCookie(jsonRes, sessionToken, { rememberMe, isRootAdmin });
   } catch (error: any) {
     console.error('Google login route error:', error);
-    const errMsg = error.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google';
+    const errMsg = 'เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google';
     if (isFormPost) {
       return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(errMsg)}`, req.url), 303);
     }

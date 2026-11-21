@@ -104,15 +104,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = (reason?: string | React.MouseEvent | unknown) => {
-    if (currentUser?.id) {
-      try {
-        fetch('/api/auth/heartbeat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: currentUser.id, isLogout: true }),
-        }).catch(() => {});
-      } catch (e) {}
-    }
+    try {
+      fetch('/api/auth/logout', {
+        method: 'POST',
+      }).catch(() => {});
+    } catch (e) {}
     setCurrentUser(null);
     clearSessionStorage();
     if (typeof reason === 'string' && reason === 'timeout') {
@@ -236,10 +232,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const portalToken = rawPortalToken ? rawPortalToken.replace(/ /g, '+') : null;
         const portalEmail = urlParams.get('email') || urlParams.get('login_hint');
 
-        // 0. Handle seamless SSO Hand-off from external portal (portal_token or email param)
-        if (portalEmail || portalToken) {
+        // 0. Handle seamless SSO Hand-off ONLY when a signed portal_token is provided
+        if (portalToken) {
           try {
-            console.log('[AUTH SSO] Attempting seamless handoff for:', portalEmail);
             const res = await fetch('/api/auth/portal-handoff', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -254,10 +249,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               localStorage.setItem('session_expires_at', (Date.now() + SESSION_LIFETIME_REMEMBER_MS).toString());
               localStorage.setItem('session_remember_me', 'true');
               setCurrentUser(u);
-              console.log('[AUTH SSO] Successfully authenticated via portal handoff for:', u.email);
 
-              // Clean portal_token & email params from URL cleanly without full page refresh
-              if (rawPortalToken) urlParams.delete('portal_token');
+              // Clean portal_token from URL cleanly without full page refresh
+              urlParams.delete('portal_token');
               const newSearch = urlParams.toString();
               const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
               window.history.replaceState({}, '', newUrl);
@@ -273,91 +267,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        // 1. Instant local cache hydration for authenticated session with expiration check
-        const cachedStr = localStorage.getItem('cached_users');
-        const savedUserId = localStorage.getItem('active_user_id');
-        const cachedCurrentUserStr = localStorage.getItem('cached_current_user');
-
+        // 1. Validate server-side HttpOnly session cookie via GET /api/auth/me before loading users
         const sessionValid = checkSessionActive();
-
         if (!sessionValid) {
-          console.log('[AUTH SESSION] Session expired, clearing credentials.');
           clearSessionStorage();
           setCurrentUser(null);
-        } else {
-          // Parse cached user safely
-          let cachedParsedUser: User | null = null;
-          if (cachedCurrentUserStr) {
-            try {
-              cachedParsedUser = JSON.parse(cachedCurrentUserStr);
-            } catch (e) {}
-          }
+          fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+          setIsLoading(false);
+          return;
+        }
 
-          // Detect external referral or deep-link parameter (excluding legitimate Google OAuth returns)
-          const isGoogleOAuthReferrer =
-            Boolean(document.referrer) &&
-            (document.referrer.includes('accounts.google.com') ||
-              document.referrer.includes('google.com'));
+        const meRes = await fetch('/api/auth/me', { cache: 'no-store' });
+        if (!meRes.ok) {
+          clearSessionStorage();
+          setCurrentUser(null);
+          setIsLoading(false);
+          return;
+        }
 
-          const isExternalReferrer =
-            Boolean(document.referrer) &&
-            !document.referrer.includes(window.location.host) &&
-            !isGoogleOAuthReferrer;
+        const meData = await meRes.json();
+        const verifiedUser: User | null = meData?.authenticated && meData?.user ? meData.user : null;
+        if (!verifiedUser) {
+          clearSessionStorage();
+          setCurrentUser(null);
+          setIsLoading(false);
+          return;
+        }
 
-          const hasExternalDeepLink =
-            urlParams.has('bookingNumber') ||
-            urlParams.has('booking_code') ||
-            urlParams.has('from') ||
-            urlParams.has('ref') ||
-            urlParams.get('source') === 'external';
+        const isRootAdmin = isDefaultAdminUser(verifiedUser);
+        const hasActiveAdminSession = sessionStorage.getItem('active_admin_session') === 'true';
 
-          const isCachedDefaultAdmin = isDefaultAdminUser(cachedParsedUser);
-          const hasActiveAdminSession = sessionStorage.getItem('active_admin_session') === 'true';
+        if (isRootAdmin && !hasActiveAdminSession) {
+          console.warn('[AUTH SECURITY] Stale default admin session purged.');
+          clearSessionStorage();
+          setCurrentUser(null);
+          fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+          setIsLoading(false);
+          return;
+        }
 
-          // SECURITY RULE 1: Prevent Default Admin Auto-Inheritance
-          // Root admin (admin@lab.nurse.ac.th) must NEVER be auto-restored across browser restarts
-          // or external links without an explicit in-tab active_admin_session flag.
-          if (isCachedDefaultAdmin && !hasActiveAdminSession) {
-            console.warn('[AUTH SECURITY] Stale default admin session purged from localStorage.');
-            clearSessionStorage();
-            setCurrentUser(null);
-          } else if ((isExternalReferrer || hasExternalDeepLink) && isCachedDefaultAdmin) {
-            // SECURITY RULE 2: Deep Link / External System Isolation
-            // Only purge generic root admin, not real institutional users
-            console.warn('[AUTH SECURITY] Purged default root admin credentials upon external deep-link visit.');
-            clearSessionStorage();
-            setCurrentUser(null);
-          } else if (cachedParsedUser) {
-            setCurrentUser(cachedParsedUser);
-            // Touch last active on hydration
-            localStorage.setItem('session_last_active', Date.now().toString());
-          }
+        setCurrentUser(verifiedUser);
+        localStorage.setItem('active_user_id', verifiedUser.id);
+        localStorage.setItem('cached_current_user', JSON.stringify(verifiedUser));
+        localStorage.setItem('session_last_active', Date.now().toString());
+        if (!localStorage.getItem('session_expires_at')) {
+          localStorage.setItem('session_expires_at', (Date.now() + SESSION_LIFETIME_NORMAL_MS).toString());
+        }
 
-          if (cachedStr) {
+        const cachedStr = localStorage.getItem('cached_users');
+        if (cachedStr) {
+          try {
             const cachedUsers: User[] = JSON.parse(cachedStr);
             if (Array.isArray(cachedUsers) && cachedUsers.length > 0) {
               setAvailableUsers(cachedUsers);
-              if (savedUserId && !cachedParsedUser) {
-                const found = cachedUsers.find((u) => u.id === savedUserId);
-                if (found) {
-                  if (isDefaultAdminUser(found) && !hasActiveAdminSession) {
-                    clearSessionStorage();
-                    setCurrentUser(null);
-                  } else {
-                    setCurrentUser(found);
-                  }
-                }
-              }
             }
-          }
+          } catch {}
         }
       } catch (e) {
-        console.error('Error reading cached users', e);
+        console.error('Error initializing auth', e);
       } finally {
         setIsLoading(false);
       }
 
-      // Fetch fresh data in background
+      // Fetch fresh users directory only after authenticated session is verified
       try {
         const res = await fetch('/api/users');
         if (res.ok) {
@@ -396,7 +368,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, rememberMe }),
       });
 
       const data = await res.json();
@@ -430,6 +402,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setCurrentUser(user);
+      refreshUsers();
 
       return { success: true };
     } catch (err: any) {
@@ -443,7 +416,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential }),
+        body: JSON.stringify({ credential, rememberMe }),
       });
 
       const data = await res.json();
@@ -476,6 +449,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setCurrentUser(user);
+      refreshUsers();
 
       return { success: true };
     } catch (err: any) {

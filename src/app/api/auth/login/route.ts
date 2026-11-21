@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyPassword, hashPassword } from '@/lib/auth-security';
+import { signSessionToken, attachSessionCookie } from '@/lib/session';
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const rawIdentifier = body.identifier || body.email;
     const { password } = body;
+    const rememberMe = body.rememberMe !== false;
 
     if (!rawIdentifier || !password) {
       return NextResponse.json(
@@ -121,14 +123,23 @@ export async function POST(req: Request) {
       metadata: { device, userAgent },
     }).catch(() => {});
 
-    return NextResponse.json({
+    const normalizedEmail = (user.email || '').toLowerCase().trim();
+    const normalizedStudentId = (user.studentId || '').toLowerCase().trim();
+    const isRootAdmin =
+      normalizedEmail === 'admin@lab.nurse.ac.th' ||
+      (normalizedEmail === 'admin' && normalizedStudentId === 'admin');
+    const ttlMs = isRootAdmin || !rememberMe ? 8 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000;
+    const sessionToken = await signSessionToken({ uid: user.id, role: user.role }, ttlMs);
+
+    const res = NextResponse.json({
       success: true,
       user: sanitizedUser,
     });
+    return attachSessionCookie(res, sessionToken, { rememberMe, isRootAdmin });
   } catch (error: any) {
     console.error('Login error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ' },
+      { error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ' },
       { status: 500 }
     );
   }

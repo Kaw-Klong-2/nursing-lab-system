@@ -2,32 +2,22 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { forceLogoutUser } from '@/lib/user-presence';
 import { logActivity } from '@/lib/activity-log';
+import { requireActiveActor } from '@/lib/viewer-guard';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const actorId = req.headers.get('x-user-id') || body.actorId;
-    const targetUserId = body.targetUserId;
-
-    // 1. ตรวจสอบสิทธิ์เฉพาะแอดมิน (Admin Guard)
-    if (!actorId) {
-      return NextResponse.json(
-        { error: 'ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบ' },
-        { status: 401 }
-      );
-    }
-
-    const actor = await prisma.user.findUnique({
-      where: { id: actorId },
-      select: { id: true, name: true, role: true, status: true },
-    });
-
-    if (!actor || actor.role !== 'ADMIN' || actor.status !== 'ACTIVE') {
+    const auth = await requireActiveActor(req, ['ADMIN']);
+    if (auth.errorResponse) {
       return NextResponse.json(
         { error: 'ปฏิเสธการเข้าถึง: ฟังก์ชันนี้สงวนสิทธิ์เฉพาะผู้ดูแลระบบ (Admin) เท่านั้น' },
-        { status: 403 }
+        { status: auth.errorResponse.status }
       );
     }
+    const actor = auth.actor;
+    const actorId = actor.id;
+
+    const body = await req.json().catch(() => ({}));
+    const targetUserId = body.targetUserId;
 
     if (!targetUserId) {
       return NextResponse.json(

@@ -15,6 +15,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { formatUserName } from '@/lib/user-utils';
+import { escapeHtml } from '@/lib/html-escape';
 
 interface PosReceiptModalProps {
   receipt: {
@@ -87,11 +88,11 @@ export default function PosReceiptModal({ receipt, onClose }: PosReceiptModalPro
         (it) => `
         <tr>
           <td style="padding: 2px 0;">
-            <div style="font-weight: bold;">${it.name}</div>
-            <div style="font-size: 10px; color: #64748b;">${it.code || ''}</div>
+            <div style="font-weight: bold;">${escapeHtml(it.name)}</div>
+            <div style="font-size: 10px; color: #64748b;">${escapeHtml(it.code || '')}</div>
           </td>
           <td style="text-align: right; vertical-align: top; white-space: nowrap;">
-            ${it.quantity} ${it.unit}
+            ${escapeHtml(it.quantity)} ${escapeHtml(it.unit)}
           </td>
           <td style="text-align: right; vertical-align: top; white-space: nowrap; font-weight: bold;">
             ฿${it.cost.toLocaleString('th-TH', { minimumFractionDigits: 1 })}
@@ -111,8 +112,8 @@ export default function PosReceiptModal({ receipt, onClose }: PosReceiptModalPro
               .map(
                 (b) => `
               <tr>
-                <td>${b.name}</td>
-                <td style="text-align: right; font-family: monospace; font-weight: bold;">${b.assetCode}</td>
+                <td>${escapeHtml(b.name)}</td>
+                <td style="text-align: right; font-family: monospace; font-weight: bold;">${escapeHtml(b.assetCode)}</td>
               </tr>
             `
               )
@@ -127,7 +128,7 @@ export default function PosReceiptModal({ receipt, onClose }: PosReceiptModalPro
       <html>
         <head>
           <meta charset="utf-8" />
-          <title>สลิปเบิกจ่ายด่วน - ${receipt.receiptNumber}</title>
+          <title>สลิปเบิกจ่ายด่วน - ${escapeHtml(receipt.receiptNumber)}</title>
           <style>
             @page {
               size: 80mm auto;
@@ -159,11 +160,11 @@ export default function PosReceiptModal({ receipt, onClose }: PosReceiptModalPro
           <div class="divider"></div>
 
           <div style="font-size: 10.5px;">
-            <div>เลขที่: <b>${receipt.receiptNumber}</b></div>
-            <div>วัน-เวลา: ${formattedDate} น.</div>
-            <div>ผู้เบิก: <b>${formatUserName(receipt.user)}</b> ${receipt.user.studentId ? `(${receipt.user.studentId})` : ''}</div>
-            ${receipt.course ? `<div>วิชา: <b>[${receipt.course.code}] ${receipt.course.name}</b></div>` : ''}
-            <div>วัตถุประสงค์: ${receipt.purpose}</div>
+            <div>เลขที่: <b>${escapeHtml(receipt.receiptNumber)}</b></div>
+            <div>วัน-เวลา: ${escapeHtml(formattedDate)} น.</div>
+            <div>ผู้เบิก: <b>${escapeHtml(formatUserName(receipt.user))}</b> ${receipt.user.studentId ? `(${escapeHtml(receipt.user.studentId)})` : ''}</div>
+            ${receipt.course ? `<div>วิชา: <b>[${escapeHtml(receipt.course.code)}] ${escapeHtml(receipt.course.name)}</b></div>` : ''}
+            <div>วัตถุประสงค์: ${escapeHtml(receipt.purpose)}</div>
           </div>
 
           <div class="divider"></div>

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { APP_VERSION } from '@/lib/version';
 import {
   BookOpen,
   ArrowLeft,
@@ -379,7 +380,7 @@ const DEFAULT_EBOOKS: EBookItem[] = [
     subtitle: 'ฉบับสมบูรณ์: จองห้องแล็บ ฝึกปฏิบัติด้วยตนเอง ยืมครุภัณฑ์ และเบิกวัสดุ',
     category: 'STUDENT_MANUAL',
     author: 'งานบริหารห้องปฏิบัติการพยาบาล มก.',
-    edition: 'ปีการศึกษา 2569 (v2.6)',
+    edition: `ปีการศึกษา 2569 (v${APP_VERSION})`,
     coverGradient: 'from-teal-600 via-emerald-600 to-cyan-700',
     coverIcon: '🏥',
     totalPages: 10,

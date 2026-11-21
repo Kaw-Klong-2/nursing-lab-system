@@ -1,12 +1,18 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity-log';
+import { requireActiveActor } from '@/lib/viewer-guard';
 
 export async function GET(req: Request) {
   try {
+    const auth = await requireActiveActor(req, ['ADMIN']);
+    if (auth.errorResponse) {
+      return auth.errorResponse;
+    }
+
     const { searchParams } = new URL(req.url);
     const download = searchParams.get('download') !== 'false';
-    const userId = searchParams.get('userId') || null;
+    const actorId = auth.actor.id;
 
     const [
       users,
@@ -132,7 +138,7 @@ export async function GET(req: Request) {
 
     if (download) {
       await logActivity({
-        userId,
+        userId: actorId,
         action: 'EXPORT',
         entityType: 'SYSTEM',
         entityTitle: filename,

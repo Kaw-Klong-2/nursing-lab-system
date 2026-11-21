@@ -5,40 +5,190 @@ import { sendApprovalNotificationWithQrEmail } from '@/lib/email';
 import { invalidateCache } from '@/lib/cache';
 import { createNotification, notifyRoles } from '@/lib/notifications';
 import { logActivity } from '@/lib/activity-log';
+import { escapeHtml } from '@/lib/html-escape';
 
+async function previewQuickActionConfirmation(
+  id: string,
+  type: string,
+  action: string,
+  token: string
+): Promise<NextResponse> {
+  if (action !== 'APPROVE' && action !== 'REJECT') {
+    return renderResponseHtml({
+      success: false,
+      title: 'คำสั่งไม่ถูกต้อง',
+      message: 'ไม่รองรับประเภทการดำเนินการที่ระบุ',
+      isDanger: true,
+    });
+  }
+
+  let refCode = id;
+  let subject = '';
+  let requesterName = 'นิสิต/ผู้ขอ';
+  let status: string | null = null;
+
+  if (type === 'PRACTICE') {
+    const rec = await prisma.practiceBooking.findUnique({
+      where: { id },
+      include: { user: { select: { name: true } }, slot: { include: { room: { select: { name: true } } } } },
+    });
+    if (!rec) {
+      return renderResponseHtml({ success: false, title: 'ไม่พบคำขอ', message: 'ไม่พบข้อมูลคำขอจองห้องฝึกนี้ในระบบ', isDanger: true });
+    }
+    refCode = rec.bookingNumber;
+    subject = `${rec.skillTopic || 'ฝึกทักษะปฏิบัติการ'}${rec.slot?.room?.name ? ` (${rec.slot.room.name})` : ''}`;
+    requesterName = rec.user?.name || requesterName;
+    status = rec.status;
+  } else if (type === 'BORROW') {
+    const rec = await prisma.borrowRequest.findUnique({
+      where: { id },
+      include: { user: { select: { name: true } } },
+    });
+    if (!rec) {
+      return renderResponseHtml({ success: false, title: 'ไม่พบคำขอ', message: 'ไม่พบข้อมูลคำขอยืมครุภัณฑ์นี้ในระบบ', isDanger: true });
+    }
+    refCode = rec.requestNumber;
+    subject = rec.purpose || 'ยืมครุภัณฑ์ห้องปฏิบัติการ';
+    requesterName = rec.user?.name || requesterName;
+    status = rec.status;
+  } else if (type === 'REQUISITION') {
+    const rec = await prisma.requisitionRequest.findUnique({
+      where: { id },
+      include: { user: { select: { name: true } } },
+    });
+    if (!rec) {
+      return renderResponseHtml({ success: false, title: 'ไม่พบคำขอ', message: 'ไม่พบข้อมูลคำขอเบิกวัสดุนี้ในระบบ', isDanger: true });
+    }
+    refCode = rec.requestNumber;
+    subject = rec.purpose || 'เบิกวัสดุสิ้นเปลือง';
+    requesterName = rec.user?.name || requesterName;
+    status = rec.status;
+  } else if (type === 'ROOM' || type === 'BOOKING') {
+    const rec = await prisma.roomBooking.findUnique({
+      where: { id },
+      include: { user: { select: { name: true } }, room: { select: { name: true } } },
+    });
+    if (!rec) {
+      return renderResponseHtml({ success: false, title: 'ไม่พบคำขอ', message: 'ไม่พบข้อมูลคำขอจองห้องปฏิบัติการนี้ในระบบ', isDanger: true });
+    }
+    refCode = rec.bookingNumber;
+    subject = `${rec.room?.name || 'ห้องปฏิบัติการ'}${rec.title ? ` — ${rec.title}` : ''}`;
+    requesterName = rec.user?.name || requesterName;
+    status = rec.status;
+  } else {
+    return renderResponseHtml({ success: false, title: 'ไม่รองรับคำขอนี้', message: 'ประเภทของคำขอไม่ถูกต้อง', isDanger: true });
+  }
+
+  if (status !== 'PENDING') {
+    const isApproved = status === 'APPROVED' || status === 'COMPLETED';
+    return renderResponseHtml({
+      success: isApproved,
+      title: isApproved ? 'คำขอนี้ได้รับการอนุมัติแล้ว' : 'คำขอนี้ได้รับการดำเนินการแล้ว',
+      message: `คำขอเลขที่ ${refCode} ได้รับการบันทึกสถานะเป็น ${isApproved ? 'อนุมัติแล้ว' : 'ไม่อนุมัติ/ยกเลิกแล้ว'}`,
+      badge: isApproved ? 'อนุมัติแล้ว' : 'ดำเนินการแล้ว',
+      isDanger: !isApproved,
+    });
+  }
+
+  return renderConfirmationHtml({
+    token,
+    action,
+    refCode,
+    subject,
+    requesterName,
+  });
+}
+
+// GET is strictly read-only to protect email approval links from automated link scanners
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const token = searchParams.get('token');
-    let id = searchParams.get('id');
-    let type = searchParams.get('type');
-    let action = searchParams.get('action');
 
-    // If token is provided, verify its HMAC cryptographic signature & expiry
-    if (token) {
-      const verification = verifySignedApprovalToken(token);
-      if (!verification.valid) {
-        return renderResponseHtml({
-          success: false,
-          title: 'ลิงก์ไม่ถูกต้องหรือหมดอายุ',
-          message: verification.error || 'ไม่สามารถยืนยันความถูกต้องของลิงก์การอนุมัตินี้ได้',
-          isDanger: true,
-        });
-      }
-      id = verification.id!;
-      type = verification.type!;
-      action = verification.action!;
-    } else {
-      // Direct parameters require id, type, action
-      if (!id || !type || !action) {
-        return renderResponseHtml({
-          success: false,
-          title: 'ข้อมูลไม่ครบถ้วน',
-          message: 'ลิงก์การอนุมัติไม่ถูกต้อง หรือไม่มีสิทธิ์เข้าถึง',
-          isDanger: true,
-        });
-      }
+    if (!token) {
+      return renderResponseHtml({
+        success: false,
+        title: 'ลิงก์ไม่ถูกต้องหรือไม่มีรหัสยืนยัน',
+        message: 'จำเป็นต้องเปิดผ่านลิงก์การอนุมัติที่ลงลายเซ็นดิจิทัลจากอีเมลเท่านั้น',
+        isDanger: true,
+      });
     }
+
+    const verification = verifySignedApprovalToken(token);
+    if (!verification.valid || !verification.id || !verification.type || !verification.action) {
+      return renderResponseHtml({
+        success: false,
+        title: 'ลิงก์ไม่ถูกต้องหรือหมดอายุ',
+        message: verification.error || 'ไม่สามารถยืนยันความถูกต้องของลิงก์การอนุมัตินี้ได้',
+        isDanger: true,
+      });
+    }
+
+    return previewQuickActionConfirmation(
+      verification.id,
+      verification.type,
+      verification.action,
+      token
+    );
+  } catch (error) {
+    console.error('Quick action preview error:', error);
+    return renderResponseHtml({
+      success: false,
+      title: 'เกิดข้อผิดพลาดในการตรวจสอบคำขอ',
+      message: 'กรุณาลองใหม่อีกครั้ง หรือเข้าสู่ระบบเพื่อดำเนินการ',
+      isDanger: true,
+    });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    let token = '';
+    const contentType = req.headers.get('content-type') || '';
+    if (
+      contentType.includes('application/x-www-form-urlencoded') ||
+      contentType.includes('multipart/form-data')
+    ) {
+      const formData = await req.formData();
+      token = String(formData.get('token') || '');
+    } else {
+      const body = await req.json().catch(() => ({}));
+      token = String(body.token || '');
+    }
+
+    if (!token) {
+      return renderResponseHtml({
+        success: false,
+        title: 'ไม่พบ Token ยืนยันคำขอ',
+        message: 'กรุณาคลิกลิงก์ยืนยันจากอีเมลใหม่อีกครั้ง',
+        isDanger: true,
+      });
+    }
+
+    const verification = verifySignedApprovalToken(token);
+    if (!verification.valid || !verification.id || !verification.type || !verification.action) {
+      return renderResponseHtml({
+        success: false,
+        title: 'ลิงก์ไม่ถูกต้องหรือหมดอายุ',
+        message: verification.error || 'ไม่สามารถยืนยันความถูกต้องของลิงก์การอนุมัตินี้ได้',
+        isDanger: true,
+      });
+    }
+
+    return executeQuickAction(verification.id, verification.type, verification.action);
+  } catch (error) {
+    console.error('Quick action POST error:', error);
+    return renderResponseHtml({
+      success: false,
+      title: 'เกิดข้อผิดพลาดในการประมวลผล',
+      message: 'กรุณาลองใหม่อีกครั้ง หรือเข้าสู่ระบบเพื่อดำเนินการ',
+      isDanger: true,
+    });
+  }
+}
+
+async function executeQuickAction(id: string, type: string, action: string): Promise<NextResponse> {
+  try {
 
     if (type === 'PRACTICE') {
       const booking = await prisma.practiceBooking.findUnique({
@@ -689,14 +839,128 @@ export async function GET(req: Request) {
       title: 'ไม่รองรับคำขอนี้',
       message: 'ประเภทของคำขอไม่ถูกต้อง',
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Quick action error:', error);
     return renderResponseHtml({
       success: false,
       title: 'เกิดข้อผิดพลาดในการประมวลผล',
-      message: error.message || 'กรุณาลองใหม่อีกครั้ง หรือเข้าสู่ระบบเพื่อดำเนินการ',
+      message: 'กรุณาลองใหม่อีกครั้ง หรือเข้าสู่ระบบเพื่อดำเนินการ',
+      isDanger: true,
     });
   }
+}
+
+function renderConfirmationHtml(params: {
+  token: string;
+  action: string;
+  refCode: string;
+  subject: string;
+  requesterName: string;
+}) {
+  const { token, action, refCode, subject, requesterName } = params;
+  const isReject = action === 'REJECT';
+  const btnBg = isReject ? '#e11d48' : '#0d9488';
+  const btnHover = isReject ? '#be123c' : '#0f766e';
+  const badgeBg = isReject ? '#ffe4e6' : '#ccfbf1';
+  const badgeColor = isReject ? '#e11d48' : '#0d9488';
+  const badgeText = isReject ? 'ยืนยันการไม่อนุมัติคำขอ' : 'ยืนยันการอนุมัติคำขอ';
+  const btnLabel = isReject ? 'ยืนยันไม่อนุมัติ' : 'ยืนยันอนุมัติคำขอ';
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="th">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${escapeHtml(badgeText)} - Nursing Lab System</title>
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background-color: #f1f5f9;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+          margin: 0;
+          padding: 16px;
+        }
+        .card {
+          background: #ffffff;
+          max-width: 480px;
+          width: 100%;
+          border-radius: 24px;
+          padding: 32px 28px;
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+          text-align: center;
+          border: 1px solid #e2e8f0;
+        }
+        .badge {
+          display: inline-block;
+          padding: 6px 14px;
+          border-radius: 9999px;
+          font-size: 13px;
+          font-weight: 700;
+          background-color: ${badgeBg};
+          color: ${badgeColor};
+          margin-bottom: 16px;
+        }
+        h1 { font-size: 20px; font-weight: 800; color: #0f172a; margin: 0 0 12px; }
+        .meta {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 14px;
+          padding: 14px 16px;
+          text-align: left;
+          font-size: 13.5px;
+          color: #334155;
+          line-height: 1.7;
+          margin-bottom: 22px;
+        }
+        .btn {
+          display: inline-block;
+          border: none;
+          cursor: pointer;
+          background-color: ${btnBg};
+          color: #ffffff;
+          font-weight: 700;
+          font-size: 14px;
+          padding: 12px 26px;
+          border-radius: 12px;
+        }
+        .btn:hover { background-color: ${btnHover}; }
+        .link {
+          display: inline-block;
+          margin-top: 14px;
+          font-size: 12.5px;
+          color: #64748b;
+          text-decoration: none;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="badge">${escapeHtml(badgeText)}</div>
+        <h1>เลขที่คำขอ ${escapeHtml(refCode)}</h1>
+        <div class="meta">
+          <div><b>ผู้ขอ:</b> ${escapeHtml(requesterName)}</div>
+          <div><b>รายละเอียด:</b> ${escapeHtml(subject)}</div>
+        </div>
+        <form method="POST" action="/api/approvals/quick-action">
+          <input type="hidden" name="token" value="${escapeHtml(token)}" />
+          <button type="submit" class="btn">${escapeHtml(btnLabel)}</button>
+        </form>
+        <div><a href="/approvals" class="link">เปิดดูรายละเอียดในศูนย์อนุมัติ</a></div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return new NextResponse(html, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+    },
+  });
 }
 
 function renderResponseHtml(params: {
@@ -709,6 +973,9 @@ function renderResponseHtml(params: {
   const { success, title, message, badge, isDanger } = params;
   const badgeColor = isDanger ? '#e11d48' : success ? '#0d9488' : '#eab308';
   const badgeBg = isDanger ? '#ffe4e6' : success ? '#ccfbf1' : '#fef9c3';
+  const safeTitle = escapeHtml(title);
+  const safeMessage = escapeHtml(message);
+  const safeBadge = badge ? escapeHtml(badge) : '';
 
   const html = `
     <!DOCTYPE html>
@@ -716,7 +983,7 @@ function renderResponseHtml(params: {
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>${title} - Nursing Lab System</title>
+      <title>${safeTitle} - Nursing Lab System</title>
       <style>
         body {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -778,9 +1045,9 @@ function renderResponseHtml(params: {
     </head>
     <body>
       <div class="card">
-        ${badge ? `<div class="badge">${badge}</div>` : ''}
-        <h1>${title}</h1>
-        <p>${message}</p>
+        ${safeBadge ? `<div class="badge">${safeBadge}</div>` : ''}
+        <h1>${safeTitle}</h1>
+        <p>${safeMessage}</p>
         <a href="/approvals" class="btn">ไปยังศูนย์อนุมัติในระบบ</a>
       </div>
     </body>
@@ -788,6 +1055,9 @@ function renderResponseHtml(params: {
   `;
 
   return new NextResponse(html, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+    },
   });
 }

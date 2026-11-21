@@ -28,10 +28,8 @@ export async function askGeminiLabBrain(
   const role = (currentUser?.role || 'USER').toUpperCase();
   const userName = currentUser?.name || 'ผู้ใช้งาน';
 
-  // 1. ดึง API Key จาก Environment Variables
-  const apiKey =
-    process.env.GEMINI_API_KEY ||
-    process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  // 1. ดึง API Key จาก Server Environment Variable เท่านั้น (ห้ามใช้ NEXT_PUBLIC_)
+  const apiKey = process.env.GEMINI_API_KEY;
 
   // 2. หากไม่มี API Key ให้ใช้ Local Knowledge Base
   if (!apiKey) {

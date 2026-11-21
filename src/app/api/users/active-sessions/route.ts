@@ -2,29 +2,15 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getActiveOnlineSessions } from '@/lib/user-presence';
 import { getBangkokStartOfDay, getBangkokEndOfDay } from '@/lib/date-time-utils';
+import { requireActiveActor } from '@/lib/viewer-guard';
 
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const actorId = req.headers.get('x-user-id') || searchParams.get('actorId');
-
-    // 1. ตรวจสอบสิทธิ์เฉพาะแอดมิน (Admin Guard)
-    if (!actorId) {
-      return NextResponse.json(
-        { error: 'ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบ' },
-        { status: 401 }
-      );
-    }
-
-    const actor = await prisma.user.findUnique({
-      where: { id: actorId },
-      select: { id: true, role: true, status: true },
-    });
-
-    if (!actor || actor.role !== 'ADMIN' || actor.status !== 'ACTIVE') {
+    const auth = await requireActiveActor(req, ['ADMIN']);
+    if (auth.errorResponse) {
       return NextResponse.json(
         { error: 'ปฏิเสธการเข้าถึง: ข้อมูลนี้สงวนสิทธิ์เฉพาะผู้ดูแลระบบ (Admin) เท่านั้น' },
-        { status: 403 }
+        { status: auth.errorResponse.status }
       );
     }
 

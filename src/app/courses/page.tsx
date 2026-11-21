@@ -32,6 +32,7 @@ import ExcelJS from 'exceljs';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { formatUserName, formatTeacherName, getExporterSignatureInfo } from '@/lib/user-utils';
 import { formatTermName, toLegacySemesterCode } from '@/lib/academicTerm';
+import { escapeHtml } from '@/lib/html-escape';
 
 export default function CoursesPage() {
   const router = useRouter();
@@ -586,10 +587,10 @@ export default function CoursesPage() {
         (it: any, idx: number) => `
         <tr style="border-bottom: 1px solid #cbd5e1;">
           <td style="padding: 6px 6px; text-align: center; border: 1px solid #94a3b8; word-break: break-word;">${idx + 1}</td>
-          <td style="padding: 6px 6px; font-family: monospace; color: #334155; font-size: 10.5px; border: 1px solid #94a3b8; word-break: break-all;">${it.code}</td>
-          <td style="padding: 6px 8px; font-weight: 600; color: #0f172a; border: 1px solid #94a3b8; word-break: break-word; overflow-wrap: break-word; line-height: 1.35;">${it.name}</td>
-          <td style="padding: 6px 6px; text-align: center; font-weight: bold; border: 1px solid #94a3b8; word-break: break-word;">${it.totalQuantity}</td>
-          <td style="padding: 6px 6px; text-align: center; border: 1px solid #94a3b8; word-break: break-word;">${it.unit}</td>
+          <td style="padding: 6px 6px; font-family: monospace; color: #334155; font-size: 10.5px; border: 1px solid #94a3b8; word-break: break-all;">${escapeHtml(it.code)}</td>
+          <td style="padding: 6px 8px; font-weight: 600; color: #0f172a; border: 1px solid #94a3b8; word-break: break-word; overflow-wrap: break-word; line-height: 1.35;">${escapeHtml(it.name)}</td>
+          <td style="padding: 6px 6px; text-align: center; font-weight: bold; border: 1px solid #94a3b8; word-break: break-word;">${escapeHtml(it.totalQuantity)}</td>
+          <td style="padding: 6px 6px; text-align: center; border: 1px solid #94a3b8; word-break: break-word;">${escapeHtml(it.unit)}</td>
           <td style="padding: 6px 6px; text-align: right; font-weight: bold; color: ${it.totalCost > 0 ? '#0f172a' : '#64748b'}; border: 1px solid #94a3b8; white-space: nowrap;">
             ฿${Number(it.totalCost || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             ${it.totalCost === 0 ? '<span style="font-size: 9px; color: #64748b; font-weight: normal; display: block;">(ไม่คิดมูลค่า)</span>' : ''}
@@ -604,7 +605,7 @@ export default function CoursesPage() {
       <html lang="th">
         <head>
           <meta charset="utf-8" />
-          <title>รายงานต้นทุนวัสดุ - [${selectedCourse.code}] ${selectedCourse.name}</title>
+          <title>รายงานต้นทุนวัสดุ - [${escapeHtml(selectedCourse.code)}] ${escapeHtml(selectedCourse.name)}</title>
           <style>
             *, *::before, *::after {
               box-sizing: border-box;
@@ -725,10 +726,10 @@ export default function CoursesPage() {
             </div>
 
             <div class="meta-grid">
-              <div class="meta-item"><span class="meta-label">รหัสวิชา:</span> <span class="meta-value">${selectedCourse.code}</span></div>
-              <div class="meta-item"><span class="meta-label">ชื่อวิชา:</span> <span class="meta-value">${selectedCourse.name}</span></div>
-              <div class="meta-item"><span class="meta-label">ภาคเรียน/ปีการศึกษา:</span> <span class="meta-value">${termThai}/${selectedCourse.academicYear}</span></div>
-              <div class="meta-item"><span class="meta-label">อาจารย์ผู้ประสานงาน:</span> <span class="meta-value">${coordinatorName}</span></div>
+              <div class="meta-item"><span class="meta-label">รหัสวิชา:</span> <span class="meta-value">${escapeHtml(selectedCourse.code)}</span></div>
+              <div class="meta-item"><span class="meta-label">ชื่อวิชา:</span> <span class="meta-value">${escapeHtml(selectedCourse.name)}</span></div>
+              <div class="meta-item"><span class="meta-label">ภาคเรียน/ปีการศึกษา:</span> <span class="meta-value">${escapeHtml(termThai)}/${escapeHtml(selectedCourse.academicYear)}</span></div>
+              <div class="meta-item"><span class="meta-label">อาจารย์ผู้ประสานงาน:</span> <span class="meta-value">${escapeHtml(coordinatorName)}</span></div>
               <div class="meta-item"><span class="meta-label">จำนวนนิสิต:</span> <span class="meta-value">${studentCount} คน</span></div>
               <div class="meta-item"><span class="meta-label">ยอดใช้วัสดุจริงรวม:</span> <span class="meta-value" style="color: #047857;">฿${totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</span></div>
               <div class="meta-item" style="grid-column: span 2;"><span class="meta-label">ต้นทุนเฉลี่ยต่อนิสิต:</span> <span class="meta-value" style="color: #4338ca; font-size: 12px;">฿${costPerStudent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท/คน</span></div>
@@ -770,10 +771,10 @@ export default function CoursesPage() {
               <div class="signature-block">
                 <div style="font-weight: bold; color: #475569; margin-bottom: 2px;">ผู้รายงาน</div>
                 <div class="sign-line">
-                  (${exporterInfo.name})
+                  (${escapeHtml(exporterInfo.name)})
                 </div>
                 <div style="color: #64748b; margin-top: 2px; font-weight: 500;">
-                  ${exporterInfo.position}
+                  ${escapeHtml(exporterInfo.position)}
                 </div>
                 <div style="color: #94a3b8; font-size: 9.5px; margin-top: 6px;">
                   วันที่: .......... / .......... / ................
@@ -783,7 +784,7 @@ export default function CoursesPage() {
               <div class="signature-block">
                 <div style="font-weight: bold; color: #475569; margin-bottom: 2px;">อาจารย์ผู้ประสานงานรายวิชา</div>
                 <div class="sign-line">
-                  (${coordinatorName})
+                  (${escapeHtml(coordinatorName)})
                 </div>
                 <div style="color: #64748b; margin-top: 2px; font-weight: 500;">
                   อาจารย์ผู้ประสานงานรายวิชา

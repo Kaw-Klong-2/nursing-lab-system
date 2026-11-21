@@ -17,6 +17,12 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-21] เสริมความเสถียรระบบล็อกอิน (Static Edge Env Reads, Dynamic HTTPS Cookie & Await Logout)
+- **สิ่งที่ดำเนินการ**:
+  - `src/lib/session.ts` และ `src/lib/token.ts`: เปลี่ยนการอ่าน `process.env` จาก dynamic key เป็น static switch เพื่อให้ Edge Middleware analyzer มองเห็นตัวแปรครบทุกตัว ร่วมกับ Cloudflare context fallback
+  - `src/lib/session.ts`, `login`, `google-auth`, `portal-handoff`, `logout`, `me`, `heartbeat`: เพิ่ม `isHttpsRequest(req)` ตั้งค่า cookie `secure` ตามโปรโตคอลจริงของคำขอ (รองรับทั้ง HTTPS บน production และ `next start` ผ่าน HTTP ภายใน)
+  - `src/lib/auth-context.tsx`: สั่ง `await` ก่อนล้างเซสชันหมดอายุเพื่อป้องกัน request `/api/auth/logout` ย้อนกลับมาลบ cookie ใหม่หลังผู้ใช้ล็อกอินซ้ำ
+
 ### [2026-11-21] แก้ไข Error 500 บน `/api/auth/google` และ `/api/auth/login` เมื่อ Production ยังไม่ได้ตั้ง `SESSION_SECRET`
 - **สาเหตุ**: `src/lib/session.ts` คืน `null` ใน `NODE_ENV=production` หากยังไม่ได้ตั้ง `SESSION_SECRET`, `APPROVAL_SECRET` หรือ `EXTERNAL_SYNC_API_KEY` (หรือตัวแปรอยู่ใน Cloudflare runtime context `Symbol.for('__cloudflare-context__')`) ทำให้ `signSessionToken` throw Error 500
 - **การแก้ไข**:

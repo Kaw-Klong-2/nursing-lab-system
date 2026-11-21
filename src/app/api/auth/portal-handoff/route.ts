@@ -177,7 +177,7 @@ export async function POST(req: Request) {
       success: true,
       user: sanitizedUser,
     });
-    return attachSessionCookie(res, sessionToken, { rememberMe: true, isRootAdmin: false });
+    return attachSessionCookie(res, sessionToken, { rememberMe: true, isRootAdmin: false, req });
   } catch (error) {
     console.error('Portal hand-off error:', error);
     return NextResponse.json(

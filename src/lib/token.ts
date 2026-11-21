@@ -1,7 +1,25 @@
 import crypto from 'crypto';
 
+function readStaticProcessEnv(key: string): string | undefined {
+  if (typeof process === 'undefined' || !process.env) return undefined;
+  switch (key) {
+    case 'APPROVAL_SECRET':
+      return process.env.APPROVAL_SECRET;
+    case 'SESSION_SECRET':
+      return process.env.SESSION_SECRET;
+    case 'EXTERNAL_SYNC_API_KEY':
+      return process.env.EXTERNAL_SYNC_API_KEY;
+    case 'DATABASE_URL':
+      return process.env.DATABASE_URL;
+    case 'DIRECT_URL':
+      return process.env.DIRECT_URL;
+    default:
+      return undefined;
+  }
+}
+
 function readEnvVar(key: string): string | undefined {
-  const processVal = typeof process !== 'undefined' ? process.env?.[key] : undefined;
+  const processVal = readStaticProcessEnv(key);
   if (processVal && processVal.trim()) {
     return processVal.trim();
   }

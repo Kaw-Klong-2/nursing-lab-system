@@ -268,11 +268,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 1. Validate server-side HttpOnly session cookie via GET /api/auth/me before loading users
+        const hadLocalSession = Boolean(
+          localStorage.getItem('active_user_id') || localStorage.getItem('cached_current_user')
+        );
         const sessionValid = checkSessionActive();
         if (!sessionValid) {
           clearSessionStorage();
           setCurrentUser(null);
-          fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+          if (hadLocalSession) {
+            await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+          }
           setIsLoading(false);
           return;
         }
@@ -301,7 +306,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.warn('[AUTH SECURITY] Stale default admin session purged.');
           clearSessionStorage();
           setCurrentUser(null);
-          fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+          await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
           setIsLoading(false);
           return;
         }

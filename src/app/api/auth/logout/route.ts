@@ -20,10 +20,10 @@ export async function POST(req: Request) {
     }
 
     const res = NextResponse.json({ success: true, loggedOut: true });
-    return clearSessionCookie(res);
+    return clearSessionCookie(res, req);
   } catch (err) {
     console.error('Logout error:', err);
     const res = NextResponse.json({ success: true, loggedOut: true });
-    return clearSessionCookie(res);
+    return clearSessionCookie(res, req);
   }
 }

@@ -27,7 +27,7 @@ export async function POST(req: Request) {
         details: 'ออกจากระบบปกติ',
       }).catch(() => {});
       const res = NextResponse.json({ success: true, loggedOut: true });
-      return clearSessionCookie(res);
+      return clearSessionCookie(res, req);
     }
 
     // ตรวจสอบว่าผู้ใช้ถูกสั่งให้ออกจากระบบระยะไกล (Force Logout) หรือไม่
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
         forceLogout: true,
         message: 'เซสชันของคุณถูกสั่งให้ออกจากระบบโดยผู้ดูแลระบบ เพื่อความปลอดภัย',
       });
-      return clearSessionCookie(res);
+      return clearSessionCookie(res, req);
     }
 
     const userAgent = req.headers.get('user-agent');

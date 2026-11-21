@@ -15,8 +15,28 @@ export interface SessionPayload {
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
+function readStaticProcessEnv(key: string): string | undefined {
+  if (typeof process === 'undefined' || !process.env) return undefined;
+  switch (key) {
+    case 'SESSION_SECRET':
+      return process.env.SESSION_SECRET;
+    case 'APPROVAL_SECRET':
+      return process.env.APPROVAL_SECRET;
+    case 'EXTERNAL_SYNC_API_KEY':
+      return process.env.EXTERNAL_SYNC_API_KEY;
+    case 'VAPID_PRIVATE_KEY':
+      return process.env.VAPID_PRIVATE_KEY;
+    case 'DATABASE_URL':
+      return process.env.DATABASE_URL;
+    case 'DIRECT_URL':
+      return process.env.DIRECT_URL;
+    default:
+      return undefined;
+  }
+}
+
 function readEnvVar(key: string): string | undefined {
-  const processVal = typeof process !== 'undefined' ? process.env?.[key] : undefined;
+  const processVal = readStaticProcessEnv(key);
   if (processVal && processVal.trim()) {
     return processVal.trim();
   }
@@ -201,10 +221,25 @@ export async function getSessionFromRequest(req: Request): Promise<SessionPayloa
   return verifySessionToken(token);
 }
 
+export function isHttpsRequest(req?: Request): boolean {
+  if (!req) {
+    return typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
+  }
+  const forwardedProto = req.headers.get('x-forwarded-proto');
+  if (forwardedProto) {
+    return forwardedProto.split(',')[0].trim().toLowerCase() === 'https';
+  }
+  try {
+    return new URL(req.url).protocol === 'https:';
+  } catch {
+    return typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
+  }
+}
+
 export function attachSessionCookie(
   res: NextResponse,
   token: string,
-  opts?: { rememberMe?: boolean; isRootAdmin?: boolean }
+  opts?: { rememberMe?: boolean; isRootAdmin?: boolean; req?: Request }
 ): NextResponse {
   const baseOptions: {
     name: string;
@@ -219,7 +254,7 @@ export function attachSessionCookie(
     value: token,
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: isHttpsRequest(opts?.req),
     path: '/',
   };
 
@@ -231,13 +266,13 @@ export function attachSessionCookie(
   return res;
 }
 
-export function clearSessionCookie(res: NextResponse): NextResponse {
+export function clearSessionCookie(res: NextResponse, req?: Request): NextResponse {
   res.cookies.set({
     name: SESSION_COOKIE_NAME,
     value: '',
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: isHttpsRequest(req),
     path: '/',
     maxAge: 0,
   });

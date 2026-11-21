@@ -135,7 +135,7 @@ export async function POST(req: Request) {
       success: true,
       user: sanitizedUser,
     });
-    return attachSessionCookie(res, sessionToken, { rememberMe, isRootAdmin });
+    return attachSessionCookie(res, sessionToken, { rememberMe, isRootAdmin, req });
   } catch (error: any) {
     console.error('Login error:', error);
     return NextResponse.json(

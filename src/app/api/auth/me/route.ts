@@ -39,7 +39,7 @@ export async function GET(req: Request) {
         { authenticated: false, error: 'เซสชันหมดอายุหรือไม่ถูกต้อง' },
         { status: 401 }
       );
-      return clearSessionCookie(res);
+      return clearSessionCookie(res, req);
     }
 
     const forceLoggedOut = await isUserForceLoggedOut(user.id, session.iat);
@@ -48,7 +48,7 @@ export async function GET(req: Request) {
         { authenticated: false, forceLogout: true, error: 'เซสชันหมดอายุหรือไม่ถูกต้อง' },
         { status: 401 }
       );
-      return clearSessionCookie(res);
+      return clearSessionCookie(res, req);
     }
 
     const sanitizedUser = {

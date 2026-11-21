@@ -232,14 +232,14 @@ export async function handleGoogleAuthRequest(req: Request) {
           'Cache-Control': 'no-store, no-cache, must-revalidate',
         },
       });
-      return attachSessionCookie(htmlRes, sessionToken, { rememberMe: true, isRootAdmin });
+      return attachSessionCookie(htmlRes, sessionToken, { rememberMe: true, isRootAdmin, req });
     }
 
     const jsonRes = NextResponse.json({
       success: true,
       user: sanitizedUser,
     });
-    return attachSessionCookie(jsonRes, sessionToken, { rememberMe, isRootAdmin });
+    return attachSessionCookie(jsonRes, sessionToken, { rememberMe, isRootAdmin, req });
   } catch (error: any) {
     console.error('Google login route error:', error);
     const errMsg = 'เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google';

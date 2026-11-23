@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   BarChart,
   Bar,
@@ -27,6 +27,8 @@ import {
   Calendar,
   CalendarDays,
 } from 'lucide-react';
+import { formatTermName } from '@/lib/academicTerm';
+import { getBangkokParts } from '@/lib/date-time-utils';
 
 interface DashboardChartsProps {
   courseCosts?: Array<{
@@ -37,7 +39,17 @@ interface DashboardChartsProps {
     totalExpense: number;
     percentBudget: number;
   }>;
-  onCourseCostsChange?: (courses: any[]) => void;
+  periodInfo?: {
+    filterMode?: string;
+    termId?: string | null;
+    termName?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
+  };
+  onCourseCostsChange?: (
+    courses: any[],
+    meta?: { totalSystemExpense?: number; periodInfo?: any }
+  ) => void;
   monthlyTrends?: Array<{
     monthKey: string;
     month: string;
@@ -60,6 +72,13 @@ interface DashboardChartsProps {
   totalAssets?: number;
 }
 
+function resolvePeriodFromInfo(periodInfo?: DashboardChartsProps['periodInfo']): string {
+  if (periodInfo?.filterMode === 'ALL') return 'ALL_TIME';
+  if (periodInfo?.filterMode === 'TERM' && periodInfo?.termId) return periodInfo.termId;
+  if (periodInfo?.filterMode === 'DATE') return 'CUSTOM';
+  return 'CURRENT_TERM';
+}
+
 const CATEGORY_COLORS = [
   '#0d9488', // teal-600
   '#0284c7', // sky-600
@@ -73,6 +92,7 @@ const CATEGORY_COLORS = [
 
 export default function DashboardCharts({
   courseCosts = [],
+  periodInfo,
   onCourseCostsChange,
   monthlyTrends = [],
   assetBreakdown = [],
@@ -81,21 +101,22 @@ export default function DashboardCharts({
 }: DashboardChartsProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [academicTerms, setAcademicTerms] = useState<any[]>([]);
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('CURRENT_TERM');
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(() => resolvePeriodFromInfo(periodInfo));
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [currentCourses, setCurrentCourses] = useState<any[]>(courseCosts || []);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
+  const requestSeqRef = useRef(0);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
   useEffect(() => {
-    if (courseCosts && courseCosts.length > 0 && selectedPeriod === 'CURRENT_TERM') {
+    if (Array.isArray(courseCosts)) {
       setCurrentCourses(courseCosts);
     }
-  }, [courseCosts, selectedPeriod]);
+  }, [courseCosts]);
 
   useEffect(() => {
     fetch('/api/academic-terms')
@@ -108,6 +129,7 @@ export default function DashboardCharts({
 
   const handlePeriodChange = async (period: string, customStart?: string, customEnd?: string) => {
     setSelectedPeriod(period);
+    const reqSeq = ++requestSeqRef.current;
     setIsUpdating(true);
 
     try {
@@ -117,15 +139,17 @@ export default function DashboardCharts({
       } else if (period === 'ALL_TIME') {
         query = '?filterMode=ALL';
       } else if (period === 'THIS_MONTH') {
-        const now = new Date();
-        const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+        const { year, month } = getBangkokParts(new Date());
+        const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+        const mm = String(month + 1).padStart(2, '0');
+        const start = `${year}-${mm}-01`;
+        const end = `${year}-${mm}-${String(lastDay).padStart(2, '0')}`;
         query = `?filterMode=DATE&startDate=${start}&endDate=${end}`;
       } else if (period === 'CUSTOM') {
         const start = customStart !== undefined ? customStart : customStartDate;
         const end = customEnd !== undefined ? customEnd : customEndDate;
         if (!start && !end) {
-          setIsUpdating(false);
+          if (reqSeq === requestSeqRef.current) setIsUpdating(false);
           return;
         }
         query = `?filterMode=DATE${start ? `&startDate=${start}` : ''}${end ? `&endDate=${end}` : ''}`;
@@ -135,17 +159,22 @@ export default function DashboardCharts({
       }
 
       const res = await fetch(`/api/dashboard${query}`);
-      if (res.ok) {
+      if (res.ok && reqSeq === requestSeqRef.current) {
         const data = await res.json();
-        if (data.courseCosts) {
+        if (reqSeq === requestSeqRef.current && data.courseCosts) {
           setCurrentCourses(data.courseCosts);
-          onCourseCostsChange?.(data.courseCosts);
+          onCourseCostsChange?.(data.courseCosts, {
+            totalSystemExpense: data.totalSystemExpense,
+            periodInfo: data.periodInfo,
+          });
         }
       }
     } catch (err) {
       console.error('Failed to filter dashboard courses:', err);
     } finally {
-      setIsUpdating(false);
+      if (reqSeq === requestSeqRef.current) {
+        setIsUpdating(false);
+      }
     }
   };
 
@@ -178,6 +207,13 @@ export default function DashboardCharts({
     ชิ้น: cat.totalStock,
     color: CATEGORY_COLORS[idx % CATEGORY_COLORS.length],
   }));
+
+  const activeTerm = academicTerms.find((t) => t.isCurrent);
+  const currentTermShortLabel = activeTerm
+    ? `${formatTermName(activeTerm.term)} ${activeTerm.academicYear}`
+    : periodInfo?.filterMode === 'CURRENT_TERM' && periodInfo?.termName
+    ? periodInfo.termName
+    : '';
 
   return (
     <div className="space-y-4">
@@ -217,9 +253,11 @@ export default function DashboardCharts({
                 value={selectedPeriod}
                 onChange={(e) => handlePeriodChange(e.target.value)}
                 disabled={isUpdating}
-                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-lg px-2 py-1 text-[11px] font-bold focus:ring-1 focus:ring-teal-500 cursor-pointer max-w-[210px] truncate"
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-lg px-2 py-1 text-[11px] font-bold focus:ring-1 focus:ring-teal-500 cursor-pointer max-w-[260px] truncate"
               >
-                <option value="CURRENT_TERM">🟢 ภาคการศึกษาปัจจุบัน</option>
+                <option value="CURRENT_TERM">
+                  🟢 ภาคการศึกษาปัจจุบัน{currentTermShortLabel ? ` (${currentTermShortLabel})` : ''}
+                </option>
                 {academicTerms.map((t) => (
                   <option key={t.id} value={t.id}>
                     🏫 {t.name}
@@ -270,7 +308,7 @@ export default function DashboardCharts({
             <span>
               ใช้จริง:{' '}
               <strong className="text-emerald-600 dark:text-emerald-400">
-                ฿{currentCourses.reduce((sum, c) => sum + (c.totalExpense || 0), 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                ฿{currentCourses.reduce((sum, c) => sum + (c.totalExpense || 0), 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </strong>
             </span>
           </div>
@@ -317,7 +355,7 @@ export default function DashboardCharts({
                             <div className="flex justify-between gap-4 text-slate-300">
                               <span>ใช้จริง:</span>
                               <span className="font-mono font-bold text-emerald-400">
-                                ฿{item.ใช้จริง?.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                                ฿{item.ใช้จริง?.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </span>
                             </div>
                             <div className="text-[10px] text-slate-400 pt-0.5 border-t border-slate-800">
@@ -388,7 +426,7 @@ export default function DashboardCharts({
                           <div className="flex justify-between gap-4 text-slate-300">
                             <span>ยอดเบิกจ่าย:</span>
                             <span className="font-mono font-bold text-white">
-                              ฿{data.outflowCost?.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                              ฿{data.outflowCost?.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                           </div>
                           <div className="flex justify-between gap-4 text-slate-300">
@@ -533,7 +571,7 @@ export default function DashboardCharts({
                             <div className="flex justify-between gap-4 text-slate-300">
                               <span>มูลค่าสต็อก:</span>
                               <span className="font-mono font-bold text-white">
-                                ฿{item.มูลค่า?.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                                ฿{item.มูลค่า?.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </span>
                             </div>
                             <div className="flex justify-between gap-4 text-slate-300">

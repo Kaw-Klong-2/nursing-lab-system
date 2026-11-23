@@ -57,12 +57,12 @@ export default function DashboardPage() {
 
   const fetchDashboard = async () => {
     try {
-      const res = await fetch('/api/dashboard');
+      const res = await fetch('/api/dashboard?filterMode=CURRENT_TERM');
       if (res.ok) {
         const json = await res.json();
         setData(json);
         try {
-          sessionStorage.setItem('cached_dashboard_stats', JSON.stringify(json));
+          sessionStorage.setItem('cached_dashboard_stats_current_term', JSON.stringify(json));
         } catch {}
       }
     } catch (err) {
@@ -84,10 +84,13 @@ export default function DashboardPage() {
 
     if (currentUser.role !== 'USER') {
       try {
-        const cached = sessionStorage.getItem('cached_dashboard_stats');
+        const cached = sessionStorage.getItem('cached_dashboard_stats_current_term');
         if (cached) {
-          setData(JSON.parse(cached));
-          setLoading(false);
+          const parsed = JSON.parse(cached);
+          if (parsed?.periodInfo?.filterMode === 'CURRENT_TERM') {
+            setData(parsed);
+            setLoading(false);
+          }
         }
       } catch {}
       fetchDashboard();
@@ -432,9 +435,15 @@ export default function DashboardPage() {
           </div>
           <div className="mt-3">
             <div className="text-2xl font-black text-emerald-700 dark:text-emerald-400">
-              ฿{(data?.totalSystemExpense || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท
+              ฿{(data?.totalSystemExpense || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
             </div>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 font-medium">รวมยอดจ่ายจริงทุกรายวิชา</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 font-medium">
+              {data?.periodInfo?.termName
+                ? `เฉพาะ ${data.periodInfo.termName}`
+                : data?.periodInfo?.filterMode === 'DATE'
+                ? 'ยอดจ่ายจริงตามช่วงวันที่ที่เลือก'
+                : 'รวมยอดจ่ายจริงทุกรายวิชา'}
+            </p>
           </div>
         </div>
       </div>
@@ -442,8 +451,20 @@ export default function DashboardPage() {
       {/* Visual Analytics & Mini Charts Grid */}
       <DashboardCharts
         courseCosts={data?.courseCosts}
-        onCourseCostsChange={(newCourses) =>
-          setData((prev: any) => (prev ? { ...prev, courseCosts: newCourses } : prev))
+        periodInfo={data?.periodInfo}
+        onCourseCostsChange={(newCourses, meta) =>
+          setData((prev: any) =>
+            prev
+              ? {
+                  ...prev,
+                  courseCosts: newCourses,
+                  ...(typeof meta?.totalSystemExpense === 'number'
+                    ? { totalSystemExpense: meta.totalSystemExpense }
+                    : {}),
+                  ...(meta?.periodInfo ? { periodInfo: meta.periodInfo } : {}),
+                }
+              : prev
+          )
         }
         monthlyTrends={data?.monthlyTrends}
         assetBreakdown={data?.assetBreakdown}
@@ -456,12 +477,18 @@ export default function DashboardPage() {
         {/* Left 2 Cols: Course Costs Summary */}
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm transition-colors">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
               <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-teal-600 dark:text-teal-400" />
-                  ต้นทุนการใช้วัสดุแยกตามรายวิชา (Course Expense Summary)
-                </h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                    ต้นทุนการใช้วัสดุแยกตามรายวิชา (Course Expense Summary)
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-50 dark:bg-teal-950/70 text-teal-700 dark:text-teal-300 border border-teal-200/80 dark:border-teal-800/70">
+                    {data?.periodInfo?.termName ||
+                      (data?.periodInfo?.filterMode === 'ALL' ? 'สะสมทั้งหมด' : 'ช่วงที่เลือก')}
+                  </span>
+                </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   คำนวณจากราคาต้นทุนจริงของวัสดุสิ้นเปลืองที่เบิกจ่ายในแต่ละรายวิชา
                 </p>
@@ -475,75 +502,86 @@ export default function DashboardPage() {
             </div>
 
             <div className="space-y-4 mt-4">
-              {data?.courseCosts?.map((course: any) => {
-                const percent = Math.min(course.percentBudget, 100);
-                return (
-                  <div
-                    key={course.id}
-                    className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 hover:border-teal-200 dark:hover:border-teal-800/80 hover:bg-teal-50/30 dark:hover:bg-slate-800 transition group"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      {/* Left: Course details */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 text-[11px] font-bold rounded bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800/60">
-                            {course.code}
-                          </span>
-                          <span className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-teal-800 dark:group-hover:text-teal-300 transition truncate">
-                            {course.name}
-                          </span>
+              {!data?.courseCosts || data.courseCosts.length === 0 ? (
+                <div className="py-10 text-center rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/30">
+                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                    ยังไม่มีรายวิชาที่เปิดสอนในภาคการศึกษาหรือช่วงเวลาที่เลือก
+                  </p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                    สามารถสลับตัวเลือกช่วงเวลาด้านบนของกราฟเพื่อดูข้อมูลภาคเรียนที่ผ่านมาได้
+                  </p>
+                </div>
+              ) : (
+                data.courseCosts.map((course: any) => {
+                  const percent = Math.min(course.percentBudget, 100);
+                  return (
+                    <div
+                      key={course.id}
+                      className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 hover:border-teal-200 dark:hover:border-teal-800/80 hover:bg-teal-50/30 dark:hover:bg-slate-800 transition group"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        {/* Left: Course details */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 text-[11px] font-bold rounded bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800/60">
+                              {course.code}
+                            </span>
+                            <span className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-teal-800 dark:group-hover:text-teal-300 transition truncate">
+                              {course.name}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5 flex-wrap">
+                            <span>ผู้สอน: {course.instructorName}</span>
+                            <span>•</span>
+                            <span>เบิกแล้ว {course.requisitionCount} ครั้ง</span>
+                            {course.studentCount > 0 && (
+                              <>
+                                <span>•</span>
+                                <span className="text-teal-700 dark:text-teal-400 font-semibold">
+                                  นิสิต {course.studentCount} คน (เฉลี่ย ฿{course.costPerStudent?.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/คน)
+                                </span>
+                              </>
+                            )}
+                          </p>
                         </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5 flex-wrap">
-                          <span>ผู้สอน: {course.instructorName}</span>
-                          <span>•</span>
-                          <span>เบิกแล้ว {course.requisitionCount} ครั้ง</span>
-                          {course.studentCount > 0 && (
-                            <>
-                              <span>•</span>
-                              <span className="text-teal-700 dark:text-teal-400 font-semibold">
-                                นิสิต {course.studentCount} คน (เฉลี่ย ฿{course.costPerStudent?.toLocaleString('th-TH', { minimumFractionDigits: 2 })}/คน)
-                              </span>
-                            </>
-                          )}
-                        </p>
+
+                        {/* Right: Course Donut Chart & Financial Numbers */}
+                        <div className="flex items-center gap-3 sm:gap-4 self-end sm:self-center">
+                          <CourseBudgetDonut
+                            allocatedBudget={course.allocatedBudget}
+                            totalExpense={course.totalExpense}
+                            percentBudget={course.percentBudget}
+                            courseCode={course.code}
+                            size={54}
+                          />
+
+                          <div className="text-right">
+                            <div className="text-sm font-black text-slate-900 dark:text-white">
+                              ฿{course.totalExpense.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
+                            </div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                              จากงบ ฿{course.allocatedBudget.toLocaleString('th-TH')} บาท ({course.percentBudget}%)
+                            </div>
+                            <div className="text-[11px] text-teal-700 dark:text-teal-400 font-medium">
+                              คงเหลือ ฿{Math.max(0, course.allocatedBudget - course.totalExpense).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Right: Course Donut Chart & Financial Numbers */}
-                      <div className="flex items-center gap-3 sm:gap-4 self-end sm:self-center">
-                        <CourseBudgetDonut
-                          allocatedBudget={course.allocatedBudget}
-                          totalExpense={course.totalExpense}
-                          percentBudget={course.percentBudget}
-                          courseCode={course.code}
-                          size={54}
-                        />
-
-                        <div className="text-right">
-                          <div className="text-sm font-black text-slate-900 dark:text-white">
-                            ฿{course.totalExpense.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท
-                          </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
-                            จากงบ ฿{course.allocatedBudget.toLocaleString('th-TH')} บาท ({course.percentBudget}%)
-                          </div>
-                          <div className="text-[11px] text-teal-700 dark:text-teal-400 font-medium">
-                            คงเหลือ ฿{Math.max(0, course.allocatedBudget - course.totalExpense).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
-                          </div>
-                        </div>
+                      {/* Progress Bar */}
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mt-3 overflow-hidden">
+                        <div
+                          className={`h-2 rounded-full transition-all duration-500 ${
+                            percent > 85 ? 'bg-rose-500' : percent > 50 ? 'bg-amber-500' : 'bg-teal-500'
+                          }`}
+                          style={{ width: `${percent}%` }}
+                        ></div>
                       </div>
                     </div>
-
-                    {/* Progress Bar */}
-                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mt-3 overflow-hidden">
-                      <div
-                        className={`h-2 rounded-full transition-all duration-500 ${
-                          percent > 85 ? 'bg-rose-500' : percent > 50 ? 'bg-amber-500' : 'bg-teal-500'
-                        }`}
-                        style={{ width: `${percent}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -590,7 +628,7 @@ export default function DashboardPage() {
                       })()}
                     </div>
                     <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                      ฿{Math.abs(tx.totalCost).toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท
+                      ฿{Math.abs(tx.totalCost).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
                     </div>
                   </div>
                 </div>

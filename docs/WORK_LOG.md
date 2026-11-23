@@ -17,6 +17,16 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-23] แก้บั๊กกราฟงบประมาณรายวิชาหน้าหลักแสดงข้อมูลทั้งหมดแทนภาคปัจจุบัน (`v2.8.3`)
+- **หมวดหมู่**: Dashboard Analytics & Term Filtering (`v2.8.3`)
+- **สิ่งที่ดำเนินการ**:
+  - **Version Bump (`v2.8.2` -> `v2.8.3`)**: รัน `node scripts/version-bump.mjs patch` ซิงก์ `package.json` และ `src/lib/version.ts` เป็น `v2.8.3`
+  - **แก้ `DashboardPage` โหลดข้อมูลตรงกับตัวกรองเริ่มต้น (`src/app/page.tsx`)**: เรียก `/api/dashboard?filterMode=CURRENT_TERM` แทน `/api/dashboard` (ที่เดิมปล่อยเป็น `ALL`) พร้อมแยก key แคช `sessionStorage` เป็น `cached_dashboard_stats_current_term`, ส่ง `periodInfo` เข้า `DashboardCharts`, แสดงป้ายชื่อภาคเรียนที่กำลังดู + Empty State เมื่อภาคเรียนใหม่ยังไม่มีรายวิชา และจำกัดทศนิยมเงินที่ 2 ตำแหน่ง (`maximumFractionDigits: 2`)
+  - **ปรับ API กรองภาคการศึกษา (`/api/dashboard/route.ts`)**: เพิ่ม `formatTermName` และ `ภาคเรียนที่ X` ในเงื่อนไข `courseWhere.semester` และส่งอาร์เรย์ว่าง `[]` เมื่อระบุภาคเรียนแล้วไม่พบข้อมูล (ไม่ fallback ไปแสดงรายวิชาทั้งหมด)
+  - **ปรับ `DashboardCharts` (`src/components/dashboard/DashboardCharts.tsx`)**: ลบเงื่อนไข `courseCosts.length > 0` ที่ทำให้ไม่ล้างรายวิชาเก่าเมื่อภาคใหม่มี 0 รายวิชา, ป้องกัน race condition จากการสลับตัวกรองเร็วด้วย `requestSeqRef`, คำนวณช่วง `THIS_MONTH` ตามเวลาไทย (`Asia/Bangkok`), แสดงชื่อภาคปัจจุบันในตัวเลือก dropdown และจำกัดทศนิยมเงินเป็น 2 ตำแหน่ง
+- **ไฟล์สำคัญที่แก้ไข**: `package.json`, `src/lib/version.ts`, `src/app/api/dashboard/route.ts`, `src/app/page.tsx`, `src/components/dashboard/DashboardCharts.tsx`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ผ่าน 100% (`v2.8.3` ซิงก์ตรง, ไม่พบคำต้องห้าม, ไม่พบ UTF-8 Mojibake, `npx tsc --noEmit` & `npm run build` ผ่านสมบูรณ์)
+
 ### [2026-11-23] เพิ่มระบบสลับภาคการศึกษาและอัปเดตสถานะอัตโนมัติตามวันที่ประเทศไทย (`v2.8.2`)
 - **หมวดหมู่**: Academic Calendar, Auto-Sync & Security (`v2.8.2`)
 - **สิ่งที่ดำเนินการ**:

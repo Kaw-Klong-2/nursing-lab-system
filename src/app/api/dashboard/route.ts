@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCached, setCached } from '@/lib/cache';
-import { toLegacySemesterCode } from '@/lib/academicTerm';
+import { formatTermName, toLegacySemesterCode } from '@/lib/academicTerm';
 import { ensureAcademicTermsSynced } from '@/lib/academicTermSync';
 import { getBangkokStartOfDay, getBangkokEndOfDay } from '@/lib/date-time-utils';
 
@@ -28,11 +28,25 @@ export async function GET(req: Request) {
       targetTerm = await prisma.academicTerm.findFirst({ where: { isCurrent: true } });
     }
 
-    const courseWhere: any = {};
+    const requestedSpecificTerm = filterMode === 'CURRENT_TERM' || (Boolean(termId) && termId !== 'ALL');
+    const noMatchingTerm = requestedSpecificTerm && !targetTerm;
+
+    const courseWhere: Record<string, unknown> = {};
     if (targetTerm) {
       courseWhere.academicYear = targetTerm.academicYear;
       const legacyCode = toLegacySemesterCode(targetTerm.term);
-      courseWhere.semester = { in: [legacyCode, targetTerm.term, targetTerm.name] };
+      const semesterCandidates = Array.from(
+        new Set(
+          [
+            legacyCode,
+            targetTerm.term,
+            formatTermName(targetTerm.term),
+            targetTerm.name,
+            `ภาคเรียนที่ ${legacyCode}`,
+          ].filter(Boolean)
+        )
+      );
+      courseWhere.semester = { in: semesterCandidates };
     }
 
     const txDateFilter: any = {};
@@ -95,18 +109,20 @@ export async function GET(req: Request) {
         },
         orderBy: { expiryDate: 'asc' },
       }),
-      prisma.course.findMany({
-        where: Object.keys(courseWhere).length > 0 ? courseWhere : undefined,
-        include: {
-          stockTransactions: {
-            where: {
-              type: 'OUT_REQUISITION',
-              ...(Object.keys(txDateFilter).length > 0 ? { createdAt: txDateFilter } : {}),
+      noMatchingTerm
+        ? Promise.resolve([])
+        : prisma.course.findMany({
+            where: Object.keys(courseWhere).length > 0 ? courseWhere : undefined,
+            include: {
+              stockTransactions: {
+                where: {
+                  type: 'OUT_REQUISITION',
+                  ...(Object.keys(txDateFilter).length > 0 ? { createdAt: txDateFilter } : {}),
+                },
+              },
+              requisitionRequests: true,
             },
-          },
-          requisitionRequests: true,
-        },
-      }),
+          }),
       prisma.stockTransaction.findMany({
         take: 6,
         orderBy: { createdAt: 'desc' },

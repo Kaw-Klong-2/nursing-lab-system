@@ -35,7 +35,7 @@ import {
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { formatUserName, formatTeacherName, stripAllPrefixes, formatApproverDisplay, formatAcknowledgeDisplay } from '@/lib/user-utils';
-import { canUserApprove, formatApprovalScopeBadge } from '@/lib/approval-scope';
+import { canUserApprove, formatApprovalScopeBadge, getEffectiveScopes } from '@/lib/approval-scope';
 
 export default function ApprovalsPage() {
   const { currentUser, isApprover, isAdmin, isOfficer, isTeacher } = useAuth();
@@ -113,16 +113,11 @@ export default function ApprovalsPage() {
       const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
       if (params?.get('type') || params?.get('id') || params?.get('batchId') || params?.get('batchGroupId')) return;
 
-      const hasItems = canUserApprove(currentUser, 'BORROW') || canUserApprove(currentUser, 'REQUISITION');
-      const hasRooms = canUserApprove(currentUser, 'PRACTICE') || canUserApprove(currentUser, 'ROOM');
-      if (hasRooms && !hasItems) {
-        if (canUserApprove(currentUser, 'ROOM') && !canUserApprove(currentUser, 'PRACTICE')) {
-          setActiveTab('ROOM');
-        } else {
-          setActiveTab('PRACTICE');
-        }
-      } else if (hasItems && !hasRooms) {
-        setActiveTab('BORROW');
+      const scopes = getEffectiveScopes(currentUser);
+      if (scopes.length === 1) {
+        setActiveTab(scopes[0]);
+      } else if (scopes.length > 1) {
+        setActiveTab('ALL');
       }
     }
   }, [currentUser, isAdmin]);
@@ -400,7 +395,7 @@ export default function ApprovalsPage() {
     }
   };
 
-  if (!isApprover && !isAdmin && !isTeacher) {
+  if (!isApprover && !isAdmin && !isOfficer && !isTeacher) {
     return (
       <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center text-amber-800">
         <AlertCircle className="w-8 h-8 mx-auto mb-2 text-amber-600" />

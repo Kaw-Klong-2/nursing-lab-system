@@ -33,6 +33,7 @@ import {
   setPushUserDisabled,
 } from '@/lib/webpush-client';
 import { ORG_CONFIG } from '@/lib/constants/organization';
+import { canUserApprove, ApprovalScopeType } from '@/lib/approval-scope';
 
 interface NotificationItem {
   id: string;
@@ -47,6 +48,72 @@ interface NotificationItem {
   isRead: boolean;
   readAt?: string | null;
   createdAt: string;
+}
+
+function getQuickApproveMeta(
+  notif: NotificationItem,
+  currentUser: ReturnType<typeof useAuth>['currentUser']
+): { endpoint: string; scope: ApprovalScopeType; deepLink: string } | null {
+  if (!currentUser || notif.type !== 'APPROVAL' || !notif.entityId || !notif.entityType) {
+    return null;
+  }
+  if (
+    notif.linkUrl &&
+    !notif.linkUrl.startsWith('/approvals') &&
+    !notif.linkUrl.startsWith('/practice/bookings')
+  ) {
+    return null;
+  }
+  if (notif.linkUrl?.includes('batchId=')) {
+    return null;
+  }
+
+  let endpoint = '';
+  let scope: ApprovalScopeType | null = null;
+  let normalizedType = notif.entityType;
+
+  if (notif.entityType === 'BORROW') {
+    endpoint = `/api/borrow/${notif.entityId}`;
+    scope = 'BORROW';
+  } else if (notif.entityType === 'REQUISITION') {
+    endpoint = `/api/requisitions/${notif.entityId}`;
+    scope = 'REQUISITION';
+  } else if (notif.entityType === 'PRACTICE') {
+    endpoint = `/api/practice/bookings/${notif.entityId}`;
+    scope = 'PRACTICE';
+  } else if (notif.entityType === 'ROOM' || notif.entityType === 'BOOKING') {
+    endpoint = `/api/room-bookings/${notif.entityId}`;
+    scope = 'ROOM';
+    normalizedType = 'ROOM';
+  }
+
+  if (!endpoint || !scope || !canUserApprove(currentUser, scope)) {
+    return null;
+  }
+
+  return {
+    endpoint,
+    scope,
+    deepLink: `/approvals?id=${notif.entityId}&type=${normalizedType}`,
+  };
+}
+
+function resolveNotificationHref(notif: NotificationItem): string | null {
+  if (notif.linkUrl && notif.linkUrl.includes('?')) {
+    return notif.linkUrl;
+  }
+  if (
+    (notif.linkUrl === '/approvals' || notif.linkUrl === '/practice/bookings') &&
+    notif.entityId &&
+    notif.entityType
+  ) {
+    const normalizedType =
+      notif.entityType === 'BOOKING' || notif.entityType === 'ROOM'
+        ? 'ROOM'
+        : notif.entityType;
+    return `/approvals?id=${notif.entityId}&type=${normalizedType}`;
+  }
+  return notif.linkUrl || null;
 }
 
 function timeAgo(dateString: string): string {
@@ -105,6 +172,13 @@ export default function NotificationBell() {
   const [activeToast, setActiveToast] = useState<NotificationItem | null>(null);
   const lastSeenNotifIdRef = useRef<string | null>(null);
   const isFirstLoadRef = useRef(true);
+  const [quickApprovingId, setQuickApprovingId] = useState<string | null>(null);
+  const [quickApprovedIds, setQuickApprovedIds] = useState<Set<string>>(() => new Set());
+  const [quickActionStatus, setQuickActionStatus] = useState<{
+    notifId: string;
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   // Push Notification state - initialized synchronously with effective status
   const [pushStatus, setPushStatus] = useState<'LOADING' | 'ENABLED' | 'DISABLED' | 'BLOCKED' | 'UNSUPPORTED'>(() => {
@@ -239,6 +313,7 @@ export default function NotificationBell() {
             !newest.isRead
           ) {
             playNotificationChime();
+            setQuickActionStatus(null);
             setActiveToast(newest);
 
             // ส่ง Notification บนเบราว์เซอร์หากเปิดสิทธิ์ไว้
@@ -268,13 +343,94 @@ export default function NotificationBell() {
 
   // Auto-dismiss floating toast
   useEffect(() => {
-    if (activeToast) {
-      const timer = setTimeout(() => {
+    if (!activeToast) return;
+    if (quickApprovingId === activeToast.id) return;
+
+    const hasQuickApprove = Boolean(getQuickApproveMeta(activeToast, currentUser));
+    const timer = setTimeout(
+      () => {
         setActiveToast(null);
-      }, 7000);
-      return () => clearTimeout(timer);
+      },
+      hasQuickApprove ? 12000 : 7000
+    );
+    return () => clearTimeout(timer);
+  }, [activeToast, quickApprovingId, currentUser]);
+
+  const handleQuickApprove = async (notif: NotificationItem, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const meta = getQuickApproveMeta(notif, currentUser);
+    if (!meta || !currentUser?.id) return;
+
+    setQuickApprovingId(notif.id);
+    setQuickActionStatus(null);
+
+    try {
+      const res = await fetch(meta.endpoint, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'APPROVE',
+          userId: currentUser.id,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        if (!notif.isRead) {
+          fetch(`/api/notifications/${notif.id}/read`, { method: 'PATCH' }).catch(() => {});
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n))
+          );
+          setUnreadCount((c) => Math.max(0, c - 1));
+        }
+        setQuickApprovedIds((prev) => {
+          const next = new Set(prev);
+          next.add(notif.id);
+          return next;
+        });
+        setQuickActionStatus({
+          notifId: notif.id,
+          type: 'success',
+          message: 'อนุมัติคำขอเรียบร้อยแล้ว ✅',
+        });
+        setTimeout(() => {
+          setActiveToast((curr) => (curr?.id === notif.id ? null : curr));
+        }, 2500);
+      } else if (res.status === 409) {
+        if (!notif.isRead) {
+          fetch(`/api/notifications/${notif.id}/read`, { method: 'PATCH' }).catch(() => {});
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n))
+          );
+          setUnreadCount((c) => Math.max(0, c - 1));
+        }
+        setQuickApprovedIds((prev) => {
+          const next = new Set(prev);
+          next.add(notif.id);
+          return next;
+        });
+        setQuickActionStatus({
+          notifId: notif.id,
+          type: 'error',
+          message: 'คำขอนี้ได้รับการดำเนินการไปแล้ว',
+        });
+      } else {
+        setQuickActionStatus({
+          notifId: notif.id,
+          type: 'error',
+          message: data.error || data.message || 'ไม่สามารถอนุมัติได้',
+        });
+      }
+    } catch {
+      setQuickActionStatus({
+        notifId: notif.id,
+        type: 'error',
+        message: 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์',
+      });
+    } finally {
+      setQuickApprovingId(null);
     }
-  }, [activeToast]);
+  };
 
   // Run system check (staff/admin only) periodically
   useEffect(() => {
@@ -547,51 +703,91 @@ export default function NotificationBell() {
                 </p>
               </div>
             ) : (
-              displayedNotifications.map((notif) => (
-                <div
-                  key={notif.id}
-                  onClick={() => handleMarkAsRead(notif.id, notif.linkUrl)}
-                  className={`p-3.5 flex items-start gap-3 transition cursor-pointer ${
-                    notif.isRead
-                      ? 'bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-300'
-                      : 'bg-teal-50/50 dark:bg-teal-950/30 hover:bg-teal-50 dark:hover:bg-teal-950/50 text-slate-900 dark:text-white font-medium'
-                  }`}
-                >
-                  {getNotificationIcon(notif.type)}
+              displayedNotifications.map((notif) => {
+                const resolvedHref = resolveNotificationHref(notif);
+                const quickMeta = !notif.isRead ? getQuickApproveMeta(notif, currentUser) : null;
+                const alreadyQuickApproved = quickApprovedIds.has(notif.id);
+                const itemStatus = quickActionStatus?.notifId === notif.id ? quickActionStatus : null;
 
-                  <div className="flex-1 min-w-0 space-y-0.5">
-                    <div className="flex items-center justify-between gap-1.5">
-                      <h4
-                        className={`text-xs font-bold leading-tight truncate ${
-                          notif.isRead
-                            ? 'text-slate-700 dark:text-slate-200'
-                            : 'text-slate-900 dark:text-white'
-                        }`}
-                      >
-                        {notif.title}
-                      </h4>
-                      <span className="text-[10px] text-slate-400 shrink-0 font-normal">
-                        {timeAgo(notif.createdAt)}
-                      </span>
+                return (
+                  <div
+                    key={notif.id}
+                    onClick={() => handleMarkAsRead(notif.id, resolvedHref)}
+                    className={`p-3.5 flex items-start gap-3 transition cursor-pointer ${
+                      notif.isRead
+                        ? 'bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-300'
+                        : 'bg-teal-50/50 dark:bg-teal-950/30 hover:bg-teal-50 dark:hover:bg-teal-950/50 text-slate-900 dark:text-white font-medium'
+                    }`}
+                  >
+                    {getNotificationIcon(notif.type)}
+
+                    <div className="flex-1 min-w-0 space-y-0.5">
+                      <div className="flex items-center justify-between gap-1.5">
+                        <h4
+                          className={`text-xs font-bold leading-tight truncate ${
+                            notif.isRead
+                              ? 'text-slate-700 dark:text-slate-200'
+                              : 'text-slate-900 dark:text-white'
+                          }`}
+                        >
+                          {notif.title}
+                        </h4>
+                        <span className="text-[10px] text-slate-400 shrink-0 font-normal">
+                          {timeAgo(notif.createdAt)}
+                        </span>
+                      </div>
+
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                        {notif.message}
+                      </p>
+
+                      {itemStatus && (
+                        <div
+                          className={`mt-1 px-2 py-1 rounded-lg text-[10px] font-bold ${
+                            itemStatus.type === 'success'
+                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                              : 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                          }`}
+                        >
+                          {itemStatus.message}
+                        </div>
+                      )}
+
+                      {(resolvedHref || (quickMeta && !alreadyQuickApproved)) && (
+                        <div className="pt-1.5 flex flex-wrap items-center gap-2">
+                          {quickMeta && !alreadyQuickApproved && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleQuickApprove(notif, e)}
+                              disabled={quickApprovingId === notif.id}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold shadow-xs transition cursor-pointer disabled:opacity-50"
+                            >
+                              {quickApprovingId === notif.id ? (
+                                <RefreshCw className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="w-3 h-3" />
+                              )}
+                              <span>
+                                {quickApprovingId === notif.id ? 'กำลังอนุมัติ...' : '✅ อนุมัติทันที'}
+                              </span>
+                            </button>
+                          )}
+                          {resolvedHref && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-600 dark:text-teal-400">
+                              <span>คลิกเพื่อดูรายละเอียด</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
-                      {notif.message}
-                    </p>
-
-                    {notif.linkUrl && (
-                      <div className="pt-1 flex items-center gap-1 text-[10px] font-bold text-teal-600 dark:text-teal-400">
-                        <span>คลิกเพื่อดูรายละเอียด</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </div>
+                    {!notif.isRead && (
+                      <span className="w-2 h-2 rounded-full bg-teal-500 shrink-0 mt-1.5" />
                     )}
                   </div>
-
-                  {!notif.isRead && (
-                    <span className="w-2 h-2 rounded-full bg-teal-500 shrink-0 mt-1.5" />
-                  )}
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 
@@ -603,57 +799,97 @@ export default function NotificationBell() {
       )}
 
       {/* Floating In-App Toast Popup (เด้งเตือนสดบนหน้าจอ) */}
-      {activeToast && (
-        <div className="fixed bottom-24 md:bottom-6 right-3 md:right-6 z-[99999] max-w-sm w-[calc(100vw-1.5rem)] md:w-96 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-2 border-teal-500/50 dark:border-teal-400/40 rounded-2xl shadow-2xl p-4 transition-all transform animate-in slide-in-from-bottom-5 duration-300">
-          <div className="flex items-start gap-3">
-            <div className="p-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 shrink-0 relative">
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full animate-ping" />
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full" />
-              <BellRing className="w-5 h-5 animate-bounce" />
-            </div>
+      {activeToast && (() => {
+        const toastHref = resolveNotificationHref(activeToast);
+        const toastQuickMeta = getQuickApproveMeta(activeToast, currentUser);
+        const toastApproved = quickApprovedIds.has(activeToast.id);
+        const toastStatus =
+          quickActionStatus?.notifId === activeToast.id ? quickActionStatus : null;
 
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-1 mb-1">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/80 px-2 py-0.5 rounded-full">
-                  แจ้งเตือนใหม่ 🔔
-                </span>
-                <button
-                  onClick={() => setActiveToast(null)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg transition"
-                >
-                  ✕
-                </button>
+        return (
+          <div className="fixed bottom-24 md:bottom-6 right-3 md:right-6 z-[99999] max-w-sm w-[calc(100vw-1.5rem)] md:w-96 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-2 border-teal-500/50 dark:border-teal-400/40 rounded-2xl shadow-2xl p-4 transition-all transform animate-in slide-in-from-bottom-5 duration-300">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 shrink-0 relative">
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full animate-ping" />
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full" />
+                <BellRing className="w-5 h-5 animate-bounce" />
               </div>
 
-              <h4 className="text-xs font-bold text-slate-900 dark:text-white leading-tight mb-1 truncate">
-                {activeToast.title}
-              </h4>
-              <p className="text-[11px] text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed mb-2.5">
-                {activeToast.message}
-              </p>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/80 px-2 py-0.5 rounded-full">
+                    แจ้งเตือนใหม่ 🔔
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveToast(null)}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg transition cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    handleMarkAsRead(activeToast.id, activeToast.linkUrl);
-                    setActiveToast(null);
-                  }}
-                  className="flex-1 py-1.5 px-3 bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-bold rounded-lg shadow-sm transition flex items-center justify-center gap-1.5"
-                >
-                  <span>เปิดดูทันที</span>
-                  <ExternalLink className="w-3 h-3" />
-                </button>
-                <button
-                  onClick={() => setActiveToast(null)}
-                  className="py-1.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-medium rounded-lg transition"
-                >
-                  ปิด
-                </button>
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white leading-tight mb-1 truncate">
+                  {activeToast.title}
+                </h4>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed mb-2.5">
+                  {activeToast.message}
+                </p>
+
+                {toastStatus && (
+                  <div
+                    className={`mb-2.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold ${
+                      toastStatus.type === 'success'
+                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                        : 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                    }`}
+                  >
+                    {toastStatus.message}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  {toastQuickMeta && !toastApproved && (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickApprove(activeToast)}
+                      disabled={quickApprovingId === activeToast.id}
+                      className="flex-1 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      {quickApprovingId === activeToast.id ? (
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-3 h-3" />
+                      )}
+                      <span>
+                        {quickApprovingId === activeToast.id ? 'กำลังอนุมัติ...' : '✅ อนุมัติทันที'}
+                      </span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleMarkAsRead(activeToast.id, toastHref);
+                      setActiveToast(null);
+                    }}
+                    className="flex-1 py-1.5 px-3 bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-bold rounded-lg shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <span>เปิดดูทันที</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveToast(null)}
+                    className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-medium rounded-lg transition cursor-pointer"
+                  >
+                    ปิด
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

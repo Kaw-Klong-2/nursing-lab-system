@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { formatTeacherName } from '@/lib/user-utils';
+import { invalidateCache } from '@/lib/cache';
+import { formatTeacherName, formatUserName, formatRequesterWithRole } from '@/lib/user-utils';
+import { createNotification, notifyAdvisorByName, notifyRoles } from '@/lib/notifications';
 import { isViewerUser, VIEWER_FORBIDDEN_MESSAGE } from '@/lib/viewer-guard';
 
 // POST: Quick Request for a Practice Kit (Generates Borrow and/or Requisition requests)
@@ -72,6 +74,11 @@ export async function POST(req: Request) {
 
     const cleanAdvisorName = advisorName ? formatTeacherName(advisorName) : null;
 
+    const requester = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, prefix: true, role: true, studentId: true },
+    });
+
     // 1. Create Borrow Request if equipment present
     if (equipmentItems.length > 0) {
       const count = await prisma.borrowRequest.count();
@@ -131,6 +138,112 @@ export async function POST(req: Request) {
         });
       }
     }
+
+    const requesterName = formatUserName(requester) || 'นิสิต';
+    const requesterDisplay = formatRequesterWithRole(requester);
+    const notifPromises: Promise<any>[] = [];
+
+    if (createdBorrow) {
+      notifPromises.push(
+        notifyRoles(
+          ['OFFICER', 'ADMIN', 'APPROVER'],
+          {
+            templateId: 'BORROW_REQUEST_SUBMITTED',
+            variables: {
+              studentName: requesterName,
+              requestNumber: createdBorrow.requestNumber,
+              itemSummary: fullPurpose,
+            },
+            title: 'มีคำขอยืมครุภัณฑ์ (ชุดฝึก) ใหม่ 📋',
+            message: `${requesterDisplay} ยื่นคำขอยืมเลขที่ ${createdBorrow.requestNumber} (${fullPurpose})`,
+            type: 'APPROVAL',
+            priority: 'HIGH',
+            linkUrl: `/approvals?id=${createdBorrow.id}&type=BORROW`,
+            entityType: 'BORROW',
+            entityId: createdBorrow.id,
+          },
+          'BORROW'
+        )
+      );
+
+      if (cleanAdvisorName) {
+        notifPromises.push(
+          notifyAdvisorByName(cleanAdvisorName, {
+            title: 'มีคำขอยืมครุภัณฑ์รอกดรับทราบ 👩‍🏫',
+            message: `${requesterDisplay} ยื่นคำขอยืมเลขที่ ${createdBorrow.requestNumber} รออาจารย์รับทราบ`,
+            type: 'REQUEST_SUBMITTED',
+            priority: 'HIGH',
+            linkUrl: `/approvals?id=${createdBorrow.id}&type=BORROW`,
+            entityType: 'BORROW',
+            entityId: createdBorrow.id,
+          })
+        );
+      }
+    }
+
+    if (createdRequisition) {
+      notifPromises.push(
+        notifyRoles(
+          ['OFFICER', 'ADMIN', 'APPROVER'],
+          {
+            templateId: 'REQUISITION_REQUEST_SUBMITTED',
+            variables: {
+              studentName: requesterName,
+              requestNumber: createdRequisition.requestNumber,
+              itemSummary: fullPurpose,
+            },
+            title: 'มีคำขอเบิกวัสดุ (ชุดฝึก) ใหม่ 📋',
+            message: `${requesterDisplay} ยื่นคำขอเบิกเลขที่ ${createdRequisition.requestNumber} (${fullPurpose})`,
+            type: 'APPROVAL',
+            priority: 'HIGH',
+            linkUrl: `/approvals?id=${createdRequisition.id}&type=REQUISITION`,
+            entityType: 'REQUISITION',
+            entityId: createdRequisition.id,
+          },
+          'REQUISITION'
+        )
+      );
+
+      if (cleanAdvisorName) {
+        notifPromises.push(
+          notifyAdvisorByName(cleanAdvisorName, {
+            title: 'มีคำขอเบิกพัสดุรอกดรับทราบ 👩‍🏫',
+            message: `${requesterDisplay} ยื่นคำขอเบิกเลขที่ ${createdRequisition.requestNumber} รออาจารย์รับทราบ`,
+            type: 'REQUEST_SUBMITTED',
+            priority: 'HIGH',
+            linkUrl: `/approvals?id=${createdRequisition.id}&type=REQUISITION`,
+            entityType: 'REQUISITION',
+            entityId: createdRequisition.id,
+          })
+        );
+      }
+    }
+
+    if (createdBorrow || createdRequisition) {
+      const combinedRef =
+        createdBorrow && createdRequisition
+          ? `${createdBorrow.requestNumber} + ${createdRequisition.requestNumber}`
+          : createdBorrow?.requestNumber || createdRequisition?.requestNumber || '';
+
+      notifPromises.push(
+        createNotification({
+          userId,
+          title: 'ยื่นคำขอชุดฝึกปฏิบัติการเรียบร้อยแล้ว ✅',
+          message: `คำขอเลขที่ ${combinedRef} ถูกส่งเข้าสู่ระบบแล้ว และอยู่ระหว่างรอการอนุมัติ`,
+          type: 'STATUS_UPDATE',
+          priority: 'NORMAL',
+          linkUrl: createdBorrow ? '/borrow' : '/requisitions',
+          entityType: createdBorrow ? 'BORROW' : 'REQUISITION',
+          entityId: createdBorrow?.id || createdRequisition?.id,
+        })
+      );
+    }
+
+    await Promise.allSettled(notifPromises);
+
+    invalidateCache('borrow:');
+    invalidateCache('requisitions:');
+    invalidateCache('dashboard:');
 
     return NextResponse.json({
       success: true,

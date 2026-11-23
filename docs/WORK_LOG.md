@@ -17,6 +17,21 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-23] แก้ระบบแจ้งเตือนและปุ่มอนุมัติด่วนให้เด้งถึงผู้อนุมัติทุกบทบาทที่มีสิทธิ์ตามขอบเขต (`v2.8.5`)
+- **หมวดหมู่**: Approvals, Notifications, Web Push & Quick-Approve (`v2.8.5`)
+- **สิ่งที่ดำเนินการ**:
+  - **Version Bump (`v2.8.4` -> `v2.8.5`)**: รัน `node scripts/version-bump.mjs patch` ซิงก์ `package.json` และ `src/lib/version.ts` เป็น `v2.8.5`
+  - **แก้ `notifyRoles` และท่อแจ้งเตือน (`src/lib/notifications.ts`)**:
+    - เมื่อระบุ `scope` (`BORROW`, `REQUISITION`, `PRACTICE`, `ROOM`) ให้ดึงผู้ใช้ทุกบทบาทที่เปิดใช้งานที่มีสิทธิ์ตาม `canUserApprove` (ครอบคลุม `TEACHER` / `EXECUTIVE` ที่กำหนด `approvalScopes` ไว้ด้วย ไม่จำกัดแค่ `OFFICER`/`ADMIN`/`APPROVER`), เพิ่ม `findScopeApproverForEmail` แทนการ fallback ไปที่ `APPROVER` ห้องแล็บ
+    - เพิ่ม `isPendingApprovalNotification` และ `resolveApprovalLinkUrl` เพื่อแนบ `approvalEndpoint` + ปุ่ม `[✅ อนุมัติทันที]` เฉพาะคำขอรออนุมัติ (ไม่ปนกับแจ้งเตือนผลอนุมัติของนิสิตและคำขอจองห้องแบบกลุ่ม) พร้อมสร้าง deep link `/approvals?id=...&type=...` อัตโนมัติ
+  - **เพิ่มปุ่มอนุมัติด่วนในแอป (`src/components/notifications/NotificationBell.tsx`)**: เพิ่มปุ่ม `✅ อนุมัติทันที` ทั้งบน Floating Toast และรายการแจ้งเตือนใน Dropdown สำหรับผู้มีสิทธิ์ตามขอบเขตนั้น พร้อม deep link ไปยังรายการคำขอโดยตรง
+  - **แก้ไขปุ่มอนุมัติด่วนบน Web Push และ Session Guard (`public/sw.js`, `src/app/api/room-bookings/[id]/route.ts`, `src/app/api/practice/bookings/[id]/route.ts`)**: เพิ่ม `credentials: 'include'` ใน Service Worker, ตรวจสิทธิ์จาก Signed HttpOnly Session Cookie + conflict check (`409`) และบันทึก `approverId` ครบถ้วน
+  - **เชื่อมต่อจุดแจ้งเตือนที่ขาดหาย (`borrow/[id]`, `requisitions/[id]`, `kits/request`, `practice/bookings`, `borrow`, `requests/unified`, `/approvals`)**:
+    - ส่งแจ้งเตือนถึงผู้อนุมัติตาม `scope` เมื่ออาจารย์/เจ้าหน้าที่กด **รับทราบ (`ACKNOWLEDGE`)** และ `await Promise.allSettled` ก่อนจบ response เพื่อไม่ให้ Serverless ตัดจบ Web Push
+    - เพิ่มแจ้งเตือนครบชุดให้ `POST /api/kits/request` และแก้ `linkUrl` ใน `practice/bookings` รวมถึงให้หน้า `/approvals` แสดงแท็บ `ALL` สำหรับผู้ดูแลหลายขอบเขตและเปิดสิทธิ์ `isOfficer` เข้าดูหน้าอนุมัติได้
+- **ไฟล์สำคัญที่แก้ไข**: `package.json`, `src/lib/version.ts`, `src/lib/notifications.ts`, `public/sw.js`, `src/components/notifications/NotificationBell.tsx`, `src/app/approvals/page.tsx`, `src/app/api/borrow/route.ts`, `src/app/api/borrow/[id]/route.ts`, `src/app/api/requisitions/[id]/route.ts`, `src/app/api/kits/request/route.ts`, `src/app/api/requests/unified/route.ts`, `src/app/api/practice/bookings/route.ts`, `src/app/api/practice/bookings/[id]/route.ts`, `src/app/api/room-bookings/[id]/route.ts`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ผ่าน 100% (`v2.8.5` ซิงก์ตรง, ไม่พบคำต้องห้าม, ไม่พบ UTF-8 Mojibake, `npx tsc --noEmit` & `npm run build` ผ่านสมบูรณ์)
+
 ### [2026-11-23] แก้บั๊ก ViewerModeGuard ค้างบล็อกแอดมินหลังสลับบัญชีจาก Viewer (`v2.8.4`)
 - **หมวดหมู่**: Auth Guard, Client Fetch Pipeline & UX (`v2.8.4`)
 - **สิ่งที่ดำเนินการ**:

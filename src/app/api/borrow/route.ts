@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { sendApprovalRequestEmail } from '@/lib/email';
 import { getCached, setCached, invalidateCache } from '@/lib/cache';
 import { formatUserName, formatTeacherName, formatRequesterWithRole } from '@/lib/user-utils';
-import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
+import { notifyRoles, notifyAdvisorByName, createNotification, findScopeApproverForEmail } from '@/lib/notifications';
 import { parseBangkokDateTime } from '@/lib/date-time-utils';
 import { isViewerUser, VIEWER_FORBIDDEN_MESSAGE } from '@/lib/viewer-guard';
 
@@ -219,9 +219,7 @@ export async function POST(req: Request) {
       }
 
       if (!approverEmail) {
-        const fallbackApprover = await prisma.user.findFirst({
-          where: { role: 'APPROVER', status: 'ACTIVE' },
-        });
+        const fallbackApprover = await findScopeApproverForEmail('BORROW');
         if (fallbackApprover?.email) {
           approverEmail = fallbackApprover.email;
           approverName = formatTeacherName(fallbackApprover);

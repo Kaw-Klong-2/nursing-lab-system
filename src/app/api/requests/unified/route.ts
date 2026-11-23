@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendApprovalRequestEmail } from '@/lib/email';
 import { invalidateCache } from '@/lib/cache';
-import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
+import { notifyRoles, notifyAdvisorByName, createNotification, findScopeApproverForEmail } from '@/lib/notifications';
 import { stripAllPrefixes, formatUserName, formatRequesterWithRole } from '@/lib/user-utils';
 import { parseBangkokDateTime } from '@/lib/date-time-utils';
 import { isViewerUser, VIEWER_FORBIDDEN_MESSAGE } from '@/lib/viewer-guard';
@@ -414,9 +414,8 @@ export async function POST(req: Request) {
       }
 
       if (!approverEmail) {
-        const fallbackApprover = await prisma.user.findFirst({
-          where: { role: 'APPROVER', status: 'ACTIVE' },
-        });
+        const emailScope = result.createdBorrow ? 'BORROW' : 'REQUISITION';
+        const fallbackApprover = await findScopeApproverForEmail(emailScope);
         if (fallbackApprover?.email) {
           approverEmail = fallbackApprover.email;
           approverName = formatUserName(fallbackApprover) || fallbackApprover.name;
@@ -468,7 +467,7 @@ export async function POST(req: Request) {
           approverName,
           studentName: studentDisplayName,
           studentId: student?.studentId || undefined,
-          type: 'BORROW',
+          type: result.createdBorrow ? 'BORROW' : 'REQUISITION',
           title: `คำขอเบิก-ยืมพัสดุแบบรวม: ${purpose}`,
           details,
           requestId: result.createdBorrow?.id || result.createdRequisition?.id || '',

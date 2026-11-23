@@ -5,6 +5,7 @@ import { createNotification } from '@/lib/notifications';
 import { canUserApprove } from '@/lib/approval-scope';
 import { logActivity } from '@/lib/activity-log';
 import { combineSlotDateAndBangkokTime } from '@/lib/date-time-utils';
+import { getSessionFromRequest } from '@/lib/session';
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -45,9 +46,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await getSessionFromRequest(req);
     const { id } = await params;
     const body = await req.json();
     const { action, userId, reason, notes, customCheckInTime, customCheckOutTime } = body;
+    const effectiveUserId = session?.uid || userId || null;
 
     // Resolve booking by id, bookingNumber, or qrCodeToken
     const booking = await prisma.practiceBooking.findFirst({
@@ -71,17 +74,36 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     if (action === 'APPROVE') {
-      if (userId) {
-        const approverUser = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { role: true, approvalScopes: true },
-        });
-        if (approverUser && !canUserApprove(approverUser, 'PRACTICE')) {
-          return NextResponse.json(
-            { error: 'ท่านไม่มีสิทธิ์อนุมัติการจองห้องฝึกทักษะ (อยู่นอกเหนือขอบเขตความรับผิดชอบ)' },
-            { status: 403 }
-          );
-        }
+      if (!effectiveUserId) {
+        return NextResponse.json(
+          { error: 'กรุณาเข้าสู่ระบบก่อนดำเนินการอนุมัติรายการ' },
+          { status: 401 }
+        );
+      }
+      const approverUser = await prisma.user.findUnique({
+        where: { id: effectiveUserId },
+        select: { role: true, status: true, approvalScopes: true, isExecutive: true },
+      });
+      if (
+        !approverUser ||
+        (approverUser.status && approverUser.status !== 'ACTIVE') ||
+        !canUserApprove(approverUser, 'PRACTICE')
+      ) {
+        return NextResponse.json(
+          { error: 'ท่านไม่มีสิทธิ์อนุมัติการจองห้องฝึกทักษะ (อยู่นอกเหนือขอบเขตความรับผิดชอบ)' },
+          { status: 403 }
+        );
+      }
+
+      if (booking.status !== 'PENDING') {
+        return NextResponse.json(
+          {
+            error: 'CONCURRENCY_CONFLICT',
+            message: '⚠️ คำขอจองห้องฝึกนี้ได้รับการดำเนินการไปแล้ว กรุณาตรวจสอบใหม่อีกครั้ง',
+            currentStatus: booking.status,
+          },
+          { status: 409 }
+        );
       }
 
       // หากเป็นการจองแบบกลุ่ม ให้อนุมัติสมาชิกในกลุ่มเดียวกันพร้อมกัน
@@ -99,7 +121,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           where: { id: b.id },
           data: {
             status: 'APPROVED',
-            approverId: userId || null,
+            approverId: effectiveUserId,
             approvedAt: new Date(),
           },
           include: {
@@ -132,9 +154,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           }).catch((err) => console.error('Background student QR email failed:', err));
         }
 
-        // In-app notification for each student
+        // In-app & Web Push notification for each student (awaited)
         if (updated.userId) {
-          createNotification({
+          await createNotification({
             userId: updated.userId,
             title: 'คำขอจองห้องฝึกได้รับการอนุมัติแล้ว 🎉',
             message: `คำขอจอง ${updated.bookingNumber} (${updated.skillTopic}) ได้รับการอนุมัติแล้ว พร้อมรับ QR เข้าห้อง`,
@@ -146,7 +168,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         }
 
         logActivity({
-          userId,
+          userId: effectiveUserId,
           action: 'APPROVE',
           entityType: 'PRACTICE_BOOKING',
           entityId: updated.id,
@@ -159,6 +181,38 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     if (action === 'REJECT') {
+      if (!effectiveUserId) {
+        return NextResponse.json(
+          { error: 'กรุณาเข้าสู่ระบบก่อนดำเนินการปฏิเสธรายการ' },
+          { status: 401 }
+        );
+      }
+      const approverUser = await prisma.user.findUnique({
+        where: { id: effectiveUserId },
+        select: { role: true, status: true, approvalScopes: true, isExecutive: true },
+      });
+      if (
+        !approverUser ||
+        (approverUser.status && approverUser.status !== 'ACTIVE') ||
+        !canUserApprove(approverUser, 'PRACTICE')
+      ) {
+        return NextResponse.json(
+          { error: 'ท่านไม่มีสิทธิ์ปฏิเสธการจองห้องฝึกทักษะ (อยู่นอกเหนือขอบเขตความรับผิดชอบ)' },
+          { status: 403 }
+        );
+      }
+
+      if (booking.status !== 'PENDING') {
+        return NextResponse.json(
+          {
+            error: 'CONCURRENCY_CONFLICT',
+            message: '⚠️ คำขอจองห้องฝึกนี้ได้รับการดำเนินการไปแล้ว กรุณาตรวจสอบใหม่อีกครั้ง',
+            currentStatus: booking.status,
+          },
+          { status: 409 }
+        );
+      }
+
       const bookingsToReject = booking.groupCode
         ? await prisma.practiceBooking.findMany({
             where: { groupCode: booking.groupCode, status: 'PENDING' },
@@ -173,7 +227,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           where: { id: b.id },
           data: {
             status: 'REJECTED',
-            approverId: userId || null,
+            approverId: effectiveUserId,
             rejectionReason: reason || 'ไม่อนุมัติ',
           },
           include: {
@@ -186,7 +240,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
         // In-app notification
         if (updated.userId) {
-          createNotification({
+          await createNotification({
             userId: updated.userId,
             title: 'คำขอจองห้องฝึกไม่ได้รับการอนุมัติ ❌',
             message: `คำขอจอง ${updated.bookingNumber} (${updated.skillTopic}) ไม่ได้รับการอนุมัติ: ${updated.rejectionReason || 'ไม่อนุมัติ'}`,
@@ -199,7 +253,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         }
 
         logActivity({
-          userId,
+          userId: effectiveUserId,
           action: 'REJECT',
           entityType: 'PRACTICE_BOOKING',
           entityId: updated.id,

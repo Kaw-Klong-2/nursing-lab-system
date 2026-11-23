@@ -4,6 +4,7 @@ import { invalidateCache } from '@/lib/cache';
 import { canUserApprove } from '@/lib/approval-scope';
 import { createNotification } from '@/lib/notifications';
 import { logActivity } from '@/lib/activity-log';
+import { getSessionFromRequest } from '@/lib/session';
 
 export async function GET(
   req: Request,
@@ -37,9 +38,11 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getSessionFromRequest(req);
     const { id } = await params;
     const body = await req.json();
     const { action, userId, reason, title, purpose, attendeesCount, equipmentNeeded, note } = body;
+    const effectiveUserId = session?.uid || userId || null;
 
     const existing = await prisma.roomBooking.findUnique({
       where: { id },
@@ -51,17 +54,36 @@ export async function PUT(
     }
 
     if (action === 'APPROVE') {
-      if (userId) {
-        const approverUser = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { role: true, approvalScopes: true },
-        });
-        if (approverUser && !canUserApprove(approverUser, 'ROOM')) {
-          return NextResponse.json(
-            { error: 'ท่านไม่มีสิทธิ์อนุมัติการจองห้องปฏิบัติการ (อยู่นอกเหนือขอบเขตความรับผิดชอบ)' },
-            { status: 403 }
-          );
-        }
+      if (!effectiveUserId) {
+        return NextResponse.json(
+          { error: 'กรุณาเข้าสู่ระบบก่อนดำเนินการอนุมัติรายการ' },
+          { status: 401 }
+        );
+      }
+      const approverUser = await prisma.user.findUnique({
+        where: { id: effectiveUserId },
+        select: { role: true, status: true, approvalScopes: true, isExecutive: true },
+      });
+      if (
+        !approverUser ||
+        (approverUser.status && approverUser.status !== 'ACTIVE') ||
+        !canUserApprove(approverUser, 'ROOM')
+      ) {
+        return NextResponse.json(
+          { error: 'ท่านไม่มีสิทธิ์อนุมัติการจองห้องปฏิบัติการ (อยู่นอกเหนือขอบเขตความรับผิดชอบ)' },
+          { status: 403 }
+        );
+      }
+
+      if (existing.status !== 'PENDING') {
+        return NextResponse.json(
+          {
+            error: 'CONCURRENCY_CONFLICT',
+            message: '⚠️ คำขอจองห้องนี้ได้รับการดำเนินการไปแล้ว กรุณาตรวจสอบใหม่อีกครั้ง',
+            currentStatus: existing.status,
+          },
+          { status: 409 }
+        );
       }
 
       // Re-check conflict to prevent double booking
@@ -113,7 +135,7 @@ export async function PUT(
         where: { id },
         data: {
           status: 'APPROVED',
-          approverId: userId || null,
+          approverId: effectiveUserId,
           approvedAt: new Date(),
           rejectionReason: null,
         },
@@ -142,7 +164,7 @@ export async function PUT(
           where: { id: p.id },
           data: {
             status: 'REJECTED',
-            approverId: userId || null,
+            approverId: effectiveUserId,
             rejectionReason: `ระบบยกเลิกอัตโนมัติเนื่องจากห้องนี้ได้รับการอนุมัติให้คำขอ ${existing.bookingNumber} (${existing.startTime} - ${existing.endTime} น.) แล้ว`,
           },
         });
@@ -164,7 +186,7 @@ export async function PUT(
       invalidateCache('room:bookings:');
 
       logActivity({
-        userId,
+        userId: effectiveUserId,
         action: 'APPROVE',
         entityType: 'ROOM_BOOKING',
         entityId: updated.id,
@@ -190,11 +212,43 @@ export async function PUT(
     }
 
     if (action === 'REJECT') {
+      if (!effectiveUserId) {
+        return NextResponse.json(
+          { error: 'กรุณาเข้าสู่ระบบก่อนดำเนินการปฏิเสธรายการ' },
+          { status: 401 }
+        );
+      }
+      const approverUser = await prisma.user.findUnique({
+        where: { id: effectiveUserId },
+        select: { role: true, status: true, approvalScopes: true, isExecutive: true },
+      });
+      if (
+        !approverUser ||
+        (approverUser.status && approverUser.status !== 'ACTIVE') ||
+        !canUserApprove(approverUser, 'ROOM')
+      ) {
+        return NextResponse.json(
+          { error: 'ท่านไม่มีสิทธิ์ปฏิเสธการจองห้องปฏิบัติการ (อยู่นอกเหนือขอบเขตความรับผิดชอบ)' },
+          { status: 403 }
+        );
+      }
+
+      if (existing.status !== 'PENDING') {
+        return NextResponse.json(
+          {
+            error: 'CONCURRENCY_CONFLICT',
+            message: '⚠️ คำขอจองห้องนี้ได้รับการดำเนินการไปแล้ว กรุณาตรวจสอบใหม่อีกครั้ง',
+            currentStatus: existing.status,
+          },
+          { status: 409 }
+        );
+      }
+
       const updated = await prisma.roomBooking.update({
         where: { id },
         data: {
           status: 'REJECTED',
-          approverId: userId || null,
+          approverId: effectiveUserId,
           rejectionReason: reason || 'ไม่อนุมัติคำขอ',
         },
         include: {
@@ -207,7 +261,7 @@ export async function PUT(
       invalidateCache('room:bookings:');
 
       logActivity({
-        userId,
+        userId: effectiveUserId,
         action: 'REJECT',
         entityType: 'ROOM_BOOKING',
         entityId: updated.id,

@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
 import { sendApprovalRequestEmail } from '@/lib/email';
 import { formatUserName, formatTeacherName, formatRequesterWithRole } from '@/lib/user-utils';
-import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
+import { notifyRoles, notifyAdvisorByName, createNotification, findScopeApproverForEmail } from '@/lib/notifications';
 import { combineSlotDateAndBangkokTime, getBangkokEndOfDay } from '@/lib/date-time-utils';
 import { isViewerUser, VIEWER_FORBIDDEN_MESSAGE } from '@/lib/viewer-guard';
 
@@ -360,10 +360,8 @@ export async function POST(req: Request) {
       }
 
       if (!approverEmail) {
-        // Fallback to first active approver
-        const fallbackApprover = await prisma.user.findFirst({
-          where: { role: 'APPROVER', status: 'ACTIVE' },
-        });
+        // Fallback to active approver for PRACTICE scope
+        const fallbackApprover = await findScopeApproverForEmail('PRACTICE');
         if (fallbackApprover?.email) {
           approverEmail = fallbackApprover.email;
           approverName = formatTeacherName(fallbackApprover);
@@ -417,7 +415,7 @@ export async function POST(req: Request) {
           title: 'มีคำขอจองห้องฝึกปฏิบัติการใหม่ 🏢',
           message: `${requesterDisplay} ยื่นคำขอจองเลขที่ ${primaryBooking.bookingNumber} (${primaryBooking.skillTopic})${isGroup ? ` (กลุ่ม ${allUserIds.length} คน)` : ''}`,
           type: 'APPROVAL',
-          linkUrl: '/practice/bookings',
+          linkUrl: `/approvals?id=${primaryBooking.id}&type=PRACTICE`,
           entityType: 'PRACTICE',
           entityId: primaryBooking.id,
           priority: 'HIGH',

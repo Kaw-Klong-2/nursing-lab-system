@@ -125,20 +125,38 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           .catch((e) => console.error('Failed to sync linked requisition acknowledge:', e));
       }
 
-      // Notify student with proper role transparency (Teacher vs Admin/Staff)
+      // Notify student and scope approvers (awaited)
       const ackDisplay = formatAcknowledgeDisplay(body.advisorName || borrow.advisorName);
       const notifTitle = ackDisplay.isStaff ? 'แอดมิน/เจ้าหน้าที่รับทราบคำขอยืมแล้ว' : 'อาจารย์รับทราบคำขอยืมแล้ว';
       const notifMessage = `${ackDisplay.name} ได้กดรับทราบคำขอยืมเลขที่ ${borrow.requestNumber} แล้ว`;
 
-      createNotification({
-        userId: borrow.userId,
-        title: notifTitle,
-        message: notifMessage,
-        type: 'INSTRUCTOR_ACK',
-        linkUrl: '/borrow',
-        entityType: 'BORROW',
-        entityId: borrow.id,
-      }).catch(() => {});
+      await Promise.allSettled([
+        createNotification({
+          userId: borrow.userId,
+          title: notifTitle,
+          message: notifMessage,
+          type: 'INSTRUCTOR_ACK',
+          linkUrl: '/borrow',
+          entityType: 'BORROW',
+          entityId: borrow.id,
+        }),
+        borrow.status === 'PENDING'
+          ? notifyRoles(
+              ['OFFICER', 'ADMIN', 'APPROVER'],
+              {
+                title: 'อาจารย์รับทราบคำขอยืมแล้ว พร้อมรออนุมัติ ✅',
+                message: `${ackDisplay.name} รับทราบคำขอยืมเลขที่ ${borrow.requestNumber} (${borrow.purpose || 'ยืมครุภัณฑ์'}) แล้ว พร้อมให้ผู้อนุมัติพิจารณา`,
+                type: 'APPROVAL',
+                priority: 'HIGH',
+                linkUrl: `/approvals?id=${borrow.id}&type=BORROW`,
+                entityType: 'BORROW',
+                entityId: borrow.id,
+              },
+              'BORROW',
+              { excludeUserId: effectiveUserId }
+            )
+          : Promise.resolve(null),
+      ]);
 
       return respondUpdated(updated);
     }
@@ -206,31 +224,32 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         details: `อนุมัติคำขอยืมครุภัณฑ์เลขที่ ${borrow.requestNumber}`,
       });
 
-      // Notify student
-      createNotification({
-        userId: borrow.userId,
-        title: 'คำขอยืมได้รับการอนุมัติแล้ว 🎉',
-        message: `คำขอยืมเลขที่ ${borrow.requestNumber} ได้รับการอนุมัติแล้ว กรุณาติดต่อรับอุปกรณ์ที่ห้องแล็บ`,
-        type: 'APPROVAL',
-        priority: 'HIGH',
-        linkUrl: '/borrow',
-        entityType: 'BORROW',
-        entityId: borrow.id,
-      }).catch(() => {});
-
-      // Notify OFFICER & ADMIN about approved borrow request ready for pickup
+      // Notify student and OFFICER & ADMIN (awaited so Serverless doesn't abort Web Push)
       const borrowDateText = borrow.borrowDate
         ? new Date(borrow.borrowDate).toLocaleDateString('th-TH')
         : 'ตามกำหนดการ';
-      notifyRoles(['OFFICER', 'ADMIN'], {
-        title: '📦 มีรายการยืมอนุมัติแล้ว รอนัดรับ/จ่ายของ',
-        message: `คำขอยืมเลขที่ ${borrow.requestNumber} ได้รับการอนุมัติแล้ว มีกำหนดนัดรับ: ${borrowDateText}`,
-        type: 'STATUS_UPDATE',
-        priority: 'HIGH',
-        linkUrl: '/borrow',
-        entityType: 'BORROW',
-        entityId: borrow.id,
-      }).catch(() => {});
+
+      await Promise.allSettled([
+        createNotification({
+          userId: borrow.userId,
+          title: 'คำขอยืมได้รับการอนุมัติแล้ว 🎉',
+          message: `คำขอยืมเลขที่ ${borrow.requestNumber} ได้รับการอนุมัติแล้ว กรุณาติดต่อรับอุปกรณ์ที่ห้องแล็บ`,
+          type: 'APPROVAL',
+          priority: 'HIGH',
+          linkUrl: '/borrow',
+          entityType: 'BORROW',
+          entityId: borrow.id,
+        }),
+        notifyRoles(['OFFICER', 'ADMIN'], {
+          title: '📦 มีรายการยืมอนุมัติแล้ว รอนัดรับ/จ่ายของ',
+          message: `คำขอยืมเลขที่ ${borrow.requestNumber} ได้รับการอนุมัติแล้ว มีกำหนดนัดรับ: ${borrowDateText}`,
+          type: 'STATUS_UPDATE',
+          priority: 'HIGH',
+          linkUrl: '/borrow',
+          entityType: 'BORROW',
+          entityId: borrow.id,
+        }),
+      ]);
 
       return respondUpdated(updated);
     }

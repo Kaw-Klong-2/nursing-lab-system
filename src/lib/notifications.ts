@@ -27,6 +27,53 @@ export interface CreateNotificationParams {
 }
 
 /**
+ * แปลง entityType ให้เป็นรหัสมาตรฐานของหน้า /approvals
+ */
+function normalizeApprovalEntityType(entityType?: string | null): string | undefined {
+  if (!entityType) return undefined;
+  return entityType === 'BOOKING' || entityType === 'ROOM' ? 'ROOM' : entityType;
+}
+
+/**
+ * ตรวจสอบว่าเป็นการแจ้งเตือนคำขอใหม่/รอพิจารณาที่ควรแสดงปุ่ม "อนุมัติทันที" หรือไม่
+ * (แยกออกจากการแจ้งเตือนผลอนุมัติถึงนิสิต ซึ่งมี linkUrl ไปหน้า /borrow หรือ /requisitions)
+ */
+export function isPendingApprovalNotification(params: {
+  type?: string | null;
+  entityType?: string | null;
+  entityId?: string | null;
+  linkUrl?: string | null;
+}): boolean {
+  if (params.type !== 'APPROVAL' || !params.entityType || !params.entityId) return false;
+  if (
+    params.linkUrl &&
+    !params.linkUrl.startsWith('/approvals') &&
+    !params.linkUrl.startsWith('/practice/bookings')
+  ) {
+    return false;
+  }
+  return ['BORROW', 'REQUISITION', 'PRACTICE', 'BOOKING', 'ROOM'].includes(params.entityType);
+}
+
+/**
+ * สร้างหรือคงลิงก์ปลายทางพร้อม query parameter (?id=...&type=...) สำหรับคำขอรออนุมัติ
+ */
+export function resolveApprovalLinkUrl(
+  params: Pick<CreateNotificationParams, 'type' | 'entityType' | 'entityId' | 'linkUrl'>
+): string | null {
+  if (params.linkUrl && params.linkUrl.includes('?')) {
+    return params.linkUrl;
+  }
+  if (isPendingApprovalNotification(params)) {
+    const normalizedType = normalizeApprovalEntityType(params.entityType);
+    if (normalizedType) {
+      return `/approvals?id=${params.entityId}&type=${normalizedType}`;
+    }
+  }
+  return params.linkUrl || null;
+}
+
+/**
  * ส่ง Web Push Notification ไปยังเครื่องของผู้ใช้ควบคู่กับการบันทึกลงฐานข้อมูล
  */
 async function dispatchPushForNotification(params: CreateNotificationParams) {
@@ -36,7 +83,12 @@ async function dispatchPushForNotification(params: CreateNotificationParams) {
       { action: 'view', title: '🔍 ดูรายละเอียด' },
     ];
 
-    if (params.type === 'APPROVAL' && params.entityType && params.entityId) {
+    const isPendingApproval = isPendingApprovalNotification(params);
+    const isBatchLink = Boolean(params.linkUrl?.includes('batchId='));
+
+    if (isPendingApproval && isBatchLink) {
+      actions = [{ action: 'view', title: '🔍 ดูและอนุมัติทั้งชุด' }];
+    } else if (isPendingApproval && params.entityType && params.entityId) {
       if (params.entityType === 'BORROW') {
         approvalEndpoint = `/api/borrow/${params.entityId}`;
       } else if (params.entityType === 'REQUISITION') {
@@ -55,15 +107,8 @@ async function dispatchPushForNotification(params: CreateNotificationParams) {
       }
     }
 
-    const normalizedType =
-      params.entityType === 'BOOKING' || params.entityType === 'ROOM'
-        ? 'ROOM'
-        : params.entityType;
-
-    const targetUrl =
-      params.type === 'APPROVAL' && params.entityType && params.entityId
-        ? `/approvals?id=${params.entityId}&type=${normalizedType}`
-        : (params.linkUrl || '/');
+    const normalizedType = normalizeApprovalEntityType(params.entityType);
+    const targetUrl = resolveApprovalLinkUrl(params) || params.linkUrl || '/';
 
     const payload: PushPayload = {
       title: params.title,
@@ -102,6 +147,8 @@ export async function createNotification(params: CreateNotificationParams) {
       finalMessage = message;
     }
 
+    const resolvedLinkUrl = resolveApprovalLinkUrl(params);
+
     const record = await prisma.notification.create({
       data: {
         userId: params.userId,
@@ -109,14 +156,19 @@ export async function createNotification(params: CreateNotificationParams) {
         message: finalMessage,
         type: params.type,
         priority: params.priority || 'NORMAL',
-        linkUrl: params.linkUrl || null,
+        linkUrl: resolvedLinkUrl,
         entityType: params.entityType || null,
         entityId: params.entityId || null,
       },
     });
 
     // ส่ง Web Push โดยรอให้เสร็จสิ้นเพื่อป้องกัน runtime ถูกตัดจบ
-    await dispatchPushForNotification({ ...params, title: finalTitle, message: finalMessage });
+    await dispatchPushForNotification({
+      ...params,
+      title: finalTitle,
+      message: finalMessage,
+      linkUrl: resolvedLinkUrl || params.linkUrl,
+    });
 
     return record;
   } catch (error) {
@@ -131,14 +183,19 @@ export async function createNotification(params: CreateNotificationParams) {
 export async function createMultipleNotifications(notifications: CreateNotificationParams[]) {
   try {
     if (notifications.length === 0) return;
+    const normalizedList = notifications.map((n) => ({
+      ...n,
+      resolvedLinkUrl: resolveApprovalLinkUrl(n),
+    }));
+
     const result = await prisma.notification.createMany({
-      data: notifications.map((n) => ({
+      data: normalizedList.map((n) => ({
         userId: n.userId,
         title: n.title,
         message: n.message,
         type: n.type,
         priority: n.priority || 'NORMAL',
-        linkUrl: n.linkUrl || null,
+        linkUrl: n.resolvedLinkUrl,
         entityType: n.entityType || null,
         entityId: n.entityId || null,
       })),
@@ -146,7 +203,12 @@ export async function createMultipleNotifications(notifications: CreateNotificat
 
     // ส่ง Web Push ไปยังทุกผู้รับ พร้อม await ให้สมบูรณ์
     await Promise.allSettled(
-      notifications.map((notif) => dispatchPushForNotification(notif))
+      normalizedList.map((notif) =>
+        dispatchPushForNotification({
+          ...notif,
+          linkUrl: notif.resolvedLinkUrl || notif.linkUrl,
+        })
+      )
     );
 
     return result;
@@ -157,13 +219,57 @@ export async function createMultipleNotifications(notifications: CreateNotificat
 }
 
 /**
+ * ค้นหาผู้อนุมัติที่มีสิทธิ์ตรงตามขอบเขตงาน (สำหรับอีเมลแจ้งเตือน fallback)
+ */
+export async function findScopeApproverForEmail(
+  scope: ApprovalScopeType
+): Promise<{ id: string; name: string; email: string; prefix: string | null; role: string } | null> {
+  try {
+    const candidates = await prisma.user.findMany({
+      where: {
+        status: 'ACTIVE',
+        role: { notIn: ['USER', 'VIEWER'] },
+        email: { not: '' },
+      },
+      select: {
+        id: true,
+        name: true,
+        prefix: true,
+        email: true,
+        role: true,
+        approvalScopes: true,
+        isExecutive: true,
+      },
+    });
+
+    const eligible = candidates.filter((u) => canUserApprove(u, scope) && Boolean(u.email?.includes('@')));
+    if (eligible.length === 0) return null;
+
+    // ให้ความสำคัญกับผู้อนุมัติเฉพาะด้าน (ที่ไม่ใช่ ADMIN) ก่อน แล้วค่อย fallback ไปที่ ADMIN
+    const dedicated = eligible.find((u) => u.role !== 'ADMIN');
+    const chosen = dedicated || eligible[0];
+    return {
+      id: chosen.id,
+      name: chosen.name,
+      email: chosen.email,
+      prefix: chosen.prefix,
+      role: chosen.role,
+    };
+  } catch (err) {
+    console.error('Failed to find scope approver for email:', err);
+    return null;
+  }
+}
+
+/**
  * แจ้งเตือนไปยังกลุ่มบทบาท (เช่น 'ADMIN', 'OFFICER', 'APPROVER')
- * สามารถระบุ scope เพื่อกรองเฉพาะผู้อนุมัติที่มีสิทธิ์ในหมวดนั้นได้
+ * เมื่อระบุ scope จะดึงผู้ใช้ทุกบทบาทที่มีสิทธิ์อนุมัติในขอบเขตนั้นด้วย (รวมถึง TEACHER/EXECUTIVE ที่มี approvalScopes)
  */
 export async function notifyRoles(
   roles: string[],
   params: Omit<CreateNotificationParams, 'userId'>,
-  scope?: ApprovalScopeType
+  scope?: ApprovalScopeType,
+  options?: { excludeUserId?: string }
 ) {
   try {
     let finalTitle = params.title;
@@ -180,18 +286,37 @@ export async function notifyRoles(
       finalMessage = message;
     }
 
-    const users = await prisma.user.findMany({
-      where: {
-        role: { in: roles },
-        status: 'ACTIVE',
-      },
-      select: { id: true, role: true, approvalScopes: true },
-    });
+    const users = scope
+      ? await prisma.user.findMany({
+          where: {
+            status: 'ACTIVE',
+            role: { notIn: ['USER', 'VIEWER'] },
+            OR: [
+              { role: { in: roles } },
+              {
+                AND: [
+                  { approvalScopes: { not: null } },
+                  { approvalScopes: { not: '' } },
+                  { approvalScopes: { not: 'NONE' } },
+                ],
+              },
+            ],
+          },
+          select: { id: true, role: true, approvalScopes: true, isExecutive: true },
+        })
+      : await prisma.user.findMany({
+          where: {
+            role: { in: roles },
+            status: 'ACTIVE',
+          },
+          select: { id: true, role: true, approvalScopes: true, isExecutive: true },
+        });
 
-    // กรองเฉพาะผู้ใช้ที่มีสิทธิ์อนุมัติตรงตามขอบเขตงาน
-    const targetUsers = scope
-      ? users.filter((u) => canUserApprove(u, scope))
-      : users;
+    // กรองเฉพาะผู้ใช้ที่มีสิทธิ์อนุมัติตรงตามขอบเขตงาน และยกเว้นผู้กระทำรายการเองถ้ากำหนดไว้
+    const targetUsers = users.filter((u) => {
+      if (options?.excludeUserId && u.id === options.excludeUserId) return false;
+      return scope ? canUserApprove(u, scope) : true;
+    });
 
     const notifs = targetUsers.map((u) => ({
       ...params,
@@ -307,7 +432,8 @@ export async function notifyRolesWithTemplate(
     entityId?: string;
     fallback?: { title: string; message: string };
   },
-  scope?: ApprovalScopeType
+  scope?: ApprovalScopeType,
+  options?: { excludeUserId?: string }
 ) {
   const { title, message, isActive } = await getRenderedNotification(
     params.templateId,
@@ -328,7 +454,8 @@ export async function notifyRolesWithTemplate(
       entityType: params.entityType,
       entityId: params.entityId,
     },
-    scope
+    scope,
+    options
   );
 }
 

@@ -45,6 +45,7 @@ self.addEventListener('notificationclick', (event) => {
     event.waitUntil(
       fetch(notificationData.approvalEndpoint, {
         method: 'PUT',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(notificationData.approvalBody || { action: 'APPROVE' }),
       })

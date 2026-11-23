@@ -59,6 +59,27 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     };
 
     if (action === 'ACKNOWLEDGE') {
+      if (!effectiveUserId) {
+        return NextResponse.json(
+          { error: 'กรุณาเข้าสู่ระบบก่อนดำเนินการรับทราบรายการ' },
+          { status: 401 }
+        );
+      }
+      const actor = await prisma.user.findUnique({
+        where: { id: effectiveUserId },
+        select: { id: true, role: true, status: true },
+      });
+      if (
+        !actor ||
+        (actor.status && actor.status !== 'ACTIVE') ||
+        !['ADMIN', 'OFFICER', 'APPROVER', 'TEACHER'].includes(actor.role)
+      ) {
+        return NextResponse.json(
+          { error: 'ท่านไม่มีสิทธิ์กดรับทราบคำขอเบิกวัสดุสิ้นเปลือง' },
+          { status: 403 }
+        );
+      }
+
       // Preserve genuine teacher/instructor name if present; do not overwrite with staff/admin username
       const existingTeacher =
         requisition.course?.instructorName ||
@@ -92,20 +113,38 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           .catch((e) => console.error('Failed to sync linked borrow acknowledge:', e));
       }
 
-      // Notify student with proper role transparency (Teacher vs Admin/Staff)
+      // Notify student and scope approvers (awaited)
       const ackDisplay = formatAcknowledgeDisplay(body.advisorName || requisition.advisorName);
       const notifTitle = ackDisplay.isStaff ? 'แอดมิน/เจ้าหน้าที่รับทราบคำขอเบิกแล้ว' : 'อาจารย์รับทราบคำขอเบิกแล้ว';
       const notifMessage = `${ackDisplay.name} ได้กดรับทราบคำขอเบิกเลขที่ ${requisition.requestNumber} แล้ว`;
 
-      createNotification({
-        userId: requisition.userId,
-        title: notifTitle,
-        message: notifMessage,
-        type: 'INSTRUCTOR_ACK',
-        linkUrl: '/requisitions',
-        entityType: 'REQUISITION',
-        entityId: requisition.id,
-      }).catch(() => {});
+      await Promise.allSettled([
+        createNotification({
+          userId: requisition.userId,
+          title: notifTitle,
+          message: notifMessage,
+          type: 'INSTRUCTOR_ACK',
+          linkUrl: '/requisitions',
+          entityType: 'REQUISITION',
+          entityId: requisition.id,
+        }),
+        requisition.status === 'PENDING'
+          ? notifyRoles(
+              ['OFFICER', 'ADMIN', 'APPROVER'],
+              {
+                title: 'อาจารย์รับทราบคำขอเบิกแล้ว พร้อมรออนุมัติ ✅',
+                message: `${ackDisplay.name} รับทราบคำขอเบิกเลขที่ ${requisition.requestNumber} (${requisition.purpose || 'เบิกวัสดุ'}) แล้ว พร้อมให้ผู้อนุมัติพิจารณา`,
+                type: 'APPROVAL',
+                priority: 'HIGH',
+                linkUrl: `/approvals?id=${requisition.id}&type=REQUISITION`,
+                entityType: 'REQUISITION',
+                entityId: requisition.id,
+              },
+              'REQUISITION',
+              { excludeUserId: effectiveUserId }
+            )
+          : Promise.resolve(null),
+      ]);
 
       return respondUpdated(updated);
     }
@@ -164,31 +203,32 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         }).catch((e) => console.error('Failed to sync linked borrow approve:', e));
       }
 
-      // Notify student
-      createNotification({
-        userId: requisition.userId,
-        title: 'คำขอเบิกพัสดุได้รับการอนุมัติแล้ว 🎉',
-        message: `คำขอเบิกเลขที่ ${requisition.requestNumber} ได้รับการอนุมัติแล้ว กรุณาติดต่อรับพัสดุที่ห้องแล็บ`,
-        type: 'APPROVAL',
-        priority: 'HIGH',
-        linkUrl: '/requisitions',
-        entityType: 'REQUISITION',
-        entityId: requisition.id,
-      }).catch(() => {});
-
-      // Notify OFFICER & ADMIN about approved requisition waiting to be dispensed
+      // Notify student and OFFICER & ADMIN (awaited so Serverless doesn't abort Web Push)
       const dateNeededText = requisition.dateNeeded
         ? new Date(requisition.dateNeeded).toLocaleDateString('th-TH')
         : 'ตามกำหนดการ';
-      notifyRoles(['OFFICER', 'ADMIN'], {
-        title: '📦 มีรายการเบิกอนุมัติแล้ว รอจัดเตรียม/จ่ายของ',
-        message: `คำขอเบิกเลขที่ ${requisition.requestNumber} (${requisition.course?.code ? `วิชา ${requisition.course.code}` : requisition.purpose || 'เบิกวัสดุ'}) ได้รับอนุมัติแล้ว มีกำหนดใช้: ${dateNeededText}`,
-        type: 'STATUS_UPDATE',
-        priority: 'HIGH',
-        linkUrl: '/requisitions',
-        entityType: 'REQUISITION',
-        entityId: requisition.id,
-      }).catch(() => {});
+
+      await Promise.allSettled([
+        createNotification({
+          userId: requisition.userId,
+          title: 'คำขอเบิกพัสดุได้รับการอนุมัติแล้ว 🎉',
+          message: `คำขอเบิกเลขที่ ${requisition.requestNumber} ได้รับการอนุมัติแล้ว กรุณาติดต่อรับพัสดุที่ห้องแล็บ`,
+          type: 'APPROVAL',
+          priority: 'HIGH',
+          linkUrl: '/requisitions',
+          entityType: 'REQUISITION',
+          entityId: requisition.id,
+        }),
+        notifyRoles(['OFFICER', 'ADMIN'], {
+          title: '📦 มีรายการเบิกอนุมัติแล้ว รอจัดเตรียม/จ่ายของ',
+          message: `คำขอเบิกเลขที่ ${requisition.requestNumber} (${requisition.course?.code ? `วิชา ${requisition.course.code}` : requisition.purpose || 'เบิกวัสดุ'}) ได้รับอนุมัติแล้ว มีกำหนดใช้: ${dateNeededText}`,
+          type: 'STATUS_UPDATE',
+          priority: 'HIGH',
+          linkUrl: '/requisitions',
+          entityType: 'REQUISITION',
+          entityId: requisition.id,
+        }),
+      ]);
 
       logActivity({
         userId: effectiveUserId,

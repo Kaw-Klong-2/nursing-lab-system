@@ -22,7 +22,15 @@ import {
   School,
   ArrowRight,
 } from 'lucide-react';
-import { formatTermName, AcademicTermType } from '@/lib/academicTerm';
+import {
+  formatTermName,
+  AcademicTermType,
+  calculateTermDaysRemaining,
+  computeTermStatusByDate,
+  findCalendarActiveTerm,
+  getBangkokDateKey,
+  toTermDateKey,
+} from '@/lib/academicTerm';
 
 interface AcademicTermItem {
   id: string;
@@ -50,7 +58,6 @@ export default function AcademicTermsSettingsPage() {
     startDate: '2026-07-01',
     endDate: '2026-10-31',
     isCurrent: false,
-    status: 'ACTIVE' as 'ACTIVE' | 'UPCOMING' | 'CLOSED',
   });
 
   const [saving, setSaving] = useState(false);
@@ -62,10 +69,11 @@ export default function AcademicTermsSettingsPage() {
     }
   }, [isLoading, isOfficer, isAdmin, router]);
 
-  const fetchTerms = async () => {
+  const fetchTerms = async (forceSync = false) => {
     try {
       setLoading(true);
-      const res = await fetch('/api/academic-terms');
+      const url = forceSync ? '/api/academic-terms?sync=true' : '/api/academic-terms';
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setTerms(data);
@@ -87,10 +95,9 @@ export default function AcademicTermsSettingsPage() {
     setFormData({
       academicYear: '2569',
       term: 'FIRST',
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      startDate: getBangkokDateKey(),
+      endDate: getBangkokDateKey(new Date(Date.now() + 120 * 24 * 60 * 60 * 1000)),
       isCurrent: false,
-      status: 'ACTIVE',
     });
     setModalOpen(true);
   };
@@ -100,10 +107,9 @@ export default function AcademicTermsSettingsPage() {
     setFormData({
       academicYear: term.academicYear,
       term: term.term,
-      startDate: term.startDate.split('T')[0],
-      endDate: term.endDate.split('T')[0],
+      startDate: toTermDateKey(term.startDate) || '',
+      endDate: toTermDateKey(term.endDate) || '',
       isCurrent: term.isCurrent,
-      status: term.status,
     });
     setModalOpen(true);
   };
@@ -150,7 +156,7 @@ export default function AcademicTermsSettingsPage() {
       const res = await fetch(`/api/academic-terms/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isCurrent: true, status: 'ACTIVE' }),
+        body: JSON.stringify({ isCurrent: true }),
       });
 
       if (!res.ok) {
@@ -160,6 +166,36 @@ export default function AcademicTermsSettingsPage() {
 
       setFeedback({ type: 'success', message: 'กำหนดเป็นภาคการศึกษาปัจจุบันเรียบร้อยแล้ว' });
       await fetchTerms();
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err.message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSyncAuto = async () => {
+    try {
+      setSaving(true);
+      setFeedback(null);
+      const res = await fetch('/api/academic-terms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'SYNC_AUTO' }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'ไม่สามารถซิงก์ภาคการศึกษาตามปฏิทินได้');
+      }
+
+      if (Array.isArray(data.terms)) {
+        setTerms(data.terms);
+      } else {
+        await fetchTerms(true);
+      }
+
+      setFeedback({ type: 'success', message: 'ซิงก์ภาคการศึกษาตามปฏิทินปัจจุบันเรียบร้อยแล้ว' });
       setTimeout(() => setFeedback(null), 4000);
     } catch (err: any) {
       setFeedback({ type: 'error', message: err.message });
@@ -190,8 +226,11 @@ export default function AcademicTermsSettingsPage() {
   const formatThaiDate = (dateStr: string) => {
     if (!dateStr) return '-';
     try {
-      const d = new Date(dateStr);
+      const key = toTermDateKey(dateStr);
+      if (!key) return dateStr;
+      const d = new Date(`${key}T00:00:00.000Z`);
       return d.toLocaleDateString('th-TH', {
+        timeZone: 'UTC',
         day: 'numeric',
         month: 'short',
         year: 'numeric',
@@ -201,14 +240,11 @@ export default function AcademicTermsSettingsPage() {
     }
   };
 
-  const calculateDaysRemaining = (endDateStr: string) => {
-    const end = new Date(endDateStr).getTime();
-    const now = new Date().getTime();
-    const diff = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
-    return diff;
-  };
-
   const currentTerm = terms.find((t) => t.isCurrent);
+  const calendarActiveTerm = findCalendarActiveTerm(terms);
+  const isManualOverride = Boolean(calendarActiveTerm && currentTerm && calendarActiveTerm.id !== currentTerm.id);
+  const currentTermDaysRemaining = currentTerm ? calculateTermDaysRemaining(currentTerm.endDate) : null;
+  const previewStatus = computeTermStatusByDate(formData.startDate, formData.endDate);
 
   if (isLoading || loading) {
     return (
@@ -261,10 +297,10 @@ export default function AcademicTermsSettingsPage() {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={fetchTerms}
+            onClick={() => fetchTerms(true)}
             disabled={loading}
             className="p-2.5 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl transition"
-            title="รีเฟรชข้อมูล"
+            title="รีเฟรชและตรวจสอบปฏิทินล่าสุด"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -302,9 +338,21 @@ export default function AcademicTermsSettingsPage() {
           <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none" />
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-semibold">
-                <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
-                <span>ภาคการศึกษาปัจจุบัน (ACTIVE TERM)</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-semibold">
+                  <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                  <span>ภาคการศึกษาปัจจุบัน (ACTIVE TERM)</span>
+                </div>
+                {isManualOverride ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-400/25 border border-amber-200/40 text-amber-100 rounded-full text-[11px] font-semibold">
+                    กำหนดเอง (Override)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-400/20 border border-white/25 text-emerald-50 rounded-full text-[11px] font-semibold">
+                    <Sparkles className="w-3 h-3" />
+                    สลับอัตโนมัติตามปฏิทิน
+                  </span>
+                )}
               </div>
               <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
                 {currentTerm.name}
@@ -319,15 +367,32 @@ export default function AcademicTermsSettingsPage() {
                 <div className="flex items-center gap-1.5">
                   <Clock className="w-4 h-4 text-emerald-200" />
                   <span>
-                    {calculateDaysRemaining(currentTerm.endDate) > 0
-                      ? `เหลือเวลาอีก ${calculateDaysRemaining(currentTerm.endDate)} วันจะสิ้นสุดภาคเรียน`
+                    {currentTermDaysRemaining !== null && currentTermDaysRemaining > 0
+                      ? `เหลือเวลาอีก ${currentTermDaysRemaining} วันจะสิ้นสุดภาคเรียน`
+                      : currentTermDaysRemaining === 0
+                      ? 'วันสุดท้ายของภาคการศึกษา'
                       : 'สิ้นสุดภาคการศึกษาแล้ว'}
                   </span>
                 </div>
               </div>
+              {isManualOverride && calendarActiveTerm && (
+                <p className="text-xs text-amber-100/95">
+                  ตามปฏิทินวันนี้ตรงกับ {calendarActiveTerm.name} (ระบบจะคงค่าที่กำหนดเองไว้จนกว่าจะกดซิงก์กลับหรือเข้าสู่ภาคเรียนถัดไป)
+                </p>
+              )}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              {isManualOverride && (
+                <button
+                  onClick={handleSyncAuto}
+                  disabled={saving}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-amber-400/25 hover:bg-amber-400/35 border border-amber-200/40 backdrop-blur-md rounded-xl text-xs sm:text-sm font-semibold text-white transition disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${saving ? 'animate-spin' : ''}`} />
+                  <span>ซิงก์กลับตามปฏิทินจริง</span>
+                </button>
+              )}
               <button
                 onClick={() => openEditModal(currentTerm)}
                 className="px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-xl text-xs sm:text-sm font-medium transition"
@@ -544,18 +609,31 @@ export default function AcademicTermsSettingsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  สถานะการดำเนินงาน
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  สถานะการดำเนินงาน (คำนวณอัตโนมัติตามวันที่)
                 </label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                  className="w-full px-3 py-2 text-xs sm:text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
-                >
-                  <option value="ACTIVE">เปิดใช้งาน (ACTIVE)</option>
-                  <option value="UPCOMING">กำลังจะมาถึง (UPCOMING)</option>
-                  <option value="CLOSED">ปิดภาคการศึกษาแล้ว (CLOSED)</option>
-                </select>
+                <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 space-y-1.5">
+                  <div>
+                    <span
+                      className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                        previewStatus === 'ACTIVE'
+                          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                          : previewStatus === 'UPCOMING'
+                          ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                          : 'bg-slate-200/80 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+                      }`}
+                    >
+                      {previewStatus === 'ACTIVE'
+                        ? 'เปิดใช้งาน (ACTIVE)'
+                        : previewStatus === 'UPCOMING'
+                        ? 'กำลังจะมาถึง (UPCOMING)'
+                        : 'ปิดภาคเรียน (CLOSED)'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    ระบบคำนวณและปรับสถานะให้อัตโนมัติตามช่วงวันที่เปิด-ปิดภาคเรียน (เวลาไทย Asia/Bangkok)
+                  </p>
+                </div>
               </div>
 
               <div className="pt-2">

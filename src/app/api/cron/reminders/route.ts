@@ -5,6 +5,7 @@ import { notifyRoles, createNotification } from '@/lib/notifications';
 import { formatUserName } from '@/lib/user-utils';
 import { getBangkokStartOfDay, getBangkokEndOfDay, formatOverdueDuration } from '@/lib/date-time-utils';
 import { getSessionFromRequest } from '@/lib/session';
+import { ensureAcademicTermsSynced } from '@/lib/academicTermSync';
 
 function timingSafeMatch(provided?: string | null, expected?: string | null): boolean {
   if (!provided || !expected) return false;
@@ -54,6 +55,18 @@ async function verifyAuth(req: Request): Promise<{ authorized: boolean; reason?:
  */
 async function processReminders(type: string = 'all') {
   const now = new Date();
+
+  let academicTermSync: { syncedCount: number; currentTermId: string | null } = {
+    syncedCount: 0,
+    currentTermId: null,
+  };
+  try {
+    const res = await ensureAcademicTermsSynced({ force: true, now });
+    academicTermSync = { syncedCount: res.syncedCount, currentTermId: res.currentTermId };
+  } catch (termSyncErr) {
+    console.error('Academic term auto-sync error in cron:', termSyncErr);
+  }
+
   const eighteenHoursAgo = new Date(now.getTime() - 18 * 60 * 60 * 1000);
 
   // คำนวณช่วงเวลาวันนี้และวันพรุ่งนี้ตามเขตเวลาประเทศไทย (Asia/Bangkok, UTC+7)
@@ -402,6 +415,8 @@ async function processReminders(type: string = 'all') {
   return {
     success: true,
     executedAt: now.toISOString(),
+    academicTermSyncedCount: academicTermSync.syncedCount,
+    currentAcademicTermId: academicTermSync.currentTermId,
     overdueCount: overdueBorrowsList.length,
     overdueAlertsSent,
     dDayAlertsSent,

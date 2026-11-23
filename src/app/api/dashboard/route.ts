@@ -2,10 +2,13 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCached, setCached } from '@/lib/cache';
 import { toLegacySemesterCode } from '@/lib/academicTerm';
+import { ensureAcademicTermsSynced } from '@/lib/academicTermSync';
 import { getBangkokStartOfDay, getBangkokEndOfDay } from '@/lib/date-time-utils';
 
 export async function GET(req: Request) {
   try {
+    await ensureAcademicTermsSynced();
+
     const { searchParams } = new URL(req.url);
     const termId = searchParams.get('termId');
     const startDate = searchParams.get('startDate');

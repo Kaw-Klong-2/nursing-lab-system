@@ -3,7 +3,10 @@
  * มาตรฐานคำเรียกภาคการศึกษา: ภาคต้น, ภาคปลาย, ภาคฤดูร้อน
  */
 
+import { getBangkokParts } from './date-time-utils';
+
 export type AcademicTermType = 'FIRST' | 'SECOND' | 'SUMMER';
+export type AcademicTermStatus = 'ACTIVE' | 'UPCOMING' | 'CLOSED';
 
 export interface AcademicTermOption {
   value: AcademicTermType;
@@ -78,6 +81,109 @@ export interface AcademicTermInfo {
   startDate?: string | Date;
   endDate?: string | Date;
   isCurrent?: boolean;
+  status?: AcademicTermStatus | string;
+}
+
+/**
+ * สกัดคีย์วันที่มาตรฐาน "YYYY-MM-DD" จาก Date หรือ ISO String ของภาคการศึกษา
+ * ใช้ UTC date-only (.toISOString().slice(0, 10)) เพื่อรักษาวันที่ปฏิทินไทยเดิมไม่ให้เลื่อนเมื่อแปลง Timezone
+ */
+export function toTermDateKey(date?: Date | string | null): string | null {
+  if (!date) return null;
+  if (typeof date === 'string') {
+    const trimmed = date.trim();
+    const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1];
+    const parsed = new Date(trimmed);
+    if (isNaN(parsed.getTime())) return null;
+    return parsed.toISOString().slice(0, 10);
+  }
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * แปลงวันที่อินพุตเป็น Date ที่เวลา 00:00:00.000Z เพื่อเก็บในฐานข้อมูลแบบ Date-only อย่างสม่ำเสมอ
+ */
+export function parseTermDateToUtcMidnight(dateInput?: Date | string | null): Date | null {
+  const key = toTermDateKey(dateInput);
+  if (!key) return null;
+  const parsed = new Date(`${key}T00:00:00.000Z`);
+  if (isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== key) {
+    return null;
+  }
+  return parsed;
+}
+
+/**
+ * คืนค่าวันที่ปัจจุบันในเขตเวลาประเทศไทย (Asia/Bangkok) รูปแบบ "YYYY-MM-DD"
+ */
+export function getBangkokDateKey(now: Date = new Date()): string {
+  return getBangkokParts(now).dateString;
+}
+
+/**
+ * คำนวณสถานะภาคการศึกษาอัตโนมัติ (ACTIVE / UPCOMING / CLOSED) ตามวันที่ปฏิทินประเทศไทย
+ */
+export function computeTermStatusByDate(
+  startDate: Date | string,
+  endDate: Date | string,
+  todayBkkKey: string = getBangkokDateKey()
+): AcademicTermStatus {
+  const startKey = toTermDateKey(startDate);
+  const endKey = toTermDateKey(endDate);
+  if (!startKey || !endKey) return 'ACTIVE';
+  if (todayBkkKey > endKey) return 'CLOSED';
+  if (todayBkkKey < startKey) return 'UPCOMING';
+  return 'ACTIVE';
+}
+
+/**
+ * ค้นหาภาคการศึกษาที่ตรงกับวันที่ปฏิทินไทยปัจจุบัน (startDate <= today <= endDate)
+ */
+export function findCalendarActiveTerm<
+  T extends { id: string; startDate: Date | string; endDate: Date | string; academicYear?: string }
+>(terms: T[], todayBkkKey: string = getBangkokDateKey()): T | null {
+  const matches = terms.filter((t) => {
+    const startKey = toTermDateKey(t.startDate);
+    const endKey = toTermDateKey(t.endDate);
+    return Boolean(startKey && endKey && todayBkkKey >= startKey && todayBkkKey <= endKey);
+  });
+
+  if (matches.length === 0) return null;
+
+  matches.sort((a, b) => {
+    const startA = toTermDateKey(a.startDate) || '';
+    const startB = toTermDateKey(b.startDate) || '';
+    if (startB !== startA) return startB.localeCompare(startA);
+
+    const yearA = String(a.academicYear || '');
+    const yearB = String(b.academicYear || '');
+    if (yearB !== yearA) return yearB.localeCompare(yearA);
+
+    const endA = toTermDateKey(a.endDate) || '';
+    const endB = toTermDateKey(b.endDate) || '';
+    return endB.localeCompare(endA);
+  });
+
+  return matches[0];
+}
+
+/**
+ * คำนวณจำนวนวันที่เหลือจนถึงวันสิ้นสุดภาคการศึกษาตามปฏิทินไทย (Asia/Bangkok)
+ * > 0 = ยังเหลืออีก N วัน, 0 = วันสุดท้ายของภาคการศึกษา, < 0 = สิ้นสุดแล้ว
+ */
+export function calculateTermDaysRemaining(
+  endDate: Date | string,
+  todayBkkKey: string = getBangkokDateKey()
+): number {
+  const endKey = toTermDateKey(endDate);
+  if (!endKey) return -1;
+  const endMs = Date.parse(`${endKey}T00:00:00.000Z`);
+  const todayMs = Date.parse(`${todayBkkKey}T00:00:00.000Z`);
+  if (isNaN(endMs) || isNaN(todayMs)) return -1;
+  return Math.round((endMs - todayMs) / 86400000);
 }
 
 /**
@@ -95,18 +201,26 @@ export function getAcademicTermByDate(
     return { termName: '-', academicYear: '-', fullTermName: '-' };
   }
 
+  const targetBkkKey = getBangkokDateKey(d);
+
   // 1. ตรวจสอบจากช่วง startDate - endDate ของ AcademicTerm
   if (terms && terms.length > 0) {
-    const matched = terms.find(t => {
-      if (!t.startDate || !t.endDate) return false;
-      const start = new Date(t.startDate);
-      const end = new Date(new Date(t.endDate).getTime() + 86399999);
-      return d >= start && d <= end;
-    });
+    const matchingTerms = terms
+      .filter((t) => {
+        const startKey = toTermDateKey(t.startDate);
+        const endKey = toTermDateKey(t.endDate);
+        return Boolean(startKey && endKey && targetBkkKey >= startKey && targetBkkKey <= endKey);
+      })
+      .sort((a, b) => {
+        const startA = toTermDateKey(a.startDate) || '';
+        const startB = toTermDateKey(b.startDate) || '';
+        return startB.localeCompare(startA);
+      });
 
+    const matched = matchingTerms[0];
     if (matched) {
       const termName = formatTermName(matched.term || matched.name);
-      const year = matched.academicYear || String(d.getFullYear() + 543);
+      const year = matched.academicYear || String(getBangkokParts(d).year + 543);
       return {
         termName,
         academicYear: year,
@@ -115,12 +229,12 @@ export function getAcademicTermByDate(
     }
   }
 
-  // 2. ประมาณการตามรอบปฏิทินมหาวิทยาลัย
+  // 2. ประมาณการตามรอบปฏิทินมหาวิทยาลัย (อ้างอิงเวลาประเทศไทย Asia/Bangkok)
   // มิถุนายน - ตุลาคม: ภาคต้น
   // พฤศจิกายน - มีนาคม: ภาคปลาย
   // เมษายน - พฤษภาคม: ภาคฤดูร้อน
-  const month = d.getMonth() + 1; // 1-12
-  const gregorianYear = d.getFullYear();
+  const { year: gregorianYear, month: monthZeroBased } = getBangkokParts(d);
+  const month = monthZeroBased + 1; // 1-12
   let termName = 'ภาคต้น';
   let academicYear = String(gregorianYear + 543);
 

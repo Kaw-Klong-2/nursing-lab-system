@@ -17,6 +17,19 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-23] เพิ่มระบบสลับภาคการศึกษาและอัปเดตสถานะอัตโนมัติตามวันที่ประเทศไทย (`v2.8.2`)
+- **หมวดหมู่**: Academic Calendar, Auto-Sync & Security (`v2.8.2`)
+- **สิ่งที่ดำเนินการ**:
+  - **Version Bump (`v2.8.1` -> `v2.8.2`)**: รัน `node scripts/version-bump.mjs patch` ซิงก์ `package.json` และ `src/lib/version.ts` เป็น `v2.8.2`
+  - **ฟังก์ชันคำนวณปฏิทินตามเวลาไทย (`src/lib/academicTerm.ts`)**: เพิ่ม `toTermDateKey`, `parseTermDateToUtcMidnight`, `getBangkokDateKey`, `computeTermStatusByDate`, `findCalendarActiveTerm`, `calculateTermDaysRemaining` และปรับ `getAcademicTermByDate` ให้เปรียบเทียบตามวันที่ประเทศไทย (`Asia/Bangkok`) อย่างแม่นยำโดยคงค่า Date-only UTC ไม่ให้เลื่อนเมื่อ `.slice(0, 10)`
+  - **กลไกซิงก์ภาคเรียนอัตโนมัติ (`src/lib/academicTermSync.ts`)**: สร้าง `ensureAcademicTermsSynced`, `seedDefaultTermsIfEmpty`, `recordManualTermPin`, `clearManualTermPin` และ `invalidateAcademicTermCaches` สลับ `isCurrent` และปรับสถานะ `ACTIVE` / `UPCOMING` / `CLOSED` อัตโนมัติตามวันที่ปัจจุบัน พร้อมแคชระดับวันและรองรับการปักหมุด Override ชั่วคราว (ล้างแคชและหมดอายุอัตโนมัติเมื่อเข้าภาคเรียนใหม่)
+  - **เชื่อมต่อ API, Dashboard, Cron และสิทธิ์ผู้ใช้**:
+    - `src/app/api/academic-terms/route.ts` และ `src/app/api/academic-terms/[id]/route.ts`: เรียก `ensureAcademicTermsSynced`, รองรับ action `SYNC_AUTO`, บังคับตรวจสิทธิ์ `ADMIN`/`OFFICER` ด้วย `requireActiveActor` บน `POST`/`PUT`/`DELETE`, และครอบการสลับ `isCurrent` ด้วย `prisma.$transaction`
+    - `src/app/api/dashboard/route.ts` และ `src/app/api/cron/reminders/route.ts`: ซิงก์ภาคเรียนอัตโนมัติก่อนโหลดสถิติและระหว่างรัน Cron ประจำวัน
+  - **ปรับปรุงหน้าตั้งค่า (`/settings/terms`)**: แสดงป้ายสถานะ `สลับอัตโนมัติตามปฏิทิน` / `กำหนดเอง (Override)`, ปุ่ม `ซิงก์กลับตามปฏิทินจริง`, แสดงผลวันสิ้นสุดภาคเรียนอย่างถูกต้อง (รวมวันสุดท้ายของภาคการศึกษา), และเปลี่ยนช่องสถานะใน Modal เป็นตัวอย่างสถานะคำนวณอัตโนมัติจากวันที่
+- **ไฟล์สำคัญที่แก้ไข/เพิ่ม**: `package.json`, `src/lib/version.ts`, `src/lib/academicTerm.ts`, `src/lib/academicTermSync.ts`, `src/app/api/academic-terms/route.ts`, `src/app/api/academic-terms/[id]/route.ts`, `src/app/api/dashboard/route.ts`, `src/app/api/cron/reminders/route.ts`, `src/app/settings/terms/page.tsx`, `LIBRARY_CATALOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ผ่าน 100% (`v2.8.2` ซิงก์ตรง, ไม่พบคำต้องห้าม, ไม่พบ UTF-8 Mojibake, `npx tsc --noEmit` & `npm run build` ผ่านสมบูรณ์)
+
 ### [2026-11-21] ปรับแก้จัดหน้าบันทึกข้อความรายงานแอร์ให้ตรงต้นฉบับ มก. (`v2.8.1`)
 - **หมวดหมู่**: Air Conditioning Reports (`v2.8.1`)
 - **สิ่งที่ดำเนินการ**:

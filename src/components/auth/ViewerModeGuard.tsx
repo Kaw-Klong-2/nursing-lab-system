@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Eye, Lock, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { registerFetchInterceptor } from '@/lib/fetch-interceptor';
 
 const VIEWER_READ_ONLY_MESSAGE =
   'บัญชีผู้เข้าชม (Viewer) มีสิทธิ์ดูข้อมูลอย่างเดียว ไม่สามารถส่งคำร้องหรือบันทึกแก้ไขข้อมูลได้';
@@ -10,6 +11,7 @@ const VIEWER_READ_ONLY_MESSAGE =
 const ALLOWED_VIEWER_MUTATION_PATHS = [
   '/api/auth/heartbeat',
   '/api/auth/login',
+  '/api/auth/logout',
   '/api/auth/google',
   '/api/auth/portal-handoff',
 ];
@@ -31,59 +33,69 @@ function resolveRequestMethod(input: RequestInfo | URL, init?: RequestInit): str
 export default function ViewerModeGuard() {
   const { isViewer } = useAuth();
   const [blockedAlert, setBlockedAlert] = useState<string | null>(null);
+  const isViewerRef = useRef(isViewer);
+  isViewerRef.current = isViewer;
 
   useEffect(() => {
-    if (!isViewer || typeof window === 'undefined') return;
+    if (!isViewer || typeof window === 'undefined') {
+      setBlockedAlert(null);
+      return;
+    }
 
-    const originalFetch = window.fetch.bind(window);
     let clearTimer: ReturnType<typeof setTimeout> | null = null;
 
-    window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const urlStr = resolveRequestUrl(input);
-      const method = resolveRequestMethod(input, init);
-      const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+    const unregister = registerFetchInterceptor({
+      id: 'viewer-mode-guard',
+      before: (input, init) => {
+        if (!isViewerRef.current) return null;
 
-      if (isMutation) {
-        let pathname = urlStr;
-        try {
-          pathname = new URL(urlStr, window.location.origin).pathname;
-        } catch {
-          // ignore invalid relative URL parsing fallback
-        }
+        const urlStr = resolveRequestUrl(input);
+        const method = resolveRequestMethod(input, init);
+        const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
 
-        if (pathname.startsWith('/api/')) {
-          const isAllowedAuthEndpoint = ALLOWED_VIEWER_MUTATION_PATHS.some(
-            (allowed) => pathname === allowed || pathname.startsWith(allowed + '/')
-          );
+        if (isMutation) {
+          let pathname = urlStr;
+          try {
+            pathname = new URL(urlStr, window.location.origin).pathname;
+          } catch {
+            // ignore invalid relative URL parsing fallback
+          }
 
-          if (!isAllowedAuthEndpoint) {
-            setBlockedAlert(VIEWER_READ_ONLY_MESSAGE);
-            if (clearTimer) clearTimeout(clearTimer);
-            clearTimer = setTimeout(() => {
-              setBlockedAlert(null);
-            }, 5000);
-
-            return new Response(
-              JSON.stringify({
-                error: VIEWER_READ_ONLY_MESSAGE,
-                code: 'VIEWER_READ_ONLY',
-              }),
-              {
-                status: 403,
-                statusText: 'Forbidden',
-                headers: { 'Content-Type': 'application/json' },
-              }
+          if (pathname.startsWith('/api/')) {
+            const isAllowedAuthEndpoint = ALLOWED_VIEWER_MUTATION_PATHS.some(
+              (allowed) => pathname === allowed || pathname.startsWith(allowed + '/')
             );
+
+            if (!isAllowedAuthEndpoint) {
+              setBlockedAlert(VIEWER_READ_ONLY_MESSAGE);
+              if (clearTimer) clearTimeout(clearTimer);
+              clearTimer = setTimeout(() => {
+                setBlockedAlert(null);
+              }, 5000);
+
+              return new Response(
+                JSON.stringify({
+                  error: VIEWER_READ_ONLY_MESSAGE,
+                  code: 'VIEWER_READ_ONLY',
+                }),
+                {
+                  status: 403,
+                  statusText: 'Forbidden',
+                  headers: { 'Content-Type': 'application/json' },
+                }
+              );
+            }
           }
         }
-      }
 
-      return originalFetch(input, init);
-    };
+        return null;
+      },
+    });
 
     return () => {
       if (clearTimer) clearTimeout(clearTimer);
-      window.fetch = originalFetch;
+      setBlockedAlert(null);
+      unregister();
     };
   }, [isViewer]);
 

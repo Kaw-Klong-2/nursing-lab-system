@@ -17,6 +17,17 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-23] แก้บั๊ก ViewerModeGuard ค้างบล็อกแอดมินหลังสลับบัญชีจาก Viewer (`v2.8.4`)
+- **หมวดหมู่**: Auth Guard, Client Fetch Pipeline & UX (`v2.8.4`)
+- **สิ่งที่ดำเนินการ**:
+  - **Version Bump (`v2.8.3` -> `v2.8.4`)**: รัน `node scripts/version-bump.mjs patch` ซิงก์ `package.json` และ `src/lib/version.ts` เป็น `v2.8.4`
+  - **สร้างระบบลงทะเบียน Fetch Interceptor ส่วนกลาง (`src/lib/fetch-interceptor.ts`)**: แก้บั๊กการซ้อนทับ `window.fetch` ระหว่าง `<ViewerModeGuard />` และ `<PostActionFeedbackModal />` ใน `AppLayout.tsx` (เดิมตอนออกจากบัญชี Viewer ฝั่ง `PostActionFeedbackModal` ที่ unmount ทีหลังเขียน `window.fetch` กลับไปเป็นตัวบล็อกของ Viewer ทำให้บัญชี Admin ที่เข้าต่อในแท็บเดียวกันถูกบล็อกป๊อปอัป `VIEWER_READ_ONLY` ค้าง)
+  - **ปรับปรุง `ViewerModeGuard` และ `PostActionFeedbackModal`**:
+    - `src/components/auth/ViewerModeGuard.tsx`: ย้ายมาลงทะเบียนผ่าน `registerFetchInterceptor` พร้อมเพิ่ม `isViewerRef.current` guard และเพิ่ม `/api/auth/logout` ใน whitelist เพื่อให้บัญชี Viewer ออกจากระบบและล้าง session cookie ได้สะอาด
+    - `src/components/feedback/PostActionFeedbackModal.tsx`: เปลี่ยนมาใช้ `registerFetchInterceptor` ผ่าน `after` hook และข้ามการแสดงผลเมื่อเป็นผู้ชม (`VIEWER`)
+- **ไฟล์สำคัญที่แก้ไข/เพิ่ม**: `package.json`, `src/lib/version.ts`, `src/lib/fetch-interceptor.ts`, `src/components/auth/ViewerModeGuard.tsx`, `src/components/feedback/PostActionFeedbackModal.tsx`, `LIBRARY_CATALOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ผ่าน 100% (`v2.8.4` ซิงก์ตรง, ไม่พบคำต้องห้าม, ไม่พบ UTF-8 Mojibake, `npx tsc --noEmit` & `npm run build` ผ่านสมบูรณ์)
+
 ### [2026-11-23] แก้บั๊กกราฟงบประมาณรายวิชาหน้าหลักแสดงข้อมูลทั้งหมดแทนภาคปัจจุบัน (`v2.8.3`)
 - **หมวดหมู่**: Dashboard Analytics & Term Filtering (`v2.8.3`)
 - **สิ่งที่ดำเนินการ**:

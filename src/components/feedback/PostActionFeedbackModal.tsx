@@ -9,6 +9,7 @@ import {
   FEEDBACK_QUICK_TAGS,
   RATING_LABELS,
 } from '@/lib/feedback-constants';
+import { registerFetchInterceptor } from '@/lib/fetch-interceptor';
 
 interface FeedbackConfigState {
   isEnabled: boolean;
@@ -249,10 +250,10 @@ export default function PostActionFeedbackModal() {
 
     window.addEventListener('lab-post-action-feedback', onCustomTrigger);
 
-    const origFetch = window.fetch.bind(window);
-    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-      const response = await origFetch(input, init);
-      try {
+    const unregisterFetch = registerFetchInterceptor({
+      id: 'post-action-feedback',
+      after: (input, init, response) => {
+        if (currentUserRef.current?.role === 'VIEWER') return;
         if (response.ok && pathnameRef.current !== '/login') {
           const actionMeta = detectCompletedAction(input, init);
           if (actionMeta) {
@@ -263,15 +264,12 @@ export default function PostActionFeedbackModal() {
             });
           }
         }
-      } catch {
-        // never break app fetch pipeline
-      }
-      return response;
-    };
+      },
+    });
 
     return () => {
       window.removeEventListener('lab-post-action-feedback', onCustomTrigger);
-      window.fetch = origFetch;
+      unregisterFetch();
     };
   }, [currentUser?.id]);
 

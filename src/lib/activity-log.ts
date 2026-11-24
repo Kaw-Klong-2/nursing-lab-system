@@ -28,6 +28,7 @@ export type ActivityEntityType =
   | 'PRACTICE_BOOKING'
   | 'ITEM'
   | 'STOCK'
+  | 'COURSE'
   | 'USER'
   | 'SYSTEM';
 

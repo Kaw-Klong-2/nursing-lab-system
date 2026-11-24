@@ -11,6 +11,7 @@ import {
   isTimeRangeOverlapping,
 } from '@/lib/date-time-utils';
 import { isViewerUser, VIEWER_FORBIDDEN_MESSAGE } from '@/lib/viewer-guard';
+import { validateStudentCourseEnrollment } from '@/lib/course-enrollment';
 
 class RoomBookingError extends Error {
   status: number;
@@ -135,6 +136,11 @@ export async function POST(req: Request) {
 
     if (await isViewerUser(userId)) {
       return NextResponse.json({ error: VIEWER_FORBIDDEN_MESSAGE }, { status: 403 });
+    }
+
+    const enrollmentCheck = await validateStudentCourseEnrollment({ userId, courseId });
+    if (!enrollmentCheck.ok) {
+      return enrollmentCheck.errorResponse;
     }
 
     // เฉพาะแอดมิน (ADMIN) หรือเจ้าหน้าที่ (OFFICER) เท่านั้นที่มีสิทธิ์เลือกสร้าง 'ตารางเรียน'

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import {
   useAuth } from '@/lib/auth-context';
+import StudentCourseNotice from '@/components/courses/StudentCourseNotice';
 import {
   RefreshCw,
   FileSpreadsheet,
@@ -1053,6 +1054,7 @@ export default function RequisitionsPage() {
                       </option>
                     ))}
                   </select>
+                  <StudentCourseNotice isStudent={Boolean(currentUser?.role === 'USER' && !isTeacher)} coursesCount={courses.length} loading={loading} required />
                 </div>
 
                 <div>

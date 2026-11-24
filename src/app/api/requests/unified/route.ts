@@ -6,6 +6,7 @@ import { notifyRoles, notifyAdvisorByName, createNotification, findScopeApprover
 import { stripAllPrefixes, formatUserName, formatRequesterWithRole } from '@/lib/user-utils';
 import { parseBangkokDateTime } from '@/lib/date-time-utils';
 import { isViewerUser, VIEWER_FORBIDDEN_MESSAGE } from '@/lib/viewer-guard';
+import { validateStudentCourseEnrollment } from '@/lib/course-enrollment';
 
 export async function POST(req: Request) {
   try {
@@ -31,6 +32,11 @@ export async function POST(req: Request) {
         { error: 'กรุณาระบุข้อมูลผู้ขอ และวัตถุประสงค์การใช้งาน' },
         { status: 400 }
       );
+    }
+
+    const enrollmentCheck = await validateStudentCourseEnrollment({ userId, courseId });
+    if (!enrollmentCheck.ok) {
+      return enrollmentCheck.errorResponse;
     }
 
     const validBorrowItems = (borrowItems || []).filter((it: any) => it.itemId);

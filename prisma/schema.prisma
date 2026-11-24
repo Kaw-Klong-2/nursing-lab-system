@@ -56,6 +56,7 @@ model User {
   checkedPlanItems    InspectionPlanItem[] @relation("CheckedPlanItems")
   activityLogs        ActivityLog[]
   systemFeedbacks     SystemFeedback[]
+  courseEnrollments   CourseEnrollment[]
 
   @@index([role, status])
   @@index([studentId])
@@ -83,8 +84,23 @@ model Course {
   practiceBookings    PracticeBooking[]
   roomBookings        RoomBooking[]
   inspectionPlans     InspectionPlan[]
+  enrollments         CourseEnrollment[]
 
   @@index([semester, academicYear, status])
+}
+
+model CourseEnrollment {
+  id         String   @id @default(cuid())
+  courseId   String
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  addedById  String?
+  enrolledAt DateTime @default(now())
+
+  @@unique([courseId, userId])
+  @@index([userId])
+  @@index([courseId])
 }
 
 model Category {

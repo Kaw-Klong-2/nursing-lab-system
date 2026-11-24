@@ -32,9 +32,10 @@ import {
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { formatUserName, formatTeacherName } from '@/lib/user-utils';
+import StudentCourseNotice from '@/components/courses/StudentCourseNotice';
 
 export default function PracticeKitsPage() {
-  const { currentUser, isOfficer, isAdmin } = useAuth();
+  const { currentUser, isOfficer, isAdmin, isTeacher } = useAuth();
   const isStaff = isOfficer || isAdmin;
 
   const [kits, setKits] = useState<any[]>([]);
@@ -772,6 +773,7 @@ export default function PracticeKitsPage() {
                       </option>
                     ))}
                   </select>
+                  <StudentCourseNotice isStudent={Boolean(currentUser?.role === 'USER' && !isTeacher)} coursesCount={courses.length} loading={loading} required />
                 </div>
               </div>
 

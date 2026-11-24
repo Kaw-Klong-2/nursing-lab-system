@@ -6,6 +6,7 @@ import { formatUserName, formatTeacherName, formatRequesterWithRole } from '@/li
 import { notifyRoles, notifyAdvisorByName, createNotification, findScopeApproverForEmail } from '@/lib/notifications';
 import { combineSlotDateAndBangkokTime, getBangkokEndOfDay } from '@/lib/date-time-utils';
 import { isViewerUser, VIEWER_FORBIDDEN_MESSAGE } from '@/lib/viewer-guard';
+import { validateStudentCourseEnrollment } from '@/lib/course-enrollment';
 
 export async function GET(req: Request) {
   try {
@@ -82,6 +83,11 @@ export async function POST(req: Request) {
         { error: 'กรุณากรอกข้อมูลนิสิต รอบเวลา และหัตถการที่ต้องการฝึก' },
         { status: 400 }
       );
+    }
+
+    const enrollmentCheck = await validateStudentCourseEnrollment({ userId, courseId });
+    if (!enrollmentCheck.ok) {
+      return enrollmentCheck.errorResponse;
     }
 
     // รวมรายชื่อผู้เข้าฝึกทั้งหมด (ผู้จองหลัก + เพื่อนร่วมกลุ่ม)

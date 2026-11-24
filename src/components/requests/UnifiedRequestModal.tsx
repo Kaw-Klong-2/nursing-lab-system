@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import StudentCourseNotice from '@/components/courses/StudentCourseNotice';
 import {
   X,
   Package,
@@ -401,6 +402,7 @@ export default function UnifiedRequestModal({ isOpen, onClose, onSuccess }: Unif
                       </option>
                     ))}
                   </select>
+                  <StudentCourseNotice isStudent={isStudent} coursesCount={courses.length} loading={loadingItems} />
                 </div>
 
                 <div>

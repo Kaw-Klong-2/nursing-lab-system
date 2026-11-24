@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCached, setCached, invalidateCache } from '@/lib/cache';
 import { formatTeacherName } from '@/lib/user-utils';
+import { getSessionFromRequest } from '@/lib/session';
+import { isStudentUser } from '@/lib/course-enrollment';
 
 export async function GET(req: Request) {
   try {
@@ -10,6 +12,26 @@ export async function GET(req: Request) {
     const status = searchParams.get('status'); // 'ACTIVE', 'INACTIVE', or 'all'
     const includeInactive = searchParams.get('includeInactive') === 'true' || status === 'all';
 
+    // ตรวจสอบผู้ใช้งานจากเซสชัน: หากเป็นนิสิต ให้กรองเฉพาะรายวิชาที่ลงทะเบียนเรียน (Strict)
+    let studentUserId: string | null = null;
+    const session = await getSessionFromRequest(req);
+    if (session?.uid) {
+      const actor = await prisma.user.findUnique({
+        where: { id: session.uid },
+        select: {
+          id: true,
+          role: true,
+          email: true,
+          prefix: true,
+          name: true,
+          department: true,
+        },
+      });
+      if (actor && isStudentUser(actor)) {
+        studentUserId = actor.id;
+      }
+    }
+
     const whereCondition: any = {};
     if (!includeInactive && status !== 'all') {
       whereCondition.status = status || 'ACTIVE';
@@ -17,7 +39,13 @@ export async function GET(req: Request) {
       whereCondition.status = status;
     }
 
-    const cacheKey = `courses_${compact ? 'compact' : 'detailed'}_${status || (includeInactive ? 'all' : 'ACTIVE')}`;
+    if (studentUserId) {
+      whereCondition.enrollments = {
+        some: { userId: studentUserId },
+      };
+    }
+
+    const cacheKey = `courses_${compact ? 'compact' : 'detailed'}_${status || (includeInactive ? 'all' : 'ACTIVE')}${studentUserId ? `_u:${studentUserId}` : ''}`;
     const cached = getCached<any[]>(cacheKey);
     if (cached) {
       return NextResponse.json(cached);
@@ -38,17 +66,27 @@ export async function GET(req: Request) {
           allocatedBudget: true,
           studentCount: true,
           status: true,
+          _count: {
+            select: { enrollments: true },
+          },
         },
         orderBy: { code: 'asc' },
       });
-      setCached(cacheKey, courses, 60); // 60s cache
-      return NextResponse.json(courses);
+      const compactResult = courses.map(({ _count, ...rest }) => ({
+        ...rest,
+        enrolledCount: _count.enrollments,
+      }));
+      setCached(cacheKey, compactResult, studentUserId ? 20 : 60); // shorter TTL for per-student cache
+      return NextResponse.json(compactResult);
     }
 
     // Detailed analytics path
     const courses = await prisma.course.findMany({
       where: whereCondition,
       include: {
+        _count: {
+          select: { enrollments: true },
+        },
         requisitionRequests: {
           include: {
             user: { select: { id: true, name: true, prefix: true } },
@@ -168,6 +206,7 @@ export async function GET(req: Request) {
         description: course.description,
         allocatedBudget: course.allocatedBudget,
         studentCount: course.studentCount || 0,
+        enrolledCount: course._count?.enrollments || 0,
         costPerStudent:
           (course.studentCount || 0) > 0
             ? Math.round((totalExpense / course.studentCount) * 100) / 100
@@ -218,6 +257,7 @@ export async function POST(req: Request) {
     });
 
     invalidateCache('courses_');
+    invalidateCache('dashboard:');
     return NextResponse.json(course, { status: 201 });
   } catch (error) {
     console.error('Failed to create course:', error);

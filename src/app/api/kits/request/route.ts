@@ -4,6 +4,7 @@ import { invalidateCache } from '@/lib/cache';
 import { formatTeacherName, formatUserName, formatRequesterWithRole } from '@/lib/user-utils';
 import { createNotification, notifyAdvisorByName, notifyRoles } from '@/lib/notifications';
 import { isViewerUser, VIEWER_FORBIDDEN_MESSAGE } from '@/lib/viewer-guard';
+import { isStudentUser, validateStudentCourseEnrollment } from '@/lib/course-enrollment';
 
 // POST: Quick Request for a Practice Kit (Generates Borrow and/or Requisition requests)
 export async function POST(req: Request) {
@@ -33,6 +34,11 @@ export async function POST(req: Request) {
 
     if (await isViewerUser(userId)) {
       return NextResponse.json({ error: VIEWER_FORBIDDEN_MESSAGE }, { status: 403 });
+    }
+
+    const enrollmentCheck = await validateStudentCourseEnrollment({ userId, courseId });
+    if (!enrollmentCheck.ok) {
+      return enrollmentCheck.errorResponse;
     }
 
     const kit = await prisma.practiceKit.findUnique({
@@ -76,8 +82,15 @@ export async function POST(req: Request) {
 
     const requester = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, name: true, prefix: true, role: true, studentId: true },
+      select: { id: true, name: true, prefix: true, role: true, studentId: true, email: true, department: true },
     });
+
+    if (consumableItems.length > 0 && !courseId && isStudentUser(requester)) {
+      return NextResponse.json(
+        { error: 'กรุณาเลือกรายวิชาที่ท่านลงทะเบียนเรียนก่อนส่งคำร้องขอใช้ชุดฝึกปฏิบัติ' },
+        { status: 400 }
+      );
+    }
 
     // 1. Create Borrow Request if equipment present
     if (equipmentItems.length > 0) {

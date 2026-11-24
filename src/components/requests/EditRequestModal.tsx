@@ -21,6 +21,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { formatTeacherName, formatUserName } from '@/lib/user-utils';
+import StudentCourseNotice from '@/components/courses/StudentCourseNotice';
 
 interface EditRequestModalProps {
   isOpen: boolean;
@@ -648,12 +649,25 @@ export default function EditRequestModal({
                   className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-amber-500"
                 >
                   <option value="">-- ไม่ระบุรายวิชา (ยืม/เบิกส่วนตัว/กิจกรรม) --</option>
+                  {initialData?.courseId &&
+                    !courses.some((c) => c.id === initialData.courseId) && (
+                      <option value={initialData.courseId}>
+                        {initialData.course
+                          ? `${initialData.course.code} ${initialData.course.name} (รายวิชาเดิมของคำร้อง)`
+                          : 'รายวิชาเดิมของคำร้อง'}
+                      </option>
+                    )}
                   {courses.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.code} {c.name} {c.instructorName ? `(${c.instructorName})` : ''}
                     </option>
                   ))}
                 </select>
+                <StudentCourseNotice
+                  isStudent={isStudent}
+                  coursesCount={courses.length}
+                  loading={loadingItems}
+                />
               </div>
 
               <div>

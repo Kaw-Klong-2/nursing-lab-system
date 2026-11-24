@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { formatTeacherName, formatUserName } from '@/lib/user-utils';
+import StudentCourseNotice from '@/components/courses/StudentCourseNotice';
 import {
   ArrowLeft,
   Calendar,
@@ -594,6 +595,7 @@ function PracticeBookingContent() {
                   </option>
                 ))}
               </select>
+              <StudentCourseNotice isStudent={isStudent} coursesCount={courses.length} loading={loading} />
             </div>
 
             {/* Advisor Name */}

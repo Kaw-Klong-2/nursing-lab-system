@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { formatTeacherName, formatUserName } from '@/lib/user-utils';
+import StudentCourseNotice from '@/components/courses/StudentCourseNotice';
 import {
   ArrowLeft,
   Package,
@@ -109,15 +110,21 @@ function BorrowRequestContent() {
           conData = await conRes.json();
           setConsumablesList(conData);
         }
-        if (cRes.ok && isMounted) setCourses(await cRes.json());
+        let loadedCourses: any[] = [];
+        if (cRes.ok && isMounted) {
+          loadedCourses = await cRes.json();
+          setCourses(loadedCourses);
+        }
         if (insRes.ok && isMounted) setInstructors(await insRes.json());
 
-        // Restore draft from sessionStorage
+        // Restore draft from sessionStorage (เฉพาะรายวิชาที่ยังมีสิทธิ์เลือก)
         const savedDraft = sessionStorage.getItem(draftKey);
         if (savedDraft && isMounted) {
           try {
             const parsed = JSON.parse(savedDraft);
-            if (parsed.courseId) setCourseId(parsed.courseId);
+            if (parsed.courseId && loadedCourses.some((c: any) => c.id === parsed.courseId)) {
+              setCourseId(parsed.courseId);
+            }
             if (parsed.advisorName) setAdvisorName(parsed.advisorName);
             if (parsed.purpose) setPurpose(parsed.purpose);
             if (parsed.useTarget) setUseTarget(parsed.useTarget);
@@ -502,6 +509,7 @@ function BorrowRequestContent() {
                   </option>
                 ))}
               </select>
+              <StudentCourseNotice isStudent={isStudent} coursesCount={courses.length} loading={loading} />
             </div>
 
             {/* Advisor */}

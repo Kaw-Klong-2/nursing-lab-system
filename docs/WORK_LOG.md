@@ -17,6 +17,21 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-24] พัฒนาระบบผู้เรียนในรายวิชา (Course Enrollment) และจำกัดการเลือกรายวิชาเฉพาะที่นิสิตเรียน (`v2.9.0`)
+- **หมวดหมู่**: Courses, Enrollment Management & Student Request Enforcement (`v2.9.0`)
+- **สิ่งที่ดำเนินการ**:
+  - **Version Bump (`v2.8.5` -> `v2.9.0`)**: รัน `node scripts/version-bump.mjs minor` ซิงก์ `package.json` และ `src/lib/version.ts` เป็น `v2.9.0`
+  - **ฐานข้อมูล (`prisma/schema.prisma`)**: เพิ่มโมเดล `CourseEnrollment` (`@@unique([courseId, userId])`, `onDelete: Cascade`) ผูกความสัมพันธ์ Many-to-Many ระหว่าง `Course` และ `User` พร้อม `npx prisma db push` และลงทะเบียน **นิสิตรหัส 68 (`b68...` ทั้งหมด 61 คน)** เข้ารายวิชาที่มีอยู่ทั้งหมดยกเว้น `test-111` (`01980221-69`, `01980222-69`)
+  - **Helper & Backend API (`src/lib/course-enrollment.ts`, `src/app/api/courses/[id]/enrollments/route.ts`, `src/app/api/courses/route.ts`)**:
+    - สร้าง API `GET`/`POST`/`DELETE /api/courses/[id]/enrollments` รองรับ 3 วิธีเพิ่มผู้เรียน (`select` เลือกจากระบบ/ตามรุ่น, `bulk` วางรหัสนิสิตหลายบรรทัดหรือนำเข้าไฟล์ Excel พร้อมรายงานรหัสซ้ำ/ไม่พบ, `copy` คัดลอกจากวิชาอื่น) และซิงก์ตัวเลข `Course.studentCount` อัตโนมัติใน transaction พร้อมบันทึก `ActivityLog` และล้างแคช `courses_` / `dashboard:`
+    - ปรับ `GET /api/courses` ให้กรองเฉพาะรายวิชาที่มีรายชื่อของนิสิตโดยอัตโนมัติ (Strict Mode) พร้อมแยก `cacheKey` รายคนสำหรับนิสิต และคืนค่า `enrolledCount` ให้หน้าจัดการรายวิชา
+    - ป้องกันฝั่ง Backend ด้วย `validateStudentCourseEnrollment` ในทุก API คำร้องของนิสิต (`borrow`, `requests/unified`, `requisitions`, `practice/bookings`, `room-bookings`, `kits/request`, `requests/edit`) โดยยังอนุญาต "ไม่ระบุรายวิชา" ในเมนูฝึกอิสระ และคง `courseId` เดิมเมื่อแก้ไขคำร้องเก่า
+  - **UI จัดการรายชื่อและฟอร์มคำร้อง (`CourseEnrollmentModal.tsx`, `StudentCourseNotice.tsx`, `/courses` และฟอร์มคำร้อง 7 จุด)**:
+    - เพิ่มปุ่ม `จัดการรายชื่อนิสิต` และ Modal จัดการผู้เรียนครบ 3 แท็บ (เลือกตามรุ่น/ทั้งรุ่น, วางรหัส/อัปโหลด Excel + ส่งออก Excel, คัดลอกจากวิชาอื่น) ใน `/courses`
+    - เพิ่มกล่องแจ้งเตือน `StudentCourseNotice` ใน `/borrow/request` (+ กรอง `courseId` ใน draft `sessionStorage`), `UnifiedRequestModal`, `/requisitions`, `/practice/book`, `/rooms`, `/kits`, และ `EditRequestModal` (+ คงตัวเลือกวิชาเดิมสำหรับคำร้องเก่า)
+- **ไฟล์สำคัญที่แก้ไข/เพิ่ม**: `prisma/schema.prisma`, `src/lib/course-enrollment.ts`, `src/lib/activity-log.ts`, `src/app/api/courses/[id]/enrollments/route.ts`, `src/app/api/courses/route.ts`, `src/app/api/borrow/route.ts`, `src/app/api/requests/unified/route.ts`, `src/app/api/requisitions/route.ts`, `src/app/api/practice/bookings/route.ts`, `src/app/api/room-bookings/route.ts`, `src/app/api/kits/request/route.ts`, `src/app/api/requests/edit/route.ts`, `src/components/courses/CourseEnrollmentModal.tsx`, `src/components/courses/StudentCourseNotice.tsx`, `src/app/courses/page.tsx`, `src/app/borrow/request/page.tsx`, `src/components/requests/UnifiedRequestModal.tsx`, `src/app/requisitions/page.tsx`, `src/app/practice/book/page.tsx`, `src/app/rooms/page.tsx`, `src/app/kits/page.tsx`, `src/components/requests/EditRequestModal.tsx`, `package.json`, `src/lib/version.ts`, `LIBRARY_CATALOG.md`, `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ผ่าน 100% (`npx tsc --noEmit`, `npm run build`, `npm run librarian:audit` ผ่านสมบูรณ์ ไม่พบคำต้องห้าม/UTF-8 Mojibake)
+
 ### [2026-11-24] ติดตั้งและสร้าง Knowledge Graph ด้วย Graphify (`graphifyy v0.9.118`) ประจำโปรเจกต์
 - **หมวดหมู่**: Developer Tooling, AI Knowledge Graph & Antigravity Integration
 - **สิ่งที่ดำเนินการ**:

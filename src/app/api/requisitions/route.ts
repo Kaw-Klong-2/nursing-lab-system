@@ -5,6 +5,7 @@ import { formatUserName, formatTeacherName, formatRequesterWithRole } from '@/li
 import { notifyRoles, notifyAdvisorByName, createNotification } from '@/lib/notifications';
 import { parseBangkokDateTime } from '@/lib/date-time-utils';
 import { isViewerUser, VIEWER_FORBIDDEN_MESSAGE } from '@/lib/viewer-guard';
+import { validateStudentCourseEnrollment } from '@/lib/course-enrollment';
 
 export async function GET(req: Request) {
   try {
@@ -101,6 +102,11 @@ export async function POST(req: Request) {
 
     if (!userId || !courseId || !purpose || !dateNeeded || !items || items.length === 0) {
       return NextResponse.json({ error: 'กรุณากรอกข้อมูลให้ครบถ้วน' }, { status: 400 });
+    }
+
+    const enrollmentCheck = await validateStudentCourseEnrollment({ userId, courseId });
+    if (!enrollmentCheck.ok) {
+      return enrollmentCheck.errorResponse;
     }
 
     const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');

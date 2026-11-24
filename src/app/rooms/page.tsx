@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import StudentCourseNotice from '@/components/courses/StudentCourseNotice';
 import {
   Building,
   Building2,
@@ -4031,6 +4032,12 @@ export default function RoomsPage() {
                         </option>
                       ))}
                     </select>
+                    <StudentCourseNotice
+                      isStudent={Boolean(currentUser?.role === 'USER' && !isTeacher)}
+                      coursesCount={courses.length}
+                      loading={loading}
+                      required={bookingMode === 'TIMETABLE'}
+                    />
 
                     {/* Display active course student year and semester badge */}
                     {bookingForm.courseId && (() => {

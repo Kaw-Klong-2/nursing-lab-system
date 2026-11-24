@@ -4,6 +4,7 @@ import { invalidateCache } from '@/lib/cache';
 import { createNotification, notifyAdvisorByName, notifyRoles } from '@/lib/notifications';
 import { logActivity } from '@/lib/activity-log';
 import { parseBangkokDateTime } from '@/lib/date-time-utils';
+import { validateStudentCourseEnrollment } from '@/lib/course-enrollment';
 
 export async function PUT(req: Request) {
   try {
@@ -129,6 +130,16 @@ export async function PUT(req: Request) {
           { status: 409 }
         );
       }
+    }
+
+    // 3.5 Validate course enrollment for student editors (allows unchanged legacy courseId)
+    const enrollmentCheck = await validateStudentCourseEnrollment({
+      userId,
+      courseId,
+      existingCourseId: primaryRecord.courseId || null,
+    });
+    if (!enrollmentCheck.ok) {
+      return enrollmentCheck.errorResponse;
     }
 
     // 4. Resolve advisor name

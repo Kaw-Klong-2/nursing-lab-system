@@ -14,6 +14,7 @@ import {
   Calendar,
   User,
   Users,
+  UserPlus,
   CheckCircle2,
   ChevronRight,
   PieChart,
@@ -30,6 +31,7 @@ import {
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import CourseEnrollmentModal from '@/components/courses/CourseEnrollmentModal';
 import { formatUserName, formatTeacherName, getExporterSignatureInfo } from '@/lib/user-utils';
 import { formatTermName, toLegacySemesterCode } from '@/lib/academicTerm';
 import { escapeHtml } from '@/lib/html-escape';
@@ -94,6 +96,7 @@ export default function CoursesPage() {
   } | null>(null);
   const [isEditCustomInstructor, setIsEditCustomInstructor] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
 
   const fetchCourses = async () => {
     try {
@@ -1105,53 +1108,72 @@ export default function CoursesPage() {
                       </span>
                     </p>
 
-                    {/* Action buttons: Edit & Toggle Status */}
-                    {(isAdmin || isOfficer || isTeacher) && (
-                      <div className="flex items-center gap-2 pt-2">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEdit(selectedCourse)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition cursor-pointer shadow-xs border border-slate-200/80 dark:border-slate-700"
-                          title="แก้ไขข้อมูลรายวิชา"
-                        >
-                          <Edit3 className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-                          <span>แก้ไขรายวิชา</span>
-                        </button>
+                    {/* Action buttons: Enrollments, Edit & Toggle Status */}
+                    <div className="flex items-center gap-2 pt-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setShowEnrollmentModal(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition cursor-pointer shadow-xs"
+                        title={
+                          isAdmin || isOfficer || isTeacher
+                            ? 'เพิ่ม/ลบรายชื่อนิสิตที่เรียนในรายวิชานี้'
+                            : 'ดูรายชื่อนิสิตที่ลงทะเบียนในรายวิชานี้'
+                        }
+                      >
+                        <UserPlus className="w-3.5 h-3.5" />
+                        <span>
+                          {isAdmin || isOfficer || isTeacher ? 'จัดการรายชื่อนิสิต' : 'ดูรายชื่อนิสิต'} (
+                          {selectedCourse.enrolledCount ?? 0} คน)
+                        </span>
+                      </button>
 
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStatus(selectedCourse)}
-                          disabled={toggleSubmitting}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-xs border disabled:opacity-50 ${
-                            (selectedCourse.status || 'ACTIVE') === 'ACTIVE'
-                              ? 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-                              : 'bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                          }`}
-                          title={
-                            (selectedCourse.status || 'ACTIVE') === 'ACTIVE'
-                              ? 'คลิกเพื่อปิดรายวิชา (ไม่ให้เลือกทำคำขอใหม่)'
-                              : 'คลิกเพื่อเปิดใช้งานรายวิชา'
-                          }
-                        >
-                          <Power className="w-3.5 h-3.5" />
-                          <span>
-                            {(selectedCourse.status || 'ACTIVE') === 'ACTIVE'
-                              ? 'ปิดรายวิชา'
-                              : 'เปิดใช้งานรายวิชา'}
-                          </span>
-                        </button>
+                      {(isAdmin || isOfficer || isTeacher) && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(selectedCourse)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition cursor-pointer shadow-xs border border-slate-200/80 dark:border-slate-700"
+                            title="แก้ไขข้อมูลรายวิชา"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                            <span>แก้ไขรายวิชา</span>
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => router.push(`/practice?tab=HOURS_LOG&courseId=${selectedCourse.id}`)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold transition cursor-pointer shadow-xs border border-indigo-200 dark:border-indigo-800"
-                          title="เปิดดูบันทึกการเข้าฝึกปฏิบัติของนิสิตในรายวิชานี้"
-                        >
-                          <Users className="w-3.5 h-3.5" />
-                          <span>ดูการเข้าฝึกของนิสิตในวิชานี้</span>
-                        </button>
-                      </div>
-                    )}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(selectedCourse)}
+                            disabled={toggleSubmitting}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-xs border disabled:opacity-50 ${
+                              (selectedCourse.status || 'ACTIVE') === 'ACTIVE'
+                                ? 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                                : 'bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                            }`}
+                            title={
+                              (selectedCourse.status || 'ACTIVE') === 'ACTIVE'
+                                ? 'คลิกเพื่อปิดรายวิชา (ไม่ให้เลือกทำคำขอใหม่)'
+                                : 'คลิกเพื่อเปิดใช้งานรายวิชา'
+                            }
+                          >
+                            <Power className="w-3.5 h-3.5" />
+                            <span>
+                              {(selectedCourse.status || 'ACTIVE') === 'ACTIVE'
+                                ? 'ปิดรายวิชา'
+                                : 'เปิดใช้งานรายวิชา'}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/practice?tab=HOURS_LOG&courseId=${selectedCourse.id}`)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold transition cursor-pointer shadow-xs border border-indigo-200 dark:border-indigo-800"
+                            title="เปิดดูบันทึกการเข้าฝึกปฏิบัติของนิสิตในรายวิชานี้"
+                          >
+                            <Users className="w-3.5 h-3.5" />
+                            <span>ดูการเข้าฝึกของนิสิตในวิชานี้</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   <div className="text-right sm:border-l sm:pl-4 border-slate-100 dark:border-slate-800">
@@ -1176,19 +1198,25 @@ export default function CoursesPage() {
                       ฿{selectedCourse.remainingBudget.toLocaleString('th-TH')} บาท
                     </span>
                   </div>
-                  <div className="p-3 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-800 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowEnrollmentModal(true)}
+                    className="p-3 rounded-xl bg-sky-50 hover:bg-sky-100/80 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 border border-sky-100 dark:border-sky-800 text-center transition cursor-pointer"
+                    title="คลิกเพื่อดู/จัดการรายชื่อนิสิตในรายวิชานี้"
+                  >
                     <span className="text-[11px] font-bold text-sky-700 dark:text-sky-300 block">จำนวนนิสิต</span>
                     <div className="flex items-center justify-center gap-1">
                       <span className="text-sm font-bold text-sky-800 dark:text-sky-200">
                         {selectedCourse.studentCount || 0} คน
                       </span>
                     </div>
-                    {selectedCourse.studentCount > 0 && (
-                      <span className="text-[10px] text-sky-600 dark:text-sky-400 block mt-0.5">
-                        เฉลี่ย ฿{(selectedCourse.costPerStudent || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}/คน
-                      </span>
-                    )}
-                  </div>
+                    <span className="text-[10px] text-sky-600 dark:text-sky-400 block mt-0.5">
+                      รายชื่อในระบบ {selectedCourse.enrolledCount ?? 0} คน
+                      {selectedCourse.studentCount > 0 && (
+                        <> • ฿{(selectedCourse.costPerStudent || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}/คน</>
+                      )}
+                    </span>
+                  </button>
                   <div className="p-3 rounded-xl bg-teal-50 dark:bg-teal-950/40 border border-teal-100 dark:border-teal-800 text-center">
                     <span className="text-[11px] font-bold text-teal-700 dark:text-teal-300 block">จำนวนชนิดวัสดุที่ใช้</span>
                     <span className="text-sm font-bold text-teal-800 dark:text-teal-200">
@@ -1797,6 +1825,16 @@ export default function CoursesPage() {
           </div>
         </div>
       )}
+
+      {/* Course Enrollment Roster Management Modal */}
+      <CourseEnrollmentModal
+        isOpen={showEnrollmentModal}
+        course={selectedCourse}
+        allCourses={courses}
+        canManage={Boolean(isAdmin || isOfficer || isTeacher)}
+        onClose={() => setShowEnrollmentModal(false)}
+        onUpdated={fetchCourses}
+      />
     </div>
   );
 }

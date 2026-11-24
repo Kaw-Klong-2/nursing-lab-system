@@ -15,6 +15,13 @@
     "prisma:seed": "node prisma/seed.js",
     "librarian:audit": "node scripts/librarian-audit.mjs",
     "librarian:search": "node scripts/librarian-audit.mjs --search",
+    "graphify": "node scripts/graphify.mjs",
+    "graphify:build": "node scripts/graphify.mjs extract . --code-only && node scripts/graphify.mjs cluster-only . --no-label",
+    "graphify:update": "node scripts/graphify.mjs update .",
+    "graphify:query": "node scripts/graphify.mjs query",
+    "graphify:explain": "node scripts/graphify.mjs explain",
+    "graphify:path": "node scripts/graphify.mjs path",
+    "graphify:god-nodes": "node scripts/graphify.mjs god-nodes",
     "version:patch": "node scripts/version-bump.mjs patch",
     "version:minor": "node scripts/version-bump.mjs minor",
     "version:major": "node scripts/version-bump.mjs major"

@@ -72,6 +72,7 @@
 11. **[`security-and-hardening`](file:///d:/LAB-system/.agents/skills/security-and-hardening/SKILL.md)**: มาตรฐานความปลอดภัยของการรับข้อมูลและสิทธิ์ผู้ใช้
 12. **[`post-mortem`](file:///d:/LAB-system/.agents/skills/post-mortem/SKILL.md)** & **[`management-talk`](file:///d:/LAB-system/.agents/skills/management-talk/SKILL.md)**: การเขียนบันทึกสรุปสาเหตุบั๊กและรายงานสำหรับผู้บริหาร
 13. **[`qwen-agent`](file:///d:/LAB-system/.agents/skills/qwen-agent/SKILL.md)** & **[`qwenchance`](file:///d:/LAB-system/.agents/skills/qwenchance/SKILL.md)**: การกระจายงานย่อยและการจัดการ Context
+14. **[`graphify`](file:///d:/LAB-system/.agents/skills/graphify/SKILL.md)** (พร้อมกฎ `.agents/rules/graphify.md` และเวิร์กโฟลว์ `.agents/workflows/graphify.md`): สร้างและสืบค้น Knowledge Graph เชิงโครงสร้างของโค้ดเบส (`graphify-out/graph.json`, `GRAPH_REPORT.md`, `graph.html`) ผ่านคำสั่ง `npm run graphify:*` หรือ `.\.venv\Scripts\graphify.exe`
 
 ---
 

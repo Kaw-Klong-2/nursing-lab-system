@@ -17,6 +17,16 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-24] ติดตั้งและสร้าง Knowledge Graph ด้วย Graphify (`graphifyy v0.9.118`) ประจำโปรเจกต์
+- **หมวดหมู่**: Developer Tooling, AI Knowledge Graph & Antigravity Integration
+- **สิ่งที่ดำเนินการ**:
+  - **ติดตั้ง Python Virtual Environment ภายในโปรเจกต์ (`.venv`)**: ติดตั้ง `graphifyy[mcp,leiden,watch,pdf,office]` (`v0.9.118`) พร้อม `tree-sitter`, `graspologic-native` (Leiden) และ `mcp` ครบชุดใน `.venv` โดยไม่รบกวนระบบภายนอกโปรเจกต์
+  - **ติดตั้ง Skill, Always-On Rules และ Workflow สำหรับ Antigravity**: รัน `graphify install --project --platform antigravity` สร้าง `.agents/skills/graphify/SKILL.md` (+ `references/`), `.agents/rules/graphify.md` และ `.agents/workflows/graphify.md` พร้อมระบุพิกัด CLI ประจำโปรเจกต์ (`.\.venv\Scripts\graphify.exe` / `npm run graphify`)
+  - **ตั้งค่าตัวกรองและการรันผ่าน NPM (`scripts/graphify.mjs`, `package.json`, `.graphifyignore`, `.graphifyrc`, `.gitignore`)**: เพิ่ม wrapper ข้ามแพลตฟอร์มและสคริปต์ `graphify`, `graphify:build`, `graphify:update`, `graphify:query`, `graphify:explain`, `graphify:path`, `graphify:god-nodes` พร้อมกรองไฟล์ minified (`*.min.js`) และโฟลเดอร์ไฟล์สื่อ/สำรองออกจากกราฟ
+  - **สร้าง Knowledge Graph แรกของโค้ดเบส (`graphify-out/`)**: วิเคราะห์โค้ดทั้ง 307 ไฟล์ได้ 1,641 nodes, 4,666 edges, 86 communities และสร้าง `graph.json`, `GRAPH_REPORT.md` และ `graph.html` พร้อมทดสอบคำสั่ง `god-nodes` และ `query` สำเร็จ
+- **ไฟล์สำคัญที่แก้ไข/เพิ่ม**: `.agents/skills/graphify/SKILL.md`, `.agents/rules/graphify.md`, `.agents/workflows/graphify.md`, `scripts/graphify.mjs`, `package.json`, `.graphifyignore`, `.graphifyrc`, `.gitignore`, `graphify-out/graph.json`, `graphify-out/GRAPH_REPORT.md`, `graphify-out/graph.html`, `LIBRARY_CATALOG.md`, `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ผ่าน 100% (`npm run librarian:audit` ผ่านสมบูรณ์: 18 skills, ไม่พบคำต้องห้าม, ไม่พบ UTF-8 Mojibake, และทดสอบ `npm run graphify:god-nodes` / `query` สำเร็จ)
+
 ### [2026-11-23] แก้ระบบแจ้งเตือนและปุ่มอนุมัติด่วนให้เด้งถึงผู้อนุมัติทุกบทบาทที่มีสิทธิ์ตามขอบเขต (`v2.8.5`)
 - **หมวดหมู่**: Approvals, Notifications, Web Push & Quick-Approve (`v2.8.5`)
 - **สิ่งที่ดำเนินการ**:

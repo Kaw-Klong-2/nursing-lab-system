@@ -7,16 +7,16 @@ node_modules/
 graphify-out/
 
 # Backups, exports, raw assets & binary datasets
-backups/
-exports/
-manual_images/
-manual/images/
-reports_sample/
-presentation/
-public/
-KUoAuth/
-ข้อมูลครุภัณฑ์/
-ข้อมูลวัสดุสิ้นเปลือง/
+/backups/
+/exports/
+/manual_images/
+/manual/images/
+/reports_sample/
+/presentation/
+/public/
+/KUoAuth/
+/ข้อมูลครุภัณฑ์/
+/ข้อมูลวัสดุสิ้นเปลือง/
 
 # Minified bundles, lockfiles & binary archives
 *.min.js

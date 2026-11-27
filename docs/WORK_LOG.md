@@ -17,6 +17,19 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-27] แก้ไขปัญหาลิงก์เชื่อมระบบคณะ (KU Nurse ONE Nexus) ติดหน้า Spinner ค้าง และรองรับรูปแบบ `portal_token` (`v2.9.1`)
+- **หมวดหมู่**: Auth, SSO Portal Hand-off & Login UX (`v2.9.1`)
+- **สิ่งที่ดำเนินการ**:
+  - **Version Bump (`v2.9.0` -> `v2.9.1`)**: รัน `node scripts/version-bump.mjs patch` ซิงก์ `package.json` และ `src/lib/version.ts` เป็น `v2.9.1`
+  - **ปรับปรุง `src/app/api/auth/portal-handoff/route.ts`**:
+    - คงการตรวจ HMAC-SHA256 กับ `EXTERNAL_SYNC_API_KEY` (ไม่เปิดช่องทางล็อกอินแบบไม่ลงนาม) พร้อมเพิ่ม `code` จำแนกสาเหตุข้อผิดพลาดชัดเจน (`MISSING_TOKEN`, `MISSING_SECRET`, `INVALID_FORMAT`, `MISSING_SIG`, `MISSING_FIELDS`, `EMAIL_MISMATCH`, `EXPIRED_TOKEN`, `INVALID_SIGNATURE`)
+    - รองรับการถอดรหัสทั้ง Base64 มาตรฐานและ Base64URL, ขยายอายุโทเคนจาก 5 นาทีเป็น 30 นาที, รองรับ `ts` ทั้งรูปแบบวินาทีและมิลลิวินาที, และตรวจสอบ HMAC แบบเทียบได้ทั้งรูปแบบตัวพิมพ์เดิมและ lowercase email
+  - **ปลดล็อกหน้าจอค้าง Spinner (`src/lib/auth-context.tsx`, `src/components/layout/AppLayout.tsx`, `src/app/login/page.tsx`)**:
+    - ล้าง `portal_token` ออกจาก URL เสมอแม้ตรวจสอบไม่ผ่าน และส่งข้อความแจ้งเตือน `portalHandoffNotice` ต่อให้หน้า Login
+    - นำเงื่อนไข `hasPendingHandoff` ที่ขวางการ redirect ใน `AppLayout` ออก (อาศัย `isLoading` ระหว่างตรวจสอบใน `AuthContext`) เพื่อนำทางไปหน้า `/login` พร้อมส่งต่อ `login_hint` และแสดงแบนเนอร์แจ้งให้กดเข้าสู่ระบบด้วย Google (`@ku.th`) ได้ทันที
+- **ไฟล์สำคัญที่แก้ไข**: `src/app/api/auth/portal-handoff/route.ts`, `src/lib/auth-context.tsx`, `src/components/layout/AppLayout.tsx`, `src/app/login/page.tsx`, `package.json`, `src/lib/version.ts`, `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ผ่าน 100% (`npx tsc --noEmit`, `npm run build`, `npm run librarian:audit` ผ่านสมบูรณ์)
+
 ### [2026-11-24] พัฒนาระบบผู้เรียนในรายวิชา (Course Enrollment) และจำกัดการเลือกรายวิชาเฉพาะที่นิสิตเรียน (`v2.9.0`)
 - **หมวดหมู่**: Courses, Enrollment Management & Student Request Enforcement (`v2.9.0`)
 - **สิ่งที่ดำเนินการ**:

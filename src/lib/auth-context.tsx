@@ -40,6 +40,7 @@ interface AuthContextType {
   refreshUsers: () => Promise<void>;
   setCurrentUser: (user: User | null) => void;
   isLoading: boolean;
+  portalHandoffNotice: string | null;
   isAdmin: boolean;
   isOfficer: boolean;
   isApprover: boolean;
@@ -88,6 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [availableUsers, setAvailableUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [portalHandoffNotice, setPortalHandoffNotice] = useState<string | null>(null);
   const router = useRouter();
 
   const clearSessionStorage = () => {
@@ -240,7 +242,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ token: portalToken, email: portalEmail }),
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
             if (res.ok && data.success && data.user) {
               const u: User = data.user;
               localStorage.setItem('active_user_id', u.id);
@@ -249,9 +251,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               localStorage.setItem('session_expires_at', (Date.now() + SESSION_LIFETIME_REMEMBER_MS).toString());
               localStorage.setItem('session_remember_me', 'true');
               setCurrentUser(u);
+              setPortalHandoffNotice(null);
 
-              // Clean portal_token from URL cleanly without full page refresh
+              // Clean portal_token and SSO hint params from URL cleanly without full page refresh
               urlParams.delete('portal_token');
+              urlParams.delete('email');
+              urlParams.delete('login_hint');
+              urlParams.delete('name');
               const newSearch = urlParams.toString();
               const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
               window.history.replaceState({}, '', newUrl);
@@ -260,10 +266,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               refreshUsers();
               return;
             } else {
-              console.warn('[AUTH SSO] Portal handoff failed:', data.error, data.message);
+              console.warn('[AUTH SSO] Portal handoff failed:', res.status, data?.code, data?.error);
+              // ลบ portal_token ออกจาก URL เสมอเมื่อไม่ผ่าน เพื่อไม่ให้ติด Spinner ค้าง และเก็บ email/login_hint ไว้ส่งต่อหน้า Login
+              urlParams.delete('portal_token');
+              const newSearch = urlParams.toString();
+              const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
+              window.history.replaceState({}, '', newUrl);
+              setPortalHandoffNotice(
+                data?.code === 'EXPIRED_TOKEN'
+                  ? 'ลิงก์เชื่อมต่อจากระบบคณะหมดอายุแล้ว กรุณากดเข้าสู่ระบบด้วยบัญชี Google (@ku.th) ด้านล่าง'
+                  : 'ระบบเชื่อมต่ออัตโนมัติจาก KU Nurse ONE Nexus ไม่สามารถยืนยันโทเคนได้ กรุณากดเข้าสู่ระบบด้วยบัญชี Google (@ku.th) ด้านล่าง'
+              );
             }
           } catch (e) {
             console.error('[AUTH SSO] Network error during portal handoff', e);
+            urlParams.delete('portal_token');
+            const newSearch = urlParams.toString();
+            const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
+            window.history.replaceState({}, '', newUrl);
+            setPortalHandoffNotice(
+              'ระบบเชื่อมต่ออัตโนมัติจาก KU Nurse ONE Nexus ไม่สามารถยืนยันโทเคนได้ กรุณากดเข้าสู่ระบบด้วยบัญชี Google (@ku.th) ด้านล่าง'
+            );
           }
         }
 
@@ -549,6 +572,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         refreshUsers,
         setCurrentUser,
         isLoading,
+        portalHandoffNotice,
         isAdmin,
         isOfficer,
         isApprover,

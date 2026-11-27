@@ -31,6 +31,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [timeoutNotice, setTimeoutNotice] = useState(false);
+  const [ssoNotice, setSsoNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
@@ -54,6 +55,10 @@ export default function LoginPage() {
       const params = new URLSearchParams(window.location.search);
       if (params.get('reason') === 'timeout') {
         setTimeoutNotice(true);
+      }
+      const ssoMsg = params.get('sso_notice');
+      if (ssoMsg) {
+        setSsoNotice(ssoMsg);
       }
       if (params.get('error')) {
         setError(params.get('error'));
@@ -88,6 +93,7 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setTimeoutNotice(false);
+    setSsoNotice(null);
     setSubmitting(true);
 
     const res = await login(email, password, rememberMe);
@@ -418,6 +424,18 @@ export default function LoginPage() {
                     <div className="font-bold">เซสชันหมดอายุ</div>
                     <div className="text-[11px] text-amber-800 font-normal mt-0.5">
                       ไม่มีการใช้งานเป็นเวลานานเกินกำหนด ระบบออกจากระบบอัตโนมัติเพื่อความปลอดภัย กรุณาเข้าสู่ระบบใหม่อีกครั้ง
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {ssoNotice && (
+                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold flex items-start gap-2.5">
+                  <ShieldCheck className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold">เชื่อมต่ออัตโนมัติไม่สำเร็จ</div>
+                    <div className="text-[11px] text-amber-800 font-normal mt-0.5 leading-relaxed">
+                      {ssoNotice}
                     </div>
                   </div>
                 </div>

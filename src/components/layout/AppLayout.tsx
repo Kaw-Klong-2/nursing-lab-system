@@ -26,7 +26,7 @@ import {
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { currentUser, isLoading } = useAuth();
+  const { currentUser, isLoading, portalHandoffNotice } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
@@ -38,22 +38,36 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const isPublicRoute = isLoginPage || isPublicAssetPage || isPublicConsumablePage || isPublicStoragePage || isResetPasswordPage;
 
   React.useEffect(() => {
-    // If arriving with portal_token or email handoff, ensure auth initialization has completely resolved
-    const hasPendingHandoff =
-      typeof window !== 'undefined' &&
-      (window.location.search.includes('portal_token') ||
-        window.location.search.includes('email=') ||
-        window.location.search.includes('login_hint='));
+    // initializeAuth() in AuthContext keeps isLoading=true while portal-handoff executes.
+    // Once isLoading=false without a session, always redirect cleanly to /login instead of trapping on a spinner.
+    if (!isLoading && !currentUser && !isPublicRoute) {
+      const currentParams =
+        typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+      const loginHint = currentParams.get('login_hint') || currentParams.get('email');
 
-    if (!isLoading && !currentUser && !isPublicRoute && !hasPendingHandoff) {
-      let targetPath = pathname;
-      if (typeof window !== 'undefined' && window.location.search) {
-        targetPath += window.location.search;
+      const cleanParams = new URLSearchParams(currentParams);
+      cleanParams.delete('portal_token');
+      cleanParams.delete('email');
+      cleanParams.delete('login_hint');
+      cleanParams.delete('name');
+      const cleanQuery = cleanParams.toString();
+      const targetPath = pathname + (cleanQuery ? `?${cleanQuery}` : '');
+
+      const loginParams = new URLSearchParams();
+      if (targetPath && targetPath !== '/') {
+        loginParams.set('redirect', targetPath);
       }
-      const redirectQuery = targetPath && targetPath !== '/' ? `?redirect=${encodeURIComponent(targetPath)}` : '';
-      router.replace(`/login${redirectQuery}`);
+      if (loginHint) {
+        loginParams.set('login_hint', loginHint);
+      }
+      if (portalHandoffNotice) {
+        loginParams.set('sso_notice', portalHandoffNotice);
+      }
+
+      const loginQuery = loginParams.toString();
+      router.replace(`/login${loginQuery ? `?${loginQuery}` : ''}`);
     }
-  }, [isLoading, currentUser, isPublicRoute, pathname, router]);
+  }, [isLoading, currentUser, isPublicRoute, pathname, router, portalHandoffNotice]);
 
   if (isPublicRoute) {
     return <main className="min-h-screen">{children}</main>;

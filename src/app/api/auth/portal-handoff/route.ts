@@ -3,7 +3,25 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { signSessionToken, attachSessionCookie } from '@/lib/session';
 
-const PORTAL_TOKEN_MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
+const PORTAL_TOKEN_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
+
+function decodePortalTokenPayload(rawToken: string): {
+  email?: unknown;
+  ts?: unknown;
+  source?: unknown;
+  sig?: unknown;
+} {
+  // รองรับทั้ง Base64 มาตรฐาน และ Base64URL (รวมทั้งกรณี + ถูกแปลงเป็นเว้นวรรคจาก query string)
+  const base64Standard = rawToken
+    .trim()
+    .replace(/ /g, '+')
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+  const padLength = (4 - (base64Standard.length % 4)) % 4;
+  const padded = base64Standard + '='.repeat(padLength);
+  const decodedStr = Buffer.from(padded, 'base64').toString('utf-8');
+  return JSON.parse(decodedStr);
+}
 
 export async function POST(req: Request) {
   try {
@@ -13,7 +31,10 @@ export async function POST(req: Request) {
 
     if (!token || typeof token !== 'string') {
       return NextResponse.json(
-        { error: 'จำเป็นต้องมี portal_token ที่ลงนามยืนยันตัวตนแล้วเท่านั้น' },
+        {
+          code: 'MISSING_TOKEN',
+          error: 'จำเป็นต้องมี portal_token ที่ลงนามยืนยันตัวตนแล้วเท่านั้น',
+        },
         { status: 401 }
       );
     }
@@ -23,34 +44,49 @@ export async function POST(req: Request) {
       (process.env.NODE_ENV !== 'production' ? 'dev-only-external-sync-key' : '');
     if (!secret) {
       return NextResponse.json(
-        { error: 'ระบบยังไม่ได้ตั้งค่า EXTERNAL_SYNC_API_KEY' },
+        {
+          code: 'MISSING_SECRET',
+          error: 'ระบบยังไม่ได้ตั้งค่า EXTERNAL_SYNC_API_KEY',
+        },
         { status: 503 }
       );
     }
 
     let payload: { email?: unknown; ts?: unknown; source?: unknown; sig?: unknown };
     try {
-      const decodedStr = Buffer.from(token, 'base64').toString('utf-8');
-      payload = JSON.parse(decodedStr);
+      payload = decodePortalTokenPayload(token);
     } catch {
       return NextResponse.json(
-        { error: 'รูปแบบ portal_token ไม่ถูกต้อง' },
+        {
+          code: 'INVALID_FORMAT',
+          error: 'รูปแบบ portal_token ไม่ถูกต้อง',
+        },
         { status: 400 }
       );
     }
 
+    if (!payload || typeof payload.sig !== 'string' || !payload.sig.trim()) {
+      return NextResponse.json(
+        {
+          code: 'MISSING_SIG',
+          error: 'portal_token ยังไม่ได้ลงนามยืนยันตัวตน (ขาดฟิลด์ sig)',
+        },
+        { status: 403 }
+      );
+    }
+
     if (
-      !payload ||
       typeof payload.email !== 'string' ||
       !payload.email.trim() ||
       (typeof payload.ts !== 'number' && typeof payload.ts !== 'string') ||
       typeof payload.source !== 'string' ||
-      !payload.source ||
-      typeof payload.sig !== 'string' ||
-      !payload.sig
+      !payload.source
     ) {
       return NextResponse.json(
-        { error: 'ข้อมูลใน portal_token ไม่ครบถ้วน' },
+        {
+          code: 'MISSING_FIELDS',
+          error: 'ข้อมูลใน portal_token ไม่ครบถ้วน',
+        },
         { status: 400 }
       );
     }
@@ -59,29 +95,51 @@ export async function POST(req: Request) {
     const requestedEmail = String(rawEmail).trim().toLowerCase();
     if (requestedEmail && requestedEmail !== tokenEmail) {
       return NextResponse.json(
-        { error: 'อีเมลที่ระบุไม่ตรงกับข้อมูลใน Hand-off token' },
+        {
+          code: 'EMAIL_MISMATCH',
+          error: 'อีเมลที่ระบุไม่ตรงกับข้อมูลใน Hand-off token',
+        },
         { status: 400 }
       );
     }
 
     const tsNum = Number(payload.ts);
-    if (!Number.isFinite(tsNum) || Math.abs(Date.now() - tsNum) > PORTAL_TOKEN_MAX_AGE_MS) {
+    const tsMs = tsNum < 1e12 ? tsNum * 1000 : tsNum;
+    if (!Number.isFinite(tsNum) || Math.abs(Date.now() - tsMs) > PORTAL_TOKEN_MAX_AGE_MS) {
       return NextResponse.json(
-        { error: 'portal_token หมดอายุแล้ว กรุณาเข้าสู่ระบบใหม่อีกครั้ง' },
+        {
+          code: 'EXPIRED_TOKEN',
+          error: 'portal_token หมดอายุแล้ว กรุณาเข้าสู่ระบบใหม่อีกครั้ง',
+        },
         { status: 403 }
       );
     }
 
-    const expectedSigHex = crypto
-      .createHmac('sha256', secret)
-      .update(`${payload.email}:${payload.ts}:${payload.source}`)
-      .digest('hex');
+    const providedSigHex = payload.sig.trim().toLowerCase();
+    const providedBuf = Buffer.from(providedSigHex, 'utf8');
+    const signatureCandidates = [
+      `${payload.email}:${payload.ts}:${payload.source}`,
+      `${tokenEmail}:${payload.ts}:${payload.source}`,
+    ];
+    const isSignatureValid = signatureCandidates.some((canonicalPayload) => {
+      const expectedSigHex = crypto
+        .createHmac('sha256', secret)
+        .update(canonicalPayload)
+        .digest('hex')
+        .toLowerCase();
+      const expectedBuf = Buffer.from(expectedSigHex, 'utf8');
+      return (
+        providedBuf.length === expectedBuf.length &&
+        crypto.timingSafeEqual(providedBuf, expectedBuf)
+      );
+    });
 
-    const providedBuf = Buffer.from(payload.sig.trim(), 'utf8');
-    const expectedBuf = Buffer.from(expectedSigHex, 'utf8');
-    if (providedBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(providedBuf, expectedBuf)) {
+    if (!isSignatureValid) {
       return NextResponse.json(
-        { error: 'ลายเซ็นดิจิทัล (HMAC signature) ของ portal_token ไม่ถูกต้อง' },
+        {
+          code: 'INVALID_SIGNATURE',
+          error: 'ลายเซ็นดิจิทัล (HMAC signature) ของ portal_token ไม่ถูกต้อง',
+        },
         { status: 403 }
       );
     }

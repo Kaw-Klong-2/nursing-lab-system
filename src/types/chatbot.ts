@@ -110,6 +110,36 @@ export interface PendingApprovalItemRef {
   summary: string;
 }
 
+export interface ChatHistoryItem {
+  role: 'user' | 'model';
+  text: string;
+}
+
+export interface SuggestedLink {
+  label: string;
+  href: string;
+}
+
+export const CHATBOT_TOOL_LABELS: Record<string, string> = {
+  search_inventory_stock: '📦 คลังพัสดุและครุภัณฑ์',
+  get_room_schedule: '📅 ตารางห้องแล็บและรอบฝึก',
+  get_my_requests: '📋 สถานะคำขอของคุณ',
+  get_courses_and_budgets: '📚 รายวิชาและงบประมาณ',
+  get_pending_approvals: '✅ รายการรออนุมัติ',
+  get_overdue_and_active_borrows: '⚠️ รายการยืม-ค้างคืน',
+  get_ac_operation_logs: '❄️ บันทึกเปิด-ปิดแอร์',
+  get_maintenance_and_issues: '🔧 งานซ่อมบำรุงและแจ้งชำรุด',
+  get_practice_kits: '🩺 ชุดฝึกปฏิบัติการ (Kits)',
+  search_system_guide: '📖 คู่มือการใช้งานระบบ',
+};
+
+export type ChatbotResponseSource =
+  | 'GEMINI_TOOLS'
+  | 'GEMINI_LLM'
+  | 'LOCAL_KNOWLEDGE_BASE'
+  | 'DATETIME_ENGINE'
+  | 'ACTION_ENGINE';
+
 export interface ChatSessionState {
   activeIntent: ChatIntent;
   stage: DialogueStage;
@@ -119,6 +149,7 @@ export interface ChatSessionState {
   acDraft?: AcLogDraft;
   issueDraft?: IssueReportDraft;
   pendingApprovalRefs?: PendingApprovalItemRef[];
+  conversationHistory?: ChatHistoryItem[];
   lastUpdated: number;
 }
 
@@ -146,6 +177,9 @@ export interface ChatbotTurnResponse {
   sessionState: ChatSessionState;
   quickReplies?: QuickReplyOption[];
   confirmationSummary?: ConfirmationSummaryCard;
+  toolsUsed?: string[];
+  suggestedLinks?: SuggestedLink[];
+  source?: ChatbotResponseSource;
   executionResult?: {
     success: boolean;
     referenceCode?: string;

@@ -5,15 +5,18 @@ import { createNotification, notifyAdvisorByName, notifyRoles } from '@/lib/noti
 import { logActivity } from '@/lib/activity-log';
 import { parseBangkokDateTime } from '@/lib/date-time-utils';
 import { validateStudentCourseEnrollment } from '@/lib/course-enrollment';
+import { getSessionFromRequest } from '@/lib/session';
+import { generateUniqueRequestNumber } from '@/lib/dispense-helpers';
 
 export async function PUT(req: Request) {
   try {
+    const session = await getSessionFromRequest(req);
     const body = await req.json();
     const {
       requestId,
       requestType, // 'BORROW' | 'REQUISITION' | 'UNIFIED'
       lastKnownUpdatedAt,
-      userId,
+      userId: bodyUserId,
       purpose,
       useTarget = 'SIMULATION',
       courseId,
@@ -26,6 +29,8 @@ export async function PUT(req: Request) {
       keepApprovalStatus = true,
       resetToPending = false,
     } = body;
+
+    const userId = session?.uid || bodyUserId;
 
     if (!requestId || !userId) {
       return NextResponse.json({ error: 'ข้อมูลคำขอไม่ครบถ้วน' }, { status: 400 });
@@ -165,11 +170,23 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: 'กรุณาระบุรายการครุภัณฑ์หรือวัสดุที่ต้องการขออย่างน้อย 1 รายการ' }, { status: 400 });
     }
 
-    // Pre-calculate Requisition cost if NOT dispensed
+    // Q3 Rule: Adding consumables (creating a new linked REQ) onto a standalone BORROW is strictly allowed ONLY while PENDING
+    const isCreatingLinkedRequisition = Boolean(borrowRecord && !requisitionRecord && validReqItems.length > 0);
+    if (isCreatingLinkedRequisition && borrowRecord.status !== 'PENDING') {
+      return NextResponse.json(
+        { error: 'สามารถเพิ่มวัสดุสิ้นเปลือง (REQ) เข้าใบยืม BRW ได้เฉพาะคำขอที่ยังอยู่ในสถานะรออนุมัติ (PENDING) เท่านั้น' },
+        { status: 400 }
+      );
+    }
+
+    // Pre-calculate Requisition cost if NOT dispensed (or if creating a newly linked PENDING REQ)
     let estimatedReqTotalCost = 0;
     const reqItemsToCreate: any[] = [];
 
-    if (requisitionRecord && requisitionRecord.status !== 'DISPENSED' && validReqItems.length > 0) {
+    if (
+      ((requisitionRecord && requisitionRecord.status !== 'DISPENSED') || isCreatingLinkedRequisition) &&
+      validReqItems.length > 0
+    ) {
       const reqItemIds = validReqItems.map((it: any) => it.itemId);
       const consumableRecords = await prisma.item.findMany({
         where: { id: { in: reqItemIds } },
@@ -632,6 +649,30 @@ export async function PUT(req: Request) {
               },
             });
           }
+        } else if (isCreatingLinkedRequisition && reqItemsToCreate.length > 0) {
+          // Create new PENDING RequisitionRequest linked to the PENDING BorrowRequest
+          const newReqNumber = await generateUniqueRequestNumber(tx, 'REQ');
+          updatedRequisition = await tx.requisitionRequest.create({
+            data: {
+              requestNumber: newReqNumber,
+              userId: borrowRecord.userId,
+              courseId: courseId || null,
+              advisorName: finalAdvisorName,
+              purpose: purpose || borrowRecord.purpose,
+              useTarget,
+              dateNeeded: borrowDate ? parseBangkokDateTime(borrowDate) : borrowRecord.borrowDate,
+              status: 'PENDING',
+              totalCost: estimatedReqTotalCost,
+              items: {
+                create: reqItemsToCreate,
+              },
+            },
+            include: {
+              items: { include: { item: true } },
+              course: true,
+              user: true,
+            },
+          });
         }
 
         // =====================================================================
@@ -642,21 +683,68 @@ export async function PUT(req: Request) {
             // -----------------------------------------------------------------
             // Case B.1: BORROWED (Active Loan) - ADMIN ONLY
             // -----------------------------------------------------------------
-            // Update items: delete and re-create, releasing removed assets back to AVAILABLE
+            // Preserve existing assigned assetIds cleanly instead of dropping them on edit
             const oldBorrowItems = await tx.borrowItem.findMany({
               where: { borrowRequestId: borrowRecord.id },
             });
 
+            const existingByItem = new Map<string, typeof oldBorrowItems>();
             for (const oldB of oldBorrowItems) {
-              const stillNeeded = validBorrowItems.find((n: any) => n.itemId === oldB.itemId);
-              if (!stillNeeded || Number(stillNeeded.quantity) < oldB.quantity) {
-                // If specific asset was allocated to this item, release it if needed
-                if (oldB.assetId && !stillNeeded) {
-                  await tx.equipmentAsset.update({
+              const list = existingByItem.get(oldB.itemId) || [];
+              list.push(oldB);
+              existingByItem.set(oldB.itemId, list);
+            }
+
+            const newBorrowRowsToCreate: Array<{
+              itemId: string;
+              assetId?: string | null;
+              quantity: number;
+              previousLocation?: string | null;
+            }> = [];
+
+            const keptAssetIds = new Set<string>();
+            for (const nItem of validBorrowItems) {
+              const desiredQty = Math.max(1, Number(nItem.quantity) || 1);
+              const prevRows = existingByItem.get(nItem.itemId) || [];
+              const prevWithAssets = prevRows.filter((r) => Boolean(r.assetId));
+
+              if (prevWithAssets.length > 0) {
+                for (let i = 0; i < desiredQty; i++) {
+                  const reuse = prevWithAssets[i];
+                  if (reuse?.assetId) {
+                    keptAssetIds.add(reuse.assetId);
+                    newBorrowRowsToCreate.push({
+                      itemId: nItem.itemId,
+                      assetId: reuse.assetId,
+                      quantity: 1,
+                      previousLocation: reuse.previousLocation,
+                    });
+                  } else {
+                    newBorrowRowsToCreate.push({
+                      itemId: nItem.itemId,
+                      assetId: null,
+                      quantity: 1,
+                    });
+                  }
+                }
+              } else {
+                newBorrowRowsToCreate.push({
+                  itemId: nItem.itemId,
+                  assetId: null,
+                  quantity: desiredQty,
+                });
+              }
+            }
+
+            // Release any previously borrowed EquipmentAssets that are no longer in the edited loan
+            for (const oldB of oldBorrowItems) {
+              if (oldB.assetId && !keptAssetIds.has(oldB.assetId)) {
+                await tx.equipmentAsset
+                  .update({
                     where: { id: oldB.assetId },
                     data: { status: 'AVAILABLE' },
-                  }).catch(() => {});
-                }
+                  })
+                  .catch(() => {});
               }
             }
 
@@ -674,10 +762,7 @@ export async function PUT(req: Request) {
                 borrowDate: borrowDate ? parseBangkokDateTime(borrowDate) : borrowRecord.borrowDate,
                 expectedReturnDate: expectedReturnDate ? parseBangkokDateTime(expectedReturnDate) : borrowRecord.expectedReturnDate,
                 items: {
-                  create: validBorrowItems.map((it: any) => ({
-                    itemId: it.itemId,
-                    quantity: Number(it.quantity) || 1,
-                  })),
+                  create: newBorrowRowsToCreate,
                 },
               },
               include: {
@@ -714,6 +799,9 @@ export async function PUT(req: Request) {
                 approvedAt: shouldKeepApproved ? borrowRecord.approvedAt : null,
                 instructorAcknowledged: shouldKeepApproved ? borrowRecord.instructorAcknowledged : false,
                 acknowledgedAt: shouldKeepApproved ? borrowRecord.acknowledgedAt : null,
+                ...(isCreatingLinkedRequisition && updatedRequisition?.id
+                  ? { requisitionRequestId: updatedRequisition.id }
+                  : {}),
                 items: {
                   create: validBorrowItems.map((it: any) => ({
                     itemId: it.itemId,
@@ -798,9 +886,11 @@ export async function PUT(req: Request) {
       entityType: borrowRecord ? 'BORROW' : 'REQUISITION',
       entityId: primaryRecord.id,
       entityTitle: reqNum,
-      details: isReset
-        ? `แก้ไขข้อมูลคำขอเลขที่ ${reqNum} และปรับสถานะเป็นรออนุมัติ`
-        : `ผู้ดูแลระบบแก้ไขข้อมูลคำขอเลขที่ ${reqNum} (สถานะ: ${primaryRecord.status})`,
+      details: isCreatingLinkedRequisition && result.updatedRequisition?.requestNumber
+        ? `แก้ไขคำขอเลขที่ ${reqNum} และเพิ่มใบเบิกวัสดุสิ้นเปลือง ${result.updatedRequisition.requestNumber} ผูกเป็นคำขอรวม One-Stop`
+        : isReset
+          ? `แก้ไขข้อมูลคำขอเลขที่ ${reqNum} และปรับสถานะเป็นรออนุมัติ`
+          : `ผู้ดูแลระบบแก้ไขข้อมูลคำขอเลขที่ ${reqNum} (สถานะ: ${primaryRecord.status})`,
     });
 
     return NextResponse.json({

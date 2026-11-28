@@ -1,166 +1,126 @@
 /**
- * โมดูลเชื่อมต่อ Google Gemini AI (World-Class AI Brain)
- * ออกแบบให้เป็น AI ผู้ช่วยอัจฉริยะรอบรู้ขั้นสูง (Super AI Assistant)
- * - มีความรอบรู้ระดับโลก ทั้งเรื่องการพยาบาล, หัตถการ, ยา, วิทยาศาสตร์, เทคโนโลยี, สาระน่ารู้ทั่วไป
- * - ผสานข้อมูลระบบห้องแล็บพยาบาลและสิทธิ์ผู้ใช้งาน (RBAC) เข้ากับองค์ความรู้สากลอย่างไร้รอยต่อ
- * - ตอบคำถามได้ทุกมิติอย่างมีเหตุผล สุภาพ กระชับ เป็นมิตร และบังคับใช้คำว่า "นิสิต" เสมอ
+ * โมดูลเชื่อมต่อ Google Gemini AI (Tool-Calling & Multi-Turn Brain)
+ * - รองรับ Native Function Calling 10 เครื่องมือ (RBAC Read-Only) สำหรับดึงข้อมูลสดจากฐานข้อมูล
+ * - รองรับ Multi-Turn Conversation History เพื่อความต่อเนื่องของบทสนทนา
+ * - มี Fallback สู่ Deterministic DateTime Engine และ Local Knowledge Base อัตโนมัติ
  */
 
 import { searchKnowledgeBase, answerDateTimeAndGeneralQuery } from './chatbot-knowledge';
 import { UserScopedSystemContext } from './chatbot-context-aggregator';
+import {
+  CHATBOT_TOOL_DECLARATIONS,
+  executeChatbotTool,
+  deriveSuggestedLinks,
+} from './chatbot-tools';
+import { ChatHistoryItem, ChatbotResponseSource, SuggestedLink } from '@/types/chatbot';
 
 export interface GeminiChatResponse {
   success: boolean;
   replyText: string;
-  source: 'GEMINI_LLM' | 'LOCAL_KNOWLEDGE_BASE' | 'DATETIME_ENGINE';
-  suggestedAction?: string;
+  source: ChatbotResponseSource;
+  toolsUsed?: string[];
+  suggestedLinks?: SuggestedLink[];
   quickReplies?: Array<{ label: string; textToSend: string }>;
 }
 
-/**
- * เรียกใช้ Google Gemini คิดคำตอบอย่างชาญฉลาดรอบรู้ระดับโลก
- */
-export async function askGeminiLabBrain(
-  userMessage: string,
-  currentUser: any,
+const CANDIDATE_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash'];
+const MAX_TOOL_ROUNDS = 4;
+
+function buildSystemPrompt(
+  userName: string,
+  role: string,
   systemContext?: UserScopedSystemContext
-): Promise<GeminiChatResponse> {
-  const role = (currentUser?.role || 'USER').toUpperCase();
-  const userName = currentUser?.name || 'ผู้ใช้งาน';
-
-  // 1. ดึง API Key จาก Server Environment Variable เท่านั้น (ห้ามใช้ NEXT_PUBLIC_)
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  // 2. หากไม่มี API Key ให้ใช้ Local Knowledge Base
-  if (!apiKey) {
-    const dtResult = answerDateTimeAndGeneralQuery(userMessage, role);
-    if (dtResult) {
-      return {
-        success: true,
-        replyText: dtResult.text,
-        source: 'DATETIME_ENGINE',
-        quickReplies: dtResult.quickReplies,
-      };
-    }
-
-    const kbResult = searchKnowledgeBase(userMessage, role);
-    if (kbResult) {
-      return {
-        success: true,
-        replyText: kbResult.answer(role, systemContext),
-        source: 'LOCAL_KNOWLEDGE_BASE',
-        quickReplies: kbResult.quickReplies,
-      };
-    }
-
-    const lower = userMessage.toLowerCase().trim();
-    if (['สวัสดี', 'หวัดดี', 'hello', 'hi', 'ดีครับ', 'ดีค่ะ'].includes(lower)) {
-      return {
-        success: true,
-        replyText: `สวัสดีครับคุณ **${userName}**! 👋 ผมคือ **KUNurse+ Lab AI Copilot** ผู้ช่วยประจำห้องปฏิบัติการพยาบาลครับ มีอะไรให้ผมช่วยเหลือวันนี้ พิมพ์ถามหรือสั่งงานได้เลยครับ 😊`,
-        source: 'LOCAL_KNOWLEDGE_BASE',
-      };
-    }
-
-    return {
-      success: false,
-      replyText: '',
-      source: 'LOCAL_KNOWLEDGE_BASE',
-    };
-  }
-
-  // 3. เตรียม System Prompt ยกระดับเป็น Super Intelligent AI Assistant
-  const candidateModels = ['gemini-3.5-flash-lite', 'gemini-3.5-flash'];
-  const nowBkk = systemContext?.currentBangkokTime || new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'full', timeStyle: 'medium' });
+): string {
+  const nowBkk =
+    systemContext?.currentBangkokTime ||
+    new Date().toLocaleString('th-TH', {
+      timeZone: 'Asia/Bangkok',
+      dateStyle: 'full',
+      timeStyle: 'medium',
+    });
 
   const contextText = JSON.stringify(systemContext || {}, null, 2);
 
-  const systemPrompt = `คุณคือ "KUNurse+ Lab AI Copilot" ระบบปัญญาประดิษฐ์ผู้ช่วยอัจฉริยะประจำคณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์ 
-คุณเป็น AI ระดับโลก (World-Class Super Intelligent Copilot) ที่มีความรอบรู้กว้างขวาง สามารถคิด วิเคราะห์ อธิบาย ให้คำปรึกษา และตอบคำถามได้รอบด้านอย่างไร้รอยต่อ
+  return `คุณคือ "KUNurse+ Lab AI Copilot" ผู้ช่วยอัจฉริยะประจำระบบห้องปฏิบัติการพยาบาล (คณะพยาบาลศาสตร์ มหาวิทยาลัยเกษตรศาสตร์)
 
-บุคลิกและสมรรถนะหลักของคุณ:
-1. **ความรอบรู้ครอบจักรวาล (All-Round Knowledge):**
-   - **ด้านการพยาบาลและการแพทย์:** เชี่ยวชาญทฤษฎีการพยาบาล, ทักษะหัตถการคลินิก (Injections, IV fluid, Foley catheter, Dressing, CPR, NG tube), การเตรียมสอบ OSCE, กลไกของยา, ค่าสัญญาณชีพ (Vital Signs), การประเมินผู้ป่วย และความปลอดภัย (Patient Safety)
-   - **ด้านระบบห้องปฏิบัติการ KUNurse+ Lab:** รู้จักห้องแล็บทุกห้อง, รายวิชา, สต็อกพัสดุ, กฎระเบียบ, การจองห้อง, และการยืม-เบิก One-Stop อย่างลึกซึ้ง
-   - **ด้านความรู้ทั่วไปในชีวิตประจำวัน:** วิทยาศาสตร์, เทคโนโลยี, ภาษา, การคำนวณ, วันเวลา, ปฏิทิน, การจัดลำดับความสำคัญ, การให้กำลังใจ และคำแนะนำที่เป็นประโยชน์
-   - สามารถตอบคำถามทั่วไปของผู้ใช้ได้ทุกคำถามอย่างชาญฉลาดและมีตรรกะ ไม่ตอบตัดบทว่าไม่รู้หรือไม่ตอบ
+ข้อมูลผู้ใช้งานปัจจุบัน:
+- ชื่อ: "${userName}"
+- บทบาท (Role): "${role}"
+- เวลาปัจจุบันในประเทศไทย: ${nowBkk}
+- สถานะห้องแล็บตอนนี้: ${systemContext?.isLabOpenNow ? 'เปิดทำการอยู่ (08:30 - 16:30 น.)' : 'ปิดทำการ (เปิด จันทร์-ศุกร์ 08:30 - 16:30 น.)'}
 
-2. **กฎเหล็กด้านความปลอดภัยและสิทธิ์การเข้าถึงข้อมูล (RBAC Data Privacy):**
-   - ผู้ใช้งานปัจจุบันคือ: คุณ "${userName}" ในบทบาท "${role}"
-   - หากผู้ใช้คือ "USER" (นิสิต): 
-     - ❌ **ห้ามเปิดเผยข้อมูลส่วนบุคคลหรือข้อมูลลับข้ามบุคคล**: นิสิตไม่มีสิทธิ์ดูงบประมาณของรายวิชา, ห้ามดูคำขอของนิสิตคนอื่น, และห้ามดูรายชื่อคนค้างคืนพัสดุ (Overdue)
-     - หากนิสิตถามเรื่องดังกล่าว ให้ปฏิเสธอย่างสุภาพทันทีว่า "ขออภัยครับ ข้อมูลส่วนนี้สงวนสิทธิ์สำหรับอาจารย์ผู้ประสานงานวิชา หรือเจ้าหน้าที่ห้องแล็บเท่านั้นครับ นิสิตสามารถตรวจสอบได้เฉพาะสถานะคำขอของตนเองครับ"
-   - หากผู้ใช้คือ "APPROVER" หรือ "TEACHER" (อาจารย์): ดูคำขอรออนุมัติของนิสิตในวิชาที่สอน และงบประมาณคงเหลือของรายวิชาตนเองได้
-   - หากผู้ใช้คือ "OFFICER" หรือ "ADMIN" (เจ้าหน้าที่/ผู้ดูแลระบบ): ดูภาพรวมระบบทั้งหมดได้ เช่น สถิติคนค้างคืนพัสดุ, สต็อกทุกล็อต, การเปิดแอร์
+กฎการปฏิบัติงานอย่างเคร่งครัด:
+1. **ใช้เครื่องมือ (Tools) เสมอเมื่อถามเกี่ยวกับข้อมูลจริงในระบบหรือวิธีใช้งานระบบ:**
+   - ห้ามเดาจำนวนสต็อก ตารางห้อง ชื่อห้อง คำขอค้าง งบประมาณ ชั่วโมงแอร์ รายการแจ้งซ่อม หรือขั้นตอนเมนูจากความจำ
+   - เมื่อผู้ใช้ถามเรื่องสต็อก/ของใกล้หมด/วันหมดอายุ -> เรียก \`search_inventory_stock\`
+   - เมื่อถามเรื่องห้องว่าง/ห้องถูกจอง/รอบฝึก/วันหยุด -> เรียก \`get_room_schedule\`
+   - เมื่อถามเรื่องคำขอของตนเอง -> เรียก \`get_my_requests\`
+   - เมื่อถามเรื่องรายวิชา/การลงทะเบียนเรียน/งบประมาณ -> เรียก \`get_courses_and_budgets\`
+   - เมื่อถามเรื่องคำขอรออนุมัติ -> เรียก \`get_pending_approvals\`
+   - เมื่อถามเรื่องคนค้างคืน/กำลังยืม -> เรียก \`get_overdue_and_active_borrows\`
+   - เมื่อถามเรื่องบันทึกเปิด-ปิดแอร์ -> เรียก \`get_ac_operation_logs\`
+   - เมื่อถามเรื่องแจ้งซ่อม/อุปกรณ์ชำรุด -> เรียก \`get_maintenance_and_issues\`
+   - เมื่อถามเรื่องชุดฝึกปฏิบัติการ (Kits) -> เรียก \`get_practice_kits\`
+   - เมื่อถามวิธีใช้งานระบบ เมนู ขั้นตอน กฎระเบียบ หรือปัญหาการใช้งาน -> เรียก \`search_system_guide\`
+2. **สิทธิพิเศษและความเป็นส่วนตัว (RBAC):**
+   - หากผู้ใช้เป็น \`USER\` (นิสิต) หรือ \`VIEWER\`: ห้ามเปิดเผยงบประมาณรายวิชา คำขอของผู้อื่น เบอร์โทรผู้แจ้งซ่อม หรือรายชื่อผู้ค้างคืนพัสดุ หากเครื่องมือแจ้งปฏิเสธสิทธิ์ให้ชี้แจงอย่างสุภาพ
+3. **กฎเหล็กด้านคำศัพท์:**
+   - บังคับใช้คำว่า **"นิสิต"** เสมอในทุกกรณี ห้ามใช้คำอื่นที่ผิดระเบียบคณะเด็ดขาด
+4. **รูปแบบการตอบและเส้นทางเมนูจริงในระบบ (ห้ามแต่ง URL เอง):**
+   - ตอบเป็นภาษาไทยที่สุภาพ ชัดเจน กระชับ มีหัวข้อและ bullet points อ่านง่าย
+   - หากอ้างอิงหน้าเว็บในระบบ **ต้องใช้เส้นทางจริงต่อไปนี้เท่านั้น**:
+     - ยืม-คืน/เบิกพัสดุ: \`/borrow\`, \`/borrow/request\`, \`/requisitions\`
+     - จองห้อง/ปฏิทิน/ฝึกทักษะ: \`/rooms\`, \`/schedule\`, \`/practice\`, \`/practice/book\`, \`/kits\`
+     - อนุมัติคำขอ: \`/approvals\` (ไม่ใช่ /admin/approvals)
+     - รายวิชาและรายชื่อนิสิต: \`/courses\`
+     - คลังพัสดุ/รับเข้า/POS/แบ่งบรรจุ: \`/inventory\`, \`/stock-in\`, \`/pos\`, \`/repack\`
+     - ซ่อมบำรุง/แจ้งชำรุด: \`/maintenance\`, \`/maintenance/report\`
+     - เปิด-ปิดแอร์: \`/air-conditioning\`
+     - รายงาน/ผู้บริหาร/ผู้ใช้/ตั้งค่า: \`/reports\`, \`/executive\`, \`/users\`, \`/audit-logs\`, \`/settings/notifications\`, \`/settings/terms\`, \`/admin/feedback\`
+   - หากผลลัพธ์จากเครื่องมือว่างเปล่า ให้บอกตรงๆ ตามข้อมูลจริง (เช่น "วันนี้ยังไม่มีรายการจองห้องในระบบครับ") ห้ามแต่งข้อมูลเพิ่ม
 
-3. **กฎเหล็กด้านคำศัพท์ของคณะ:**
-   - **บังคับใช้คำว่า "นิสิต" เสมอในทุกกรณี** ห้ามใช้คำอื่นที่ผิดระเบียบคณะเด็ดขาด
-
-4. **ข้อมูลบริบทสดของระบบห้องแล็บ (RBAC Context Data):**
+บริบทสรุปของระบบตามสิทธิ์ผู้ใช้:
 \`\`\`json
 ${contextText}
-\`\`\`
-เวลาปัจจุบันของประเทศไทยคือ: ${nowBkk} (สถานะแล็บ: ${systemContext?.isLabOpenNow ? 'เปิดทำการอยู่' : 'ปิดทำการ'})
+\`\`\``;
+}
 
-รูปแบบการตอบ:
-- ตอบอย่างมีภูมิปัญญา (Insightful), ชัดเจน, กระชับ, ลื่นไหล, เป็นมิตร, มีการจัดหัวข้อหรือ bullet points ให้อ่านง่าย
-- หากถามเรื่องหัตถการ ให้สรุปข้อควรระวังเรื่องความสะอาดและการดูแลผู้ป่วยอย่างมืออาชีพ
-- หากถามเรื่องทั่วไป ให้ตอบอย่างชาญฉลาด มีหลักการ และเชื่อมโยงประโยชน์ได้อย่างน่าประทับใจ`;
-
-  for (const model of candidateModels) {
-    try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout ให้ AI มีเวลาคิดวิเคราะห์คำถามเชิงลึก
-
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: userMessage }],
-            },
-          ],
-          systemInstruction: {
-            parts: [{ text: systemPrompt }],
-          },
-          generationConfig: {
-            temperature: 0.4,
-            maxOutputTokens: 800,
-          },
-        }),
-      });
-
-      clearTimeout(timeoutId);
-
-      if (res.ok) {
-        const data = await res.json();
-        const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (candidateText && candidateText.trim()) {
-          return {
-            success: true,
-            replyText: candidateText.trim(),
-            source: 'GEMINI_LLM',
-          };
-        }
+function buildInitialContents(
+  userMessage: string,
+  history?: ChatHistoryItem[]
+): Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> {
+  const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+  if (Array.isArray(history) && history.length > 0) {
+    const trimmed = history.slice(-10);
+    for (const item of trimmed) {
+      if (item.text && item.text.trim()) {
+        contents.push({
+          role: item.role === 'model' ? 'model' : 'user',
+          parts: [{ text: item.text }],
+        });
       }
-    } catch (err: any) {
-      console.warn(`Gemini model ${model} failed or timed out:`, err.message);
     }
   }
+  contents.push({
+    role: 'user',
+    parts: [{ text: userMessage }],
+  });
+  return contents;
+}
 
-  // 4. หากเรียก Gemini ไม่สำเร็จ Fallback สู่คลังความรู้ในตัว
-  const dt = answerDateTimeAndGeneralQuery(userMessage, role);
-  if (dt) {
+function runFallbackKnowledge(
+  userMessage: string,
+  role: string,
+  userName: string,
+  systemContext?: UserScopedSystemContext
+): GeminiChatResponse {
+  const dtResult = answerDateTimeAndGeneralQuery(userMessage, role);
+  if (dtResult) {
     return {
       success: true,
-      replyText: dt.text,
+      replyText: dtResult.text,
       source: 'DATETIME_ENGINE',
-      quickReplies: dt.quickReplies,
+      quickReplies: dtResult.quickReplies,
     };
   }
 
@@ -171,6 +131,16 @@ ${contextText}
       replyText: kbResult.answer(role, systemContext),
       source: 'LOCAL_KNOWLEDGE_BASE',
       quickReplies: kbResult.quickReplies,
+      suggestedLinks: kbResult.route ? [{ label: kbResult.title, href: kbResult.route }] : undefined,
+    };
+  }
+
+  const lower = userMessage.toLowerCase().trim();
+  if (['สวัสดี', 'หวัดดี', 'hello', 'hi', 'ดีครับ', 'ดีค่ะ'].includes(lower)) {
+    return {
+      success: true,
+      replyText: `สวัสดีครับคุณ **${userName}**! 👋 ผมคือ **KUNurse+ Lab AI Copilot** ผู้ช่วยประจำห้องปฏิบัติการพยาบาลครับ มีอะไรให้ผมช่วยเหลือวันนี้ พิมพ์ถามหรือสั่งงานได้เลยครับ 😊`,
+      source: 'LOCAL_KNOWLEDGE_BASE',
     };
   }
 
@@ -179,4 +149,148 @@ ${contextText}
     replyText: '',
     source: 'LOCAL_KNOWLEDGE_BASE',
   };
+}
+
+/**
+ * เรียกใช้ Google Gemini พร้อม Function Calling (Multi-Turn Tool Loop)
+ */
+export async function askGeminiLabBrain(
+  userMessage: string,
+  currentUser: any,
+  systemContext?: UserScopedSystemContext,
+  conversationHistory?: ChatHistoryItem[]
+): Promise<GeminiChatResponse> {
+  const role = (currentUser?.role || 'USER').toUpperCase();
+  const userName = currentUser?.name || 'ผู้ใช้งาน';
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey) {
+    return runFallbackKnowledge(userMessage, role, userName, systemContext);
+  }
+
+  const systemPrompt = buildSystemPrompt(userName, role, systemContext);
+  const actor = {
+    id: currentUser?.id || 'guest-user',
+    name: userName,
+    role,
+    email: currentUser?.email,
+  };
+
+  for (const model of CANDIDATE_MODELS) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const contents: any[] = buildInitialContents(userMessage, conversationHistory);
+      const toolsUsed: string[] = [];
+      const guideLinks: SuggestedLink[] = [];
+
+      for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 18000);
+
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents,
+            systemInstruction: {
+              parts: [{ text: systemPrompt }],
+            },
+            tools: [{ functionDeclarations: CHATBOT_TOOL_DECLARATIONS }],
+            toolConfig: {
+              functionCallingConfig: { mode: 'AUTO' },
+            },
+            generationConfig: {
+              temperature: 0.3,
+              maxOutputTokens: 2048,
+            },
+          }),
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!res.ok) {
+          const errBody = await res.text().catch(() => '');
+          console.warn(`Gemini model ${model} HTTP ${res.status}:`, errBody.slice(0, 200));
+          break;
+        }
+
+        const data = await res.json();
+        const candidateParts: any[] = data?.candidates?.[0]?.content?.parts || [];
+        if (candidateParts.length === 0) {
+          break;
+        }
+
+        const functionCalls = candidateParts.filter((p) => p.functionCall && p.functionCall.name);
+        if (functionCalls.length > 0) {
+          contents.push({
+            role: 'model',
+            parts: candidateParts,
+          });
+
+          const functionResponses = await Promise.all(
+            functionCalls.map(async (part) => {
+              const fc = part.functionCall;
+              if (!toolsUsed.includes(fc.name)) {
+                toolsUsed.push(fc.name);
+              }
+              let result: any;
+              try {
+                result = await executeChatbotTool(fc.name, fc.args, actor);
+                if (fc.name === 'search_system_guide' && Array.isArray(result?.guides)) {
+                  for (const g of result.guides) {
+                    if (g?.route && g?.title && !guideLinks.some((l) => l.href === g.route)) {
+                      guideLinks.push({ label: g.title, href: g.route });
+                    }
+                  }
+                }
+              } catch (toolErr: any) {
+                console.error(`Tool ${fc.name} error:`, toolErr);
+                result = { error: `ไม่สามารถดึงข้อมูลจาก ${fc.name} ได้: ${toolErr?.message || 'unknown error'}` };
+              }
+              return {
+                functionResponse: {
+                  name: fc.name,
+                  response: { result },
+                },
+              };
+            })
+          );
+
+          contents.push({
+            role: 'user',
+            parts: functionResponses,
+          });
+          continue;
+        }
+
+        const textParts = candidateParts
+          .map((p) => (typeof p.text === 'string' ? p.text : ''))
+          .filter(Boolean)
+          .join('\n')
+          .trim();
+
+        if (textParts) {
+          const mergedLinks = [...deriveSuggestedLinks(toolsUsed, role)];
+          for (const gl of guideLinks) {
+            if (!mergedLinks.some((l) => l.href === gl.href)) {
+              mergedLinks.push(gl);
+            }
+          }
+          return {
+            success: true,
+            replyText: textParts,
+            source: toolsUsed.length > 0 ? 'GEMINI_TOOLS' : 'GEMINI_LLM',
+            toolsUsed: toolsUsed.length > 0 ? toolsUsed : undefined,
+            suggestedLinks: mergedLinks.length > 0 ? mergedLinks.slice(0, 3) : undefined,
+          };
+        }
+        break;
+      }
+    } catch (err: any) {
+      console.warn(`Gemini model ${model} failed or timed out:`, err?.message || err);
+    }
+  }
+
+  return runFallbackKnowledge(userMessage, role, userName, systemContext);
 }

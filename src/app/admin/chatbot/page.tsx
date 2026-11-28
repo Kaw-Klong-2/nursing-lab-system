@@ -24,10 +24,13 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import ChatMarkdown from '@/components/chatbot/ChatMarkdown';
 import {
+  CHATBOT_TOOL_LABELS,
   ChatSessionState,
   ConfirmationSummaryCard,
   QuickReplyOption,
+  SuggestedLink,
 } from '@/types/chatbot';
 
 interface ChatMessage {
@@ -36,6 +39,8 @@ interface ChatMessage {
   text: string;
   timestamp: Date;
   confirmationSummary?: ConfirmationSummaryCard;
+  toolsUsed?: string[];
+  suggestedLinks?: SuggestedLink[];
   executionResult?: {
     success: boolean;
     referenceCode?: string;
@@ -130,6 +135,8 @@ export default function AdminChatbotSandboxPage() {
           text: data.replyText,
           timestamp: new Date(),
           confirmationSummary: data.confirmationSummary,
+          toolsUsed: data.toolsUsed,
+          suggestedLinks: data.suggestedLinks,
           executionResult: data.executionResult,
         };
 
@@ -223,7 +230,7 @@ export default function AdminChatbotSandboxPage() {
             </div>
             <div>
               <span className="text-xs font-bold text-slate-900 dark:text-white block leading-tight">
-                KUNurse+ Lab AI Brain (Gemini 3.5 Flash)
+                KUNurse+ Lab AI Brain (Gemini Tool-Calling + Live DB)
               </span>
               <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -245,13 +252,47 @@ export default function AdminChatbotSandboxPage() {
               className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} space-y-1.5`}
             >
               <div
-                className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed whitespace-pre-line shadow-xs ${
+                className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed shadow-xs ${
                   msg.sender === 'user'
-                    ? 'bg-gradient-to-r from-teal-600 to-indigo-600 text-white rounded-br-xs'
+                    ? 'bg-gradient-to-r from-teal-600 to-indigo-600 text-white rounded-br-xs whitespace-pre-line'
                     : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/70 dark:border-slate-700 rounded-bl-xs'
                 }`}
               >
-                {msg.text}
+                {msg.sender === 'bot' ? <ChatMarkdown text={msg.text} /> : msg.text}
+
+                {/* ป้ายแหล่งข้อมูลสดที่ AI เรียกใช้ */}
+                {msg.sender === 'bot' && msg.toolsUsed && msg.toolsUsed.length > 0 && (
+                  <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-700/70 flex flex-wrap items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
+                      <Database className="w-3 h-3" />
+                      แหล่งข้อมูลสด:
+                    </span>
+                    {msg.toolsUsed.map((t) => (
+                      <span
+                        key={t}
+                        className="text-[10px] px-2 py-0.5 rounded-md bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 border border-teal-200/70 dark:border-teal-800/70 font-semibold"
+                      >
+                        {CHATBOT_TOOL_LABELS[t] || t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* ลิงก์นำทางเข้าเมนูที่เกี่ยวข้อง */}
+                {msg.sender === 'bot' && msg.suggestedLinks && msg.suggestedLinks.length > 0 && (
+                  <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                    {msg.suggestedLinks.map((lnk) => (
+                      <Link
+                        key={lnk.href}
+                        href={lnk.href}
+                        className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-900 hover:bg-teal-50 dark:hover:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-slate-200 dark:border-slate-700 font-semibold transition"
+                      >
+                        <span>{lnk.label}</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    ))}
+                  </div>
+                )}
 
                 {/* การ์ดสรุปสำหรับให้ยืนยัน (Confirmation Card) */}
                 {msg.confirmationSummary && (

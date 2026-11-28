@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import {
   Bot,
-  X,
   Send,
   Mic,
   MicOff,
@@ -12,17 +12,16 @@ import {
   Sparkles,
   ChevronDown,
   CheckCircle2,
-  Calendar,
-  Clock,
-  User,
-  BookOpen,
-  MapPin,
   ExternalLink,
+  Database,
 } from 'lucide-react';
+import ChatMarkdown from '@/components/chatbot/ChatMarkdown';
 import {
+  CHATBOT_TOOL_LABELS,
   ChatSessionState,
   ConfirmationSummaryCard,
   QuickReplyOption,
+  SuggestedLink,
 } from '@/types/chatbot';
 
 interface ChatMessage {
@@ -31,6 +30,8 @@ interface ChatMessage {
   text: string;
   timestamp: Date;
   confirmationSummary?: ConfirmationSummaryCard;
+  toolsUsed?: string[];
+  suggestedLinks?: SuggestedLink[];
   executionResult?: {
     success: boolean;
     referenceCode?: string;
@@ -185,6 +186,8 @@ export default function LabCopilotWidget() {
           text: data.replyText,
           timestamp: new Date(),
           confirmationSummary: data.confirmationSummary,
+          toolsUsed: data.toolsUsed,
+          suggestedLinks: data.suggestedLinks,
           executionResult: data.executionResult,
         };
 
@@ -301,13 +304,48 @@ export default function LabCopilotWidget() {
                 className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
               >
                 <div
-                  className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm whitespace-pre-line leading-relaxed shadow-sm ${
+                  className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm leading-relaxed shadow-sm ${
                     msg.sender === 'user'
-                      ? 'bg-gradient-to-r from-teal-600 to-indigo-600 text-white rounded-br-xs'
+                      ? 'bg-gradient-to-r from-teal-600 to-indigo-600 text-white rounded-br-xs whitespace-pre-line'
                       : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700/80 rounded-bl-xs'
                   }`}
                 >
-                  {msg.text}
+                  {msg.sender === 'bot' ? <ChatMarkdown text={msg.text} /> : msg.text}
+
+                  {/* ป้ายแหล่งข้อมูลสดที่ AI ค้นจากฐานข้อมูล */}
+                  {msg.sender === 'bot' && msg.toolsUsed && msg.toolsUsed.length > 0 && (
+                    <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/70 flex flex-wrap items-center gap-1">
+                      <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 mr-0.5">
+                        <Database className="w-3 h-3" />
+                        ข้อมูลจริง:
+                      </span>
+                      {msg.toolsUsed.map((t) => (
+                        <span
+                          key={t}
+                          className="text-[10px] px-1.5 py-0.5 rounded-md bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 border border-teal-200/70 dark:border-teal-800/70 font-medium"
+                        >
+                          {CHATBOT_TOOL_LABELS[t] || t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* ลิงก์นำทางเข้าเมนูที่เกี่ยวข้อง */}
+                  {msg.sender === 'bot' && msg.suggestedLinks && msg.suggestedLinks.length > 0 && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {msg.suggestedLinks.map((lnk) => (
+                        <Link
+                          key={lnk.href}
+                          href={lnk.href}
+                          onClick={() => setIsOpen(false)}
+                          className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-900 hover:bg-teal-50 dark:hover:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-slate-200 dark:border-slate-700 font-semibold transition"
+                        >
+                          <span>{lnk.label}</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* การ์ดสรุปรอยืนยัน (Confirmation Summary Card) */}

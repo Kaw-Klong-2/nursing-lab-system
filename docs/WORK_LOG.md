@@ -17,6 +17,25 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-28] ปรับปรุงระบบรับคืน-จ่ายหน้างาน-แก้ไขคำขอ (`v2.10.0`)
+- **หมวดหมู่**: Borrow / Return, Dispense Center & Request Editing (`v2.10.0`)
+- **สิ่งที่ดำเนินการ**:
+  1. **คัดกรองรายการงดจ่าย (`DISALLOWED`) ออกจากหน้าตรวจสอบรับคืน**: หน้า `/borrow` (Check-in modal) ไม่นำครุภัณฑ์ที่ถูกงดจ่าย (`returnCondition === 'DISALLOWED'` หรือ `quantity <= 0`) มาประเมินสภาพรับคืน พร้อมแสดงกล่องสรุปรายการที่ไม่ได้รับมอบแบบ Read-only และแก้ Badge บนการ์ดให้แสดง `"ไม่ได้รับมอบ (งดจ่าย)"` แทน `"คืนสมบูรณ์"` ส่วน Backend (`/api/borrow/[id]`) ป้องกันการเขียนทับสถานะ `DISALLOWED` ทั้งโหมด `itemReturns` และ Fallback
+  2. **เพิ่มรายการหน้างานระหว่างจ่ายของ (`/borrow` & `/dispense`)**: สร้าง Shared Helper (`src/lib/dispense-helpers.ts`) และ Shared UI Component (`src/components/dispense/AddOnSiteItemsSection.tsx`) รองรับปุ่ม `+ เพิ่มรายการหน้างาน` ทั้งในหน้า `/borrow` (Checkout) และ `/dispense` (จ่ายของรวม/จ่ายวัสดุ) เพิ่มได้ทั้งครุภัณฑ์และวัสดุสิ้นเปลือง พร้อมปลดล็อกให้เพิ่มจำนวนเกิน `requestedQty` เมื่อมีจ่ายเพิ่มหน้างาน โดยตัดสต็อก FIFO/FEFO และสลับสถานะเป็น `BORROWED`/`DISPENSED` ทันที สร้างและเชื่อมโยงเอกสารคู่ (`REQ`/`BRW`) อัตโนมัติเมื่อยังไม่มี บันทึก `ActivityLog` และแจ้งเตือนนิสิตพร้อมอาจารย์ผู้สอน
+  3. **เพิ่มรายการวัสดุสิ้นเปลือง (`REQ`) เมื่อแก้ไข `BRW` ที่ยัง `PENDING`**: อัปเดต `EditRequestModal` และ `/api/requests/edit` ให้เพิ่มวัสดุสิ้นเปลืองสร้างเป็น `REQ` ผูกคู่กับ `BRW` ได้เฉพาะเมื่อ `borrowRecord.status === 'PENDING'` เท่านั้น (บังคับทั้ง UI และ Backend Transaction) และปรับ `AGENTS.md` Rule #1 ให้ใช้ `ask_question` ได้เฉพาะกรณีเรียก `/grill-me`
+- **ไฟล์ที่แก้ไข/สร้าง**: `src/lib/dispense-helpers.ts`, `src/components/dispense/AddOnSiteItemsSection.tsx`, `src/app/api/borrow/[id]/route.ts`, `src/app/api/requisitions/[id]/route.ts`, `src/app/api/dispense/queue/route.ts`, `src/app/api/requests/edit/route.ts`, `src/app/borrow/page.tsx`, `src/app/dispense/page.tsx`, `src/components/requests/EditRequestModal.tsx`, `AGENTS.md`, `LIBRARY_CATALOG.md`, `package.json`, `src/lib/version.ts`
+
+### [2026-11-28] พัฒนา AI Copilot (Native Gemini Tool-Calling, คู่มือระบบจริง และ UI แสดงผล) (`v2.9.2`)
+- **หมวดหมู่**: AI Copilot, Chatbot Tools, RBAC Security & Knowledge Base (`v2.9.2`)
+- **สิ่งที่ดำเนินการ**:
+  - **Version Bump (`v2.9.1` -> `v2.9.2`)**: รัน `node scripts/version-bump.mjs patch` ซิงก์ `package.json` และ `src/lib/version.ts` เป็น `v2.9.2`
+  - **สร้างเครื่องมือสืบค้นข้อมูลสดแบบ RBAC (`src/lib/chatbot-tools.ts`)**: เพิ่ม Native Function Calling 10 เครื่องมือ (`search_inventory_stock`, `get_room_schedule`, `get_my_requests`, `get_courses_and_budgets`, `get_pending_approvals`, `get_overdue_and_active_borrows`, `get_ac_operation_logs`, `get_maintenance_and_issues`, `get_practice_kits`, `search_system_guide`) พร้อมตรวจสิทธิ์ RBAC รายคำสั่ง (ซ่อนงบประมาณ/คำขอผู้อื่น/เบอร์โทรผู้แจ้งสำหรับ `USER`/`VIEWER`) และแก้คิวรีพัสดุค้างคืนให้ตรงสถานะ `BORROWED`
+  - **อัปเกรดสมอง Gemini และความจำบทสนทนา (`src/lib/chatbot-gemini.ts`, `src/lib/chatbot-engine.ts`, `src/types/chatbot.ts`)**: รองรับ Multi-Turn History (`conversationHistory` สูงสุด 12 ข้อความ), Tool-Calling Loop สูงสุด 4 รอบ (`gemini-3.5-flash-lite` -> `gemini-3.8-flash` -> `gemini-3.5-flash`), แก้ `isGeneralOrKnowledgeQuery` ไม่ให้ตัดบทระหว่าง Action Flow, และคืน `toolsUsed` + `suggestedLinks`
+  - **อัปเดตคลังความรู้และ NLU ให้ตรงระบบจริง (`src/lib/chatbot-knowledge.ts`, `src/lib/chatbot-nlu.ts`, `src/lib/chatbot-context-aggregator.ts`)**: แก้ตำแหน่งห้องแล็บเป็นอาคารวิทยบริการ ชั้น 3 และรหัสห้องจริง (`LAB-01-1`..`LAB-01-3`, `LAB-03`–`LAB-07`, `LAB-CS`, `LAB-EQ`, `LAB-SIM-MAN`, `LAB-SIM-MOM`), เพิ่มคู่มือครบทุกโมดูล (Visual Catalog, `CourseEnrollment`, ปุ่มอนุมัติด่วน/Web Push, POS, แบ่งบรรจุ, ซ่อมบำรุง, แอร์, รายงาน/ผู้บริหาร), แก้ `acSummary.totalHoursToday` และ `pendingRepairsCount` ให้ดึงค่าจริง
+  - **ความปลอดภัย API และ UI แสดงผล (`src/app/api/chatbot/route.ts`, `src/components/chatbot/ChatMarkdown.tsx`, `src/components/chatbot/LabCopilotWidget.tsx`, `src/app/admin/chatbot/page.tsx`)**: ยืนยันตัวตนผ่าน `requireActiveActor(req)` (Signed HttpOnly Session Cookie), สร้างตัวแปลง Markdown ปลอดภัยแบบ Pure React, แสดงป้ายแหล่งข้อมูลสดที่ใช้และปุ่มลิงก์นำทางเข้าเมนูที่เกี่ยวข้อง
+- **ไฟล์สำคัญที่แก้ไข/เพิ่ม**: `src/types/chatbot.ts`, `src/lib/chatbot-knowledge.ts`, `src/lib/chatbot-tools.ts`, `src/lib/chatbot-gemini.ts`, `src/lib/chatbot-context-aggregator.ts`, `src/lib/chatbot-nlu.ts`, `src/lib/chatbot-engine.ts`, `src/app/api/chatbot/route.ts`, `src/components/chatbot/ChatMarkdown.tsx`, `src/components/chatbot/LabCopilotWidget.tsx`, `src/app/admin/chatbot/page.tsx`, `package.json`, `src/lib/version.ts`, `LIBRARY_CATALOG.md`, `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ผ่าน 100% (`npx tsc --noEmit`, `npm run build`, ทดสอบ Gemini Tool-Calling กับฐานข้อมูลจริง, `npm run librarian:audit` และ `npm run graphify:update`)
+
 ### [2026-11-27] แก้ไขปัญหาลิงก์เชื่อมระบบคณะ (KU Nurse ONE Nexus) ติดหน้า Spinner ค้าง และรองรับรูปแบบ `portal_token` (`v2.9.1`)
 - **หมวดหมู่**: Auth, SSO Portal Hand-off & Login UX (`v2.9.1`)
 - **สิ่งที่ดำเนินการ**:

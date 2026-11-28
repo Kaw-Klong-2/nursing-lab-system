@@ -169,14 +169,68 @@ export async function GET(req: Request) {
             },
           },
         },
+        requisitionRequest: {
+          include: {
+            items: {
+              include: {
+                item: {
+                  select: {
+                    id: true,
+                    name: true,
+                    code: true,
+                    unit: true,
+                    usageUnit: true,
+                    conversionRatio: true,
+                    location: true,
+                    storageLocation: {
+                      select: {
+                        id: true,
+                        name: true,
+                        building: true,
+                        floor: true,
+                        room: true,
+                      },
+                    },
+                    stockLots: {
+                      where: {
+                        OR: [
+                          { quantityRemaining: { gt: 0 } },
+                          { openPackRemainder: { gt: 0 } },
+                        ],
+                      },
+                      orderBy: { expiryDate: 'asc' },
+                      select: {
+                        id: true,
+                        lotNumber: true,
+                        quantityRemaining: true,
+                        openPackRemainder: true,
+                        packSize: true,
+                        expiryDate: true,
+                        unitCost: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
       orderBy: { borrowDate: 'asc' },
     });
+
+    // รวม IDs ของใบเบิกที่ผูกกับใบยืมสถานะ APPROVED เพื่อแสดงรวมในการ์ดเดียว (One-Stop)
+    const linkedApprovedReqIds = new Set(
+      borrows
+        .map((b: any) => b.requisitionRequestId)
+        .filter((rid: string | null): rid is string => Boolean(rid))
+    );
 
     // แปลงข้อมูลให้อยู่ในโครงสร้างเดียวกัน (Unified Dispense Queue)
     const unifiedQueue: any[] = [];
 
     for (const r of requisitions) {
+      if (linkedApprovedReqIds.has(r.id)) continue;
       const scheduledDate = r.dateNeeded ? new Date(r.dateNeeded) : new Date(r.createdAt);
       const isToday = scheduledDate >= startOfToday && scheduledDate <= endOfToday;
       const isOverdue = scheduledDate < startOfToday;
@@ -223,11 +277,37 @@ export async function GET(req: Request) {
       const isToday = scheduledDate >= startOfToday && scheduledDate <= endOfToday;
       const isOverdue = scheduledDate < startOfToday;
 
+      const linkedReq = (b as any).requisitionRequest;
+      const linkedRequisitionItems = linkedReq
+        ? (linkedReq.items || []).map((it: any) => {
+            const totalStock = (it.item?.stockLots || []).reduce((acc: number, lot: any) => acc + (lot.quantityRemaining || 0), 0);
+            return {
+              id: it.id,
+              itemId: it.itemId,
+              name: it.item?.name || 'วัสดุสิ้นเปลือง',
+              code: it.item?.code || '-',
+              quantityRequested: it.quantityRequested,
+              unit: it.item?.unit || 'หน่วย',
+              requestedUnit: it.requestedUnit || it.item?.unit || 'หน่วย',
+              isSubUnit: it.isSubUnit,
+              conversionRatio: it.item?.conversionRatio || 1,
+              usageUnit: it.item?.usageUnit,
+              currentStock: totalStock,
+              location: it.item?.location,
+              storageLocation: it.item?.storageLocation,
+              stockLots: it.item?.stockLots || [],
+            };
+          })
+        : [];
+
       unifiedQueue.push({
         id: b.id,
         type: 'BORROW',
-        typeLabel: 'ยืมครุภัณฑ์',
+        typeLabel: linkedReq ? 'คำขอรวม (ยืม+เบิก)' : 'ยืมครุภัณฑ์',
         requestNumber: b.requestNumber,
+        requisitionRequestId: linkedReq?.id || null,
+        linkedRequisitionNumber: linkedReq?.requestNumber || null,
+        linkedRequisitionItems,
         scheduledDate: scheduledDate.toISOString(),
         expectedReturnDate: b.expectedReturnDate ? b.expectedReturnDate.toISOString() : null,
         isToday,
@@ -275,7 +355,7 @@ export async function GET(req: Request) {
       todayCount: unifiedQueue.filter((q) => q.isToday).length,
       overdueCount: unifiedQueue.filter((q) => q.isOverdue).length,
       upcomingCount: unifiedQueue.filter((q) => !q.isToday && !q.isOverdue).length,
-      requisitionsCount: requisitions.length,
+      requisitionsCount: unifiedQueue.filter((q) => q.type === 'REQUISITION').length,
       borrowsCount: borrows.length,
     };
 

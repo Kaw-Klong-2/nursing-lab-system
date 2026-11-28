@@ -1,12 +1,18 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
-import { createNotification, notifyRoles } from '@/lib/notifications';
+import { createNotification, notifyRoles, notifyAdvisorByName } from '@/lib/notifications';
 import { canUserApprove } from '@/lib/approval-scope';
 import { logActivity } from '@/lib/activity-log';
-import { formatAcknowledgeDisplay } from '@/lib/user-utils';
+import { formatAcknowledgeDisplay, formatUserName } from '@/lib/user-utils';
 import { parseBangkokDateTime } from '@/lib/date-time-utils';
 import { getSessionFromRequest } from '@/lib/session';
+import {
+  DispenseActionError,
+  allocateAndCheckoutEquipmentItem,
+  dispenseConsumableItemFifo,
+  generateUniqueRequestNumber,
+} from '@/lib/dispense-helpers';
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -14,7 +20,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const effectiveUserId = session?.uid;
     const { id } = await params;
     const body = await req.json();
-    const { action, userId, reason, itemAdjustments, dispenseNote } = body;
+    const {
+      action,
+      userId,
+      reason,
+      itemAdjustments,
+      dispenseNote,
+      addedRequisitionItems,
+      addedBorrowItems,
+      addedBorrowReturnDate,
+    } = body;
 
     const requisition = await prisma.requisitionRequest.findUnique({
       where: { id },
@@ -443,475 +458,316 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     if (action === 'DISPENSE') {
-      if (requisition.status === 'DISPENSED') {
+      if (!effectiveUserId) {
         return NextResponse.json(
-          {
-            error: 'CONCURRENCY_CONFLICT',
-            message: '⚠️ คำขอเบิกนี้ได้รับการจ่ายพัสดุไปแล้ว',
-            currentStatus: requisition.status,
-          },
-          { status: 409 }
+          { error: 'กรุณาเข้าสู่ระบบก่อนดำเนินการจ่ายพัสดุ' },
+          { status: 401 }
         );
       }
-      if (requisition.status !== 'APPROVED') {
+      const actor = await prisma.user.findUnique({
+        where: { id: effectiveUserId },
+        select: { id: true, role: true, status: true },
+      });
+      if (
+        !actor ||
+        (actor.status && actor.status !== 'ACTIVE') ||
+        !['ADMIN', 'OFFICER', 'APPROVER'].includes(actor.role)
+      ) {
         return NextResponse.json(
-          { error: 'สามารถจ่ายพัสดุได้เฉพาะคำขอที่ได้รับการอนุมัติแล้วเท่านั้น' },
-          { status: 400 }
+          { error: 'สงวนสิทธิ์เฉพาะเจ้าหน้าที่ห้องปฏิบัติการและผู้ดูแลระบบในการจ่ายพัสดุ' },
+          { status: 403 }
         );
       }
+      const actorUserId = actor.id;
+      const effectiveNote = dispenseNote ? String(dispenseNote).trim() : null;
+      const validAddedReq = Array.isArray(addedRequisitionItems)
+        ? addedRequisitionItems.filter((it: any) => it?.itemId && Number(it.quantity) > 0)
+        : [];
+      const validAddedBorrow = Array.isArray(addedBorrowItems)
+        ? addedBorrowItems.filter((it: any) => it?.itemId && Number(it.quantity) > 0)
+        : [];
 
-      // Officer dispenses items and deducts stock FIFO with adjustments
-      let actualTotalCost = 0;
-
-      for (const reqItem of requisition.items) {
-        const adj = Array.isArray(itemAdjustments)
-          ? itemAdjustments.find((a: any) => a.id === reqItem.id)
-          : null;
-
-        const isAllowed = adj ? adj.allowed !== false : true;
-        if (!isAllowed) {
-          await prisma.requisitionItem.update({
-            where: { id: reqItem.id },
-            data: {
-              quantityDispensed: 0,
-              unitCost: 0,
-              totalCost: 0,
+      const { updated, freshRequisition, onSiteAddedSummaries } = await prisma.$transaction(
+        async (tx) => {
+          const currentReq = await tx.requisitionRequest.findUnique({
+            where: { id },
+            include: {
+              items: { include: { item: true } },
+              course: true,
+              borrowRequest: true,
+              user: true,
             },
           });
-          continue;
-        }
 
-        let remainingToDeduct =
-          adj && adj.quantity !== undefined
-            ? Math.max(0, Number(adj.quantity))
-            : reqItem.quantityRequested;
+          if (!currentReq) {
+            throw new DispenseActionError('ไม่พบรายการคำขอเบิก', 404);
+          }
 
-        const requestedTarget = remainingToDeduct;
-        let itemTotalCost = 0;
+          if (currentReq.status === 'DISPENSED') {
+            throw new DispenseActionError(
+              '⚠️ คำขอเบิกนี้ได้รับการจ่ายพัสดุไปแล้ว',
+              409,
+              'CONCURRENCY_CONFLICT'
+            );
+          }
+          if (currentReq.status !== 'APPROVED') {
+            throw new DispenseActionError(
+              'สามารถจ่ายพัสดุได้เฉพาะคำขอที่ได้รับการอนุมัติแล้วเท่านั้น',
+              400
+            );
+          }
 
-        const isSub = reqItem.isSubUnit === true;
-        const ratio = Number(reqItem.item?.conversionRatio) > 0 ? Number(reqItem.item?.conversionRatio) : 1;
+          let actualTotalCost = 0;
+          const addedSummaries: string[] = [];
+          const recipientName = currentReq.user ? formatUserName(currentReq.user) : null;
 
-        // Fetch lots FIFO: sorted by expiryDate ascending
-        const whereLots: any = {
-          itemId: reqItem.itemId,
-          OR: [
-            { quantityRemaining: { gt: 0 } },
-            { openPackRemainder: { gt: 0 } },
-          ],
-        };
-        // Strict safety lock: if requested for human use, NEVER deduct expired lots
-        if (requisition.useTarget === 'HUMAN') {
-          whereLots.AND = [
-            {
-              OR: [
-                { expiryDate: null },
-                { expiryDate: { gte: new Date() } },
-              ],
+          // 1. จ่ายรายการวัสดุที่ขอมาเดิม (ปรับจำนวนเพิ่ม/ลดได้ หรือไม่อนุญาต)
+          for (const reqItem of currentReq.items) {
+            const adj = Array.isArray(itemAdjustments)
+              ? itemAdjustments.find((a: any) => a.id === reqItem.id)
+              : null;
+
+            const isAllowed = adj ? adj.allowed !== false : true;
+            if (!isAllowed) {
+              await tx.requisitionItem.update({
+                where: { id: reqItem.id },
+                data: {
+                  quantityDispensed: 0,
+                  unitCost: 0,
+                  totalCost: 0,
+                },
+              });
+              continue;
+            }
+
+            const qtyTarget =
+              adj && adj.quantity !== undefined
+                ? Math.max(0, Number(adj.quantity))
+                : reqItem.quantityRequested;
+
+            const dispensed = await dispenseConsumableItemFifo(tx, {
+              itemId: reqItem.itemId,
+              quantityTarget: qtyTarget,
+              isSubUnit: reqItem.isSubUnit === true,
+              requestedUnit: reqItem.requestedUnit || null,
+              preferredLotId: (adj as any)?.lotId || null,
+              useTarget: currentReq.useTarget,
+              courseId: currentReq.courseId,
+              referenceNumber: currentReq.requestNumber,
+              actorUserId,
+              recipientLabel: recipientName,
+              noteLabel: `ตามคำขอ ${currentReq.requestNumber} (วิชา ${currentReq.course?.code || ''})`,
+              noteSuffix: effectiveNote ? `หมายเหตุ: ${effectiveNote}` : null,
+            });
+
+            await tx.requisitionItem.update({
+              where: { id: reqItem.id },
+              data: {
+                quantityDispensed: dispensed.actualDispensed,
+                unitCost: dispensed.unitCost,
+                totalCost: dispensed.itemCost,
+              },
+            });
+
+            actualTotalCost += dispensed.itemCost;
+          }
+
+          // 2. เพิ่มวัสดุสิ้นเปลืองหน้างาน (ถ้ามี)
+          for (const addReq of validAddedReq) {
+            const qty = Math.max(1, Math.round(Number(addReq.quantity) || 1));
+            const dispensed = await dispenseConsumableItemFifo(tx, {
+              itemId: addReq.itemId,
+              quantityTarget: qty,
+              isSubUnit: Boolean(addReq.isSubUnit),
+              requestedUnit: addReq.requestedUnit || null,
+              preferredLotId: addReq.lotId || null,
+              useTarget: currentReq.useTarget,
+              courseId: currentReq.courseId,
+              referenceNumber: currentReq.requestNumber,
+              actorUserId,
+              recipientLabel: recipientName,
+              noteLabel: `เพิ่มหน้างานตามคำขอ ${currentReq.requestNumber}`,
+              noteSuffix: effectiveNote ? `หมายเหตุ: ${effectiveNote}` : null,
+            });
+
+            await tx.requisitionItem.create({
+              data: {
+                requisitionRequestId: currentReq.id,
+                itemId: addReq.itemId,
+                quantityRequested: qty,
+                quantityDispensed: dispensed.actualDispensed,
+                requestedUnit: dispensed.unitLabel,
+                isSubUnit: dispensed.isSubUnit,
+                unitCost: dispensed.unitCost,
+                totalCost: dispensed.itemCost,
+              },
+            });
+
+            actualTotalCost += dispensed.itemCost;
+            addedSummaries.push(`${dispensed.itemName} ${dispensed.actualDispensed} ${dispensed.unitLabel}`);
+          }
+
+          // 3. เพิ่มครุภัณฑ์หน้างาน (ถ้ามี) -> สร้าง BorrowRequest ผูกให้อัตโนมัติหรือเพิ่มเข้าใบยืมคู่เดิม
+          if (validAddedBorrow.length > 0) {
+            const returnDateVal = addedBorrowReturnDate
+              ? parseBangkokDateTime(addedBorrowReturnDate)
+              : new Date(Date.now() + 4 * 60 * 60 * 1000);
+
+            let targetBorrowId = currentReq.borrowRequest?.id || null;
+            if (!targetBorrowId) {
+              const newBorrowNum = await generateUniqueRequestNumber(tx, 'BRW');
+              const createdBorrow = await tx.borrowRequest.create({
+                data: {
+                  requestNumber: newBorrowNum,
+                  userId: currentReq.userId,
+                  courseId: currentReq.courseId,
+                  advisorName: currentReq.advisorName,
+                  purpose: currentReq.purpose,
+                  useTarget: currentReq.useTarget,
+                  borrowDate: new Date(),
+                  expectedReturnDate: returnDateVal,
+                  status: 'BORROWED',
+                  approverId: currentReq.approverId || actorUserId,
+                  approvedAt: currentReq.approvedAt || new Date(),
+                  officerId: actorUserId,
+                  checkedOutAt: new Date(),
+                  checkoutNote: effectiveNote || `เพิ่มครุภัณฑ์หน้างานขณะจ่ายวัสดุ ${currentReq.requestNumber}`,
+                  instructorAcknowledged: currentReq.instructorAcknowledged,
+                  acknowledgedAt: currentReq.acknowledgedAt,
+                  requisitionRequestId: currentReq.id,
+                },
+                select: { id: true },
+              });
+              targetBorrowId = createdBorrow.id;
+            } else {
+              await tx.borrowRequest.update({
+                where: { id: targetBorrowId },
+                data: {
+                  status: 'BORROWED',
+                  officerId: actorUserId,
+                  checkedOutAt: new Date(),
+                },
+              });
+            }
+
+            for (const addEq of validAddedBorrow) {
+              const alloc = await allocateAndCheckoutEquipmentItem(tx, {
+                borrowRequestId: targetBorrowId,
+                itemId: addEq.itemId,
+                quantity: Number(addEq.quantity) || 1,
+                explicitAssetIds: Array.isArray(addEq.selectedAssetIds)
+                  ? addEq.selectedAssetIds
+                  : Array.isArray(addEq.assetIds)
+                  ? addEq.assetIds
+                  : [],
+              });
+              const codesTag =
+                alloc.assignedAssetCodes.length > 0 ? ` [${alloc.assignedAssetCodes.join(', ')}]` : '';
+              addedSummaries.push(`${alloc.itemName} ${alloc.allocatedCount} ${alloc.unit}${codesTag}`);
+            }
+          }
+
+          const finalDispenseNote =
+            addedSummaries.length > 0
+              ? [effectiveNote, `เพิ่มหน้างาน: ${addedSummaries.join(', ')}`].filter(Boolean).join(' | ')
+              : effectiveNote;
+
+          const updatedReq = await tx.requisitionRequest.update({
+            where: { id },
+            data: {
+              status: 'DISPENSED',
+              officerId: actorUserId,
+              dispensedAt: new Date(),
+              dispenseNote: finalDispenseNote,
+              totalCost: actualTotalCost,
             },
-          ];
-        }
+            include: {
+              items: { include: { item: true } },
+              course: true,
+              borrowRequest: true,
+            },
+          });
 
-        let availableLots = await prisma.stockLot.findMany({
-          where: whereLots,
-          orderBy: [
-            { expiryDate: 'asc' },
-            { receivedDate: 'asc' },
-            { createdAt: 'asc' },
-          ],
-        });
-
-        if (adj && (adj as any).lotId) {
-          const selectedLot = availableLots.find((l) => l.id === (adj as any).lotId);
-          if (selectedLot) {
-            availableLots = [selectedLot, ...availableLots.filter((l) => l.id !== (adj as any).lotId)];
-          }
-        }
-
-        if (!isSub) {
-          // ==========================================
-          // Case 1: Whole Pack Requisition
-          // ==========================================
-          // Deduct whole packs from lot.quantityRemaining, keeping openPackRemainder intact for sub-unit users
-          for (const lot of availableLots) {
-            if (remainingToDeduct <= 0) break;
-            if (lot.quantityRemaining <= 0) continue;
-
-            const deductFromThisLot = Math.min(lot.quantityRemaining, remainingToDeduct);
-            const costForThisDeduction = deductFromThisLot * lot.unitCost;
-            const newQty = Math.max(0, lot.quantityRemaining - deductFromThisLot);
-            const openRem = lot.openPackRemainder || 0;
-            const lotPackSize = Number(lot.packSize) > 0 ? Number(lot.packSize) : ratio;
-            const newPieces = Math.max(0, (newQty * lotPackSize) + openRem);
-
-            // Update lot
-            await prisma.stockLot.update({
-              where: { id: lot.id },
-              data: {
-                quantityRemaining: newQty,
-                piecesRemaining: newPieces,
-              },
-            });
-
-            // Update individual StockLotBoxes in sequential order (1..N) — sealed boxes only
-            const availableBoxes = await prisma.stockLotBox.findMany({
-              where: {
-                lotId: lot.id,
-                status: 'IN_STOCK',
-              },
-              orderBy: { boxNumberInLot: 'asc' },
-              take: deductFromThisLot,
-            });
-
-            if (availableBoxes.length > 0) {
-              await prisma.stockLotBox.updateMany({
-                where: { id: { in: availableBoxes.map((b) => b.id) } },
-                data: { status: 'DISPENSED', depletedAt: new Date() },
-              });
-            }
-
-            // Create stock transaction
-            await prisma.stockTransaction.create({
-              data: {
-                itemId: reqItem.itemId,
-                lotId: lot.id,
-                type: 'OUT_REQUISITION',
-                quantity: -deductFromThisLot,
-                unitCost: lot.unitCost,
-                totalCost: costForThisDeduction,
-                courseId: requisition.courseId,
-                referenceNumber: requisition.requestNumber,
-                createdById: userId,
-                note: dispenseNote
-                  ? `จ่ายตามคำขอ ${requisition.requestNumber} (วิชา ${requisition.course?.code || ''}) | หมายเหตุ: ${String(dispenseNote).trim()}`
-                  : `จ่ายตามคำขอ ${requisition.requestNumber} (วิชา ${requisition.course?.code || ''})`,
-              },
-            });
-
-            // Update individual RepackPackItems in sequential order (1..N) if this lot belongs to a repack sub-lot
-            const availablePacks = await prisma.repackPackItem.findMany({
-              where: {
-                repackRecord: { subLotNumber: lot.lotNumber },
-                status: 'AVAILABLE',
-              },
-              orderBy: { packNumber: 'asc' },
-              take: deductFromThisLot,
-            });
-
-            if (availablePacks.length > 0) {
-              await prisma.repackPackItem.updateMany({
-                where: { id: { in: availablePacks.map((p) => p.id) } },
+          if (currentReq.borrowRequest) {
+            await tx.borrowRequest
+              .update({
+                where: { id: currentReq.borrowRequest.id },
                 data: {
-                  status: 'DISPENSED',
-                  dispensedTo: requisition.user ? `${requisition.user.name} (${requisition.requestNumber})` : requisition.requestNumber,
-                  dispensedAt: new Date(),
+                  checkoutNote: finalDispenseNote ?? undefined,
                 },
-              });
-            }
-
-            itemTotalCost += costForThisDeduction;
-            remainingToDeduct -= deductFromThisLot;
-          }
-        } else {
-          // ==========================================
-          // Case 2: Sub-Unit Requisition (Option A)
-          // ==========================================
-          // remainingToDeduct is in sub-units (e.g. 10 or 100 or 110 pieces)
-          let piecesNeeded = remainingToDeduct;
-
-          // Step 1 (Option A Priority): If piecesNeeded >= lotPackSize, prioritize dispensing whole sealed packs first!
-          for (const lot of availableLots) {
-            if (piecesNeeded <= 0) break;
-            if (lot.quantityRemaining <= 0) continue;
-
-            const lotPackSize = Number(lot.packSize) > 0 ? Number(lot.packSize) : ratio;
-            if (lotPackSize <= 1 || piecesNeeded < lotPackSize) continue;
-
-            const maxWholePacksForNeeded = Math.floor(piecesNeeded / lotPackSize);
-            const deductPacks = Math.min(lot.quantityRemaining, maxWholePacksForNeeded);
-            if (deductPacks <= 0) continue;
-
-            const costForPacks = deductPacks * lot.unitCost;
-            const newQty = lot.quantityRemaining - deductPacks;
-            const openRem = lot.openPackRemainder || 0;
-            const newPieces = Math.max(0, (newQty * lotPackSize) + openRem);
-
-            lot.quantityRemaining = newQty;
-
-            await prisma.stockLot.update({
-              where: { id: lot.id },
-              data: {
-                quantityRemaining: newQty,
-                piecesRemaining: newPieces,
-              },
-            });
-
-            // Update StockLotBox (sealed boxes only)
-            const availableBoxes = await prisma.stockLotBox.findMany({
-              where: { lotId: lot.id, status: 'IN_STOCK' },
-              orderBy: { boxNumberInLot: 'asc' },
-              take: deductPacks,
-            });
-            if (availableBoxes.length > 0) {
-              await prisma.stockLotBox.updateMany({
-                where: { id: { in: availableBoxes.map((b) => b.id) } },
-                data: { status: 'DISPENSED', depletedAt: new Date() },
-              });
-            }
-
-            // Repack items
-            const availablePacks = await prisma.repackPackItem.findMany({
-              where: { repackRecord: { subLotNumber: lot.lotNumber }, status: 'AVAILABLE' },
-              orderBy: { packNumber: 'asc' },
-              take: deductPacks,
-            });
-            if (availablePacks.length > 0) {
-              await prisma.repackPackItem.updateMany({
-                where: { id: { in: availablePacks.map((p) => p.id) } },
-                data: {
-                  status: 'DISPENSED',
-                  dispensedTo: requisition.user ? `${requisition.user.name} (${requisition.requestNumber})` : requisition.requestNumber,
-                  dispensedAt: new Date(),
-                },
-              });
-            }
-
-            // Stock transaction
-            await prisma.stockTransaction.create({
-              data: {
-                itemId: reqItem.itemId,
-                lotId: lot.id,
-                type: 'OUT_REQUISITION',
-                quantity: -deductPacks,
-                unitCost: lot.unitCost,
-                totalCost: costForPacks,
-                courseId: requisition.courseId,
-                referenceNumber: requisition.requestNumber,
-                createdById: userId,
-                note: dispenseNote
-                  ? `จ่ายแพ็คเต็ม (Option A: เบิกย่อย ${deductPacks * lotPackSize} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'}) ตามคำขอ ${requisition.requestNumber} | ${String(dispenseNote).trim()}`
-                  : `จ่ายแพ็คเต็ม (Option A: เบิกย่อย ${deductPacks * lotPackSize} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'}) ตามคำขอ ${requisition.requestNumber}`,
-              },
-            });
-
-            itemTotalCost += costForPacks;
-            piecesNeeded -= deductPacks * lotPackSize;
+              })
+              .catch((e) => console.error('Failed to sync linked borrow checkout note:', e));
           }
 
-          // Step 2: Fulfill remaining fractional pieces (or any remaining pieces if whole packs ran out)
-          if (piecesNeeded > 0) {
-            // Step 2A: Check loose pieces in open pack (openPackRemainder > 0)
-            for (const lot of availableLots) {
-              if (piecesNeeded <= 0) break;
-              const currentOpen = lot.openPackRemainder || 0;
-              if (currentOpen <= 0) continue;
+          return {
+            updated: updatedReq,
+            freshRequisition: currentReq,
+            onSiteAddedSummaries: addedSummaries,
+          };
+        },
+        { timeout: 25000 }
+      );
 
-              const takeFromOpen = Math.min(currentOpen, piecesNeeded);
-              const newOpen = currentOpen - takeFromOpen;
-              const lotPackSize = Number(lot.packSize) > 0 ? Number(lot.packSize) : ratio;
-              const pieceCost = lot.unitCost / lotPackSize;
-              const costForLoose = takeFromOpen * pieceCost;
-              const newPieces = Math.max(0, (lot.quantityRemaining * lotPackSize) + newOpen);
+      // Notify student & advisor (awaited)
+      const addedSuffix =
+        onSiteAddedSummaries.length > 0 ? ` (เพิ่มหน้างาน: ${onSiteAddedSummaries.join(', ')})` : '';
+      const notifyPromises: Promise<any>[] = [
+        createNotification({
+          userId: freshRequisition.userId,
+          title: 'จ่ายพัสดุเรียบร้อยแล้ว 📦',
+          message: `เจ้าหน้าที่ได้จ่ายพัสดุตามคำขอเบิกเลขที่ ${freshRequisition.requestNumber} เรียบร้อยแล้ว${addedSuffix}`,
+          type: 'APPROVAL',
+          linkUrl: '/requisitions',
+          entityType: 'REQUISITION',
+          entityId: freshRequisition.id,
+        }),
+      ];
 
-              lot.openPackRemainder = newOpen;
-
-              await prisma.stockLot.update({
-                where: { id: lot.id },
-                data: {
-                  openPackRemainder: newOpen,
-                  piecesRemaining: newPieces,
-                },
-              });
-
-              // If the opened pack is now completely empty, mark the IN_USE box as DISPENSED
-              if (newOpen === 0) {
-                const inUseBox = await prisma.stockLotBox.findFirst({
-                  where: { lotId: lot.id, status: 'IN_USE' },
-                  orderBy: { boxNumberInLot: 'asc' },
-                });
-                if (inUseBox) {
-                  await prisma.stockLotBox.update({
-                    where: { id: inUseBox.id },
-                    data: { status: 'DISPENSED', depletedAt: new Date() },
-                  });
-                }
-              }
-
-              await prisma.stockTransaction.create({
-                data: {
-                  itemId: reqItem.itemId,
-                  lotId: lot.id,
-                  type: 'OUT_REQUISITION',
-                  quantity: 0,
-                  unitCost: lot.unitCost,
-                  totalCost: costForLoose,
-                  courseId: requisition.courseId,
-                  referenceNumber: requisition.requestNumber,
-                  createdById: userId,
-                  note: dispenseNote
-                    ? `จ่ายจากเศษแพ็คเปิด ${takeFromOpen} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'} ตามคำขอ ${requisition.requestNumber} | ${String(dispenseNote).trim()}`
-                    : `จ่ายจากเศษแพ็คเปิด ${takeFromOpen} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'} ตามคำขอ ${requisition.requestNumber}`,
-                },
-              });
-
-              itemTotalCost += costForLoose;
-              piecesNeeded -= takeFromOpen;
-            }
-
-            // Step 2B: If still need pieces, open new whole pack(s) and keep leftover in openPackRemainder
-            if (piecesNeeded > 0) {
-              for (const lot of availableLots) {
-                if (piecesNeeded <= 0) break;
-                if (lot.quantityRemaining <= 0) continue;
-
-                const lotPackSize = Number(lot.packSize) > 0 ? Number(lot.packSize) : ratio;
-                const packsToOpen = Math.min(lot.quantityRemaining, Math.ceil(piecesNeeded / lotPackSize));
-                const piecesProvided = packsToOpen * lotPackSize;
-                const piecesToDeduct = Math.min(piecesProvided, piecesNeeded);
-                const leftoverPieces = piecesProvided - piecesToDeduct;
-
-                const newQty = lot.quantityRemaining - packsToOpen;
-                const currentOpen = lot.openPackRemainder || 0;
-                const newOpen = currentOpen + leftoverPieces;
-                const newPieces = Math.max(0, (newQty * lotPackSize) + newOpen);
-
-                lot.quantityRemaining = newQty;
-                lot.openPackRemainder = newOpen;
-
-                await prisma.stockLot.update({
-                  where: { id: lot.id },
-                  data: {
-                    quantityRemaining: newQty,
-                    openPackRemainder: newOpen,
-                    piecesRemaining: newPieces,
-                  },
-                });
-
-                // Update StockLotBox for opened pack(s)
-                const availableBoxes = await prisma.stockLotBox.findMany({
-                  where: { lotId: lot.id, status: 'IN_STOCK' },
-                  orderBy: { boxNumberInLot: 'asc' },
-                  take: packsToOpen,
-                });
-                if (availableBoxes.length > 0) {
-                  if (packsToOpen > 1) {
-                    const fullyUsedBoxes = availableBoxes.slice(0, -1);
-                    await prisma.stockLotBox.updateMany({
-                      where: { id: { in: fullyUsedBoxes.map((b) => b.id) } },
-                      data: { status: 'DISPENSED', openedAt: new Date(), depletedAt: new Date() },
-                    });
-                  }
-                  const lastBox = availableBoxes[availableBoxes.length - 1];
-                  await prisma.stockLotBox.update({
-                    where: { id: lastBox.id },
-                    data: {
-                      status: leftoverPieces > 0 ? 'IN_USE' : 'DISPENSED',
-                      openedAt: new Date(),
-                      ...(leftoverPieces === 0 ? { depletedAt: new Date() } : {}),
-                    },
-                  });
-                }
-
-                const pieceCost = lot.unitCost / lotPackSize;
-                const costForDispensedPieces = piecesToDeduct * pieceCost;
-
-                await prisma.stockTransaction.create({
-                  data: {
-                    itemId: reqItem.itemId,
-                    lotId: lot.id,
-                    type: 'OUT_REQUISITION',
-                    quantity: Math.round(-(piecesToDeduct / lotPackSize)),
-                    unitCost: lot.unitCost,
-                    totalCost: costForDispensedPieces,
-                    courseId: requisition.courseId,
-                    referenceNumber: requisition.requestNumber,
-                    createdById: userId,
-                    note: dispenseNote
-                      ? `เปิดแพ็คใหม่ ${packsToOpen} แพ็ค → จ่าย ${piecesToDeduct} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'} (เก็บเศษ ${leftoverPieces} เข้าคลัง) ตามคำขอ ${requisition.requestNumber} | ${String(dispenseNote).trim()}`
-                      : `เปิดแพ็คใหม่ ${packsToOpen} แพ็ค → จ่าย ${piecesToDeduct} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'} (เก็บเศษ ${leftoverPieces} เข้าคลัง) ตามคำขอ ${requisition.requestNumber}`,
-                  },
-                });
-
-                itemTotalCost += costForDispensedPieces;
-                piecesNeeded -= piecesToDeduct;
-              }
-            }
-          }
-
-          remainingToDeduct = piecesNeeded;
-        }
-
-        const actualDispensed = requestedTarget - remainingToDeduct;
-
-        // Update requisition item with dispensed quantity and actual cost
-        await prisma.requisitionItem.update({
-          where: { id: reqItem.id },
-          data: {
-            quantityDispensed: actualDispensed,
-            unitCost: actualDispensed > 0 ? itemTotalCost / actualDispensed : 0,
-            totalCost: itemTotalCost,
-          },
-        });
-
-        actualTotalCost += itemTotalCost;
+      const advisorTarget = freshRequisition.advisorName || freshRequisition.course?.instructorName;
+      if (onSiteAddedSummaries.length > 0 && advisorTarget) {
+        notifyPromises.push(
+          notifyAdvisorByName(advisorTarget, {
+            title: 'แจ้งเตือน: เจ้าหน้าที่เพิ่มรายการหน้างานตอนจ่ายของ 📋',
+            message: `คำขอเบิก ${freshRequisition.requestNumber} ของ ${formatUserName(freshRequisition.user) || 'นิสิต'} มีการเพิ่มรายการหน้างาน: ${onSiteAddedSummaries.join(', ')}`,
+            type: 'STATUS_UPDATE',
+            priority: 'NORMAL',
+            linkUrl: '/requisitions',
+            entityType: 'REQUISITION',
+            entityId: freshRequisition.id,
+          })
+        );
       }
 
-      const updated = await prisma.requisitionRequest.update({
-        where: { id },
-        data: {
-          status: 'DISPENSED',
-          officerId: userId,
-          dispensedAt: new Date(),
-          dispenseNote: dispenseNote ? String(dispenseNote).trim() : null,
-          totalCost: actualTotalCost,
-        },
-        include: {
-          items: { include: { item: true } },
-          course: true,
-        },
-      });
-
-      // Synchronize with linked borrow request if unified
-      if (requisition.borrowRequest) {
-        await prisma.borrowRequest.update({
-          where: { id: requisition.borrowRequest.id },
-          data: {
-            checkoutNote: dispenseNote ? String(dispenseNote).trim() : undefined,
-          },
-        }).catch((e) => console.error('Failed to sync linked borrow checkout note:', e));
-      }
-
-      // Notify student
-      createNotification({
-        userId: requisition.userId,
-        title: 'จ่ายพัสดุเรียบร้อยแล้ว 📦',
-        message: `เจ้าหน้าที่ได้จ่ายพัสดุตามคำขอเบิกเลขที่ ${requisition.requestNumber} เรียบร้อยแล้ว`,
-        type: 'APPROVAL',
-        linkUrl: '/requisitions',
-        entityType: 'REQUISITION',
-        entityId: requisition.id,
-      }).catch(() => {});
+      await Promise.allSettled(notifyPromises);
 
       logActivity({
-        userId,
+        userId: actorUserId,
         action: 'DISPENSE',
         entityType: 'REQUISITION',
-        entityId: requisition.id,
+        entityId: freshRequisition.id,
         details: {
-          requestNumber: requisition.requestNumber,
-          totalCost: actualTotalCost,
-          itemCount: requisition.items.length,
-          note: dispenseNote ? String(dispenseNote).trim() : null,
+          requestNumber: freshRequisition.requestNumber,
+          totalCost: updated.totalCost,
+          itemCount: updated.items.length,
+          note: updated.dispenseNote,
+          ...(onSiteAddedSummaries.length > 0 ? { onSiteAdded: onSiteAddedSummaries } : {}),
         },
       });
 
-      invalidateCache('items:');
-      invalidateCache('dashboard:');
       return respondUpdated(updated);
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error: any) {
+    if (error instanceof DispenseActionError) {
+      if (error.code === 'CONCURRENCY_CONFLICT') {
+        return NextResponse.json(
+          { error: error.code, message: error.message },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Requisition dispense error:', error);
     return NextResponse.json({ error: 'Dispense failed' }, { status: 500 });
   }

@@ -72,6 +72,27 @@ export function checkIntentPermission(intent: ChatIntent, userRole: string): { a
 }
 
 /**
+ * บันทึกประวัติบทสนทนาลงใน Session State (เก็บล่าสุด 12 ข้อความ)
+ */
+function appendHistory(
+  state: ChatSessionState,
+  userText: string,
+  botText: string
+): ChatSessionState {
+  const prev = Array.isArray(state.conversationHistory) ? state.conversationHistory : [];
+  const next = [
+    ...prev,
+    { role: 'user' as const, text: userText },
+    { role: 'model' as const, text: botText },
+  ].slice(-12);
+  return {
+    ...state,
+    conversationHistory: next,
+    lastUpdated: Date.now(),
+  };
+}
+
+/**
  * ฟังก์ชันหลักในการประมวลผลข้อความแชทแต่ละรอบ (Process Chatbot Turn)
  */
 export async function processChatbotTurn(
@@ -93,44 +114,49 @@ export async function processChatbotTurn(
   // 1. ตรวจสอบคำสั่งยกเลิก / เริ่มใหม่
   if (['ยกเลิก', 'เริ่มใหม่', 'ล้าง', 'reset', 'cancel'].includes(lower)) {
     return {
-      replyText: 'ยกเลิกรายการเรียบร้อยแล้วครับ ต้องการให้ผมช่วยเหลือเรื่องอะไร สามารถพิมพ์บอกได้เลยครับ เช่น จองห้องแล็บ, เบิก-ยืมของ, หรือสอบถามข้อมูลครับ',
-      sessionState: { activeIntent: 'IDLE', stage: 'IDLE', lastUpdated: Date.now() },
+      replyText: 'ยกเลิกรายการเรียบร้อยแล้วครับ ต้องการให้ผมช่วยเหลือเรื่องอะไร สามารถพิมพ์บอกได้เลยครับ เช่น วิธีใช้งานระบบ, เช็กตารางห้องวันนี้, จองห้องแล็บ, หรือเบิก-ยืมพัสดุครับ',
+      sessionState: { activeIntent: 'IDLE', stage: 'IDLE', conversationHistory: [], lastUpdated: Date.now() },
       quickReplies: getRoleQuickReplies(userRole),
+      source: 'ACTION_ENGINE',
     };
   }
 
   // 2. อยู่ในสถานะรอยืนยัน (AWAITING_CONFIRM)
   if (state.stage === 'AWAITING_CONFIRM') {
     if (['ยืนยัน', 'ตกลง', 'ok', 'บันทึก', 'confirm', 'ส่งคำขอ', 'yes'].includes(lower)) {
-      return await executeConfirmedAction(state, currentUser);
+      const confirmedResp = await executeConfirmedAction(state, currentUser);
+      confirmedResp.sessionState = appendHistory(confirmedResp.sessionState, text, confirmedResp.replyText);
+      return confirmedResp;
     }
-    // หากพิมพ์แก้ไขข้อมูลในขั้นตอนนี้
     if (['ไม่ยืนยัน', 'ไม่ตกลง', 'ยกเลิก'].includes(lower)) {
       return {
         replyText: 'ยกเลิกการบันทึกรายการเรียบร้อยแล้วครับ ต้องการให้ช่วยเหลือเรื่องอื่นใดเพิ่มเติม พิมพ์บอกได้เลยครับ',
-        sessionState: { activeIntent: 'IDLE', stage: 'IDLE', lastUpdated: Date.now() },
+        sessionState: { activeIntent: 'IDLE', stage: 'IDLE', conversationHistory: state.conversationHistory || [], lastUpdated: Date.now() },
         quickReplies: getRoleQuickReplies(userRole),
+        source: 'ACTION_ENGINE',
       };
     }
-    // ถือว่าเป็นการแก้ไขข้อมูล ให้ปรับปรุง draft แล้วสรุปใหม่
     state.stage = 'COLLECTING_SLOTS';
   }
 
-  // 2.5 ตรวจจับคำถามทั่วไป / ความรู้เกี่ยวกับระบบ / คำถามความสามารถ ("ทำอะไรได้บ้าง")
-  if (isGeneralOrKnowledgeQuery(text)) {
-    return await handleKnowledgeAndGeneralInquiry(text, state, currentUser);
+  // 2.5 ตรวจจับคำถามทั่วไป / คำถามการใช้งานระบบ / คำถามข้อมูลสด
+  if (isGeneralOrKnowledgeQuery(text, state)) {
+    const resp = await handleKnowledgeAndGeneralInquiry(text, state, currentUser);
+    resp.sessionState = appendHistory(resp.sessionState, text, resp.replyText);
+    return resp;
   }
 
   // 3. ตรวจจับและอัปเดต Intent
-  const detectedIntent = detectIntent(text, state.activeIntent);
+  const detectedIntent = detectIntent(text, state.activeIntent, state);
   if (state.activeIntent === 'IDLE' || (detectedIntent !== 'IDLE' && detectedIntent !== state.activeIntent)) {
-    // เปลี่ยน intent ใหม่
     const permCheck = checkIntentPermission(detectedIntent, userRole);
     if (!permCheck.allowed) {
+      const replyText = permCheck.reason || 'ขออภัยครับ ท่านไม่มีสิทธิ์เข้าถึงฟังก์ชันนี้';
       return {
-        replyText: permCheck.reason || 'ขออภัยครับ ท่านไม่มีสิทธิ์เข้าถึงฟังก์ชันนี้',
-        sessionState: { activeIntent: 'IDLE', stage: 'IDLE', lastUpdated: Date.now() },
+        replyText,
+        sessionState: appendHistory({ activeIntent: 'IDLE', stage: 'IDLE', conversationHistory: state.conversationHistory, lastUpdated: Date.now() }, text, replyText),
         quickReplies: getRoleQuickReplies(userRole),
+        source: 'ACTION_ENGINE',
       };
     }
     state.activeIntent = detectedIntent;
@@ -138,47 +164,62 @@ export async function processChatbotTurn(
   }
 
   // 4. ประมวลผลตาม Intent ที่กำลังทำงาน
+  let response: ChatbotTurnResponse;
   switch (state.activeIntent) {
     case 'BOOK_ROOM':
-      return await handleRoomBookingFlow(text, state, currentUser);
+      response = await handleRoomBookingFlow(text, state, currentUser);
+      break;
 
     case 'BOOK_PRACTICE':
-      return await handlePracticeBookingFlow(text, state, currentUser);
+      response = await handlePracticeBookingFlow(text, state, currentUser);
+      break;
 
     case 'BORROW_REQUISITION':
-      return await handleUnifiedRequestFlow(text, state, currentUser);
+      response = await handleUnifiedRequestFlow(text, state, currentUser);
+      break;
 
     case 'LOG_AC':
-      return await handleAcLogFlow(text, state, currentUser);
+      response = await handleAcLogFlow(text, state, currentUser);
+      break;
 
     case 'APPROVE_REQUESTS':
-      return await handleApprovalFlow(text, state, currentUser);
+      response = await handleApprovalFlow(text, state, currentUser);
+      break;
 
     case 'REPORT_ISSUE':
-      return await handleIssueReportFlow(text, state, currentUser);
+      response = await handleIssueReportFlow(text, state, currentUser);
+      break;
 
     case 'QUERY_STOCK':
-      return await handleQueryStock(text, currentUser);
+      response = await handleQueryStock(text, currentUser);
+      break;
 
     case 'MY_STATUS':
-      return await handleMyStatus(text, currentUser);
+      response = await handleMyStatus(text, currentUser);
+      break;
 
     case 'QUERY_OVERDUE':
-      return await handleQueryOverdue(text, currentUser);
+      response = await handleQueryOverdue(text, currentUser);
+      break;
 
     case 'QUERY_BUDGET':
-      return await handleQueryBudget(text, currentUser);
+      response = await handleQueryBudget(text, currentUser);
+      break;
 
     case 'FAQ_RULES':
-      return handleFaqRules(text);
+      response = handleFaqRules(text);
+      break;
 
     default:
-      // ตอบคำถามทั่วไป ผ่านทั้งคลังความรู้ และ Gemini AI Brain
-      return await handleKnowledgeAndGeneralInquiry(text, state, currentUser);
+      response = await handleKnowledgeAndGeneralInquiry(text, state, currentUser);
+      break;
   }
+
+  response.sessionState = appendHistory(response.sessionState, text, response.replyText);
+  return response;
 }
 
-export function isGeneralOrKnowledgeQuery(text: string): boolean {
+export function isGeneralOrKnowledgeQuery(text: string, state?: ChatSessionState): boolean {
   const lower = text.toLowerCase().trim();
 
   // หากผู้ใช้พิมพ์ทำรายการต่อ ไม่ใช่คำถามทั่วไป
@@ -186,38 +227,57 @@ export function isGeneralOrKnowledgeQuery(text: string): boolean {
     return false;
   }
 
-  // หากเป็นคำสั่ง Action ชัดเจนที่มีข้อมูลเฉพาะเจาะจง ให้เข้า Action Flow
+  // หากกำลังกรอกข้อมูลใน Action Flow อยู่ (เช่น ระบุวัน เวลา จำนวนคน รหัสวิชา) ให้ทำโฟลว์ต่อ ยกเว้นคำถามความรู้ชัดเจน
+  if (state && state.stage === 'COLLECTING_SLOTS' && state.activeIntent !== 'IDLE') {
+    const isExplicitSystemQuestion =
+      lower.includes('วิธี') ||
+      lower.includes('ทำยังไง') ||
+      lower.includes('คืออะไร') ||
+      lower.includes('ทำไม') ||
+      lower.includes('กี่โมง') ||
+      lower.includes('อยู่ที่ไหน');
+    if (!isExplicitSystemQuestion) {
+      return false;
+    }
+  }
+
+  // คำสั่งทำรายการหรืออนุมัติโดยตรง เข้า Action Flow
   const isDirectActionCommand =
-    (lower.startsWith('จองห้อง') && (lower.includes('วันที่') || lower.includes('เวลา') || lower.includes('วิชา'))) ||
-    (lower.startsWith('เปิดแอร์') && lower.includes('ห้อง')) ||
-    (lower.startsWith('ปิดแอร์') && lower.includes('ห้อง')) ||
-    (lower.startsWith('อนุมัติทั้งหมด')) ||
-    (lower.startsWith('ขอเบิก') && (lower.includes('กล่อง') || lower.includes('ชิ้น') || lower.includes('อัน')));
+    ((lower.startsWith('จองห้อง') || lower.startsWith('ขอจองห้อง')) &&
+      (lower.includes('วันที่') || lower.includes('เวลา') || lower.includes('วิชา') || lower.includes('ห้อง') || lower.includes('พรุ่งนี้'))) ||
+    ((lower.startsWith('บันทึกแอร์') || lower.startsWith('บันทึกเปิดแอร์') || lower.startsWith('เปิดแอร์') || lower.startsWith('ปิดแอร์')) &&
+      (lower.includes('ห้อง') || lower === 'บันทึกเปิดแอร์' || lower === 'เปิดแอร์')) ||
+    lower.startsWith('อนุมัติทั้งหมด') ||
+    /^อนุมัติ\s*(?:ข้อ)?\s*\d+/.test(lower) ||
+    ((lower.startsWith('ขอเบิก') || lower.startsWith('ขอยืม')) &&
+      (lower.includes('กล่อง') || lower.includes('ชิ้น') || lower.includes('อัน') || lower.includes('เครื่อง'))) ||
+    lower.startsWith('ฝึกทำแผล') ||
+    lower.startsWith('ฝึกฉีดยา') ||
+    lower.startsWith('ฝึกสวนปัสสาวะ') ||
+    lower.startsWith('ฝึก cpr');
 
   if (isDirectActionCommand) {
     return false;
   }
 
-  // นอกเหนือจากคำสั่งสร้างรายการชัดเจน ให้ส่งเป็นคำถามความรู้/General AI ทั้งหมด เพื่อให้ตอบได้รอบด้าน 100%
+  // คำถามความรู้ วิธีใช้ระบบ และคำถามข้อมูลสดทั้งหมด ส่งให้ Gemini + RBAC Tools วิเคราะห์
   return true;
 }
 
 /**
  * ตรวจจับเจตนาจากข้อความ
  */
-function detectIntent(text: string, currentIntent: ChatIntent): ChatIntent {
+function detectIntent(text: string, currentIntent: ChatIntent, state?: ChatSessionState): ChatIntent {
   const lower = text.toLowerCase();
 
-  // หากเป็นคำถามความรู้หรือคำถามทั่วไป ไม่ล็อกโฟลว์เดิม
-  if (isGeneralOrKnowledgeQuery(text)) {
+  if (isGeneralOrKnowledgeQuery(text, state)) {
     return 'IDLE';
   }
 
-  // หากกำลังอยู่ระหว่างโฟลว์เดิม ให้ทำโฟลว์เดิมต่อไป เว้นแต่มีคีย์เวิร์ดเปลี่ยนเรื่องชัดเจน
   if (lower.includes('จองห้อง') || lower.includes('ขอใช้ห้อง') || lower.includes('ห้องแลป') || lower.includes('ห้องแล็บ')) {
     return 'BOOK_ROOM';
   }
-  if (lower.includes('ฝึกทักษะ') || lower.includes('ซ้อมหัตถการ') || lower.includes('รอบฝึก') || lower.includes('ซ้อมมือ')) {
+  if (lower.includes('ฝึกทักษะ') || lower.includes('ซ้อมหัตถการ') || lower.includes('รอบฝึก') || lower.includes('ซ้อมมือ') || lower.startsWith('ฝึก')) {
     return 'BOOK_PRACTICE';
   }
   if (lower.includes('เบิก') || lower.includes('ยืม') || lower.includes('ขออุปกรณ์') || lower.includes('ขอถุงมือ')) {
@@ -398,7 +458,7 @@ async function handleRoomBookingFlow(
   if (!draft.roomId) {
     const roomListStr = activeRooms.map((r) => `• ${r.code} (${r.name})`).join('\n');
     return {
-      replyText: `${sideResponse}ต้องการจองห้องแล็บห้องไหนครับ? (เช่น LAB-01 หรือ ห้อง 401)\n\nห้องที่เปิดให้บริการ:\n${roomListStr}`,
+      replyText: `${sideResponse}ต้องการจองห้องแล็บห้องไหนครับ? (เช่น LAB-01-1, LAB-03 หรือ SIM MOM)\n\nห้องที่เปิดให้บริการ:\n${roomListStr}`,
       sessionState: state,
       quickReplies: activeRooms.slice(0, 4).map((r) => ({ label: r.code, textToSend: `ขอจองห้อง ${r.code}` })),
     };
@@ -1212,7 +1272,7 @@ async function handleMyStatus(text: string, currentUser: any): Promise<ChatbotTu
 async function handleQueryOverdue(text: string, currentUser: any): Promise<ChatbotTurnResponse> {
   const overdueBorrows = await prisma.borrowRequest.findMany({
     where: {
-      status: 'DISPENSED',
+      status: 'BORROWED',
       expectedReturnDate: { lt: new Date() },
     },
     include: {
@@ -1308,15 +1368,19 @@ async function handleKnowledgeAndGeneralInquiry(
 ): Promise<ChatbotTurnResponse> {
   const userRole = (currentUser?.role || 'USER').toUpperCase();
 
-  // 1. รวบรวมข้อมูลในระบบทั้งหมดแบบจำกัดสิทธิ์ตามบทบาท (RBAC Scoped System Context)
+  // 1. รวบรวมข้อมูลสรุปตามสิทธิ์ (RBAC Scoped System Context)
   const systemContext = await assembleUserScopedContext(currentUser, text);
 
-  // 2. ส่งให้ Gemini 3.5 AI First Brain คิดวิเคราะห์และตอบคำถาม
-  const geminiResponse = await askGeminiLabBrain(text, currentUser, systemContext);
+  // 2. ส่งให้ Gemini AI + Native Function Calling คิดวิเคราะห์และดึงข้อมูลสดจากฐานข้อมูล
+  const geminiResponse = await askGeminiLabBrain(
+    text,
+    currentUser,
+    systemContext,
+    state.conversationHistory
+  );
 
   if (geminiResponse.success && geminiResponse.replyText) {
-    const replies = getRoleQuickReplies(userRole);
-    // หากมีดราฟต์จองห้องหรือเบิกของค้างอยู่ ให้เพิ่มปุ่มทำรายการต่อ
+    const replies = geminiResponse.quickReplies || getRoleQuickReplies(userRole);
     if (state.roomDraft?.roomId || state.requestDraft?.borrowItems.length) {
       replies.unshift({ label: '↩️ ทำรายการเดิมต่อ', textToSend: 'จองห้องต่อ' });
     }
@@ -1325,6 +1389,9 @@ async function handleKnowledgeAndGeneralInquiry(
       replyText: geminiResponse.replyText,
       sessionState: state,
       quickReplies: replies,
+      toolsUsed: geminiResponse.toolsUsed,
+      suggestedLinks: geminiResponse.suggestedLinks,
+      source: geminiResponse.source,
     };
   }
 
@@ -1340,6 +1407,7 @@ function handleGeneralInquiry(text: string, userRole: string): ChatbotTurnRespon
       replyText: dt.text,
       sessionState: { activeIntent: 'IDLE', stage: 'IDLE', lastUpdated: Date.now() },
       quickReplies: dt.quickReplies || getRoleQuickReplies(userRole),
+      source: 'DATETIME_ENGINE',
     };
   }
 
@@ -1350,13 +1418,17 @@ function handleGeneralInquiry(text: string, userRole: string): ChatbotTurnRespon
       replyText: kb.answer(userRole),
       sessionState: { activeIntent: 'IDLE', stage: 'IDLE', lastUpdated: Date.now() },
       quickReplies: kb.quickReplies || getRoleQuickReplies(userRole),
+      suggestedLinks: kb.route ? [{ label: kb.title, href: kb.route }] : undefined,
+      source: 'LOCAL_KNOWLEDGE_BASE',
     };
   }
 
   return {
-    replyText: 'สวัสดีครับ! ผมคือ **KUNurse+ Lab AI Copilot** ผู้ช่วยอัจฉริยะประจำห้องปฏิบัติการพยาบาลครับ 😊\n\nท่านสามารถสั่งงานหรือพิมพ์คุยสอบถามได้ทันที เช่น:\n• *"ทำอะไรได้บ้าง"* หรือ *"แล็บอยู่ที่ไหน"*\n• *"ตอนนี้กี่โมง"* หรือ *"วันนี้วันที่เท่าไหร่"*\n• *"จองห้องแลป"* หรือ *"จองห้อง 402 วันพุธหน้า 9 โมงถึงเที่ยง"*\n• *"ขอเบิกถุงมือ 2 กล่อง กับยืมเครื่องวัดความดัน"*\n• *"มีวิชาอะไรบ้าง"* หรือ *"เช็กสต็อกเข็มเบอร์ 24"*\n• *"ตรวจสอบคำขอค้างของฉัน"*',
+    replyText:
+      'สวัสดีครับ! ผมคือ **KUNurse+ Lab AI Copilot** ผู้ช่วยอัจฉริยะประจำห้องปฏิบัติการพยาบาลครับ 😊\n\nท่านสามารถถามวิธีใช้งานระบบหรือเช็กข้อมูลสดจากฐานข้อมูลได้ทันที เช่น:\n• *"วิธีจองห้องแล็บทำยังไง"* หรือ *"ทำไมไม่เห็นรายวิชาในหน้าขอยืม"*\n• *"วันนี้มีห้องไหนถูกจองบ้าง"* หรือ *"มีรอบฝึกทักษะวันไหนบ้าง"*\n• *"ถุงมือเหลือเท่าไหร่ อยู่ตู้ไหน"* หรือ *"มีพัสดุใกล้หมดสต็อกไหม"*\n• *"มีคำขอรออนุมัติไหม"* หรือ *"เดือนนี้เปิดแอร์ไปแล้วกี่ชั่วโมง"*',
     sessionState: { activeIntent: 'IDLE', stage: 'IDLE', lastUpdated: Date.now() },
     quickReplies: getRoleQuickReplies(userRole),
+    source: 'LOCAL_KNOWLEDGE_BASE',
   };
 }
 
@@ -1420,6 +1492,18 @@ async function executeConfirmedAction(
     if (intent === 'LOG_AC' && state.acDraft) {
       const draft = state.acDraft;
       const dateTarget = draft.dateStr ? new Date(`${draft.dateStr}T00:00:00.000Z`) : new Date();
+      const usageHours = draft.usageHours || calculateUsageHours(draft.openTime || '09:00', draft.closeTime || '16:00');
+      const temperature = draft.temperature || 24;
+      const purpose = draft.purpose || 'การเรียนการสอน';
+      const sessionsJson = JSON.stringify([
+        {
+          openTime: draft.openTime,
+          closeTime: draft.closeTime,
+          hours: usageHours,
+          temperature,
+          purpose,
+        },
+      ]);
 
       await prisma.acOperationLog.upsert({
         where: {
@@ -1433,23 +1517,29 @@ async function executeConfirmedAction(
           date: dateTarget,
           openTime: draft.openTime!,
           closeTime: draft.closeTime!,
-          temperature: draft.temperature || 24,
-          purpose: draft.purpose || 'การเรียนการสอน',
+          usageHours,
+          temperature,
+          purpose,
+          sessionsJson,
           recordedById: currentUser.id,
+          recordedName: currentUser.name,
         },
         update: {
           openTime: draft.openTime!,
           closeTime: draft.closeTime!,
-          temperature: draft.temperature || 24,
-          purpose: draft.purpose || 'การเรียนการสอน',
+          usageHours,
+          temperature,
+          purpose,
+          sessionsJson,
           recordedById: currentUser.id,
+          recordedName: currentUser.name,
         },
       });
 
       return {
-        replyText: `❄️ **บันทึกการเปิด-ปิดแอร์ห้อง ${draft.roomCode} สำเร็จเรียบร้อยครับ!**\n• วันที่: ${draft.dateStr}\n• เวลา: ${draft.openTime} - ${draft.closeTime} น. (${draft.usageHours} ชม.)\n• อุณหภูมิ: ${draft.temperature} °C`,
+        replyText: `❄️ **บันทึกการเปิด-ปิดแอร์ห้อง ${draft.roomCode} สำเร็จเรียบร้อยครับ!**\n• วันที่: ${draft.dateStr}\n• เวลา: ${draft.openTime} - ${draft.closeTime} น. (${usageHours} ชม.)\n• อุณหภูมิ: ${temperature} °C`,
         sessionState: { activeIntent: 'IDLE', stage: 'IDLE', lastUpdated: Date.now() },
-        executionResult: { success: true },
+        executionResult: { success: true, viewUrl: '/air-conditioning' },
         quickReplies: getRoleQuickReplies(currentUser.role),
       };
     }
@@ -1508,24 +1598,26 @@ function getRoleQuickReplies(userRole: string): QuickReplyOption[] {
   const role = (userRole || 'USER').toUpperCase();
   if (role === 'OFFICER' || role === 'ADMIN') {
     return [
-      { label: '❄️ บันทึกเปิด-ปิดแอร์', textToSend: 'บันทึกเปิดแอร์' },
-      { label: '📋 ตรวจสอบคำขอรออนุมัติ', textToSend: 'มีรายการรออนุมัติไหม' },
-      { label: '⚠️ เช็กคนค้างคืนพัสดุ', textToSend: 'ใครยังไม่คืนของบ้าง' },
-      { label: '📦 ค้นหาสต็อกพัสดุ', textToSend: 'เช็กสต็อก' },
+      { label: '📅 ตารางห้องวันนี้', textToSend: 'วันนี้มีห้องไหนถูกจองบ้าง' },
+      { label: '📋 เช็กคำขอรออนุมัติ', textToSend: 'มีคำขอรออนุมัติไหม' },
+      { label: '❄️ สรุปแอร์เดือนนี้', textToSend: 'เดือนนี้เปิดแอร์ไปแล้วกี่ชั่วโมง' },
+      { label: '📦 พัสดุใกล้หมดสต็อก', textToSend: 'มีพัสดุอะไรใกล้หมดสต็อกบ้าง' },
+      { label: '📖 วิธีจัดการรายชื่อนิสิต', textToSend: 'วิธีจัดการรายชื่อนิสิตในรายวิชาทำยังไง' },
     ];
   }
   if (role === 'APPROVER' || role === 'TEACHER') {
     return [
       { label: '📋 คำขอที่รอฉันอนุมัติ', textToSend: 'มีคำขอรออนุมัติไหม' },
-      { label: '📊 งบประมาณรายวิชา', textToSend: 'วิชา 222 เหลืองบเท่าไหร่' },
-      { label: '🏢 จองห้องแล็บการสอน', textToSend: 'จองห้องแล็บ' },
+      { label: '📊 งบประมาณรายวิชา', textToSend: 'รายวิชาทั้งหมดเหลืองบเท่าไหร่' },
+      { label: '📅 ตารางห้องวันนี้', textToSend: 'วันนี้มีห้องไหนถูกจองบ้าง' },
+      { label: '📖 วิธีอนุมัติคำขอด่วน', textToSend: 'วิธีใช้งานปุ่มอนุมัติด่วนทำยังไง' },
     ];
   }
   // นิสิต
   return [
-    { label: '🏢 จองห้องแล็บ', textToSend: 'จองห้องแล็บ' },
-    { label: '🛒 ขอเบิก-ยืมพัสดุ', textToSend: 'ขอเบิกของ' },
-    { label: '🩺 ลงชื่อรอบฝึกทักษะ', textToSend: 'รอบฝึกทักษะ' },
+    { label: '📖 วิธีจองห้องแล็บ', textToSend: 'วิธีจองห้องแล็บทำยังไง' },
+    { label: '📅 วันนี้ห้องไหนว่างบ้าง', textToSend: 'วันนี้มีห้องไหนว่างบ้าง' },
     { label: '🔍 เช็กสถานะคำขอของฉัน', textToSend: 'สถานะคำขอของฉัน' },
+    { label: '🛒 วิธียืม-เบิกพัสดุ', textToSend: 'วิธียืมและเบิกพัสดุทำยังไง' },
   ];
 }

@@ -223,6 +223,10 @@ export default function EditRequestModal({
   if (!isOpen || !initialData) return null;
 
 
+  const isPendingBorrowOnly =
+    requestType === 'BORROW' &&
+    initialData?.status === 'PENDING' &&
+    !initialData?.requisitionRequest;
   const showBorrowSection = requestType === 'BORROW' || requestType === 'UNIFIED' || borrowItems.length > 0;
   const showReqSection = requestType === 'REQUISITION' || requestType === 'UNIFIED' || requisitionItems.length > 0;
 
@@ -929,6 +933,35 @@ export default function EditRequestModal({
                 })}
               </div>
             </div>
+          )}
+
+          {/* Optional CTA: Attach Consumables (REQ) when editing a PENDING standalone BRW */}
+          {requestType === 'BORROW' && !initialData?.requisitionRequest && requisitionItems.length === 0 && (
+            isPendingBorrowOnly ? (
+              <div className="p-4 rounded-2xl border border-dashed border-emerald-300 dark:border-emerald-800/80 bg-emerald-50/50 dark:bg-emerald-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="text-xs text-emerald-950 dark:text-emerald-200 space-y-0.5">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <Boxes className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>ต้องการเบิกวัสดุสิ้นเปลือง (REQ) เพิ่มร่วมกับใบยืมนี้หรือไม่?</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-700 dark:text-emerald-300/90">
+                    ใบยืมยังอยู่ในสถานะรออนุมัติ (PENDING) สามารถเพิ่มวัสดุสิ้นเปลืองเพื่อผูกรวมเป็นคำขอ One-Stop ได้เลย
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddRequisitionItem}
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition cursor-pointer shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>เพิ่มวัสดุสิ้นเปลือง (REQ)</span>
+                </button>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400">
+                หมายเหตุ: ใบยืมที่ผ่านการอนุมัติหรือรับของไปแล้ว ไม่สามารถสร้างใบเบิกวัสดุสิ้นเปลือง (REQ) ผูกเพิ่มจากหน้านี้ได้ (เจ้าหน้าที่สามารถกดเพิ่มให้หน้างานตอนจ่ายของ หรือยื่นคำขอเบิกวัสดุใบใหม่)
+              </div>
+            )
           )}
 
           {/* Section 3: Requisition Consumable Items */}

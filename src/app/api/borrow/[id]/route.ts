@@ -2,10 +2,17 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
 import { formatUserName, formatAcknowledgeDisplay } from '@/lib/user-utils';
-import { createNotification, notifyRoles } from '@/lib/notifications';
+import { createNotification, notifyRoles, notifyAdvisorByName } from '@/lib/notifications';
 import { canUserApprove } from '@/lib/approval-scope';
 import { logActivity } from '@/lib/activity-log';
 import { getSessionFromRequest } from '@/lib/session';
+import { parseBangkokDateTime } from '@/lib/date-time-utils';
+import {
+  DispenseActionError,
+  allocateAndCheckoutEquipmentItem,
+  dispenseConsumableItemFifo,
+  generateUniqueRequestNumber,
+} from '@/lib/dispense-helpers';
 
 class BorrowActionError extends Error {
   status: number;
@@ -32,8 +39,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       returnCondition,
       returnNote,
       checkoutNote,
+      dispenseNote,
       borrowItemAdjustments,
       requisitionItemAdjustments,
+      addedBorrowItems,
+      addedRequisitionItems,
     } = body;
 
     const borrow = await prisma.borrowRequest.findUnique({
@@ -359,7 +369,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       );
       if (authCheck.errorRes) return authCheck.errorRes;
       const actorUserId = effectiveUserId!;
-      const { updated, freshBorrow } = await prisma.$transaction(
+      const effectiveCheckoutNote = (checkoutNote || dispenseNote || '').trim() || null;
+      const validAddedBorrow = Array.isArray(addedBorrowItems)
+        ? addedBorrowItems.filter((it: any) => it?.itemId && Number(it.quantity) > 0)
+        : [];
+      const validAddedReq = Array.isArray(addedRequisitionItems)
+        ? addedRequisitionItems.filter((it: any) => it?.itemId && Number(it.quantity) > 0)
+        : [];
+
+      const { updated, freshBorrow, onSiteAddedSummaries } = await prisma.$transaction(
         async (tx) => {
           const currentBorrow = await tx.borrowRequest.findUnique({
             where: { id },
@@ -494,6 +512,24 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                 data: { quantity: newQty },
               });
             }
+          }
+
+          // 1B. Process on-site added equipment items during CHECKOUT
+          const addedSummaries: string[] = [];
+          for (const addEq of validAddedBorrow) {
+            const alloc = await allocateAndCheckoutEquipmentItem(tx, {
+              borrowRequestId: currentBorrow.id,
+              itemId: addEq.itemId,
+              quantity: Number(addEq.quantity) || 1,
+              explicitAssetIds: Array.isArray(addEq.selectedAssetIds)
+                ? addEq.selectedAssetIds
+                : Array.isArray(addEq.assetIds)
+                ? addEq.assetIds
+                : [],
+            });
+            const codesTag =
+              alloc.assignedAssetCodes.length > 0 ? ` [${alloc.assignedAssetCodes.join(', ')}]` : '';
+            addedSummaries.push(`${alloc.itemName} ${alloc.allocatedCount} ${alloc.unit}${codesTag}`);
           }
 
           // 2. Process linked requisition items (FIFO dispense with officer adjustments atomically)
@@ -794,14 +830,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                           itemId: reqItem.itemId,
                           lotId: lot.id,
                           type: 'OUT_REQUISITION',
-                          quantity: -(takeFromOpen / lotPackSize),
+                          quantity: 0,
                           unitCost: lot.unitCost,
                           totalCost: costForLoose,
                           courseId: linkedReq.courseId,
                           referenceNumber: linkedReq.requestNumber,
                           createdById: actorUserId,
-                          note: checkoutNote
-                            ? `จ่ายจากเศษแพ็คเปิด ${takeFromOpen} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'} ตามคำขอเบิก-ยืม ${currentBorrow.requestNumber} | ${String(checkoutNote).trim()}`
+                          note: effectiveCheckoutNote
+                            ? `จ่ายจากเศษแพ็คเปิด ${takeFromOpen} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'} ตามคำขอเบิก-ยืม ${currentBorrow.requestNumber} | ${effectiveCheckoutNote}`
                             : `จ่ายจากเศษแพ็คเปิด ${takeFromOpen} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'} ตามคำขอเบิก-ยืม ${currentBorrow.requestNumber}`,
                         },
                       });
@@ -867,14 +903,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                             itemId: reqItem.itemId,
                             lotId: lot.id,
                             type: 'OUT_REQUISITION',
-                            quantity: -(piecesToDeduct / lotPackSize),
+                            quantity: -packsToOpen,
                             unitCost: lot.unitCost,
                             totalCost: costForDispensedPieces,
                             courseId: linkedReq.courseId,
                             referenceNumber: linkedReq.requestNumber,
                             createdById: actorUserId,
-                            note: checkoutNote
-                              ? `เปิดแพ็คใหม่ ${packsToOpen} แพ็ค → จ่าย ${piecesToDeduct} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'} (เก็บเศษ ${leftoverPieces} เข้าคลัง) ตามคำขอเบิก-ยืม ${currentBorrow.requestNumber} | ${String(checkoutNote).trim()}`
+                            note: effectiveCheckoutNote
+                              ? `เปิดแพ็คใหม่ ${packsToOpen} แพ็ค → จ่าย ${piecesToDeduct} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'} (เก็บเศษ ${leftoverPieces} เข้าคลัง) ตามคำขอเบิก-ยืม ${currentBorrow.requestNumber} | ${effectiveCheckoutNote}`
                               : `เปิดแพ็คใหม่ ${packsToOpen} แพ็ค → จ่าย ${piecesToDeduct} ${reqItem.requestedUnit || reqItem.item?.usageUnit || 'ชิ้น'} (เก็บเศษ ${leftoverPieces} เข้าคลัง) ตามคำขอเบิก-ยืม ${currentBorrow.requestNumber}`,
                           },
                         });
@@ -907,12 +943,100 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                   status: 'DISPENSED',
                   officerId: actorUserId,
                   dispensedAt: new Date(),
-                  dispenseNote: checkoutNote ? String(checkoutNote).trim() : null,
+                  dispenseNote: effectiveCheckoutNote,
                   totalCost: reqActualTotalCost,
                 },
               });
             }
           }
+
+          // 2B. Process on-site added consumable items during CHECKOUT
+          let attachedRequisitionId: string | null = currentBorrow.requisitionRequestId;
+          if (validAddedReq.length > 0) {
+            let targetReq = attachedRequisitionId
+              ? await tx.requisitionRequest.findUnique({
+                  where: { id: attachedRequisitionId },
+                  select: { id: true, requestNumber: true, courseId: true, useTarget: true, totalCost: true },
+                })
+              : null;
+
+            if (!targetReq) {
+              const newReqNum = await generateUniqueRequestNumber(tx, 'REQ');
+              targetReq = await tx.requisitionRequest.create({
+                data: {
+                  requestNumber: newReqNum,
+                  userId: currentBorrow.userId,
+                  courseId: currentBorrow.courseId,
+                  advisorName: currentBorrow.advisorName,
+                  purpose: currentBorrow.purpose,
+                  useTarget: currentBorrow.useTarget,
+                  dateNeeded: currentBorrow.borrowDate,
+                  status: 'DISPENSED',
+                  approverId: currentBorrow.approverId || actorUserId,
+                  approvedAt: currentBorrow.approvedAt || new Date(),
+                  officerId: actorUserId,
+                  dispensedAt: new Date(),
+                  dispenseNote: effectiveCheckoutNote || 'เพิ่มวัสดุสิ้นเปลืองหน้างานขณะส่งมอบครุภัณฑ์',
+                  instructorAcknowledged: currentBorrow.instructorAcknowledged,
+                  acknowledgedAt: currentBorrow.acknowledgedAt,
+                  totalCost: 0,
+                },
+                select: { id: true, requestNumber: true, courseId: true, useTarget: true, totalCost: true },
+              });
+              attachedRequisitionId = targetReq.id;
+            }
+
+            let addedReqTotalCost = 0;
+            const recipientName = currentBorrow.user ? formatUserName(currentBorrow.user) : null;
+            for (const addReq of validAddedReq) {
+              const qty = Math.max(1, Math.round(Number(addReq.quantity) || 1));
+              const dispensed = await dispenseConsumableItemFifo(tx, {
+                itemId: addReq.itemId,
+                quantityTarget: qty,
+                isSubUnit: Boolean(addReq.isSubUnit),
+                requestedUnit: addReq.requestedUnit || null,
+                preferredLotId: addReq.lotId || null,
+                useTarget: targetReq.useTarget,
+                courseId: targetReq.courseId,
+                referenceNumber: targetReq.requestNumber,
+                actorUserId,
+                recipientLabel: recipientName,
+                noteLabel: `เพิ่มหน้างานตามคำขอเบิก-ยืม ${currentBorrow.requestNumber}`,
+                noteSuffix: effectiveCheckoutNote,
+              });
+
+              await tx.requisitionItem.create({
+                data: {
+                  requisitionRequestId: targetReq.id,
+                  itemId: addReq.itemId,
+                  quantityRequested: qty,
+                  quantityDispensed: dispensed.actualDispensed,
+                  requestedUnit: dispensed.unitLabel,
+                  isSubUnit: dispensed.isSubUnit,
+                  unitCost: dispensed.unitCost,
+                  totalCost: dispensed.itemCost,
+                },
+              });
+
+              addedReqTotalCost += dispensed.itemCost;
+              addedSummaries.push(`${dispensed.itemName} ${dispensed.actualDispensed} ${dispensed.unitLabel}`);
+            }
+
+            await tx.requisitionRequest.update({
+              where: { id: targetReq.id },
+              data: {
+                status: 'DISPENSED',
+                officerId: actorUserId,
+                dispensedAt: new Date(),
+                totalCost: (targetReq.totalCost || 0) + addedReqTotalCost,
+              },
+            });
+          }
+
+          const finalCheckoutNote =
+            addedSummaries.length > 0
+              ? [effectiveCheckoutNote, `เพิ่มหน้างาน: ${addedSummaries.join(', ')}`].filter(Boolean).join(' | ')
+              : effectiveCheckoutNote;
 
           const updatedBorrow = await tx.borrowRequest.update({
             where: { id },
@@ -920,25 +1044,53 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
               status: 'BORROWED',
               officerId: actorUserId,
               checkedOutAt: new Date(),
-              checkoutNote: checkoutNote ? String(checkoutNote).trim() : null,
+              checkoutNote: finalCheckoutNote,
+              ...(attachedRequisitionId && attachedRequisitionId !== currentBorrow.requisitionRequestId
+                ? { requisitionRequestId: attachedRequisitionId }
+                : {}),
             },
           });
 
-          return { updated: updatedBorrow, freshBorrow: currentBorrow };
+          return {
+            updated: updatedBorrow,
+            freshBorrow: currentBorrow,
+            onSiteAddedSummaries: addedSummaries,
+          };
         },
         { timeout: 25000 }
       );
 
       // Notify student
-      createNotification({
-        userId: freshBorrow.userId,
-        title: 'จ่ายครุภัณฑ์เรียบร้อยแล้ว 📦',
-        message: `เจ้าหน้าที่ได้จ่ายครุภัณฑ์ตามคำขอ ${freshBorrow.requestNumber} แล้ว กำหนดคืนวันที่ ${new Date(freshBorrow.expectedReturnDate).toLocaleDateString('th-TH')}`,
-        type: 'DUE_REMINDER',
-        linkUrl: '/borrow',
-        entityType: 'BORROW',
-        entityId: freshBorrow.id,
-      }).catch(() => {});
+      const addedSuffix =
+        onSiteAddedSummaries.length > 0 ? ` (เพิ่มหน้างาน: ${onSiteAddedSummaries.join(', ')})` : '';
+      const notifyPromises: Promise<any>[] = [
+        createNotification({
+          userId: freshBorrow.userId,
+          title: 'จ่ายครุภัณฑ์เรียบร้อยแล้ว 📦',
+          message: `เจ้าหน้าที่ได้จ่ายครุภัณฑ์ตามคำขอ ${freshBorrow.requestNumber} แล้ว${addedSuffix} กำหนดคืนวันที่ ${new Date(freshBorrow.expectedReturnDate).toLocaleDateString('th-TH')}`,
+          type: 'DUE_REMINDER',
+          linkUrl: '/borrow',
+          entityType: 'BORROW',
+          entityId: freshBorrow.id,
+        }),
+      ];
+
+      const advisorTarget = freshBorrow.advisorName || freshBorrow.course?.instructorName;
+      if (onSiteAddedSummaries.length > 0 && advisorTarget) {
+        notifyPromises.push(
+          notifyAdvisorByName(advisorTarget, {
+            title: 'แจ้งเตือน: เจ้าหน้าที่เพิ่มรายการหน้างานตอนจ่ายของ 📋',
+            message: `คำขอ ${freshBorrow.requestNumber} ของ ${formatUserName(freshBorrow.user) || 'นิสิต'} มีการเพิ่มรายการหน้างาน: ${onSiteAddedSummaries.join(', ')}`,
+            type: 'STATUS_UPDATE',
+            priority: 'NORMAL',
+            linkUrl: '/borrow',
+            entityType: 'BORROW',
+            entityId: freshBorrow.id,
+          })
+        );
+      }
+
+      await Promise.allSettled(notifyPromises);
 
       logActivity({
         userId: actorUserId,
@@ -946,7 +1098,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         entityType: 'BORROW',
         entityId: freshBorrow.id,
         entityTitle: freshBorrow.requestNumber,
-        details: `เจ้าหน้าที่ส่งมอบครุภัณฑ์คำขอเลขที่ ${freshBorrow.requestNumber} ให้นิสิต (${freshBorrow.user?.name || 'ไม่ระบุชื่อ'})`,
+        details:
+          onSiteAddedSummaries.length > 0
+            ? `เจ้าหน้าที่ส่งมอบครุภัณฑ์คำขอเลขที่ ${freshBorrow.requestNumber} ให้นิสิต (${freshBorrow.user?.name || 'ไม่ระบุชื่อ'}) พร้อมเพิ่มรายการหน้างาน: ${onSiteAddedSummaries.join(', ')}`
+            : `เจ้าหน้าที่ส่งมอบครุภัณฑ์คำขอเลขที่ ${freshBorrow.requestNumber} ให้นิสิต (${freshBorrow.user?.name || 'ไม่ระบุชื่อ'})`,
+        metadata: onSiteAddedSummaries.length > 0 ? { onSiteAdded: onSiteAddedSummaries } : undefined,
       });
 
       return respondUpdated(updated);
@@ -983,10 +1139,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             );
           }
 
-          // Officer checks in equipment with individual item condition evaluation
+          // Officer checks in ONLY equipment that was actually dispensed (exclude DISALLOWED / quantity <= 0)
           // body.itemReturns can be an array: [{ id: borrowItemId, condition: 'GOOD'|'DAMAGED', note?: string }]
           let damagedFound = false;
-          const validBorrowItemIds = new Set(currentBorrow.items.map((i) => i.id));
+          const dispensedItems = currentBorrow.items.filter(
+            (i) => i.returnCondition !== 'DISALLOWED' && Number(i.quantity) > 0
+          );
+          const validBorrowItemIds = new Set(dispensedItems.map((i) => i.id));
 
           if (itemReturns && Array.isArray(itemReturns) && itemReturns.length > 0) {
             for (const itemRet of itemReturns) {
@@ -1031,11 +1190,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
               }
             }
           } else {
-            // Fallback: evaluate all items with global returnCondition
+            // Fallback: evaluate ONLY actually dispensed items with global returnCondition
             const isDamaged = returnCondition === 'DAMAGED';
-            if (isDamaged) damagedFound = true;
+            if (isDamaged && dispensedItems.length > 0) damagedFound = true;
 
-            for (const bItem of currentBorrow.items) {
+            for (const bItem of dispensedItems) {
               await tx.borrowItem.update({
                 where: { id: bItem.id },
                 data: {
@@ -1246,13 +1405,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error: any) {
-    if (error instanceof BorrowActionError) {
+    if (error instanceof BorrowActionError || error instanceof DispenseActionError) {
       if (error.code === 'CONCURRENCY_CONFLICT') {
         return NextResponse.json(
           {
             error: error.code,
             message: error.message,
-            ...(error.extra || {}),
+            ...('extra' in error && error.extra ? error.extra : {}),
           },
           { status: error.status }
         );

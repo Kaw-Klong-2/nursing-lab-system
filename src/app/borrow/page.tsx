@@ -39,6 +39,7 @@ import BorrowSlipModal from '@/components/slips/BorrowSlipModal';
 import EditRequestModal from '@/components/requests/EditRequestModal';
 import NewAllocationModal from '@/components/borrow/NewAllocationModal';
 import BulkAllocationReturnModal from '@/components/borrow/BulkAllocationReturnModal';
+import AddOnSiteItemsSection, { OnSiteBorrowItem, OnSiteReqItem } from '@/components/dispense/AddOnSiteItemsSection';
 import { formatUserName, formatTeacherName, formatApproverDisplay, formatAcknowledgeDisplay } from '@/lib/user-utils';
 import { formatLocationDisplay } from '@/lib/location-utils';
 import { formatOverdueDuration } from '@/lib/date-time-utils';
@@ -94,6 +95,11 @@ export default function BorrowPage() {
     stockLots?: any[];
   }[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [addedCheckoutBorrowItems, setAddedCheckoutBorrowItems] = useState<OnSiteBorrowItem[]>([]);
+  const [addedCheckoutReqItems, setAddedCheckoutReqItems] = useState<OnSiteReqItem[]>([]);
+
+  const isDisallowedBorrowItem = (it: any) =>
+    it?.returnCondition === 'DISALLOWED' || Number(it?.quantity) <= 0;
   const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string>('');
@@ -322,6 +328,28 @@ export default function BorrowPage() {
                       : parseInt(String(i.quantity), 10) || 1,
                 }))
               : undefined,
+          addedBorrowItems:
+            actionType === 'CHECKOUT'
+              ? addedCheckoutBorrowItems
+                  .filter((i) => i.itemId && Number(i.quantity) > 0)
+                  .map((i) => ({
+                    itemId: i.itemId,
+                    quantity: Math.max(1, Number(i.quantity) || 1),
+                    selectedAssetIds: i.selectedAssetIds.filter(Boolean),
+                  }))
+              : undefined,
+          addedRequisitionItems:
+            actionType === 'CHECKOUT'
+              ? addedCheckoutReqItems
+                  .filter((i) => i.itemId && Number(i.quantity) > 0)
+                  .map((i) => ({
+                    itemId: i.itemId,
+                    quantity: Math.max(1, Number(i.quantity) || 1),
+                    isSubUnit: Boolean(i.isSubUnit),
+                    requestedUnit: i.requestedUnit || undefined,
+                    lotId: i.lotId || undefined,
+                  }))
+              : undefined,
           requisitionReturns:
             actionType === 'RETURN'
               ? reqSurplusReturns
@@ -339,6 +367,8 @@ export default function BorrowPage() {
         setItemReturns([]);
         setCheckoutBorrowItems([]);
         setCheckoutReqItems([]);
+        setAddedCheckoutBorrowItems([]);
+        setAddedCheckoutReqItems([]);
         setReqSurplusReturns([]);
         const checkedOutReq = activeBorrowForAction;
         const wasCheckout = actionType === 'CHECKOUT';
@@ -871,7 +901,11 @@ export default function BorrowPage() {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        {it.isReturned && (
+                        {isDisallowedBorrowItem(it) ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700">
+                            ไม่ได้รับมอบ (งดจ่าย)
+                          </span>
+                        ) : it.isReturned && (
                           it.returnCondition === 'DAMAGED' ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
                               <AlertTriangle className="w-3 h-3 text-rose-600" />
@@ -974,6 +1008,8 @@ export default function BorrowPage() {
                         setActiveBorrowForAction(req);
                         setActionType('CHECKOUT');
                         setCheckoutNote('');
+                        setAddedCheckoutBorrowItems([]);
+                        setAddedCheckoutReqItems([]);
                         setCheckoutBorrowItems(
                           (req.items || []).map((it: any) => {
                             const matchEq = equipmentList.find((e) => e.id === it.itemId);
@@ -1059,12 +1095,15 @@ export default function BorrowPage() {
                           setReturnCondition('GOOD');
                           setReturnNote('');
                           setItemReturns(
-                            (req.items || []).map((it: any) => ({
-                              id: it.id,
-                              condition: 'GOOD',
-                              note: '',
-                            }))
+                            (req.items || [])
+                              .filter((it: any) => !isDisallowedBorrowItem(it))
+                              .map((it: any) => ({
+                                id: it.id,
+                                condition: 'GOOD',
+                                note: '',
+                              }))
                           );
+                          setReqSurplusReturns([]);
                         }}
                         className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow transition cursor-pointer"
                       >
@@ -1409,7 +1448,6 @@ export default function BorrowPage() {
                                   <input
                                     type="number"
                                     min="1"
-                                    max={it.requestedQty}
                                     value={it.quantity === 0 ? '' : it.quantity}
                                     onChange={(e) => {
                                       const raw = e.target.value;
@@ -1421,7 +1459,8 @@ export default function BorrowPage() {
                                       }
                                       const val = parseInt(raw, 10);
                                       if (!isNaN(val)) {
-                                        const clamped = Math.min(it.requestedQty, Math.max(1, val));
+                                        const maxCap = availableAssets.length > 0 ? availableAssets.length : Math.max(it.requestedQty, val);
+                                        const clamped = Math.min(maxCap, Math.max(1, val));
                                         setCheckoutBorrowItems((prev) =>
                                           prev.map((item, i) => {
                                             if (i !== idx) return item;
@@ -1451,9 +1490,10 @@ export default function BorrowPage() {
                                       setCheckoutBorrowItems((prev) =>
                                         prev.map((item, i) => {
                                           if (i !== idx) return item;
+                                          const maxCap = availableAssets.length > 0 ? availableAssets.length : Math.max(it.requestedQty, Number(item.quantity) || 1);
                                           const currentQty =
                                             typeof item.quantity === 'number' && item.quantity >= 1
-                                              ? Math.min(item.requestedQty, item.quantity)
+                                              ? Math.min(maxCap, item.quantity)
                                               : 1;
                                           const currentSelected = [...(item.selectedAssetIds || [])];
                                           if (currentQty > currentSelected.length) {
@@ -1718,7 +1758,6 @@ export default function BorrowPage() {
                                     <input
                                       type="number"
                                       min="1"
-                                      max={it.requestedQty}
                                       value={it.quantity === 0 ? '' : it.quantity}
                                       onChange={(e) => {
                                         const raw = e.target.value;
@@ -1730,7 +1769,7 @@ export default function BorrowPage() {
                                         }
                                         const val = parseInt(raw, 10);
                                         if (!isNaN(val)) {
-                                          const clamped = Math.min(it.requestedQty, Math.max(1, val));
+                                          const clamped = Math.max(1, val);
                                           setCheckoutReqItems((prev) =>
                                             prev.map((item, i) => (i === idx ? { ...item, quantity: clamped } : item))
                                           );
@@ -1742,7 +1781,7 @@ export default function BorrowPage() {
                                             if (i !== idx) return item;
                                             const currentQty =
                                               typeof item.quantity === 'number' && item.quantity >= 1
-                                                ? Math.min(item.requestedQty, item.quantity)
+                                                ? item.quantity
                                                 : 1;
                                             return { ...item, quantity: currentQty };
                                           })
@@ -1887,6 +1926,16 @@ export default function BorrowPage() {
                   </div>
                 )}
 
+                {/* 3. On-Site Add Items Section (เพิ่มครุภัณฑ์/วัสดุสิ้นเปลืองหน้างาน) */}
+                <AddOnSiteItemsSection
+                  equipmentList={equipmentList}
+                  consumablesList={consumablesList}
+                  addedBorrowItems={addedCheckoutBorrowItems}
+                  setAddedBorrowItems={setAddedCheckoutBorrowItems}
+                  addedReqItems={addedCheckoutReqItems}
+                  setAddedReqItems={setAddedCheckoutReqItems}
+                />
+
                 {/* Checkout Note Input Field */}
                 <div className="space-y-1.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800">
                   <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
@@ -1918,101 +1967,130 @@ export default function BorrowPage() {
                     ตรวจรับคืนและประเมินสภาพแยกตามรายชิ้น (Item Inspection) *
                   </label>
                   <div className="space-y-2.5">
-                    {activeBorrowForAction.items?.map((it: any) => {
-                      const currentItemRet = itemReturns.find((ir) => ir.id === it.id);
-                      const condition = currentItemRet?.condition || 'GOOD';
+                    {(activeBorrowForAction.items || []).filter((it: any) => !isDisallowedBorrowItem(it)).length === 0 ? (
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
+                        ไม่มีรายการครุภัณฑ์ที่ถูกส่งมอบออกจากคลังในคำขอนี้
+                      </div>
+                    ) : (
+                      (activeBorrowForAction.items || [])
+                        .filter((it: any) => !isDisallowedBorrowItem(it))
+                        .map((it: any) => {
+                          const currentItemRet = itemReturns.find((ir) => ir.id === it.id);
+                          const condition = currentItemRet?.condition || 'GOOD';
 
-                      return (
-                        <div
-                          key={it.id}
-                          className={`p-3 rounded-xl border transition ${
-                            condition === 'DAMAGED'
-                              ? 'bg-rose-50/60 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900'
-                              : 'bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800'
-                          }`}
-                        >
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div>
-                              <div className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
-                                <span className={`w-2 h-2 rounded-full ${condition === 'DAMAGED' ? 'bg-rose-500' : 'bg-emerald-500'}`}></span>
-                                <span>{it.item?.name}</span>
+                          return (
+                            <div
+                              key={it.id}
+                              className={`p-3 rounded-xl border transition ${
+                                condition === 'DAMAGED'
+                                  ? 'bg-rose-50/60 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900'
+                                  : 'bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800'
+                              }`}
+                            >
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div>
+                                  <div className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
+                                    <span className={`w-2 h-2 rounded-full ${condition === 'DAMAGED' ? 'bg-rose-500' : 'bg-emerald-500'}`}></span>
+                                    <span>{it.item?.name}</span>
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                    จำนวน {it.quantity} {it.item?.unit}
+                                    {it.asset && (
+                                      <span className="font-mono text-[10px] bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-teal-700 dark:text-teal-300 ml-1.5">
+                                        รหัส: {it.asset.assetCode} ({it.item?.unit || 'ชิ้น'}ที่ {it.asset.sequenceNumber || 1})
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setItemReturns((prev) =>
+                                        prev.map((ir) =>
+                                          ir.id === it.id ? { ...ir, condition: 'GOOD' } : ir
+                                        )
+                                      );
+                                    }}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                                      condition === 'GOOD'
+                                        ? 'bg-emerald-600 text-white shadow-sm'
+                                        : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                    }`}
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>สมบูรณ์</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setItemReturns((prev) =>
+                                        prev.map((ir) =>
+                                          ir.id === it.id ? { ...ir, condition: 'DAMAGED' } : ir
+                                        )
+                                      );
+                                    }}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                                      condition === 'DAMAGED'
+                                        ? 'bg-rose-600 text-white shadow-sm animate-pulse'
+                                        : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30'
+                                    }`}
+                                  >
+                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                    <span>ชำรุด</span>
+                                  </button>
+                                </div>
                               </div>
-                              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                จำนวน {it.quantity} {it.item?.unit}
-                                {it.asset && (
-                                  <span className="font-mono text-[10px] bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-teal-700 dark:text-teal-300 ml-1.5">
-                                    รหัส: {it.asset.assetCode} ({it.item?.unit || 'ชิ้น'}ที่ {it.asset.sequenceNumber || 1})
-                                  </span>
-                                )}
-                              </div>
-                            </div>
 
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setItemReturns((prev) =>
-                                    prev.map((ir) =>
-                                      ir.id === it.id ? { ...ir, condition: 'GOOD' } : ir
-                                    )
-                                  );
-                                }}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
-                                  condition === 'GOOD'
-                                    ? 'bg-emerald-600 text-white shadow-sm'
-                                    : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                }`}
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>สมบูรณ์</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setItemReturns((prev) =>
-                                    prev.map((ir) =>
-                                      ir.id === it.id ? { ...ir, condition: 'DAMAGED' } : ir
-                                    )
-                                  );
-                                }}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
-                                  condition === 'DAMAGED'
-                                    ? 'bg-rose-600 text-white shadow-sm animate-pulse'
-                                    : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30'
-                                }`}
-                              >
-                                <AlertTriangle className="w-3.5 h-3.5" />
-                                <span>ชำรุด</span>
-                              </button>
+                              {condition === 'DAMAGED' && (
+                                <div className="mt-2 pt-2 border-t border-rose-200/60 dark:border-rose-900/60">
+                                  <input
+                                    type="text"
+                                    placeholder="ระบุอาการชำรุดของรายการนี้ เช่น หูฟังยางฉีกขาด, หน้าจอไม่ติด"
+                                    value={currentItemRet?.note || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setItemReturns((prev) =>
+                                        prev.map((ir) =>
+                                          ir.id === it.id ? { ...ir, note: val } : ir
+                                        )
+                                      );
+                                    }}
+                                    className="w-full bg-white dark:bg-slate-950 border border-rose-300 dark:border-rose-800 rounded-lg px-2.5 py-1 text-xs text-rose-900 dark:text-rose-200 placeholder:text-rose-300 dark:placeholder:text-rose-500 focus:ring-1 focus:ring-rose-500"
+                                  />
+                                </div>
+                              )}
                             </div>
-                          </div>
-
-                          {condition === 'DAMAGED' && (
-                            <div className="mt-2 pt-2 border-t border-rose-200/60 dark:border-rose-900/60">
-                              <input
-                                type="text"
-                                placeholder="ระบุอาการชำรุดของรายการนี้ เช่น หูฟังยางฉีกขาด, หน้าจอไม่ติด"
-                                value={currentItemRet?.note || ''}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setItemReturns((prev) =>
-                                    prev.map((ir) =>
-                                      ir.id === it.id ? { ...ir, note: val } : ir
-                                    )
-                                  );
-                                }}
-                                className="w-full bg-white dark:bg-slate-950 border border-rose-300 dark:border-rose-800 rounded-lg px-2.5 py-1 text-xs text-rose-900 dark:text-rose-200 placeholder:text-rose-300 dark:placeholder:text-rose-500 focus:ring-1 focus:ring-rose-500"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                          );
+                        })
+                    )}
                   </div>
+
+                  {/* Read-only audit summary for items disallowed at checkout */}
+                  {(() => {
+                    const disallowedList = (activeBorrowForAction.items || []).filter(isDisallowedBorrowItem);
+                    if (disallowedList.length === 0) return null;
+                    return (
+                      <div className="mt-2.5 p-2.5 rounded-xl bg-slate-100/80 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-400 space-y-1">
+                        <div className="font-bold flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                          <Info className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                          <span>รายการที่ไม่ได้รับมอบตอนจ่ายของ ({disallowedList.length} รายการ — ไม่ต้องตรวจรับคืน)</span>
+                        </div>
+                        <ul className="pl-5 list-disc space-y-0.5">
+                          {disallowedList.map((dIt: any) => (
+                            <li key={dIt.id}>
+                              {dIt.item?.name || 'ครุภัณฑ์'} (งดจ่าย)
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })()}
                 </div>
 
-                {activeBorrowForAction.requisitionRequest?.items?.length > 0 && (
+                {(activeBorrowForAction.requisitionRequest?.items || []).some((rIt: any) => (rIt.quantityDispensed || 0) > 0) && (
                   <div className="p-3.5 rounded-2xl bg-teal-50/50 dark:bg-teal-950/30 border border-teal-200/80 dark:border-teal-900/60 space-y-2">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-teal-950 dark:text-teal-200 flex items-center gap-1.5">
@@ -2024,7 +2102,9 @@ export default function BorrowPage() {
                       </span>
                     </div>
                     <div className="space-y-2">
-                      {activeBorrowForAction.requisitionRequest.items.map((rIt: any) => {
+                      {activeBorrowForAction.requisitionRequest.items
+                        .filter((rIt: any) => (rIt.quantityDispensed || 0) > 0)
+                        .map((rIt: any) => {
                         const currentQty = reqSurplusReturns.find((r) => r.id === rIt.id)?.quantity ?? '';
                         const maxCan = Math.max(0, rIt.quantityDispensed - (rIt.quantityReturned || 0));
                         return (

@@ -211,16 +211,30 @@ export function extractTemperature(text: string): number | null {
 }
 
 /**
- * ตรวจจับรหัสห้องแล็บ หรือเลขห้อง เช่น "401", "404", "LAB-04", "ห้องแลป 1"
+ * ตรวจจับรหัสห้องแล็บจริงในระบบ เช่น "LAB-01-1", "1/3", "LAB-03", "LAB-CS", "SIM MOM"
  */
 export function extractRoomIdentifier(text: string): string | null {
-  // รหัส LAB-0X
-  const labMatch = /LAB-0?([1-9])/i.exec(text);
+  // 1. รหัสย่อยห้องพื้นฐาน LAB-01-1 .. LAB-01-3 หรือ 1/3, 2/3, 3/3
+  const subLabMatch = /(?:LAB-0?1-([1-3])|\b([1-3])\/3\b)/i.exec(text);
+  if (subLabMatch) {
+    const idx = subLabMatch[1] || subLabMatch[2];
+    return `LAB-01-${idx}`;
+  }
+
+  // 2. ห้องจำลองและห้องเก็บเฉพาะทาง
+  if (/sim[\s-]*man/i.test(text)) return 'LAB-SIM-MAN';
+  if (/sim[\s-]*mom/i.test(text)) return 'LAB-SIM-MOM';
+  if (/(?:lab[\s-]*)?\bcs\b|ห้องเก็บวัสดุ/i.test(text)) return 'LAB-CS';
+  if (/(?:lab[\s-]*)?\beq\b|ห้องเก็บครุภัณฑ์/i.test(text)) return 'LAB-EQ';
+
+  // 3. รหัส LAB-0X (เช่น LAB-03, LAB-3, LAB-07)
+  const labMatch = /LAB-?0?([1-9])/i.exec(text);
   if (labMatch) {
+    if (labMatch[1] === '1') return 'LAB-01-1';
     return `LAB-0${labMatch[1]}`;
   }
 
-  // เลขห้อง 3 หลัก เช่น 401, 402, 403, 404, 405, 406, 410
+  // 4. เลขห้อง 3 หลัก (fallback)
   const numMatch = /(?:ห้อง\s*)?(\d{3})/i.exec(text);
   if (numMatch) {
     return numMatch[1];

@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import BorrowSlipModal from '@/components/slips/BorrowSlipModal';
 import RequisitionSlipModal from '@/components/slips/RequisitionSlipModal';
+import AddOnSiteItemsSection, { OnSiteBorrowItem, OnSiteReqItem } from '@/components/dispense/AddOnSiteItemsSection';
 import {
   PackageCheck,
   ShieldAlert,
@@ -66,6 +67,9 @@ interface QueueItem {
   approvedAt?: string;
   createdAt: string;
   totalItemsCount: number;
+  requisitionRequestId?: string | null;
+  linkedRequisitionNumber?: string | null;
+  linkedRequisitionItems?: any[];
   items: any[];
 }
 
@@ -98,7 +102,13 @@ export default function DispenseCenterPage() {
   const [detailItem, setDetailItem] = useState<QueueItem | null>(null);
   const [dispenseNote, setDispenseNote] = useState('');
   const [itemAdjustments, setItemAdjustments] = useState<any[]>([]);
+  const [linkedReqAdjustments, setLinkedReqAdjustments] = useState<any[]>([]);
   const [assignedAssets, setAssignedAssets] = useState<{ borrowItemId: string; assetId: string }[]>([]);
+  const [equipmentCatalog, setEquipmentCatalog] = useState<any[]>([]);
+  const [consumablesCatalog, setConsumablesCatalog] = useState<any[]>([]);
+  const [addedBorrowItems, setAddedBorrowItems] = useState<OnSiteBorrowItem[]>([]);
+  const [addedReqItems, setAddedReqItems] = useState<OnSiteReqItem[]>([]);
+  const [addedBorrowReturnDate, setAddedBorrowReturnDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
   const [activeSlipItem, setActiveSlipItem] = useState<QueueItem | null>(null);
@@ -107,13 +117,24 @@ export default function DispenseCenterPage() {
     if (!currentUser?.id) return;
     setLoading(true);
     try {
-      const res = await fetch('/api/dispense/queue', {
-        headers: { 'x-user-id': currentUser.id },
-      });
+      const [res, eqRes, conRes] = await Promise.all([
+        fetch('/api/dispense/queue', {
+          headers: { 'x-user-id': currentUser.id },
+        }),
+        fetch('/api/items?type=EQUIPMENT&compact=true'),
+        fetch('/api/items?type=CONSUMABLE&compact=true'),
+      ]);
       if (res.ok) {
         const data = await res.json();
         setQueue(data.queue || []);
         if (data.summary) setSummary(data.summary);
+      }
+      if (eqRes.ok) {
+        const rawEq = await eqRes.json();
+        setEquipmentCatalog(rawEq.filter((e: any) => e.isBorrowable !== false));
+      }
+      if (conRes.ok) {
+        setConsumablesCatalog(await conRes.json());
       }
     } catch (err) {
       console.error('Failed to fetch dispense queue:', err);
@@ -168,6 +189,9 @@ export default function DispenseCenterPage() {
   const handleOpenDispenseModal = (item: QueueItem) => {
     setActiveItem(item);
     setDispenseNote('');
+    setAddedBorrowItems([]);
+    setAddedReqItems([]);
+    setAddedBorrowReturnDate('');
 
     if (item.type === 'REQUISITION') {
       setItemAdjustments(
@@ -178,12 +202,21 @@ export default function DispenseCenterPage() {
           unit: it.unit,
         }))
       );
+      setLinkedReqAdjustments([]);
     } else {
       setItemAdjustments(
         item.items.map((it) => ({
           id: it.id,
           allowed: true,
           quantity: it.quantityRequested,
+        }))
+      );
+      setLinkedReqAdjustments(
+        (item.linkedRequisitionItems || []).map((it: any) => ({
+          id: it.id,
+          allowed: true,
+          quantity: it.quantityRequested,
+          unit: it.requestedUnit || it.unit,
         }))
       );
       // เตรียม Asset เริ่มต้น
@@ -205,6 +238,23 @@ export default function DispenseCenterPage() {
     if (!activeItem || !currentUser?.id) return;
     setSubmitting(true);
 
+    const formattedAddedBorrow = addedBorrowItems
+      .filter((i) => i.itemId && Number(i.quantity) > 0)
+      .map((i) => ({
+        itemId: i.itemId,
+        quantity: Math.max(1, Number(i.quantity) || 1),
+        selectedAssetIds: i.selectedAssetIds.filter(Boolean),
+      }));
+    const formattedAddedReq = addedReqItems
+      .filter((i) => i.itemId && Number(i.quantity) > 0)
+      .map((i) => ({
+        itemId: i.itemId,
+        quantity: Math.max(1, Number(i.quantity) || 1),
+        isSubUnit: Boolean(i.isSubUnit),
+        requestedUnit: i.requestedUnit || undefined,
+        lotId: i.lotId || undefined,
+      }));
+
     try {
       if (activeItem.type === 'REQUISITION') {
         const res = await fetch(`/api/requisitions/${activeItem.id}`, {
@@ -215,6 +265,9 @@ export default function DispenseCenterPage() {
             userId: currentUser.id,
             itemAdjustments,
             dispenseNote,
+            addedRequisitionItems: formattedAddedReq,
+            addedBorrowItems: formattedAddedBorrow,
+            addedBorrowReturnDate: addedBorrowReturnDate || undefined,
           }),
         });
         const data = await res.json();
@@ -222,6 +275,8 @@ export default function DispenseCenterPage() {
           const justDispensed = activeItem;
           setActionSuccessMessage(`บันทึกจ่ายวัสดุสิ้นเปลืองเลขที่ ${activeItem.requestNumber} สำเร็จ`);
           setActiveItem(null);
+          setAddedBorrowItems([]);
+          setAddedReqItems([]);
           fetchQueue();
           setActiveSlipItem(justDispensed);
         } else {
@@ -236,6 +291,9 @@ export default function DispenseCenterPage() {
             userId: currentUser.id,
             borrowItemAdjustments: itemAdjustments,
             assignedAssets,
+            requisitionItemAdjustments: linkedReqAdjustments,
+            addedBorrowItems: formattedAddedBorrow,
+            addedRequisitionItems: formattedAddedReq,
             dispenseNote,
           }),
         });
@@ -244,6 +302,8 @@ export default function DispenseCenterPage() {
           const justDispensed = activeItem;
           setActionSuccessMessage(`บันทึกส่งมอบครุภัณฑ์เลขที่ ${activeItem.requestNumber} สำเร็จ`);
           setActiveItem(null);
+          setAddedBorrowItems([]);
+          setAddedReqItems([]);
           fetchQueue();
           setActiveSlipItem(justDispensed);
         } else {
@@ -695,85 +755,171 @@ export default function DispenseCenterPage() {
               </div>
             </div>
 
-            {/* Items List Table */}
-            <div>
-              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center justify-between">
-                <span>รายการพัสดุที่จ่าย (สามารถปรับจำนวนหรือตรวจสอบตำแหน่งตู้จัดเก็บ):</span>
-                <span className="text-[11px] text-teal-600 dark:text-teal-400 font-normal">
-                  ระบบตัดสต็อกแบบ FIFO อัตโนมัติ
-                </span>
-              </h4>
+            {/* Scrollable Body for Items, Linked Consumables & On-Site Additions */}
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+              {/* Items List Table */}
+              <div>
+                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center justify-between">
+                  <span>รายการพัสดุที่จ่าย (สามารถปรับจำนวนหรือตรวจสอบตำแหน่งตู้จัดเก็บ):</span>
+                  <span className="text-[11px] text-teal-600 dark:text-teal-400 font-normal">
+                    ระบบตัดสต็อกแบบ FIFO อัตโนมัติ
+                  </span>
+                </h4>
 
-              <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden max-h-64 overflow-y-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 font-bold sticky top-0">
-                    <tr>
-                      <th className="py-2.5 px-3">รายการพัสดุ</th>
-                      <th className="py-2.5 px-3">ตำแหน่งจัดเก็บ</th>
-                      <th className="py-2.5 px-3 text-center">ขอเบิก</th>
-                      <th className="py-2.5 px-3 text-center w-28">จ่ายจริง</th>
-                      <th className="py-2.5 px-3 text-center w-20">อนุญาต</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {activeItem.items.map((it, idx) => {
-                      const adj = itemAdjustments.find((a) => a.id === it.id) || { allowed: true, quantity: it.quantityRequested };
-                      const locName = it.storageLocation?.name || it.location || 'คลังกลาง';
+                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden max-h-56 overflow-y-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 font-bold sticky top-0">
+                      <tr>
+                        <th className="py-2.5 px-3">รายการพัสดุ</th>
+                        <th className="py-2.5 px-3">ตำแหน่งจัดเก็บ</th>
+                        <th className="py-2.5 px-3 text-center">ขอเบิก</th>
+                        <th className="py-2.5 px-3 text-center w-28">จ่ายจริง</th>
+                        <th className="py-2.5 px-3 text-center w-20">อนุญาต</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {activeItem.items.map((it, idx) => {
+                        const adj = itemAdjustments.find((a) => a.id === it.id) || { allowed: true, quantity: it.quantityRequested };
+                        const locName = it.storageLocation?.name || it.location || 'คลังกลาง';
 
-                      return (
-                        <tr key={it.id || idx} className={!adj.allowed ? 'opacity-40 bg-slate-50 dark:bg-slate-800/30' : ''}>
-                          <td className="py-2.5 px-3">
-                            <span className="font-bold text-slate-900 dark:text-white">{it.name}</span>
-                            <div className="text-[10px] text-slate-400">
-                              คงเหลือในคลัง: {it.currentStock} {it.unit}
-                            </div>
-                          </td>
-                          <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400">
-                            <span className="inline-flex items-center gap-1 text-[11px]">
-                              <MapPin className="w-3 h-3 text-teal-600" />
-                              <span>{locName}</span>
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-3 text-center font-bold text-slate-700 dark:text-slate-300">
-                            {it.quantityRequested} {it.requestedUnit || it.unit}
-                          </td>
-                          <td className="py-2.5 px-3 text-center">
-                            <input
-                              type="number"
-                              min="0"
-                              disabled={!adj.allowed}
-                              value={adj.quantity}
-                              onChange={(e) => {
-                                const val = Number(e.target.value);
-                                setItemAdjustments((prev) =>
-                                  prev.map((a) => (a.id === it.id ? { ...a, quantity: val } : a))
-                                );
-                              }}
-                              className="w-20 px-2 py-1 text-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 font-bold text-xs"
-                            />
-                          </td>
-                          <td className="py-2.5 px-3 text-center">
-                            <input
-                              type="checkbox"
-                              checked={adj.allowed}
-                              onChange={(e) => {
-                                const checked = e.target.checked;
-                                setItemAdjustments((prev) =>
-                                  prev.map((a) => (a.id === it.id ? { ...a, allowed: checked } : a))
-                                );
-                              }}
-                              className="w-4 h-4 text-teal-600 rounded cursor-pointer"
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                        return (
+                          <tr key={it.id || idx} className={!adj.allowed ? 'opacity-40 bg-slate-50 dark:bg-slate-800/30' : ''}>
+                            <td className="py-2.5 px-3">
+                              <span className="font-bold text-slate-900 dark:text-white">{it.name}</span>
+                              <div className="text-[10px] text-slate-400">
+                                คงเหลือในคลัง: {it.currentStock} {it.unit}
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400">
+                              <span className="inline-flex items-center gap-1 text-[11px]">
+                                <MapPin className="w-3 h-3 text-teal-600" />
+                                <span>{locName}</span>
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-bold text-slate-700 dark:text-slate-300">
+                              {it.quantityRequested} {it.requestedUnit || it.unit}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                disabled={!adj.allowed}
+                                value={adj.quantity}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  setItemAdjustments((prev) =>
+                                    prev.map((a) => (a.id === it.id ? { ...a, quantity: val } : a))
+                                  );
+                                }}
+                                className="w-20 px-2 py-1 text-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 font-bold text-xs"
+                              />
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={adj.allowed}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setItemAdjustments((prev) =>
+                                    prev.map((a) => (a.id === it.id ? { ...a, allowed: checked } : a))
+                                  );
+                                }}
+                                className="w-4 h-4 text-teal-600 rounded cursor-pointer"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
 
-            {/* Dispense Note */}
+              {/* Linked Consumables for Unified BORROW+REQ Queue Card */}
+              {activeItem.type === 'BORROW' && (activeItem.linkedRequisitionItems?.length || 0) > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold text-teal-800 dark:text-teal-300 mb-2 flex items-center gap-1.5">
+                    <Boxes className="w-3.5 h-3.5" />
+                    <span>วัสดุสิ้นเปลืองที่เบิกควบคู่ ({activeItem.linkedRequisitionNumber}):</span>
+                  </h4>
+                  <div className="border border-teal-200 dark:border-teal-900/60 rounded-2xl overflow-hidden max-h-48 overflow-y-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-teal-50/70 dark:bg-teal-950/50 text-teal-800 dark:text-teal-300 font-bold sticky top-0">
+                        <tr>
+                          <th className="py-2 px-3">รายการวัสดุ</th>
+                          <th className="py-2 px-3 text-center">ขอเบิก</th>
+                          <th className="py-2 px-3 text-center w-28">จ่ายจริง</th>
+                          <th className="py-2 px-3 text-center w-20">อนุญาต</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {activeItem.linkedRequisitionItems!.map((rIt: any, rIdx: number) => {
+                          const adj = linkedReqAdjustments.find((a) => a.id === rIt.id) || {
+                            allowed: true,
+                            quantity: rIt.quantityRequested,
+                          };
+                          return (
+                            <tr key={rIt.id || rIdx} className={!adj.allowed ? 'opacity-40 bg-slate-50 dark:bg-slate-800/30' : ''}>
+                              <td className="py-2 px-3">
+                                <span className="font-bold text-slate-900 dark:text-white">{rIt.name}</span>
+                                <div className="text-[10px] text-slate-400">
+                                  คงเหลือในคลัง: {rIt.currentStock} {rIt.unit}
+                                </div>
+                              </td>
+                              <td className="py-2 px-3 text-center font-bold text-slate-700 dark:text-slate-300">
+                                {rIt.quantityRequested} {rIt.requestedUnit || rIt.unit}
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  disabled={!adj.allowed}
+                                  value={adj.quantity}
+                                  onChange={(e) => {
+                                    const val = Number(e.target.value);
+                                    setLinkedReqAdjustments((prev) =>
+                                      prev.map((a) => (a.id === rIt.id ? { ...a, quantity: val } : a))
+                                    );
+                                  }}
+                                  className="w-20 px-2 py-1 text-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 font-bold text-xs"
+                                />
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={adj.allowed}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setLinkedReqAdjustments((prev) =>
+                                      prev.map((a) => (a.id === rIt.id ? { ...a, allowed: checked } : a))
+                                    );
+                                  }}
+                                  className="w-4 h-4 text-teal-600 rounded cursor-pointer"
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* On-Site Additions Section */}
+              <AddOnSiteItemsSection
+                equipmentList={equipmentCatalog}
+                consumablesList={consumablesCatalog}
+                addedBorrowItems={addedBorrowItems}
+                setAddedBorrowItems={setAddedBorrowItems}
+                addedReqItems={addedReqItems}
+                setAddedReqItems={setAddedReqItems}
+                showReturnDatePicker={activeItem.type === 'REQUISITION'}
+                returnDateValue={addedBorrowReturnDate}
+                onChangeReturnDate={setAddedBorrowReturnDate}
+              />
+
+              {/* Dispense Note */}
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                 หมายเหตุตอนส่งมอบ/จ่ายของ (ถ้ามี):
@@ -785,6 +931,7 @@ export default function DispenseCenterPage() {
                 onChange={(e) => setDispenseNote(e.target.value)}
                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500"
               />
+            </div>
             </div>
 
             {/* Modal Actions */}

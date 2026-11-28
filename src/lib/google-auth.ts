@@ -187,7 +187,7 @@ export async function handleGoogleAuthRequest(req: Request) {
     // If request was sent via Google GIS Redirect Mode (HTTP Form POST)
     if (isFormPost) {
       const secret =
-        process.env.EXTERNAL_SYNC_API_KEY ||
+        process.env.EXTERNAL_SYNC_API_KEY?.trim() ||
         (process.env.NODE_ENV !== 'production' ? 'dev-only-external-sync-key' : '');
       let targetUrl = '/';
       if (secret) {
@@ -203,7 +203,7 @@ export async function handleGoogleAuthRequest(req: Request) {
           source,
           sig,
         };
-        const portalToken = Buffer.from(JSON.stringify(tokenPayload)).toString('base64');
+        const portalToken = Buffer.from(JSON.stringify(tokenPayload)).toString('base64url');
         const encodedToken = encodeURIComponent(portalToken);
         targetUrl = `/?portal_token=${encodedToken}`;
       }

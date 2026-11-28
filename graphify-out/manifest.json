@@ -540,9 +540,9 @@
     "semantic_hash": "ad6c55cbcf607f7e0daa958f483f63bc"
   },
   "src/app/api/auth/portal-handoff/route.ts": {
-    "mtime": 1795785495.1062298,
-    "seen": 1795785743.568956,
-    "ast_hash": "ea6dc9c4f4c0ea466195613ff4b04ae8",
+    "mtime": 1795842567.9195457,
+    "seen": 1795842712.270225,
+    "ast_hash": "16e003c6c6f245d573ba23e0c35ad227",
     "semantic_hash": ""
   },
   "src/app/api/auth/request-email-change/route.ts": {
@@ -1692,10 +1692,10 @@
     "semantic_hash": "621caeb9e8b76fa3518dde4174c51efc"
   },
   "src/lib/google-auth.ts": {
-    "mtime": 1795249549.9940932,
-    "seen": 1795533554.5959265,
-    "ast_hash": "ca16768c51864c8b82b5409ad222bd22",
-    "semantic_hash": "ca16768c51864c8b82b5409ad222bd22"
+    "mtime": 1795842573.5513852,
+    "seen": 1795842712.270457,
+    "ast_hash": "e90b3878bbc88f81eecf7beb5b659b59",
+    "semantic_hash": ""
   },
   "src/lib/html-escape.ts": {
     "mtime": 1795242816.089898,
@@ -1746,10 +1746,10 @@
     "semantic_hash": "62a86fdd315dbf3a781e828cbad07587"
   },
   "src/lib/session.ts": {
-    "mtime": 1795246269.708014,
-    "seen": 1795533554.5959454,
-    "ast_hash": "859fcd43d7c07f2a2e8a1d8eb73133c8",
-    "semantic_hash": "859fcd43d7c07f2a2e8a1d8eb73133c8"
+    "mtime": 1795842563.0539787,
+    "seen": 1795842712.270467,
+    "ast_hash": "12c299ec945b6d8fa03d4e76ecd7e8cc",
+    "semantic_hash": ""
   },
   "src/lib/sub-apps.ts": {
     "mtime": 1795016596.939134,
@@ -1770,10 +1770,10 @@
     "semantic_hash": "f2f6ae4715abe4e60a5744eabe993018"
   },
   "src/lib/token.ts": {
-    "mtime": 1795246273.1486495,
-    "seen": 1795533554.5959542,
-    "ast_hash": "fc7261359293de6312f77376aa5223ee",
-    "semantic_hash": "fc7261359293de6312f77376aa5223ee"
+    "mtime": 1795842566.3792007,
+    "seen": 1795842712.2704713,
+    "ast_hash": "d5e5b537b9c47cd4dfdfed7703d33421",
+    "semantic_hash": ""
   },
   "src/lib/user-presence.ts": {
     "mtime": 1792574240.9738264,
@@ -3246,9 +3246,9 @@
     "semantic_hash": ""
   },
   "docs/WORK_LOG.md": {
-    "mtime": 1795841217.1622145,
-    "seen": 1795841345.9548526,
-    "ast_hash": "659f6385c6810b25ae1fdf701ad2efa8",
+    "mtime": 1795842577.5778532,
+    "seen": 1795842712.2707424,
+    "ast_hash": "b848bc264423aea36ec65cc391a77815",
     "semantic_hash": ""
   },
   "graphify-out/converted/NSS_Lab_System_Flow_Architecture_da210c5a.md": {
@@ -3366,9 +3366,9 @@
     "semantic_hash": ""
   },
   "manual/EXTERNAL_ROOM_SYNC_API_SPEC.md": {
-    "mtime": 1792066851.3045633,
-    "seen": 1795533960.420995,
-    "ast_hash": "9a613ae5581105f7c387eeb7e0ef4202",
+    "mtime": 1795842608.3674166,
+    "seen": 1795842712.2707708,
+    "ast_hash": "f1143f62200551224e66df1b2b162601",
     "semantic_hash": ""
   },
   "manual/README.md": {

@@ -17,6 +17,16 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-28] ยกระดับความปลอดภัย `EXTERNAL_SYNC_API_KEY` สำหรับ Portal Hand-off และ External Room Sync
+- **หมวดหมู่**: Auth, SSO Security & External API Integration
+- **สิ่งที่ดำเนินการ**:
+  1. **หมุนเวียนคีย์ `EXTERNAL_SYNC_API_KEY` ใหม่ (256-bit)**: สร้างคีย์สุ่มใหม่และอัปเดตเฉพาะในไฟล์ `.env` ที่ถูก gitignore (ไม่เก็บค่าจริงใน Git) พร้อมเตรียมส่งต่อฝั่ง KU Nurse ONE Nexus ผ่านช่องทางลับและตั้งค่าบน Vercel
+  2. **แยกคีย์ลงนามภายในออกจาก `EXTERNAL_SYNC_API_KEY`**: นำ `EXTERNAL_SYNC_API_KEY` ออกจากลำดับ fallback ของ `getSessionSecret()` (`src/lib/session.ts`) และ `getApprovalSecret()` (`src/lib/token.ts`) เพื่อป้องกันไม่ให้คีย์เชื่อมต่อระหว่างระบบถูกใช้ลงนามคุกกี้ Session หรือลิงก์อนุมัติด่วน และไม่ให้การเปลี่ยนคีย์กระทบ Session ผู้ใช้งานที่ล็อกอินอยู่
+  3. **ปรับความเสถียรของ Token & Env Parsing**: เพิ่ม `.trim()` เมื่ออ่าน `EXTERNAL_SYNC_API_KEY` ใน `src/app/api/auth/portal-handoff/route.ts` และ `src/lib/google-auth.ts` พร้อมปรับการเข้ารหัส `portal_token` ฝั่ง redirect ของ Google ให้ใช้ `base64url` สอดคล้องกันทั้งสองฝั่ง
+  4. **ล้างคีย์เดิมออกจากเอกสารใน Git**: แทนที่คีย์ตัวอย่างเดิมใน `manual/EXTERNAL_ROOM_SYNC_API_SPEC.md` ด้วยตัวแปรสภาพแวดล้อมและเพิ่มคำแนะนำให้เรียกผ่าน Server Proxy เท่านั้น
+- **ไฟล์สำคัญที่แก้ไข**: `src/lib/session.ts`, `src/lib/token.ts`, `src/app/api/auth/portal-handoff/route.ts`, `src/lib/google-auth.ts`, `manual/EXTERNAL_ROOM_SYNC_API_SPEC.md`, `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ผ่าน 100% (`npx tsc --noEmit`, `npm run build`, `npm run librarian:audit`, `graphify update` ผ่านสมบูรณ์)
+
 ### [2026-11-28] ปรับปรุงระบบรับคืน-จ่ายหน้างาน-แก้ไขคำขอ (`v2.10.0`)
 - **หมวดหมู่**: Borrow / Return, Dispense Center & Request Editing (`v2.10.0`)
 - **สิ่งที่ดำเนินการ**:

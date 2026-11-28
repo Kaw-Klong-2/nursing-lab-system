@@ -1,7 +1,7 @@
 # Graph Report - LAB-system  (2026-11-28)
 
 ## Corpus Check
-- 318 files · ~865,493 words
+- 318 files · ~865,612 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 9 file(s) not represented in the graph (top: (none) 5, .example 1, .prisma 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `e5140dfa`
+- Built from commit: `86821469`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -119,13 +119,13 @@
 - `GET()` --calls--> `parseBangkokDateTime()`  [EXTRACTED]
   src/app/api/borrow/availability/route.ts → src/lib/date-time-utils.ts
 - `POST()` --calls--> `invalidateCache()`  [EXTRACTED]
-  src/app/api/items/route.ts → src/lib/cache.ts
-- `PUT()` --calls--> `invalidateCache()`  [EXTRACTED]
-  src/app/api/practice/config/route.ts → src/lib/cache.ts
-- `POST()` --calls--> `invalidateCache()`  [EXTRACTED]
   src/app/api/storage/locations/[id]/assign/route.ts → src/lib/cache.ts
 - `AuditLogsPage()` --calls--> `useAuth()`  [EXTRACTED]
   src/app/audit-logs/page.tsx → src/lib/auth-context.tsx
+- `POST()` --calls--> `invalidateCache()`  [EXTRACTED]
+  src/app/api/items/route.ts → src/lib/cache.ts
+- `PUT()` --calls--> `invalidateCache()`  [EXTRACTED]
+  src/app/api/practice/config/route.ts → src/lib/cache.ts
 
 ## Import Cycles
 - 2-file cycle: `src/components/borrow/BorrowCatalogBrowser.tsx -> src/components/borrow/BorrowCheckoutDrawer.tsx -> src/components/borrow/BorrowCatalogBrowser.tsx`
@@ -411,15 +411,15 @@ Nodes (5): CORS_HEADERS, dynamic, GET(), getSyncApiKey(), timingSafeKeyMatch()
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `next` connect `next` to `escapeHtml`, `formatUserName`, `session.ts`, `getCached`, `lucide-react`, `invalidateCache`, `NotificationBell.tsx`, `react`, `academicTerm.ts`, `ac-memo-docx.ts`, `feedback/route.ts`, `useAuth`, `notifications.ts`, `date-time-utils.ts`, `auth-context.tsx`, `LoadingSpinner`, `package.json`, `dependencies`, `broadcast/route.ts`, `courses/page.tsx`, `app/page.tsx`, `getSessionFromRequest`, `ebooks/page.tsx`, `users/bulk/route.ts`, `xlsx`, `upload/route.ts`, `enrollments/route.ts`, `items/bulk/route.ts`, `borrow/[id]/route.ts`, `feedback/page.tsx`, `pos/page.tsx`, `room-schedules/route.ts`?**
-  _High betweenness centrality (0.224) - this node is a cross-community bridge._
+  _High betweenness centrality (0.201) - this node is a cross-community bridge._
 - **Should `next` be split into smaller, more focused modules?**
   _Cohesion score 0.0392156862745098 - nodes in this community are weakly interconnected._
 - **Why does `@prisma/client` connect `@prisma/client` to `next`, `package.json`, `dependencies`, `ref_fs`, `xlsx`, `generate_consumables_excel.js`, `import_consumables.js`, `generate_sample_excel_reports.js`, `simulate_full_system.js`, `update_riester_omron.js`, `seed.js`, `execute_brand_model_fix.js`, `sync_master_excel_images.js`, `ref_path`, `restore-backup.mjs`, `borrow/[id]/route.ts`, `update_sam_images.js`, `audit_system.js`, `cleanup_demo_data.js`, `fix_fms_reorder.js`?**
-  _High betweenness centrality (0.122) - this node is a cross-community bridge._
+  _High betweenness centrality (0.129) - this node is a cross-community bridge._
 - **Should `escapeHtml` be split into smaller, more focused modules?**
   _Cohesion score 0.07074504442925496 - nodes in this community are weakly interconnected._
 - **Why does `xlsx` connect `xlsx` to `escapeHtml`, `ref_path`, `feedback/page.tsx`, `xlsx`, `@prisma/client`, `lucide-react`, `academicTerm.ts`, `generate_consumables_excel.js`, `import_consumables.js`, `generate_sample_excel_reports.js`, `update_riester_omron.js`, `execute_brand_model_fix.js`, `sync_master_excel_images.js`, `LoadingSpinner`, `package.json`, `dependencies`, `ref_fs`, `courses/page.tsx`?**
-  _High betweenness centrality (0.061) - this node is a cross-community bridge._
+  _High betweenness centrality (0.074) - this node is a cross-community bridge._
 - **Should `formatUserName` be split into smaller, more focused modules?**
   _Cohesion score 0.11233766233766233 - nodes in this community are weakly interconnected._
 - **Should `session.ts` be split into smaller, more focused modules?**

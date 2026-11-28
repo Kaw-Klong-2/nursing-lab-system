@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     }
 
     const secret =
-      process.env.EXTERNAL_SYNC_API_KEY ||
+      process.env.EXTERNAL_SYNC_API_KEY?.trim() ||
       (process.env.NODE_ENV !== 'production' ? 'dev-only-external-sync-key' : '');
     if (!secret) {
       return NextResponse.json(

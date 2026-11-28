@@ -13,9 +13,11 @@
 * **Authentication Method**: API Key ผ่าน HTTP Header หรือ Query Parameter
 * **HTTP Header ที่จำเป็น**:
   ```http
-  x-api-key: lab_nursing_sync_key_2026_sec
+  x-api-key: <EXTERNAL_SYNC_API_KEY>
   ```
-  *(หรือใช้ Authorization: Bearer `lab_nursing_sync_key_2026_sec`)*
+  *(หรือใช้ Authorization: Bearer `<EXTERNAL_SYNC_API_KEY>`)*
+
+> **ข้อกำหนดด้านความปลอดภัย**: ห้ามวางค่า `EXTERNAL_SYNC_API_KEY` ลงในโค้ด Frontend, ไฟล์ที่บันทึกขึ้น Git หรือส่งต่อในช่องทางสาธารณะ ให้ตั้งค่าผ่าน Server Environment Variables และเรียกผ่าน Server Proxy ของระบบปลายทางเท่านั้น
 
 ---
 
@@ -44,15 +46,15 @@
 ### cURL
 ```bash
 curl -X GET "https://nursing-lab-system.vercel.app/api/external/room-schedules?date=2026-10-15" \
-  -H "x-api-key: lab_nursing_sync_key_2026_sec"
+  -H "x-api-key: $EXTERNAL_SYNC_API_KEY"
 ```
 
-### JavaScript / TypeScript (Fetch API)
+### JavaScript / TypeScript (Server Proxy / Fetch API)
 ```typescript
 const response = await fetch('https://nursing-lab-system.vercel.app/api/external/room-schedules?date=2026-10-15', {
   method: 'GET',
   headers: {
-    'x-api-key': 'lab_nursing_sync_key_2026_sec',
+    'x-api-key': process.env.EXTERNAL_SYNC_API_KEY!,
   },
 });
 

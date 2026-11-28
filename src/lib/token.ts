@@ -7,8 +7,6 @@ function readStaticProcessEnv(key: string): string | undefined {
       return process.env.APPROVAL_SECRET;
     case 'SESSION_SECRET':
       return process.env.SESSION_SECRET;
-    case 'EXTERNAL_SYNC_API_KEY':
-      return process.env.EXTERNAL_SYNC_API_KEY;
     case 'DATABASE_URL':
       return process.env.DATABASE_URL;
     case 'DIRECT_URL':
@@ -41,7 +39,6 @@ function getApprovalSecret(): Buffer {
   const candidates: Array<[string, string]> = [
     ['approval', 'APPROVAL_SECRET'],
     ['session', 'SESSION_SECRET'],
-    ['sync', 'EXTERNAL_SYNC_API_KEY'],
     ['db', 'DATABASE_URL'],
     ['direct', 'DIRECT_URL'],
   ];

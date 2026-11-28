@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { processChatbotTurn } from '@/lib/chatbot-engine';
 import { requireActiveActor } from '@/lib/viewer-guard';
+import { buildDailyBriefing, getAiCopilotConfigForActor } from '@/lib/chatbot-briefing';
+import { getGeminiApiKey } from '@/lib/chatbot-gemini';
 
 export async function GET(req: Request) {
   try {
@@ -17,18 +19,30 @@ export async function GET(req: Request) {
     const role = (userDetail?.role || actor.role || 'USER').toUpperCase();
     const userName = userDetail?.name || actor.name || 'ผู้ใช้งาน';
 
-    let greeting = `สวัสดีครับคุณ **${userName}**! 👋\nผมคือ **KUNurse+ Lab AI Copilot** ผู้ช่วยประจำห้องปฏิบัติการพยาบาลครับ มีอะไรให้ผมช่วยเหลือวันนี้ครับ?`;
+    const config = await getAiCopilotConfigForActor(role);
+    if (!config.canUseCopilot) {
+      return NextResponse.json(
+        { error: 'ผู้ดูแลระบบยังไม่เปิดใช้งานผู้ช่วย AI Copilot สำหรับบทบาทของท่าน', config },
+        { status: 403 }
+      );
+    }
+
+    const { searchParams } = new URL(req.url);
+    const includeBriefing = searchParams.get('briefing') !== '0' && (role === 'ADMIN' || role === 'OFFICER');
+    const briefing = includeBriefing ? await buildDailyBriefing({ id: actor.id, role }) : null;
+
+    let greeting = `สวัสดีครับคุณ **${userName}**! 👋\nผมคือ **KUNurse+ Lab AI Copilot** ผู้ช่วยอัจฉริยะประจำห้องปฏิบัติการพยาบาลครับ`;
     let quickReplies: Array<{ label: string; textToSend: string }> = [];
 
     if (role === 'OFFICER' || role === 'ADMIN') {
       greeting +=
-        '\n\nท่านสามารถถามวิธีใช้งานระบบทุกเมนู สอบถามข้อมูลสดจากฐานข้อมูล (ตารางห้อง สต็อกพัสดุ คำขอรออนุมัติ ชั่วโมงแอร์) หรือสั่งบันทึกแอร์ได้ทันทีครับ';
+        '\n\nท่านสามารถสอบถามวิธีใช้งานระบบ ตรวจข้อมูลสดจากฐานข้อมูล หรือสั่งปฏิบัติการจริง (เช่น บันทึกแอร์หลายห้อง, อนุมัติคำขอ, ทวงคืนพัสดุ, จองห้อง, ส่งประกาศ, จัดการรายชื่อนิสิต, ปรับสต็อก) โดยจะมีการ์ด **Preview & ยืนยัน** ก่อนบันทึกทุกครั้งครับ';
       quickReplies = [
         { label: '📅 ตารางห้องวันนี้', textToSend: 'วันนี้มีห้องไหนถูกจองบ้าง' },
         { label: '📋 เช็กคำขอรออนุมัติ', textToSend: 'มีคำขอรออนุมัติไหม' },
+        { label: '⚠️ เช็กคนค้างคืนพัสดุ', textToSend: 'ใครยังไม่คืนของบ้าง' },
         { label: '❄️ สรุปแอร์เดือนนี้', textToSend: 'เดือนนี้เปิดแอร์ไปแล้วกี่ชั่วโมง' },
         { label: '📦 พัสดุใกล้หมดสต็อก', textToSend: 'มีพัสดุอะไรใกล้หมดสต็อกบ้าง' },
-        { label: '📖 วิธีจัดการรายชื่อนิสิต', textToSend: 'วิธีจัดการรายชื่อนิสิตในรายวิชาทำยังไง' },
       ];
     } else if (role === 'APPROVER' || role === 'TEACHER') {
       greeting +=
@@ -54,6 +68,11 @@ export async function GET(req: Request) {
       greeting,
       quickReplies,
       role,
+      config,
+      briefing,
+      aiStatus: {
+        hasGeminiKey: Boolean(getGeminiApiKey()),
+      },
     });
   } catch (error: any) {
     console.error('Error in GET /api/chatbot:', error);
@@ -65,13 +84,6 @@ export async function POST(req: Request) {
   try {
     const auth = await requireActiveActor(req);
     if (auth.errorResponse) return auth.errorResponse;
-
-    const body = await req.json();
-    const { message, sessionState } = body;
-
-    if (!message || typeof message !== 'string') {
-      return NextResponse.json({ error: 'กรุณาระบุข้อความ' }, { status: 400 });
-    }
 
     const currentUser = await prisma.user.findUnique({
       where: { id: auth.actor.id },
@@ -89,7 +101,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'ไม่พบข้อมูลผู้ใช้งาน' }, { status: 401 });
     }
 
-    const response = await processChatbotTurn(message, sessionState || null, currentUser);
+    const config = await getAiCopilotConfigForActor(currentUser.role);
+    if (!config.canUseCopilot) {
+      return NextResponse.json(
+        { error: 'ผู้ดูแลระบบยังไม่เปิดใช้งานผู้ช่วย AI Copilot สำหรับบทบาทของท่าน' },
+        { status: 403 }
+      );
+    }
+
+    const body = await req.json();
+    const { message, sessionState, modelMode, confirmAction } = body;
+
+    if ((!message || typeof message !== 'string') && !confirmAction) {
+      return NextResponse.json({ error: 'กรุณาระบุข้อความ' }, { status: 400 });
+    }
+
+    const response = await processChatbotTurn(message || '', sessionState || null, currentUser, {
+      modelMode: modelMode === 'deep' || modelMode === 'fast' ? modelMode : config.defaultModelMode,
+      confirmAction: confirmAction === 'CONFIRM' || confirmAction === 'CANCEL' ? confirmAction : undefined,
+    });
     return NextResponse.json(response);
   } catch (error: any) {
     console.error('Error in POST /api/chatbot:', error);

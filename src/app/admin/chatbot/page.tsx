@@ -10,25 +10,26 @@ import {
   RotateCcw,
   Sparkles,
   ArrowLeft,
-  ShieldCheck,
-  Cpu,
   Database,
-  Lock,
   ExternalLink,
-  Calendar,
-  Clock,
-  User,
-  BookOpen,
-  MapPin,
   CheckCircle2,
-  AlertTriangle,
+  Zap,
+  Brain,
+  SlidersHorizontal,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ChatMarkdown from '@/components/chatbot/ChatMarkdown';
+import DailyBriefingCard from '@/components/chatbot/DailyBriefingCard';
+import PendingActionCard from '@/components/chatbot/PendingActionCard';
+import { streamChatbotTurn } from '@/lib/chatbot-stream-client';
 import {
+  AiCopilotConfigData,
+  AiModelMode,
   CHATBOT_TOOL_LABELS,
   ChatSessionState,
   ConfirmationSummaryCard,
+  DailyBriefingData,
+  PendingAdminAction,
   QuickReplyOption,
   SuggestedLink,
 } from '@/types/chatbot';
@@ -39,8 +40,10 @@ interface ChatMessage {
   text: string;
   timestamp: Date;
   confirmationSummary?: ConfirmationSummaryCard;
+  pendingAdminAction?: PendingAdminAction | null;
   toolsUsed?: string[];
   suggestedLinks?: SuggestedLink[];
+  modelUsed?: string;
   executionResult?: {
     success: boolean;
     referenceCode?: string;
@@ -48,14 +51,26 @@ interface ChatMessage {
   };
 }
 
-export default function AdminChatbotSandboxPage() {
+export default function AdminChatbotCommandCenterPage() {
   const router = useRouter();
   const { currentUser, isOfficer, isAdmin, isLoading: authLoading } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [quickReplies, setQuickReplies] = useState<QuickReplyOption[]>([]);
   const [sessionState, setSessionState] = useState<ChatSessionState | null>(null);
+  const [modelMode, setModelMode] = useState<AiModelMode>('fast');
+  const [briefing, setBriefing] = useState<DailyBriefingData | null>(null);
+  const [isRefreshingBriefing, setIsRefreshingBriefing] = useState(false);
+
+  const [config, setConfig] = useState<AiCopilotConfigData | null>(null);
+  const [hasGeminiKey, setHasGeminiKey] = useState<boolean>(true);
+  const [showConfigPanel, setShowConfigPanel] = useState(false);
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [configSavedNotice, setConfigSavedNotice] = useState('');
+
   const [isLoading, setIsLoading] = useState(false);
+  const [streamingStatus, setStreamingStatus] = useState('');
+  const [streamingText, setStreamingText] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -67,108 +82,137 @@ export default function AdminChatbotSandboxPage() {
 
   useEffect(() => {
     if (currentUser && (isOfficer || isAdmin)) {
-      fetchGreeting();
+      fetchInitialData();
     }
-  }, [currentUser, isOfficer, isAdmin]);
+  }, [currentUser?.id, isOfficer, isAdmin]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [messages, isLoading, streamingText, streamingStatus]);
 
-  const fetchGreeting = async () => {
+  const fetchInitialData = async (refreshBriefingOnly = false) => {
     if (!currentUser) return;
+    if (refreshBriefingOnly) setIsRefreshingBriefing(true);
     try {
-      const res = await fetch(`/api/chatbot?userId=${currentUser.id}`);
+      const res = await fetch('/api/chatbot');
       if (res.ok) {
         const data = await res.json();
-        setMessages([
-          {
-            id: 'welcome',
-            sender: 'bot',
-            text: `🛠️ **[Admin & Officer Sandbox Mode]**\n${data.greeting}\n\n*(หน้านี้คือพื้นที่ทดสอบการสนทนาเฉพาะผู้ดูแลระบบและเจ้าหน้าที่เท่านั้น ไม่มีการแสดงผลให้ผู้ใช้อื่นเห็นครับ)*`,
-            timestamp: new Date(),
-          },
-        ]);
-        if (data.quickReplies) {
-          setQuickReplies(data.quickReplies);
+        if (data.briefing) setBriefing(data.briefing);
+        if (typeof data.aiStatus?.hasGeminiKey === 'boolean') {
+          setHasGeminiKey(data.aiStatus.hasGeminiKey);
+        }
+        if (data.config) {
+          setConfig(data.config);
+          if (!refreshBriefingOnly && data.config.defaultModelMode) {
+            setModelMode(data.config.defaultModelMode);
+          }
+        }
+        if (!refreshBriefingOnly) {
+          setMessages([
+            {
+              id: 'welcome',
+              sender: 'bot',
+              text: `🛠️ **[AI Copilot Command Center]**\n${data.greeting}`,
+              timestamp: new Date(),
+            },
+          ]);
+          if (data.quickReplies) setQuickReplies(data.quickReplies);
         }
       }
     } catch (err) {
-      console.error('Failed to load initial sandbox greeting:', err);
+      console.error('Failed to load chatbot command center:', err);
+    } finally {
+      setIsRefreshingBriefing(false);
     }
   };
 
-  const handleSendMessage = async (textToSend?: string) => {
-    const text = (textToSend || inputText).trim();
-    if (!text || isLoading || !currentUser) return;
+  const handleSaveConfig = async (nextConfig: Partial<AiCopilotConfigData>) => {
+    if (!isAdmin || !config) return;
+    setIsSavingConfig(true);
+    setConfigSavedNotice('');
+    try {
+      const payload = { ...config, ...nextConfig };
+      const res = await fetch('/api/chatbot/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setConfig(data.config);
+        setConfigSavedNotice('บันทึกการตั้งค่าสิทธิ์แล้ว');
+        setTimeout(() => setConfigSavedNotice(''), 2500);
+      }
+    } catch (err) {
+      console.error('Failed to update AI config:', err);
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
+
+  const handleSendMessage = async (
+    textToSend?: string,
+    confirmAction?: 'CONFIRM' | 'CANCEL'
+  ) => {
+    const text = (textToSend ?? inputText).trim();
+    if ((!text && !confirmAction) || isLoading || !currentUser) return;
 
     const userMsg: ChatMessage = {
       id: String(Date.now()),
       sender: 'user',
-      text,
+      text: text || (confirmAction === 'CONFIRM' ? '✅ ยืนยันดำเนินการจริง' : '❌ ยกเลิกรายการ'),
       timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, userMsg]);
-    setInputText('');
+    if (!confirmAction && !textToSend) setInputText('');
     setIsLoading(true);
+    setStreamingStatus(modelMode === 'deep' ? '🧠 กำลังวิเคราะห์เชิงลึก...' : '⚡ กำลังประมวลผล...');
+    setStreamingText('');
 
     try {
-      const res = await fetch('/api/chatbot', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text,
-          sessionState,
-          userId: currentUser.id,
-          userEmail: currentUser.email,
-          userName: currentUser.name,
-          userRole: currentUser.role,
-        }),
+      const data = await streamChatbotTurn({
+        message: text,
+        sessionState,
+        modelMode,
+        confirmAction,
+        onStatus: (msg) => setStreamingStatus(msg),
+        onDelta: (delta) => setStreamingText((prev) => prev + delta),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        const botMsg: ChatMessage = {
-          id: String(Date.now() + 1),
-          sender: 'bot',
-          text: data.replyText,
-          timestamp: new Date(),
-          confirmationSummary: data.confirmationSummary,
-          toolsUsed: data.toolsUsed,
-          suggestedLinks: data.suggestedLinks,
-          executionResult: data.executionResult,
-        };
+      const botMsg: ChatMessage = {
+        id: String(Date.now() + 1),
+        sender: 'bot',
+        text: data.replyText,
+        timestamp: new Date(),
+        confirmationSummary: data.confirmationSummary,
+        pendingAdminAction: data.pendingAdminAction,
+        toolsUsed: data.toolsUsed,
+        suggestedLinks: data.suggestedLinks,
+        modelUsed: data.modelUsed,
+        executionResult: data.executionResult,
+      };
 
-        setMessages((prev) => [...prev, botMsg]);
-        setSessionState(data.sessionState);
-        if (data.quickReplies) {
-          setQuickReplies(data.quickReplies);
-        }
-      } else {
-        const errData = await res.json();
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: String(Date.now() + 1),
-            sender: 'bot',
-            text: `⚠️ เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: ${errData.error || 'ไม่สามารถประมวลผลได้'}`,
-            timestamp: new Date(),
-          },
-        ]);
+      setMessages((prev) => [...prev, botMsg]);
+      setSessionState(data.sessionState);
+      if (data.quickReplies) setQuickReplies(data.quickReplies);
+      if (data.executionResult?.success) {
+        fetchInitialData(true);
       }
-    } catch (err) {
+    } catch (err: any) {
       setMessages((prev) => [
         ...prev,
         {
           id: String(Date.now() + 1),
           sender: 'bot',
-          text: '⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้งครับ',
+          text: `⚠️ ${err?.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ'}`,
           timestamp: new Date(),
         },
       ]);
     } finally {
       setIsLoading(false);
+      setStreamingStatus('');
+      setStreamingText('');
     }
   };
 
@@ -180,8 +224,10 @@ export default function AdminChatbotSandboxPage() {
     );
   }
 
+  const activePendingActionId = sessionState?.pendingAdminAction?.actionId;
+
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-12">
+    <div className="space-y-5 max-w-5xl mx-auto pb-12">
       {/* 1. Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-teal-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-850 dark:to-teal-950/40 border border-teal-200/80 dark:border-teal-900/60 shadow-sm">
         <div className="space-y-1">
@@ -194,21 +240,32 @@ export default function AdminChatbotSandboxPage() {
               <span>กลับสู่ Sandbox Hub</span>
             </Link>
             <span className="text-slate-300 dark:text-slate-700">•</span>
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-              <Lock className="w-3 h-3" />
-              <span>โหมดทดสอบเฉพาะผู้ดูแลระบบ (Sandbox)</span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+              <Sparkles className="w-3 h-3" />
+              <span>Dual-Mode AI Command Center</span>
             </span>
           </div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-            <span>ห้องทดสอบระบบ AI Copilot</span>
-            <Sparkles className="w-5 h-5 text-teal-500" />
+            <span>ผู้ช่วยอัจฉริยะ AI Copilot</span>
+            <Bot className="w-6 h-6 text-teal-600 dark:text-teal-400" />
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
-            พื้นที่ทดสอบการคิดวิเคราะห์ ถาม-ตอบ และทำธุรกรรมของ Gemini AI ก่อนพิจารณาเปิดใช้งานแก่ผู้ใช้ภายนอก
+            ตอบคำถามการใช้งานระบบและดึงข้อมูลสดจากฐานข้อมูล พร้อมสั่งงานแอดมินจริงแบบมี Preview & Impact Card ยืนยันทุกครั้ง
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {isAdmin && config && (
+            <button
+              type="button"
+              onClick={() => setShowConfigPanel((v) => !v)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition cursor-pointer shadow-xs"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-teal-600" />
+              <span>ตั้งค่าสิทธิ์เปิดใช้</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => handleSendMessage('เริ่มใหม่')}
@@ -220,27 +277,141 @@ export default function AdminChatbotSandboxPage() {
         </div>
       </div>
 
-      {/* 2. Chat Playground Card */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-md flex flex-col h-[650px] overflow-hidden">
-        {/* Chat Header Status */}
-        <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200/70 dark:border-slate-800 flex items-center justify-between">
+      {/* 1.5 Warning if GEMINI_API_KEY is not configured in environment */}
+      {!hasGeminiKey && (
+        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <strong>⚠️ ยังไม่ได้ตั้งค่า <code>GEMINI_API_KEY</code> บนสภาพแวดล้อมนี้:</strong> ขณะนี้ระบบกำลังใช้โหมดค้นหาฐานข้อมูลตรงอัตโนมัติ (Live-DB Fallback) สำหรับคำถามข้อมูลในระบบ หากต้องการเปิดความสามารถ AI วิเคราะห์และสั่งงานแอดมินเต็มรูปแบบ กรุณาตั้งค่า <code>GEMINI_API_KEY</code> ใน Environment Variables ของระบบ Hosting
+          </div>
+        </div>
+      )}
+
+      {/* 1.6 AI Feature Flag Panel (Admin Only) */}
+      {isAdmin && showConfigPanel && config && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-indigo-200/80 dark:border-indigo-900/60 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <SlidersHorizontal className="w-4 h-4 text-indigo-600" />
+                ตั้งค่าสิทธิ์การเข้าถึงปุ่ม AI ผู้ช่วยแล็บ (Feature Flag)
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                แอดมินและเจ้าหน้าที่ใช้งานได้เสมอ (โหมดปฏิบัติการจริง) ส่วนบทบาทอื่นใช้งานในโหมดถาม-ตอบและเช็กข้อมูลตามสิทธิ์ RBAC
+              </p>
+            </div>
+            {configSavedNotice && (
+              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{configSavedNotice}</span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
+            <label className="flex items-center justify-between gap-2 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 cursor-pointer">
+              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">👩‍🏫 อาจารย์ / ผู้อนุมัติ</span>
+              <input
+                type="checkbox"
+                checked={config.enableForTeachers}
+                disabled={isSavingConfig}
+                onChange={(e) => handleSaveConfig({ enableForTeachers: e.target.checked })}
+                className="w-4 h-4 accent-teal-600"
+              />
+            </label>
+
+            <label className="flex items-center justify-between gap-2 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 cursor-pointer">
+              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">🎓 นิสิต</span>
+              <input
+                type="checkbox"
+                checked={config.enableForStudents}
+                disabled={isSavingConfig}
+                onChange={(e) => handleSaveConfig({ enableForStudents: e.target.checked })}
+                className="w-4 h-4 accent-teal-600"
+              />
+            </label>
+
+            <label className="flex items-center justify-between gap-2 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 cursor-pointer">
+              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">📈 ผู้บริหาร</span>
+              <input
+                type="checkbox"
+                checked={config.enableForExecutives}
+                disabled={isSavingConfig}
+                onChange={(e) => handleSaveConfig({ enableForExecutives: e.target.checked })}
+                className="w-4 h-4 accent-teal-600"
+              />
+            </label>
+
+            <div className="flex items-center justify-between gap-2 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">โหมดเริ่มต้น</span>
+              <select
+                value={config.defaultModelMode}
+                disabled={isSavingConfig}
+                onChange={(e) => handleSaveConfig({ defaultModelMode: e.target.value as AiModelMode })}
+                className="text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1"
+              >
+                <option value="fast">⚡ เร็ว</option>
+                <option value="deep">🧠 คิดลึก</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Daily Briefing Card */}
+      {briefing && (
+        <DailyBriefingCard
+          briefing={briefing}
+          onAskPrompt={(prompt) => handleSendMessage(prompt)}
+          onRefresh={() => fetchInitialData(true)}
+          isRefreshing={isRefreshingBriefing}
+        />
+      )}
+
+      {/* 3. Chat Playground Card */}
+      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-md flex flex-col h-[640px] overflow-hidden">
+        <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200/70 dark:border-slate-800 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-teal-600 to-indigo-600 text-white flex items-center justify-center font-bold">
               <Bot className="w-4 h-4" />
             </div>
             <div>
               <span className="text-xs font-bold text-slate-900 dark:text-white block leading-tight">
-                KUNurse+ Lab AI Brain (Gemini Tool-Calling + Live DB)
+                KUNurse+ Lab AI Brain (Dual-Mode Tool-Calling + Preview Guardrails)
               </span>
               <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Active Sandbox • RBAC Guardrails Enabled</span>
+                <span>Streaming Live • 10 Read Tools + 10 Admin Action Tools</span>
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 font-medium">
-            <span className="hidden sm:inline">ผู้ทดสอบ: <strong>{currentUser.name}</strong> ({currentUser.role})</span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center bg-slate-200/70 dark:bg-slate-700/70 rounded-xl p-0.5">
+              <button
+                type="button"
+                onClick={() => setModelMode('fast')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer ${
+                  modelMode === 'fast'
+                    ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-300 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span>เร็ว</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setModelMode('deep')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer ${
+                  modelMode === 'deep'
+                    ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                <Brain className="w-3.5 h-3.5" />
+                <span>คิดลึก</span>
+              </button>
+            </div>
+            <span className="hidden md:inline text-xs text-slate-500 dark:text-slate-400 font-medium">
+              <strong>{currentUser.name}</strong> ({currentUser.role})
+            </span>
           </div>
         </div>
 
@@ -252,7 +423,7 @@ export default function AdminChatbotSandboxPage() {
               className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} space-y-1.5`}
             >
               <div
-                className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed shadow-xs ${
+                className={`max-w-[90%] sm:max-w-[80%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed shadow-xs ${
                   msg.sender === 'user'
                     ? 'bg-gradient-to-r from-teal-600 to-indigo-600 text-white rounded-br-xs whitespace-pre-line'
                     : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/70 dark:border-slate-700 rounded-bl-xs'
@@ -260,12 +431,11 @@ export default function AdminChatbotSandboxPage() {
               >
                 {msg.sender === 'bot' ? <ChatMarkdown text={msg.text} /> : msg.text}
 
-                {/* ป้ายแหล่งข้อมูลสดที่ AI เรียกใช้ */}
                 {msg.sender === 'bot' && msg.toolsUsed && msg.toolsUsed.length > 0 && (
                   <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-700/70 flex flex-wrap items-center gap-1.5">
                     <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
                       <Database className="w-3 h-3" />
-                      แหล่งข้อมูลสด:
+                      เครื่องมือที่ใช้:
                     </span>
                     {msg.toolsUsed.map((t) => (
                       <span
@@ -278,7 +448,6 @@ export default function AdminChatbotSandboxPage() {
                   </div>
                 )}
 
-                {/* ลิงก์นำทางเข้าเมนูที่เกี่ยวข้อง */}
                 {msg.sender === 'bot' && msg.suggestedLinks && msg.suggestedLinks.length > 0 && (
                   <div className="mt-2.5 flex flex-wrap items-center gap-2">
                     {msg.suggestedLinks.map((lnk) => (
@@ -294,7 +463,6 @@ export default function AdminChatbotSandboxPage() {
                   </div>
                 )}
 
-                {/* การ์ดสรุปสำหรับให้ยืนยัน (Confirmation Card) */}
                 {msg.confirmationSummary && (
                   <div className="mt-3 p-3.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800/80 text-slate-800 dark:text-slate-200 space-y-2">
                     <div className="font-bold text-teal-800 dark:text-teal-300 flex items-center gap-1.5 text-xs">
@@ -312,17 +480,16 @@ export default function AdminChatbotSandboxPage() {
                   </div>
                 )}
 
-                {/* ผลการทำรายการจริง (Execution Result) */}
                 {msg.executionResult && msg.executionResult.success && (
                   <div className="mt-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs flex items-center justify-between">
                     <span className="flex items-center gap-1.5 font-bold">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      <span>บันทึกลงระบบจริงแล้ว: {msg.executionResult.referenceCode}</span>
+                      <span>ดำเนินการบันทึกลงระบบจริงแล้ว {msg.executionResult.referenceCode ? `(${msg.executionResult.referenceCode})` : ''}</span>
                     </span>
                     {msg.executionResult.viewUrl && (
                       <Link
                         href={msg.executionResult.viewUrl}
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 underline"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 underline"
                       >
                         <span>เปิดดู</span>
                         <ExternalLink className="w-3 h-3" />
@@ -331,18 +498,39 @@ export default function AdminChatbotSandboxPage() {
                   </div>
                 )}
               </div>
+
+              {msg.pendingAdminAction && (
+                <div className="w-full max-w-[90%] sm:max-w-[75%]">
+                  <PendingActionCard
+                    action={msg.pendingAdminAction}
+                    isInteractive={activePendingActionId === msg.pendingAdminAction.actionId}
+                    isSubmitting={isLoading}
+                    onConfirm={() => handleSendMessage('', 'CONFIRM')}
+                    onCancel={() => handleSendMessage('', 'CANCEL')}
+                  />
+                </div>
+              )}
+
               <span className="text-[10px] text-slate-400 px-1">
                 {new Date(msg.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                {msg.modelUsed ? ` • ${msg.modelUsed}` : ''}
               </span>
             </div>
           ))}
 
           {isLoading && (
-            <div className="flex items-center gap-2 p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 w-fit text-xs text-slate-500">
-              <span className="w-2 h-2 rounded-full bg-teal-500 animate-bounce"></span>
-              <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.2s]"></span>
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-bounce [animation-delay:0.4s]"></span>
-              <span>AI กำลังคิดวิเคราะห์ข้อมูล...</span>
+            <div className="flex flex-col items-start gap-2">
+              {streamingText && (
+                <div className="max-w-[90%] sm:max-w-[80%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed shadow-xs bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/70 dark:border-slate-700 rounded-bl-xs">
+                  <ChatMarkdown text={streamingText} />
+                </div>
+              )}
+              <div className="flex items-center gap-2 p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 w-fit text-xs text-slate-500">
+                <span className="w-2 h-2 rounded-full bg-teal-500 animate-bounce"></span>
+                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.2s]"></span>
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-bounce [animation-delay:0.4s]"></span>
+                <span>{streamingStatus || 'AI กำลังคิดวิเคราะห์ข้อมูล...'}</span>
+              </div>
             </div>
           )}
 
@@ -350,9 +538,9 @@ export default function AdminChatbotSandboxPage() {
         </div>
 
         {/* Quick Suggestion Pills */}
-        {quickReplies.length > 0 && (
+        {quickReplies.length > 0 && !isLoading && (
           <div className="p-2 sm:px-4 bg-slate-50 dark:bg-slate-850 border-t border-slate-200 dark:border-slate-800 flex items-center gap-2 overflow-x-auto no-scrollbar">
-            <span className="text-[11px] font-bold text-slate-400 shrink-0">คำถามแนะนำ:</span>
+            <span className="text-[11px] font-bold text-slate-400 shrink-0">คำสั่งแนะนำ:</span>
             {quickReplies.map((qr, idx) => (
               <button
                 key={idx}
@@ -378,7 +566,7 @@ export default function AdminChatbotSandboxPage() {
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder="พิมพ์คำถาม หรือสั่งงานทดสอบระบบ..."
+            placeholder="พิมพ์ถามวิธีใช้ระบบ หรือสั่งผู้ช่วยแอดมิน (เช่น บันทึกแอร์ อนุมัติคำขอ ส่งประกาศ)..."
             disabled={isLoading}
             className="flex-1 px-4 py-2.5 text-xs sm:text-sm rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border-none focus:outline-none focus:ring-2 focus:ring-teal-500 transition"
           />

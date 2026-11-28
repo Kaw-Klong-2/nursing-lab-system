@@ -912,3 +912,13 @@ model SystemFeedbackConfig {
   promptSubtitle           String   @default("ความคิดเห็นของท่านช่วยให้เราพัฒนาห้องปฏิบัติการพยาบาลให้ดียิ่งขึ้น")
   updatedAt                DateTime @updatedAt
 }
+
+model AiCopilotConfig {
+  id                  String   @id @default("default")
+  enableForTeachers   Boolean  @default(false)
+  enableForStudents   Boolean  @default(false)
+  enableForExecutives Boolean  @default(true)
+  defaultModelMode    String   @default("fast") // "fast" | "deep"
+  updatedById         String?
+  updatedAt           DateTime @updatedAt
+}

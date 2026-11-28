@@ -1,17 +1,17 @@
 # Graph Report - LAB-system  (2026-11-28)
 
 ## Corpus Check
-- 318 files · ~865,612 words
+- 325 files · ~877,550 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 9 file(s) not represented in the graph (top: (none) 5, .example 1, .prisma 1)
 
 ## Summary
-- 1709 nodes · 4945 edges · 87 communities (68 shown, 19 thin omitted)
+- 1755 nodes · 5127 edges · 89 communities (72 shown, 17 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 20 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `86821469`
+- Built from commit: `9f42bfec`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -23,43 +23,43 @@
 - chatbot-engine.ts
 - drawio_extract.py
 - getCached
-- lucide-react
 - invalidateCache
+- logActivity
 - @prisma/client
-- NotificationBell.tsx
-- react
+- AppLayout.tsx
+- room-bookings/route.ts
 - academicTerm.ts
 - ac-memo-docx.ts
-- feedback/route.ts
+- chatbot/route.ts
 - Diagram
-- useAuth
+- test/route.ts
 - mermaid_extract.py
 - generate_student_manual_docx_pdf.py
-- notifications.ts
+- createNotification
 - librarian-audit.mjs
 - date-time-utils.ts
 - self_check.py
-- capture_realistic_overview.js
+- build_student_ui_mockups.js
 - auth-context.tsx
 - LoadingSpinner
 - package.json
 - dependencies
 - scripts
 - ref_fs
-- broadcast/route.ts
-- courses/page.tsx
+- notifications.ts
+- chatbot.ts
 - app/page.tsx
-- getSessionFromRequest
+- quick-action/route.ts
 - render_system_flow.js
 - ebooks/page.tsx
 - compilerOptions
-- bcryptjs
-- quick-action/route.ts
+- chatbot-gemini.ts
+- borrow/page.tsx
 - BorrowCatalogBrowser.tsx
 - xlsx
-- capture_student_main_dashboard.js
-- users/bulk/route.ts
-- xlsx
+- build_student_ui_mockups.js
+- requireActiveActor
+- react
 - build_clean_system_flow.js
 - build_student_manual_assets.js
 - generate_consumables_excel.js
@@ -73,7 +73,7 @@
 - seed.js
 - execute_brand_model_fix.js
 - sync_master_excel_images.js
-- exceljs
+- request-email-change/route.ts
 - ref_path
 - version-bump.mjs
 - @opennextjs/cloudflare
@@ -81,124 +81,126 @@
 - restore-backup.mjs
 - enrollments/route.ts
 - items/bulk/route.ts
-- borrow/[id]/route.ts
+- getSessionFromRequest
 - _logical_statements
 - tailwindcss
-- update_sam_images.js
-- react-dom
-- resend
+- reminders/route.ts
+- chatbot-admin-actions.ts
+- repack/route.ts
 - feedback/page.tsx
 - check_drive_meta.js
+- list_consumables.js
+- capture_realistic_overview.js
+- bcryptjs
+- reorder_sim_and_fms.js
+- sync_master_excel_from_db.js
+- ChatMarkdown.tsx
+- exceljs
 - google-auth-library
-- @types/qrcode@^1.5.6
-- pos/page.tsx
-- build_student_ui_mockups.js
-- render_vertical_flowchart.js
-- room-schedules/route.ts
-- engines
+- react-dom
 - postcss.config.mjs
+- resend
 - vercel.json
-- audit_system.js
-- cleanup_demo_data.js
-- fix_fms_reorder.js
+- @types/qrcode@^1.5.6
+- engines
 - prisma@^6.4.1
 
 ## God Nodes (most connected - your core abstractions)
-1. `next` - 166 edges
-2. `prisma` - 119 edges
+1. `next` - 167 edges
+2. `prisma` - 123 edges
 3. `formatUserName()` - 105 edges
 4. `useAuth()` - 103 edges
-5. `invalidateCache()` - 98 edges
-6. `react` - 96 edges
-7. `lucide-react` - 91 edges
-8. `LoadingSpinner()` - 76 edges
-9. `formatTeacherName()` - 65 edges
-10. `logActivity()` - 64 edges
+5. `invalidateCache()` - 100 edges
+6. `react` - 98 edges
+7. `lucide-react` - 94 edges
+8. `LoadingSpinner()` - 75 edges
+9. `logActivity()` - 68 edges
+10. `formatTeacherName()` - 65 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `GET()` --calls--> `parseBangkokDateTime()`  [EXTRACTED]
-  src/app/api/borrow/availability/route.ts → src/lib/date-time-utils.ts
-- `POST()` --calls--> `invalidateCache()`  [EXTRACTED]
-  src/app/api/storage/locations/[id]/assign/route.ts → src/lib/cache.ts
 - `AuditLogsPage()` --calls--> `useAuth()`  [EXTRACTED]
   src/app/audit-logs/page.tsx → src/lib/auth-context.tsx
 - `POST()` --calls--> `invalidateCache()`  [EXTRACTED]
   src/app/api/items/route.ts → src/lib/cache.ts
-- `PUT()` --calls--> `invalidateCache()`  [EXTRACTED]
-  src/app/api/practice/config/route.ts → src/lib/cache.ts
+- `POST()` --calls--> `invalidateCache()`  [EXTRACTED]
+  src/app/api/rooms/route.ts → src/lib/cache.ts
+- `AdminChatbotCommandCenterPage()` --calls--> `ChatMarkdown()`  [EXTRACTED]
+  src/app/admin/chatbot/page.tsx → src/components/chatbot/ChatMarkdown.tsx
+- `AdminChatbotCommandCenterPage()` --calls--> `LoadingSpinner()`  [EXTRACTED]
+  src/app/admin/chatbot/page.tsx → src/components/common/LoadingSpinner.tsx
 
 ## Import Cycles
 - 2-file cycle: `src/components/borrow/BorrowCatalogBrowser.tsx -> src/components/borrow/BorrowCheckoutDrawer.tsx -> src/components/borrow/BorrowCatalogBrowser.tsx`
 
-## Communities (87 total, 19 thin omitted)
+## Communities (89 total, 17 thin omitted)
 
 ### Community 0 - "next"
 Cohesion: 0.04
-Nodes (16): next, GET(), GET(), dynamic, dynamic, dynamic, dynamic, dynamic (+8 more)
+Nodes (15): next, GET(), dynamic, dynamic, dynamic, dynamic, dynamic, POST() (+7 more)
 
 ### Community 1 - "escapeHtml"
 Cohesion: 0.07
-Nodes (52): html5-qrcode, qrcode, GET(), InventoryPage(), PracticePage(), startCamera(), RepackPage(), ConsumableDetailModal() (+44 more)
+Nodes (46): qrcode, classifyAcSession(), dynamic, GET(), getMonthDateRange(), revalidate, InventoryPage(), RepackPage() (+38 more)
 
 ### Community 2 - "formatUserName"
-Cohesion: 0.11
-Nodes (38): ApprovalsPage(), BorrowPage(), DispenseCenterPage(), QueueItem, RequisitionsPage(), SchedulePage(), BorrowSlipVerificationPage(), UniversalVerificationPage() (+30 more)
+Cohesion: 0.15
+Nodes (29): ApprovalsPage(), CoursesPage(), PracticeKitsPage(), RequisitionsPage(), UniversalVerificationPage(), StudentCourseNotice(), StudentCourseNoticeProps, StudentDashboard() (+21 more)
 
 ### Community 3 - "session.ts"
-Cohesion: 0.07
-Nodes (47): POST(), POST(), POST(), POST(), POST(), POST(), dynamic, GET() (+39 more)
+Cohesion: 0.08
+Nodes (39): POST(), POST(), POST(), POST(), dynamic, GET(), decodePortalTokenPayload(), POST() (+31 more)
 
 ### Community 4 - "chatbot-engine.ts"
-Cohesion: 0.06
-Nodes (72): ChatMessage, ChatMessage, assembleUserScopedContext(), UserScopedSystemContext, appendHistory(), checkIntentPermission(), detectIntent(), executeConfirmedAction() (+64 more)
+Cohesion: 0.13
+Nodes (34): assembleUserScopedContext(), appendHistory(), checkIntentPermission(), detectIntent(), executeConfirmedAction(), getRoleQuickReplies(), handleAcLogFlow(), handleApprovalFlow() (+26 more)
 
 ### Community 5 - "drawio_extract.py"
 Cohesion: 0.08
 Nodes (32): _aligned(), analyze(), classify_shape(), clean_label(), _configure_stdout_utf8(), _decompress_limited(), digest(), Edge (+24 more)
 
 ### Community 6 - "getCached"
-Cohesion: 0.20
-Nodes (14): GET(), GET(), computeConsumableStock(), GET(), POST(), GET(), GET(), PUT() (+6 more)
+Cohesion: 0.15
+Nodes (19): POST(), GET(), GET(), GET(), GET(), computeConsumableStock(), GET(), POST() (+11 more)
 
-### Community 7 - "lucide-react"
-Cohesion: 0.19
-Nodes (12): lucide-react, BorrowRequestContent(), BorrowRequestPage(), PracticeKitsPage(), PracticeBookingContent(), PracticeBookingPage(), StudentCourseNotice(), StudentCourseNoticeProps (+4 more)
+### Community 7 - "invalidateCache"
+Cohesion: 0.09
+Nodes (21): POST(), PUT(), POST(), DELETE(), PATCH(), PUT(), POST(), KitDispenseError (+13 more)
 
-### Community 8 - "invalidateCache"
-Cohesion: 0.05
-Nodes (53): calculateHours(), DELETE(), POST(), DELETE(), PUT(), POST(), POST(), PUT() (+45 more)
+### Community 8 - "logActivity"
+Cohesion: 0.08
+Nodes (30): calculateHours(), DELETE(), POST(), DELETE(), PUT(), POST(), DEFAULT_CONFIG, PUT() (+22 more)
 
 ### Community 9 - "@prisma/client"
 Cohesion: 0.04
-Nodes (24): @prisma/client, prisma, prisma, { PrismaClient }, prisma, prisma, { PrismaClient }, prisma (+16 more)
+Nodes (25): @prisma/client, prisma, prisma, { PrismaClient }, prisma, { PrismaClient }, prisma, { PrismaClient } (+17 more)
 
-### Community 10 - "NotificationBell.tsx"
-Cohesion: 0.13
-Nodes (34): POST(), getQuickApproveMeta(), NotificationBell(), NotificationItem, playNotificationChime(), resolveNotificationHref(), timeAgo(), PushNotificationManager() (+26 more)
+### Community 10 - "AppLayout.tsx"
+Cohesion: 0.05
+Nodes (76): html5-qrcode, GET(), dynamic, metadata, RootLayout(), viewport, PracticePage(), startCamera() (+68 more)
 
-### Community 11 - "react"
-Cohesion: 0.14
-Nodes (12): react, AdminChatbotSandboxPage(), AdminErrorProps, GlobalErrorProps, CabinetStoragePage(), ChatMarkdown(), ChatMarkdownProps, renderInlineTokens() (+4 more)
+### Community 11 - "room-bookings/route.ts"
+Cohesion: 0.25
+Nodes (9): BatchRoomBookingError, BatchSlotItem, ConflictedSlotItem, POST(), POST(), RoomBookingError, DATE_YYYY_MM_DD_REGEX, isTimeRangeOverlapping() (+1 more)
 
 ### Community 12 - "academicTerm.ts"
-Cohesion: 0.14
-Nodes (37): DELETE(), PUT(), GET(), POST(), GET(), AcademicTermItem, AcademicTermsSettingsPage(), CATEGORY_COLORS (+29 more)
+Cohesion: 0.13
+Nodes (39): DELETE(), PUT(), GET(), POST(), AcademicTermItem, AcademicTermsSettingsPage(), CourseEnrollmentModal(), CourseEnrollmentModalProps (+31 more)
 
 ### Community 13 - "ac-memo-docx.ts"
 Cohesion: 0.10
 Nodes (35): ALLOWED_URGENCY, cleanStr(), GET(), PUT(), sanitizeConfig(), AcMemoModal(), AcMemoModalProps, EditorTab (+27 more)
 
-### Community 14 - "feedback/route.ts"
-Cohesion: 0.31
-Nodes (8): DEFAULT_CONFIG, PUT(), DELETE(), PUT(), GET(), POST(), clampStarRating(), verifyFeedbackAdmin()
+### Community 14 - "chatbot/route.ts"
+Cohesion: 0.26
+Nodes (9): GET(), POST(), dynamic, POST(), buildDailyBriefing(), DEFAULT_AI_CONFIG, getAiCopilotConfigForActor(), getGeminiApiKey() (+1 more)
 
 ### Community 15 - "Diagram"
 Cohesion: 0.15
 Nodes (23): classify_shape(), clean_label(), Diagram, _discard_nonsemantic(), _edge_operators(), _endpoint_group(), _fail(), _finalize_degrees() (+15 more)
 
-### Community 16 - "useAuth"
-Cohesion: 0.11
-Nodes (34): LoginPage(), RoomStoragePage(), SessionActivityWatcher(), LabCopilotWidget(), ThemeToggle(), ThemeToggleProps, PostActionFeedbackModal(), AppLauncherModal() (+26 more)
+### Community 16 - "test/route.ts"
+Cohesion: 0.33
+Nodes (6): POST(), SYSTEM_INFO, PushNotificationAction, PushPayload, sendPushToMultipleUsers(), sendPushToUser()
 
 ### Community 17 - "mermaid_extract.py"
 Cohesion: 0.13
@@ -208,33 +210,33 @@ Nodes (16): analyze(), _configure_stdout_utf8(), digest(), Edge, _escape_markdow
 Cohesion: 0.10
 Nodes (9): build_presentation(), apply_thai_font(), generate_docx_manual(), set_cell_background(), set_cell_margins(), create_vertical_flowchart_docx(), add_body_p(), add_heading_styled() (+1 more)
 
-### Community 19 - "notifications.ts"
-Cohesion: 0.17
-Nodes (34): POST(), POST(), POST(), POST(), PUT(), POST(), POST(), POST() (+26 more)
+### Community 19 - "createNotification"
+Cohesion: 0.25
+Nodes (20): GET(), POST(), POST(), POST(), POST(), POST(), COURSE_ENROLLMENT_FORBIDDEN_MESSAGE, MinimalUserRoleInfo (+12 more)
 
 ### Community 20 - "librarian-audit.mjs"
 Cohesion: 0.32
 Nodes (15): __dirname, __filename, getAgentsAndSkills(), getComponentsAndLibs(), getDocumentationFiles(), getPagesAndApis(), getPrismaModels(), getVersionStatus() (+7 more)
 
 ### Community 21 - "date-time-utils.ts"
-Cohesion: 0.09
-Nodes (36): GET(), GET(), GET(), POST(), GET(), POST(), processReminders(), timingSafeMatch() (+28 more)
+Cohesion: 0.13
+Nodes (22): GET(), GET(), CORS_HEADERS, dynamic, GET(), getSyncApiKey(), timingSafeKeyMatch(), dynamic (+14 more)
 
 ### Community 22 - "self_check.py"
 Cohesion: 0.14
 Nodes (11): canonical_controller(), check_motion(), check_scripts(), check_svgs(), DiagramParser, is_approved_google_fonts_stylesheet(), main(), normalized_controller() (+3 more)
 
-### Community 23 - "capture_realistic_overview.js"
-Cohesion: 0.08
-Nodes (17): fs, IMAGES_DIR, path, puppeteer, studentUser, fs, IMAGES_DIR, mockBorrowData (+9 more)
+### Community 23 - "build_student_ui_mockups.js"
+Cohesion: 0.09
+Nodes (16): fs, IMAGES_DIR, path, puppeteer, studentUser, fs, generateVisualSteps(), IMAGES_DIR (+8 more)
 
 ### Community 24 - "auth-context.tsx"
-Cohesion: 0.19
-Nodes (12): SessionTimeoutModal(), SessionTimeoutModalProps, AuthContext, AuthContextType, AuthProvider(), initializeAuth(), checkSessionActive(), IDLE_TIMEOUT_MS (+4 more)
+Cohesion: 0.12
+Nodes (15): LoginPage(), CartItem, PosPage(), SessionActivityWatcher(), SessionTimeoutModal(), SessionTimeoutModalProps, PosReceiptModal(), PosReceiptModalProps (+7 more)
 
 ### Community 25 - "LoadingSpinner"
-Cohesion: 0.09
-Nodes (25): recharts, AdminConsolePage(), AdminCatalogSandboxPage(), AdminSandboxHubPage(), AirConditioningPage(), formatPurposeWithNote(), THAI_DAY_NAMES, THAI_MONTHS (+17 more)
+Cohesion: 0.10
+Nodes (30): AdminFeedbackPage(), AdminConsolePage(), AdminSandboxHubPage(), AirConditioningPage(), formatPurposeWithNote(), THAI_DAY_NAMES, THAI_MONTHS, BorrowRequestContent() (+22 more)
 
 ### Community 26 - "package.json"
 Cohesion: 0.12
@@ -249,60 +251,64 @@ Cohesion: 0.09
 Nodes (23): scripts, build, build:cf, dev, graphify, graphify:build, graphify:explain, graphify:god-nodes (+15 more)
 
 ### Community 29 - "ref_fs"
-Cohesion: 0.10
-Nodes (11): shadowBase64, diecutBase64, shadowBase64, diecutBase64, origBase64, shadowBase64, fs, path (+3 more)
+Cohesion: 0.09
+Nodes (12): shadowBase64, fs, IMAGES_DIR, mockBorrowData, path, puppeteer, studentUser, diecutBase64 (+4 more)
 
-### Community 30 - "broadcast/route.ts"
-Cohesion: 0.36
-Nodes (6): GET(), POST(), PUT(), GET(), dispatchBroadcastMessage(), processScheduledBroadcasts()
+### Community 30 - "notifications.ts"
+Cohesion: 0.15
+Nodes (20): GET(), POST(), PUT(), POST(), GET(), ALL_APPROVAL_SCOPES, ApprovalScopeType, SCOPE_LABELS (+12 more)
 
-### Community 31 - "courses/page.tsx"
-Cohesion: 0.27
-Nodes (9): CoursesPage(), CourseEnrollmentModal(), CourseEnrollmentModalProps, CourseSummary, EnrolledItem, getCohortPrefix(), parseStudentIdsFromText(), SystemStudent (+1 more)
+### Community 31 - "chatbot.ts"
+Cohesion: 0.13
+Nodes (31): AdminChatbotCommandCenterPage(), ChatMessage, DailyBriefingCard(), DailyBriefingCardProps, ChatMessage, LabCopilotWidget(), PendingActionCard(), PendingActionCardProps (+23 more)
 
 ### Community 32 - "app/page.tsx"
-Cohesion: 0.14
-Nodes (19): DashboardPage(), DAYS_OF_WEEK, getCleanLocalDateStr(), getRoomCategory(), ROOM_CATEGORIES, RoomCategory, RoomsPage(), CalendarHoverCard() (+11 more)
+Cohesion: 0.10
+Nodes (25): recharts, DashboardPage(), DAYS_OF_WEEK, getCleanLocalDateStr(), getRoomCategory(), ROOM_CATEGORIES, RoomCategory, RoomsPage() (+17 more)
 
-### Community 33 - "getSessionFromRequest"
-Cohesion: 0.16
-Nodes (15): executeQuickAction(), GET(), POST(), POST(), GET(), PUT(), POST(), ReturnValidationError (+7 more)
+### Community 33 - "quick-action/route.ts"
+Cohesion: 0.22
+Nodes (15): executeQuickAction(), GET(), POST(), previewQuickActionConfirmation(), renderConfirmationHtml(), renderResponseHtml(), PUT(), combineSlotDateAndBangkokTime() (+7 more)
 
 ### Community 34 - "render_system_flow.js"
 Cohesion: 0.10
 Nodes (13): fs, path, puppeteer, fs, path, puppeteer, fs, HTML_OUTPUT_PATH (+5 more)
 
 ### Community 35 - "ebooks/page.tsx"
-Cohesion: 0.11
-Nodes (22): AdminEBooksSandboxPage(), hydrateBooks(), COVER_CATEGORY_LABELS, DEFAULT_EBOOKS, EBookItem, EBookPage, extractGoogleDriveFileId(), idbLoadEBooks() (+14 more)
+Cohesion: 0.23
+Nodes (13): AdminEBooksSandboxPage(), hydrateBooks(), COVER_CATEGORY_LABELS, DEFAULT_EBOOKS, EBookItem, EBookPage, extractGoogleDriveFileId(), idbLoadEBooks() (+5 more)
 
 ### Community 36 - "compilerOptions"
 Cohesion: 0.11
 Nodes (18): compilerOptions, allowJs, esModuleInterop, incremental, isolatedModules, jsx, lib, module (+10 more)
 
-### Community 38 - "quick-action/route.ts"
-Cohesion: 0.29
-Nodes (10): GET(), POST(), previewQuickActionConfirmation(), renderConfirmationHtml(), renderResponseHtml(), generateSignedApprovalToken(), getApprovalSecret(), readEnvVar() (+2 more)
+### Community 37 - "chatbot-gemini.ts"
+Cohesion: 0.12
+Nodes (25): isAdminWriteTool(), UserScopedSystemContext, askGeminiLabBrain(), buildInitialContents(), buildSystemPrompt(), DEEP_MODELS, FAST_MODELS, ModelAttemptConfig (+17 more)
+
+### Community 38 - "borrow/page.tsx"
+Cohesion: 0.15
+Nodes (17): BorrowPage(), DispenseCenterPage(), QueueItem, BorrowSlipVerificationPage(), BulkAllocationReturnModal(), BulkAllocationReturnModalProps, NewAllocationModal(), NewAllocationModalProps (+9 more)
 
 ### Community 39 - "BorrowCatalogBrowser.tsx"
-Cohesion: 0.19
-Nodes (19): BorrowCatalogBrowser(), BorrowCatalogBrowserProps, BorrowRow, CATALOG_THEMES, CatalogAssetItem, CatalogColorThemeKey, CatalogItem, getCustomBadgeMeta() (+11 more)
+Cohesion: 0.17
+Nodes (20): AdminCatalogSandboxPage(), BorrowCatalogBrowser(), BorrowCatalogBrowserProps, BorrowRow, CATALOG_THEMES, CatalogAssetItem, CatalogColorThemeKey, CatalogItem (+12 more)
 
 ### Community 40 - "xlsx"
+Cohesion: 0.09
+Nodes (18): xlsx, fs, path, prisma, { PrismaClient }, XLSX, fs, importUpdatedImages() (+10 more)
+
+### Community 41 - "build_student_ui_mockups.js"
+Cohesion: 0.29
+Nodes (5): fs, IMAGES_DIR, mockups, path, puppeteer
+
+### Community 42 - "requireActiveActor"
 Cohesion: 0.14
-Nodes (11): fs, path, prisma, { PrismaClient }, XLSX, fs, importUpdatedImages(), path (+3 more)
+Nodes (21): POST(), POST(), getAttemptTracker(), POST(), timingSafeCompareOtp(), GET(), GET(), PUT() (+13 more)
 
-### Community 41 - "capture_student_main_dashboard.js"
-Cohesion: 0.25
-Nodes (6): fs, IMAGES_DIR, mockBorrowData, path, puppeteer, studentUser
-
-### Community 42 - "users/bulk/route.ts"
-Cohesion: 0.83
-Nodes (3): extractUserFromRow(), normalizeRole(), POST()
-
-### Community 43 - "xlsx"
-Cohesion: 0.12
-Nodes (18): xlsx, classifyAcSession(), dynamic, GET(), getMonthDateRange(), revalidate, ActivityLogItem, AuditLogsPage() (+10 more)
+### Community 43 - "react"
+Cohesion: 0.13
+Nodes (20): lucide-react, react, AdminErrorProps, PublicAssetPage(), PublicConsumablePage(), GlobalErrorProps, ExecutiveDashboardPage(), CabinetStoragePage() (+12 more)
 
 ### Community 44 - "build_clean_system_flow.js"
 Cohesion: 0.22
@@ -352,9 +358,13 @@ Nodes (5): fs, path, prisma, { PrismaClient }, xlsx
 Cohesion: 0.29
 Nodes (5): fs, path, prisma, { PrismaClient }, XLSX
 
+### Community 57 - "request-email-change/route.ts"
+Cohesion: 0.48
+Nodes (5): POST(), POST(), generateOtp(), sendEmailChangeOtpEmail(), sendPasswordResetEmail()
+
 ### Community 58 - "ref_path"
-Cohesion: 0.10
-Nodes (14): allFiles, getFiles(), results, fs, path, wranglerPath, fs, masterFiles (+6 more)
+Cohesion: 0.13
+Nodes (10): allFiles, getFiles(), results, fs, path, wranglerPath, path, prisma (+2 more)
 
 ### Community 59 - "version-bump.mjs"
 Cohesion: 0.18
@@ -376,51 +386,59 @@ Nodes (7): DELETE(), GET(), loadAuthenticatedActor(), normalizeStudentCodeKey(),
 Cohesion: 0.70
 Nodes (4): extractItemFromRow(), normalizeItemType(), parseSafeDate(), POST()
 
-### Community 65 - "borrow/[id]/route.ts"
-Cohesion: 0.34
-Nodes (7): BorrowActionError, PUT(), PUT(), allocateAndCheckoutEquipmentItem(), DispenseActionError, dispenseConsumableItemFifo(), generateUniqueRequestNumber()
+### Community 65 - "getSessionFromRequest"
+Cohesion: 0.25
+Nodes (13): BorrowActionError, PUT(), GET(), PUT(), PUT(), PUT(), canUserApprove(), allocateAndCheckoutEquipmentItem() (+5 more)
 
 ### Community 67 - "tailwindcss"
 Cohesion: 0.50
 Nodes (3): tailwindcss@^3.4.17, tailwindcss, config
 
+### Community 68 - "reminders/route.ts"
+Cohesion: 0.67
+Nodes (5): GET(), POST(), processReminders(), timingSafeMatch(), verifyAuth()
+
+### Community 69 - "chatbot-admin-actions.ts"
+Cohesion: 0.29
+Nodes (11): ADMIN_ACTION_TOOL_DECLARATIONS, assertStaffActor(), executeConfirmedAdminAction(), getActionSuggestedLinks(), makeActionId(), normalizeRoomToken(), proposeAdminAction(), resolveRoomsByAliases() (+3 more)
+
 ### Community 71 - "feedback/page.tsx"
 Cohesion: 0.12
-Nodes (21): AdminFeedbackPage(), FeedbackRecord, FeedbackSummary, ALLOWED_VIEWER_MUTATION_PATHS, resolveRequestMethod(), resolveRequestUrl(), ViewerModeGuard(), DEFAULT_CFG (+13 more)
+Nodes (21): FeedbackRecord, FeedbackSummary, ALLOWED_VIEWER_MUTATION_PATHS, resolveRequestMethod(), resolveRequestUrl(), ViewerModeGuard(), DEFAULT_CFG, detectCompletedAction() (+13 more)
 
-### Community 75 - "pos/page.tsx"
-Cohesion: 0.32
-Nodes (4): CartItem, PosPage(), PosReceiptModal(), PosReceiptModalProps
+### Community 74 - "capture_realistic_overview.js"
+Cohesion: 0.25
+Nodes (6): fs, IMAGES_DIR, mockBorrowData, path, puppeteer, studentUser
 
-### Community 77 - "build_student_ui_mockups.js"
+### Community 76 - "reorder_sim_and_fms.js"
 Cohesion: 0.29
-Nodes (5): fs, IMAGES_DIR, mockups, path, puppeteer
+Nodes (5): fs, path, prisma, { PrismaClient }, XLSX
 
-### Community 78 - "render_vertical_flowchart.js"
+### Community 77 - "sync_master_excel_from_db.js"
 Cohesion: 0.29
-Nodes (5): fs, MANUAL_IMG_DIR, path, puppeteer, TARGET_DIR
+Nodes (5): fs, path, prisma, { PrismaClient }, XLSX
 
-### Community 80 - "room-schedules/route.ts"
-Cohesion: 0.38
-Nodes (5): CORS_HEADERS, dynamic, GET(), getSyncApiKey(), timingSafeKeyMatch()
+### Community 78 - "ChatMarkdown.tsx"
+Cohesion: 0.48
+Nodes (6): ChatMarkdown(), ChatMarkdownProps, CopyableCodeBlock(), isTableSeparator(), parseTableRow(), renderInlineTokens()
 
 ## Knowledge Gaps
-- **19 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **17 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `next` connect `next` to `escapeHtml`, `formatUserName`, `session.ts`, `getCached`, `lucide-react`, `invalidateCache`, `NotificationBell.tsx`, `react`, `academicTerm.ts`, `ac-memo-docx.ts`, `feedback/route.ts`, `useAuth`, `notifications.ts`, `date-time-utils.ts`, `auth-context.tsx`, `LoadingSpinner`, `package.json`, `dependencies`, `broadcast/route.ts`, `courses/page.tsx`, `app/page.tsx`, `getSessionFromRequest`, `ebooks/page.tsx`, `users/bulk/route.ts`, `xlsx`, `upload/route.ts`, `enrollments/route.ts`, `items/bulk/route.ts`, `borrow/[id]/route.ts`, `feedback/page.tsx`, `pos/page.tsx`, `room-schedules/route.ts`?**
-  _High betweenness centrality (0.201) - this node is a cross-community bridge._
+- **Why does `next` connect `next` to `escapeHtml`, `formatUserName`, `session.ts`, `getCached`, `invalidateCache`, `logActivity`, `AppLayout.tsx`, `room-bookings/route.ts`, `academicTerm.ts`, `ac-memo-docx.ts`, `chatbot/route.ts`, `test/route.ts`, `createNotification`, `date-time-utils.ts`, `auth-context.tsx`, `LoadingSpinner`, `package.json`, `dependencies`, `notifications.ts`, `chatbot.ts`, `app/page.tsx`, `quick-action/route.ts`, `ebooks/page.tsx`, `borrow/page.tsx`, `BorrowCatalogBrowser.tsx`, `xlsx`, `requireActiveActor`, `react`, `request-email-change/route.ts`, `upload/route.ts`, `enrollments/route.ts`, `items/bulk/route.ts`, `getSessionFromRequest`, `reminders/route.ts`, `repack/route.ts`, `feedback/page.tsx`, `ChatMarkdown.tsx`?**
+  _High betweenness centrality (0.226) - this node is a cross-community bridge._
 - **Should `next` be split into smaller, more focused modules?**
-  _Cohesion score 0.0392156862745098 - nodes in this community are weakly interconnected._
-- **Why does `@prisma/client` connect `@prisma/client` to `next`, `package.json`, `dependencies`, `ref_fs`, `xlsx`, `generate_consumables_excel.js`, `import_consumables.js`, `generate_sample_excel_reports.js`, `simulate_full_system.js`, `update_riester_omron.js`, `seed.js`, `execute_brand_model_fix.js`, `sync_master_excel_images.js`, `ref_path`, `restore-backup.mjs`, `borrow/[id]/route.ts`, `update_sam_images.js`, `audit_system.js`, `cleanup_demo_data.js`, `fix_fms_reorder.js`?**
-  _High betweenness centrality (0.129) - this node is a cross-community bridge._
+  _Cohesion score 0.04025859535703791 - nodes in this community are weakly interconnected._
+- **Why does `@prisma/client` connect `@prisma/client` to `next`, `getSessionFromRequest`, `ref_path`, `xlsx`, `list_consumables.js`, `reorder_sim_and_fms.js`, `sync_master_excel_from_db.js`, `generate_consumables_excel.js`, `import_consumables.js`, `generate_sample_excel_reports.js`, `simulate_full_system.js`, `update_riester_omron.js`, `seed.js`, `execute_brand_model_fix.js`, `sync_master_excel_images.js`, `package.json`, `dependencies`, `restore-backup.mjs`?**
+  _High betweenness centrality (0.117) - this node is a cross-community bridge._
 - **Should `escapeHtml` be split into smaller, more focused modules?**
-  _Cohesion score 0.07074504442925496 - nodes in this community are weakly interconnected._
-- **Why does `xlsx` connect `xlsx` to `escapeHtml`, `ref_path`, `feedback/page.tsx`, `xlsx`, `@prisma/client`, `lucide-react`, `academicTerm.ts`, `generate_consumables_excel.js`, `import_consumables.js`, `generate_sample_excel_reports.js`, `update_riester_omron.js`, `execute_brand_model_fix.js`, `sync_master_excel_images.js`, `LoadingSpinner`, `package.json`, `dependencies`, `ref_fs`, `courses/page.tsx`?**
-  _High betweenness centrality (0.074) - this node is a cross-community bridge._
+  _Cohesion score 0.07418788410886742 - nodes in this community are weakly interconnected._
+- **Why does `xlsx` connect `xlsx` to `escapeHtml`, `formatUserName`, `ref_path`, `feedback/page.tsx`, `react`, `reorder_sim_and_fms.js`, `sync_master_excel_from_db.js`, `generate_consumables_excel.js`, `import_consumables.js`, `academicTerm.ts`, `generate_sample_excel_reports.js`, `update_riester_omron.js`, `execute_brand_model_fix.js`, `sync_master_excel_images.js`, `LoadingSpinner`, `package.json`, `dependencies`?**
+  _High betweenness centrality (0.070) - this node is a cross-community bridge._
 - **Should `formatUserName` be split into smaller, more focused modules?**
-  _Cohesion score 0.11233766233766233 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.14839424141749724 - nodes in this community are weakly interconnected._
 - **Should `session.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.06875 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.0784313725490196 - nodes in this community are weakly interconnected._

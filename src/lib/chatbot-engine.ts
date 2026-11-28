@@ -3,6 +3,7 @@ import { invalidateCache } from './cache';
 import { createNotification, notifyRoles, notifyAdvisorByName } from './notifications';
 import { getBangkokParts, getBangkokStartOfDay, parseBangkokDateTime } from './date-time-utils';
 import {
+  AiModelMode,
   ChatIntent,
   ChatSessionState,
   ChatbotTurnResponse,
@@ -25,8 +26,10 @@ import {
   calculateUsageHours,
 } from './chatbot-nlu';
 import { searchKnowledgeBase, answerDateTimeAndGeneralQuery } from './chatbot-knowledge';
-import { askGeminiLabBrain } from './chatbot-gemini';
+import { askGeminiLabBrain, GeminiProgressEvent } from './chatbot-gemini';
 import { assembleUserScopedContext } from './chatbot-context-aggregator';
+import { executeConfirmedAdminAction } from './chatbot-admin-actions';
+import { executeChatbotTool, deriveSuggestedLinks } from './chatbot-tools';
 
 // ตรวจสอบสิทธิ์การเข้าถึงตามบทบาท (RBAC)
 export function checkIntentPermission(intent: ChatIntent, userRole: string): { allowed: boolean; reason?: string } {
@@ -92,36 +95,153 @@ function appendHistory(
   };
 }
 
+export interface ProcessChatbotOptions {
+  modelMode?: AiModelMode;
+  confirmAction?: 'CONFIRM' | 'CANCEL';
+  onProgress?: (event: GeminiProgressEvent) => void;
+}
+
+/**
+ * Fast-Path: ตอบคำถามง่ายแบบทันที (ไม่ต้องเสียเวลารอ LLM)
+ */
+function tryFastPathResponse(
+  text: string,
+  state: ChatSessionState,
+  userRole: string,
+  userName: string
+): ChatbotTurnResponse | null {
+  if (state.stage === 'COLLECTING_SLOTS' || state.pendingAdminAction) {
+    return null;
+  }
+
+  const lower = text.toLowerCase().replace(/[?.,!]/g, '').trim();
+
+  if (['สวัสดี', 'หวัดดี', 'hello', 'hi', 'ดีครับ', 'ดีค่ะ', 'สวัสดีครับ', 'สวัสดีค่ะ'].includes(lower)) {
+    return {
+      replyText: `สวัสดีครับคุณ **${userName}**! 👋 ผมคือ **KUNurse+ Lab AI Copilot** พร้อมช่วยเหลือทันทีครับ มีอะไรให้ช่วยตรวจสอบหรือดำเนินการบอกได้เลยครับ`,
+      sessionState: state,
+      quickReplies: getRoleQuickReplies(userRole),
+      source: 'LOCAL_KNOWLEDGE_BASE',
+    };
+  }
+
+  if (['ขอบคุณ', 'ขอบคุณครับ', 'ขอบคุณค่ะ', 'thank you', 'thanks'].includes(lower)) {
+    return {
+      replyText: `ยินดีให้บริการครับคุณ **${userName}** 😊 หากมีเรื่องให้ช่วยเพิ่มเติม พิมพ์ถามหรือสั่งงานได้ตลอดเวลาครับ`,
+      sessionState: state,
+      quickReplies: getRoleQuickReplies(userRole),
+      source: 'LOCAL_KNOWLEDGE_BASE',
+    };
+  }
+
+  // ตอบเวลา/วันที่/สถานะเปิดแล็บทันที หากไม่ได้ถามเรื่องตารางห้อง/แอร์/สต็อกร่วมด้วย
+  const hasComplexKeyword =
+    lower.includes('ห้องไหน') ||
+    lower.includes('ตาราง') ||
+    lower.includes('ว่าง') ||
+    lower.includes('แอร์') ||
+    lower.includes('สต็อก') ||
+    lower.includes('อนุมัติ');
+  if (!hasComplexKeyword) {
+    const dt = answerDateTimeAndGeneralQuery(text, userRole);
+    if (dt) {
+      return {
+        replyText: dt.text,
+        sessionState: state,
+        quickReplies: dt.quickReplies || getRoleQuickReplies(userRole),
+        source: 'DATETIME_ENGINE',
+      };
+    }
+  }
+
+  return null;
+}
+
 /**
  * ฟังก์ชันหลักในการประมวลผลข้อความแชทแต่ละรอบ (Process Chatbot Turn)
  */
 export async function processChatbotTurn(
   message: string,
   incomingState: ChatSessionState | null,
-  currentUser: any
+  currentUser: any,
+  options?: ProcessChatbotOptions
 ): Promise<ChatbotTurnResponse> {
   const text = (message || '').trim();
   const lower = text.toLowerCase();
   const userRole = (currentUser?.role || 'USER').toUpperCase();
+  const userName = currentUser?.name || 'ผู้ใช้งาน';
+  const modelMode: AiModelMode = options?.modelMode || incomingState?.modelMode || 'fast';
 
   // สร้างสถานะเริ่มต้นหากไม่มี
   let state: ChatSessionState = incomingState || {
     activeIntent: 'IDLE',
     stage: 'IDLE',
+    modelMode,
     lastUpdated: Date.now(),
   };
+  state.modelMode = modelMode;
 
   // 1. ตรวจสอบคำสั่งยกเลิก / เริ่มใหม่
-  if (['ยกเลิก', 'เริ่มใหม่', 'ล้าง', 'reset', 'cancel'].includes(lower)) {
+  if (['ยกเลิก', 'เริ่มใหม่', 'ล้าง', 'reset', 'cancel'].includes(lower) && !state.pendingAdminAction) {
     return {
       replyText: 'ยกเลิกรายการเรียบร้อยแล้วครับ ต้องการให้ผมช่วยเหลือเรื่องอะไร สามารถพิมพ์บอกได้เลยครับ เช่น วิธีใช้งานระบบ, เช็กตารางห้องวันนี้, จองห้องแล็บ, หรือเบิก-ยืมพัสดุครับ',
-      sessionState: { activeIntent: 'IDLE', stage: 'IDLE', conversationHistory: [], lastUpdated: Date.now() },
+      sessionState: { activeIntent: 'IDLE', stage: 'IDLE', pendingAdminAction: null, modelMode, conversationHistory: [], lastUpdated: Date.now() },
       quickReplies: getRoleQuickReplies(userRole),
       source: 'ACTION_ENGINE',
     };
   }
 
-  // 2. อยู่ในสถานะรอยืนยัน (AWAITING_CONFIRM)
+  // 1.5 จัดการการยืนยัน/ยกเลิก Pending Admin Action Card
+  if (state.pendingAdminAction) {
+    const isConfirm =
+      options?.confirmAction === 'CONFIRM' ||
+      ['ยืนยัน', 'ตกลง', 'ดำเนินการ', 'confirm', 'ok', 'yes', 'บันทึก'].includes(lower);
+    const isCancel =
+      options?.confirmAction === 'CANCEL' ||
+      ['ยกเลิก', 'ไม่ตกลง', 'ไม่ยืนยัน', 'cancel'].includes(lower);
+
+    if (isConfirm) {
+      options?.onProgress?.({ type: 'status', message: '⚙️ กำลังดำเนินการบันทึกลงฐานข้อมูลจริง...' });
+      const exec = await executeConfirmedAdminAction(state.pendingAdminAction, {
+        id: currentUser.id,
+        name: userName,
+        role: userRole,
+        email: currentUser.email,
+      });
+      const nextState: ChatSessionState = appendHistory(
+        { ...state, pendingAdminAction: null, activeIntent: 'IDLE', stage: 'IDLE' },
+        text || 'ยืนยันดำเนินการ',
+        exec.replyText
+      );
+      return {
+        replyText: exec.replyText,
+        sessionState: nextState,
+        pendingAdminAction: null,
+        executionResult: exec.executionResult,
+        suggestedLinks: exec.suggestedLinks,
+        quickReplies: getRoleQuickReplies(userRole),
+        source: 'ACTION_ENGINE',
+      };
+    }
+
+    if (isCancel) {
+      const cancelMsg = 'ยกเลิกคำสั่งที่เตรียมไว้เรียบร้อยแล้วครับ ยังไม่มีการเปลี่ยนแปลงข้อมูลใดๆ ในฐานข้อมูลครับ';
+      const nextState: ChatSessionState = appendHistory(
+        { ...state, pendingAdminAction: null, activeIntent: 'IDLE', stage: 'IDLE' },
+        text || 'ยกเลิก',
+        cancelMsg
+      );
+      return {
+        replyText: cancelMsg,
+        sessionState: nextState,
+        pendingAdminAction: null,
+        quickReplies: getRoleQuickReplies(userRole),
+        source: 'ACTION_ENGINE',
+      };
+    }
+  }
+
+  // 2. อยู่ในสถานะรอยืนยันของ Legacy Slot-Filling (AWAITING_CONFIRM)
   if (state.stage === 'AWAITING_CONFIRM') {
     if (['ยืนยัน', 'ตกลง', 'ok', 'บันทึก', 'confirm', 'ส่งคำขอ', 'yes'].includes(lower)) {
       const confirmedResp = await executeConfirmedAction(state, currentUser);
@@ -131,7 +251,7 @@ export async function processChatbotTurn(
     if (['ไม่ยืนยัน', 'ไม่ตกลง', 'ยกเลิก'].includes(lower)) {
       return {
         replyText: 'ยกเลิกการบันทึกรายการเรียบร้อยแล้วครับ ต้องการให้ช่วยเหลือเรื่องอื่นใดเพิ่มเติม พิมพ์บอกได้เลยครับ',
-        sessionState: { activeIntent: 'IDLE', stage: 'IDLE', conversationHistory: state.conversationHistory || [], lastUpdated: Date.now() },
+        sessionState: { activeIntent: 'IDLE', stage: 'IDLE', modelMode, conversationHistory: state.conversationHistory || [], lastUpdated: Date.now() },
         quickReplies: getRoleQuickReplies(userRole),
         source: 'ACTION_ENGINE',
       };
@@ -139,9 +259,16 @@ export async function processChatbotTurn(
     state.stage = 'COLLECTING_SLOTS';
   }
 
-  // 2.5 ตรวจจับคำถามทั่วไป / คำถามการใช้งานระบบ / คำถามข้อมูลสด
-  if (isGeneralOrKnowledgeQuery(text, state)) {
-    const resp = await handleKnowledgeAndGeneralInquiry(text, state, currentUser);
+  // 2.2 Zero-Latency Fast-Path สำหรับคำถามทักทาย/วันเวลา/สถานะเปิดแล็บ
+  const fastResp = tryFastPathResponse(text, state, userRole, userName);
+  if (fastResp) {
+    fastResp.sessionState = appendHistory(fastResp.sessionState, text, fastResp.replyText);
+    return fastResp;
+  }
+
+  // 2.5 ตรวจจับคำถามทั่วไป / คำถามการใช้งานระบบ / คำถามข้อมูลสด / คำสั่งแอดมินผ่าน Gemini Tool-Calling
+  if (isGeneralOrKnowledgeQuery(text, state, userRole)) {
+    const resp = await handleKnowledgeAndGeneralInquiry(text, state, currentUser, options);
     resp.sessionState = appendHistory(resp.sessionState, text, resp.replyText);
     return resp;
   }
@@ -219,8 +346,10 @@ export async function processChatbotTurn(
   return response;
 }
 
-export function isGeneralOrKnowledgeQuery(text: string, state?: ChatSessionState): boolean {
+export function isGeneralOrKnowledgeQuery(text: string, state?: ChatSessionState, userRole?: string): boolean {
   const lower = text.toLowerCase().trim();
+  const role = (userRole || 'USER').toUpperCase();
+  const isStaff = role === 'ADMIN' || role === 'OFFICER';
 
   // หากผู้ใช้พิมพ์ทำรายการต่อ ไม่ใช่คำถามทั่วไป
   if (lower.includes('ต่อ') && (lower.includes('จอง') || lower.includes('รายการ') || lower.includes('เดิม'))) {
@@ -241,12 +370,19 @@ export function isGeneralOrKnowledgeQuery(text: string, state?: ChatSessionState
     }
   }
 
-  // คำสั่งทำรายการหรืออนุมัติโดยตรง เข้า Action Flow
+  // สำหรับ ADMIN/OFFICER ให้ใช้ Gemini Tool-Calling + Preview & Impact Card สำหรับคำสั่งปฏิบัติการเกือบทั้งหมด
+  // ยกเว้นคำสั่งตัวเลขด่วนเมื่อมี pendingApprovalRefs ค้างอยู่
+  if (isStaff) {
+    if (state?.pendingApprovalRefs?.length && (lower.startsWith('อนุมัติทั้งหมด') || /^อนุมัติ\s*(?:ข้อ)?\s*\d+/.test(lower))) {
+      return false;
+    }
+    return true;
+  }
+
+  // คำสั่งทำรายการหรืออนุมัติโดยตรงสำหรับนิสิต/อาจารย์ เข้า Action Flow
   const isDirectActionCommand =
     ((lower.startsWith('จองห้อง') || lower.startsWith('ขอจองห้อง')) &&
       (lower.includes('วันที่') || lower.includes('เวลา') || lower.includes('วิชา') || lower.includes('ห้อง') || lower.includes('พรุ่งนี้'))) ||
-    ((lower.startsWith('บันทึกแอร์') || lower.startsWith('บันทึกเปิดแอร์') || lower.startsWith('เปิดแอร์') || lower.startsWith('ปิดแอร์')) &&
-      (lower.includes('ห้อง') || lower === 'บันทึกเปิดแอร์' || lower === 'เปิดแอร์')) ||
     lower.startsWith('อนุมัติทั้งหมด') ||
     /^อนุมัติ\s*(?:ข้อ)?\s*\d+/.test(lower) ||
     ((lower.startsWith('ขอเบิก') || lower.startsWith('ขอยืม')) &&
@@ -1364,7 +1500,8 @@ function handleFaqRules(text: string): ChatbotTurnResponse {
 async function handleKnowledgeAndGeneralInquiry(
   text: string,
   state: ChatSessionState,
-  currentUser: any
+  currentUser: any,
+  options?: ProcessChatbotOptions
 ): Promise<ChatbotTurnResponse> {
   const userRole = (currentUser?.role || 'USER').toUpperCase();
 
@@ -1376,27 +1513,350 @@ async function handleKnowledgeAndGeneralInquiry(
     text,
     currentUser,
     systemContext,
-    state.conversationHistory
+    state.conversationHistory,
+    {
+      modelMode: options?.modelMode || state.modelMode || 'fast',
+      pendingAdminAction: state.pendingAdminAction,
+      onProgress: options?.onProgress,
+    }
   );
 
   if (geminiResponse.success && geminiResponse.replyText) {
+    // หาก Gemini ภายนอกไม่ได้ตอบเอง (เป็นแค่ static KB fallback) ให้ลองดึงข้อมูลสดจากฐานข้อมูลจริงก่อน
+    if (geminiResponse.source !== 'GEMINI_TOOLS' && geminiResponse.source !== 'GEMINI_LLM') {
+      const liveFallback = await runLiveDbFallback(text, state, currentUser);
+      if (liveFallback) {
+        return liveFallback;
+      }
+    }
+
     const replies = geminiResponse.quickReplies || getRoleQuickReplies(userRole);
     if (state.roomDraft?.roomId || state.requestDraft?.borrowItems.length) {
       replies.unshift({ label: '↩️ ทำรายการเดิมต่อ', textToSend: 'จองห้องต่อ' });
     }
 
+    const nextPendingAction =
+      geminiResponse.pendingAdminAction !== undefined
+        ? geminiResponse.pendingAdminAction
+        : state.pendingAdminAction || null;
+
     return {
       replyText: geminiResponse.replyText,
-      sessionState: state,
+      sessionState: { ...state, pendingAdminAction: nextPendingAction },
       quickReplies: replies,
+      pendingAdminAction: nextPendingAction,
       toolsUsed: geminiResponse.toolsUsed,
       suggestedLinks: geminiResponse.suggestedLinks,
       source: geminiResponse.source,
+      modelUsed: geminiResponse.modelUsed,
     };
   }
 
-  // 3. Fallback สุดท้าย
+  // 3. Fallback อัจฉริยะดึงข้อมูลสดจากฐานข้อมูลตรง (รองรับกรณีไม่มี GEMINI_API_KEY หรือ API ขัดข้อง)
+  const liveFallback = await runLiveDbFallback(text, state, currentUser);
+  if (liveFallback) {
+    return liveFallback;
+  }
+
+  // 4. Fallback คลังความรู้และวันเวลา
   return handleGeneralInquiry(text, userRole);
+}
+
+/**
+ * สืบค้นฐานข้อมูลตรงด้วย Tool เมื่อ Gemini LLM ไม่พร้อมใช้งาน
+ */
+async function runLiveDbFallback(
+  text: string,
+  state: ChatSessionState,
+  currentUser: any
+): Promise<ChatbotTurnResponse | null> {
+  const lower = text.toLowerCase().trim();
+  const role = (currentUser?.role || 'USER').toUpperCase();
+  const actor = {
+    id: currentUser?.id || 'guest-user',
+    name: currentUser?.name || 'ผู้ใช้งาน',
+    role,
+    email: currentUser?.email,
+  };
+
+  try {
+    // 1. คลังพัสดุ / สต็อก / ของใกล้หมด / ของใกล้หมดอายุ
+    if (
+      lower.includes('เหลือเท่า') ||
+      lower.includes('สต็อก') ||
+      lower.includes('คงเหลือ') ||
+      lower.includes('อยู่ตู้ไหน') ||
+      lower.includes('มีของไหม') ||
+      lower.includes('ใกล้หมด') ||
+      lower.includes('หมดอายุ') ||
+      lower.includes('ถุงมือ') ||
+      lower.includes('เข็ม')
+    ) {
+      const lowStockOnly = lower.includes('ใกล้หมด');
+      const expiringSoonDays = lower.includes('หมดอายุ') ? 30 : undefined;
+      const cleanedQuery = text
+        .replace(/(?:เหลือเท่าไหร่|เหลือเท่าไร|เท่าไหร่|เท่าไร|เหลือ|มีของไหม|มีไหม|อยู่ตู้ไหน|อยู่ไหน|คงเหลือ|สต็อก|เช็ก|ตรวจสอบ|ขอ|ดู|บ้าง|ไหม|อะไร|ในคลัง|ในระบบ|ใกล้หมด|หมดอายุ|ทั้งหมด|ช่วย|หน่อย|พัสดุ|เวชภัณฑ์|ครุภัณฑ์|ใน|30|วัน|ครับ|ค่ะ)/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      const res = await executeChatbotTool(
+        'search_inventory_stock',
+        { query: cleanedQuery || undefined, lowStockOnly, expiringSoonDays },
+        actor
+      );
+      const items: any[] = res?.items || [];
+      if (items.length === 0) {
+        return {
+          replyText: cleanedQuery
+            ? `ไม่พบรายการพัสดุที่ตรงกับ **"${cleanedQuery}"** ในคลังครับ ลองค้นหาด้วยคำสั้นลงหรือตรวจดูในเมนู [คลังพัสดุ](/inventory)`
+            : 'ไม่พบรายการที่ตรงตามเงื่อนไขในขณะนี้ครับ',
+          sessionState: state,
+          toolsUsed: ['search_inventory_stock'],
+          suggestedLinks: deriveSuggestedLinks(['search_inventory_stock'], role),
+          quickReplies: getRoleQuickReplies(role),
+          source: 'ACTION_ENGINE',
+        };
+      }
+
+      const rows = items.slice(0, 12).map((it) => {
+        if (it.type === 'EQUIPMENT') {
+          return `| \`${it.code}\` | ${it.name} | ว่าง **${it.availableCount}** / ${it.totalAssets} ${it.unit} | ${it.storage} |`;
+        }
+        const remText =
+          it.openPackRemainder > 0
+            ? `**${it.totalRemaining}** ${it.unit} (+เศษ ${it.openPackRemainder})`
+            : `**${it.totalRemaining}** ${it.unit}`;
+        const warn = it.isLowStock ? ' ⚠️' : '';
+        return `| \`${it.code}\` | ${it.name} | ${remText}${warn} | ${it.storage} |`;
+      });
+
+      const table = [
+        `📦 **ข้อมูลสต็อกคงเหลือในระบบ (${res.totalMatched} รายการ):**`,
+        '',
+        '| รหัส | รายการ | คงเหลือ / พร้อมยืม | ตำแหน่งจัดเก็บ |',
+        '| :--- | :--- | :--- | :--- |',
+        ...rows,
+      ].join('\n');
+
+      return {
+        replyText: table,
+        sessionState: state,
+        toolsUsed: ['search_inventory_stock'],
+        suggestedLinks: deriveSuggestedLinks(['search_inventory_stock'], role),
+        quickReplies: getRoleQuickReplies(role),
+        source: 'ACTION_ENGINE',
+      };
+    }
+
+    // 2. ตารางห้องแล็บ / ห้องว่าง
+    if (lower.includes('ห้องไหนว่าง') || lower.includes('ห้องว่าง') || lower.includes('ถูกจอง') || lower.includes('ตารางห้อง')) {
+      const res = await executeChatbotTool('get_room_schedule', {}, actor);
+      const bookings: any[] = res?.roomBookings || [];
+      const rooms: any[] = res?.rooms || [];
+
+      const header = `📅 **ตารางห้องปฏิบัติการ (${res.dateRange.startDateStr} ถึง ${res.dateRange.endDateStr}):**`;
+      const bookingText =
+        bookings.length > 0
+          ? bookings
+              .slice(0, 10)
+              .map((b) => `• ${b.date} | **${b.roomCode}** (${b.timeRange}) — ${b.title} [${b.status}]`)
+              .join('\n')
+          : '• ยังไม่มีรายการจองห้องในช่วงเวลาดังกล่าวครับ (ห้องปฏิบัติการเปิดให้บริการทั้งสิ้น ' + rooms.length + ' ห้อง)';
+
+      return {
+        replyText: `${header}\n\n${bookingText}`,
+        sessionState: state,
+        toolsUsed: ['get_room_schedule'],
+        suggestedLinks: deriveSuggestedLinks(['get_room_schedule'], role),
+        quickReplies: getRoleQuickReplies(role),
+        source: 'ACTION_ENGINE',
+      };
+    }
+
+    // 3. คำขอรออนุมัติ
+    if (lower.includes('รออนุมัติ') || lower.includes('คำขอค้าง')) {
+      const res = await executeChatbotTool('get_pending_approvals', { entityType: 'ALL' }, actor);
+      if (res?.authorized === false) {
+        return {
+          replyText: res.error,
+          sessionState: state,
+          toolsUsed: ['get_pending_approvals'],
+          quickReplies: getRoleQuickReplies(role),
+          source: 'ACTION_ENGINE',
+        };
+      }
+      const total = res?.counts?.total || 0;
+      const summary =
+        total === 0
+          ? '✅ ขณะนี้ **ไม่มีรายการคำขอรออนุมัติ** ในระบบครับ (0 รายการ)'
+          : `📋 พบคำขอรออนุมัติทั้งหมด **${total} รายการ** (ยืม ${res.counts.borrow} • เบิก ${res.counts.requisition} • จองห้อง ${res.counts.room} • รอบฝึก ${res.counts.practice})`;
+
+      return {
+        replyText: summary,
+        sessionState: state,
+        toolsUsed: ['get_pending_approvals'],
+        suggestedLinks: deriveSuggestedLinks(['get_pending_approvals'], role),
+        quickReplies: getRoleQuickReplies(role),
+        source: 'ACTION_ENGINE',
+      };
+    }
+
+    // 4. ค้างคืนพัสดุ
+    if (lower.includes('ค้างคืน') || lower.includes('ยังไม่คืน') || lower.includes('เกินกำหนด')) {
+      const res = await executeChatbotTool('get_overdue_and_active_borrows', { onlyOverdue: true }, actor);
+      if (res?.authorized === false) {
+        return {
+          replyText: res.error,
+          sessionState: state,
+          toolsUsed: ['get_overdue_and_active_borrows'],
+          quickReplies: getRoleQuickReplies(role),
+          source: 'ACTION_ENGINE',
+        };
+      }
+      const records: any[] = res?.records || [];
+      const replyText =
+        records.length === 0
+          ? '🎉 ขณะนี้ **ไม่มีรายการพัสดุค้างคืนเกินกำหนด** ในระบบครับ'
+          : `⚠️ **พบพัสดุเกินกำหนดส่งคืน ${records.length} รายการ:**\n` +
+            records
+              .slice(0, 10)
+              .map((r) => `• **${r.requestNumber}** — ${r.borrowerName} (${r.items.join(', ')}) เกิน ${r.daysOverdue} วัน`)
+              .join('\n');
+
+      return {
+        replyText,
+        sessionState: state,
+        toolsUsed: ['get_overdue_and_active_borrows'],
+        suggestedLinks: deriveSuggestedLinks(['get_overdue_and_active_borrows'], role),
+        quickReplies: getRoleQuickReplies(role),
+        source: 'ACTION_ENGINE',
+      };
+    }
+
+    // 5. บันทึกเปิด-ปิดแอร์
+    if (lower.includes('แอร์')) {
+      const res = await executeChatbotTool('get_ac_operation_logs', {}, actor);
+      if (res?.authorized === false) {
+        return {
+          replyText: res.error,
+          sessionState: state,
+          toolsUsed: ['get_ac_operation_logs'],
+          quickReplies: getRoleQuickReplies(role),
+          source: 'ACTION_ENGINE',
+        };
+      }
+      const roomRows = (res?.roomSummary || [])
+        .map((r: any) => `| \`${r.roomCode}\` | ${r.roomName} | **${r.totalHours}** ชม. (${r.activeDays} วัน) |`)
+        .join('\n');
+      const replyText =
+        res.totalRecords === 0
+          ? `❄️ ยังไม่มีบันทึกเปิด–ปิดแอร์ในรอบ ${res.period} ครับ`
+          : `❄️ **สรุปชั่วโมงเปิด–ปิดแอร์รอบ ${res.period} (รวม ${res.totalHours} ชม. / ${res.totalRecords} รายการ):**\n\n| ห้อง | ชื่อห้อง | ชั่วโมงรวม |\n| :--- | :--- | :--- |\n${roomRows}`;
+
+      return {
+        replyText,
+        sessionState: state,
+        toolsUsed: ['get_ac_operation_logs'],
+        suggestedLinks: deriveSuggestedLinks(['get_ac_operation_logs'], role),
+        quickReplies: getRoleQuickReplies(role),
+        source: 'ACTION_ENGINE',
+      };
+    }
+
+    // 6. สถานะคำขอของฉัน
+    if (lower.includes('สถานะคำขอ') || lower.includes('คำขอของฉัน') || lower.includes('คืนวันไหน')) {
+      const res = await executeChatbotTool('get_my_requests', { statusFilter: 'ACTIVE' }, actor);
+      const total =
+        (res.borrows?.length || 0) +
+        (res.requisitions?.length || 0) +
+        (res.roomBookings?.length || 0) +
+        (res.practiceBookings?.length || 0);
+      const replyText =
+        total === 0
+          ? '📋 ขณะนี้คุณยังไม่มีรายการคำขอที่กำลังดำเนินการครับ'
+          : `📋 **สรุปคำขอที่กำลังดำเนินการของคุณ (${total} รายการ):**\n• ยืมครุภัณฑ์: ${res.borrows.length} รายการ\n• เบิกเวชภัณฑ์: ${res.requisitions.length} รายการ\n• จองห้องแล็บ: ${res.roomBookings.length} รายการ\n• รอบฝึกทักษะ: ${res.practiceBookings.length} รายการ`;
+
+      return {
+        replyText,
+        sessionState: state,
+        toolsUsed: ['get_my_requests'],
+        suggestedLinks: deriveSuggestedLinks(['get_my_requests'], role),
+        quickReplies: getRoleQuickReplies(role),
+        source: 'ACTION_ENGINE',
+      };
+    }
+
+    // 7. รายวิชา / งบประมาณ
+    if (lower.includes('รายวิชา') || lower.includes('เหลืองบ') || lower.includes('งบประมาณ')) {
+      const res = await executeChatbotTool('get_courses_and_budgets', {}, actor);
+      const courses: any[] = res?.courses || [];
+      const replyText =
+        courses.length === 0
+          ? '📚 ไม่พบข้อมูลรายวิชาที่ตรงกับสิทธิ์ของคุณในขณะนี้ครับ'
+          : `📚 **ข้อมูลรายวิชา (${courses.length} วิชา):**\n` +
+            courses
+              .slice(0, 10)
+              .map((c) =>
+                typeof c.remainingBudget === 'number'
+                  ? `• **${c.code}** ${c.name} — นิสิต ${c.enrolledStudents} คน | งบคงเหลือ **${c.remainingBudget.toLocaleString()} บาท**`
+                  : `• **${c.code}** ${c.name} (อ.${c.instructorName})`
+              )
+              .join('\n');
+
+      return {
+        replyText,
+        sessionState: state,
+        toolsUsed: ['get_courses_and_budgets'],
+        suggestedLinks: deriveSuggestedLinks(['get_courses_and_budgets'], role),
+        quickReplies: getRoleQuickReplies(role),
+        source: 'ACTION_ENGINE',
+      };
+    }
+
+    // 8. แจ้งซ่อม / ชำรุด
+    if (lower.includes('ซ่อม') || lower.includes('ชำรุด')) {
+      const res = await executeChatbotTool('get_maintenance_and_issues', {}, actor);
+      const issues: any[] = res?.issueReports || [];
+      const replyText =
+        issues.length === 0
+          ? '🔧 ขณะนี้ไม่มีรายการแจ้งซ่อมหรือครุภัณฑ์ชำรุดค้างดำเนินการครับ'
+          : `🔧 **รายการแจ้งซ่อมที่รอดำเนินการ (${issues.length} รายการ):**\n` +
+            issues.slice(0, 8).map((i) => `• **${i.reportNumber}** (${i.assetCode} ${i.assetName}) — ${i.issueDescription} [${i.status}]`).join('\n');
+
+      return {
+        replyText,
+        sessionState: state,
+        toolsUsed: ['get_maintenance_and_issues'],
+        suggestedLinks: deriveSuggestedLinks(['get_maintenance_and_issues'], role),
+        quickReplies: getRoleQuickReplies(role),
+        source: 'ACTION_ENGINE',
+      };
+    }
+
+    // 9. ชุดฝึกปฏิบัติการ
+    if (lower.includes('ชุดฝึก') || lower.includes('kit')) {
+      const res = await executeChatbotTool('get_practice_kits', {}, actor);
+      const kits: any[] = res?.kits || [];
+      const replyText =
+        kits.length === 0
+          ? '🩺 ไม่พบข้อมูลชุดฝึกปฏิบัติการในระบบครับ'
+          : `🩺 **ชุดฝึกปฏิบัติการมาตรฐานในระบบ (${kits.length} ชุด):**\n` +
+            kits.slice(0, 10).map((k) => `• **${k.code}** ${k.name} (${k.category})`).join('\n');
+
+      return {
+        replyText,
+        sessionState: state,
+        toolsUsed: ['get_practice_kits'],
+        suggestedLinks: deriveSuggestedLinks(['get_practice_kits'], role),
+        quickReplies: getRoleQuickReplies(role),
+        source: 'ACTION_ENGINE',
+      };
+    }
+  } catch (err) {
+    console.warn('runLiveDbFallback error:', err);
+  }
+
+  return null;
 }
 
 function handleGeneralInquiry(text: string, userRole: string): ChatbotTurnResponse {

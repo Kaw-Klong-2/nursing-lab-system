@@ -17,6 +17,17 @@
 
 ## 🕒 ประวัติการดำเนินงาน (Chronological Work Log)
 
+### [2026-11-28] ยกระดับ AI Copilot สู่ Dual-Mode Command Center (`v2.11.0`)
+- **หมวดหมู่**: AI Copilot, Admin Write Actions, Streaming SSE, Daily Briefing & Feature Flag (`v2.11.0`)
+- **สิ่งที่ดำเนินการ**:
+  - **Version Bump (`v2.10.0` -> `v2.11.0`)**: รัน `node scripts/version-bump.mjs minor` ซิงก์ `package.json` และ `src/lib/version.ts` เป็น `v2.11.0`
+  - **ฐานข้อมูลและสวิตช์เปิด-ปิดสิทธิ์ (`prisma/schema.prisma`, `src/lib/chatbot-briefing.ts`, `src/app/api/chatbot/config/route.ts`)**: เพิ่มโมเดล `AiCopilotConfig` (`enableForTeachers`, `enableForStudents`, `enableForExecutives`, `defaultModelMode`) ให้ผู้ดูแลระบบเปิด-ปิดสิทธิ์ปุ่ม AI สำหรับอาจารย์ นิสิต และผู้บริหารได้จากหน้า `/admin/chatbot` พร้อมระบบ `DailyBriefingData` สรุป 7 KPI ประจำวัน
+  - **Admin Write-Action Engine พร้อม Preview & Impact Card (`src/lib/chatbot-admin-actions.ts`)**: เพิ่ม 10 เครื่องมือปฏิบัติการจริง (`propose_batch_ac_logs`, `propose_manage_holiday`, `propose_review_approvals`, `propose_overdue_reminders`, `propose_room_booking`, `propose_toggle_practice_slot`, `propose_send_broadcast`, `propose_update_issue_report`, `propose_course_enrollment`, `propose_stock_adjustment`) แสดงการ์ดตรวจสอบผลกระทบและข้อควรระวังก่อนยืนยันจริงทุกครั้ง พร้อมตรวจสิทธิ์ `ADMIN`/`OFFICER` ซ้ำและบันทึก `ActivityLog` อัตโนมัติ
+  - **Fast-Path, Dual Model Mode, Live-DB Fallback และ Streaming SSE (`src/lib/chatbot-gemini.ts`, `src/lib/chatbot-engine.ts`, `src/app/api/chatbot/stream/route.ts`, `src/lib/chatbot-stream-client.ts`)**: เพิ่ม Fast-Path ตอบคำถามง่ายทันที, สลับโหมด `⚡ เร็ว` (`gemini-3.5-flash-lite`) / `🧠 คิดลึก` (`gemini-3-flash-preview` + thinking), รองรับ `getGeminiApiKey()` ข้ามแพลตฟอร์ม Node/Vercel/Cloudflare, เพิ่ม `runLiveDbFallback` ค้นฐานข้อมูลตรงเมื่อไม่มีคีย์ API, และสตรีมสถานะขั้นตอน + ข้อความตอบกลับสดแบบ SSE
+  - **อัปเกรด UI แชท (`ChatMarkdown.tsx`, `DailyBriefingCard.tsx`, `PendingActionCard.tsx`, `LabCopilotWidget.tsx`, `src/app/admin/chatbot/page.tsx`)**: รองรับตาราง Markdown, โค้ดบล็อกพร้อมปุ่มคัดลอก, Daily Briefing Card คลิกถามต่อได้ทันที, Preview & Impact Card, แผงตั้งค่า AI Feature Flag, และแจ้งเตือนสถานะ `GEMINI_API_KEY`
+- **ไฟล์สำคัญที่แก้ไข/เพิ่ม**: `prisma/schema.prisma`, `src/types/chatbot.ts`, `src/lib/chatbot-admin-actions.ts`, `src/lib/chatbot-briefing.ts`, `src/lib/chatbot-gemini.ts`, `src/lib/chatbot-engine.ts`, `src/lib/chatbot-stream-client.ts`, `src/app/api/chatbot/route.ts`, `src/app/api/chatbot/stream/route.ts`, `src/app/api/chatbot/config/route.ts`, `src/components/chatbot/ChatMarkdown.tsx`, `src/components/chatbot/DailyBriefingCard.tsx`, `src/components/chatbot/PendingActionCard.tsx`, `src/components/chatbot/LabCopilotWidget.tsx`, `src/app/admin/chatbot/page.tsx`, `package.json`, `src/lib/version.ts`, `LIBRARY_CATALOG.md`, `docs/WORK_LOG.md`
+- **ผลตรวจมาตรฐานบรรณารักษ์**: ผ่าน 100% (`npx tsc --noEmit`, `npm run build`, ทดสอบ End-to-End 5 ด้าน, `npm run librarian:audit` และ `npm run graphify:update`)
+
 ### [2026-11-28] ยกระดับความปลอดภัย `EXTERNAL_SYNC_API_KEY` สำหรับ Portal Hand-off และ External Room Sync
 - **หมวดหมู่**: Auth, SSO Security & External API Integration
 - **สิ่งที่ดำเนินการ**:
